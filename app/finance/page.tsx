@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  ChevronDown,
   Search,
   Plus,
   Download,
@@ -15,6 +14,11 @@ import {
   MoreHorizontal,
   Receipt,
 } from "lucide-react";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { useSavedSegments } from "@/hooks/use-saved-segments";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -50,69 +54,31 @@ const METHOD_CONFIG: Record<PaymentMethod, string> = {
   Card:            "bg-amber-100 text-amber-700",
 };
 
-const STATUS_FILTERS = ["All", "Draft", "Issued", "Part", "Paid", "Overdue", "Cancelled"];
-const DEPT_FILTERS   = ["All", "Primary", "Lower Secondary", "Senior"];
-const DATE_FILTERS   = ["This Term", "Last Term", "This Month", "Custom"];
+const STATUS_FILTER_OPTIONS = ["Draft", "Issued", "Part", "Paid", "Overdue", "Cancelled"];
+const DEPT_FILTER_OPTIONS   = ["Primary", "Lower Secondary", "Senior"];
 
-// ─── FilterDropdown ───────────────────────────────────────────────────────────
+// ─── Save Segment Popover ─────────────────────────────────────────────────────
 
-function FilterDropdown({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function h(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  const defaultVal = options[0];
-  const active = value !== defaultVal;
-
+function SaveSegmentPopover({ onSave, onClose }: { onSave: (name: string) => void; onClose: () => void }) {
+  const [name, setName] = useState("");
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors cursor-pointer",
-          active
-            ? "bg-amber-50 border-amber-300 text-amber-800"
-            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-        )}
-      >
-        {active ? `${label}: ${value}` : label}
-        <ChevronDown className="w-3.5 h-3.5" />
-      </button>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 z-30 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px]">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm transition-colors cursor-pointer",
-                value === opt
-                  ? "bg-amber-50 text-amber-800 font-medium"
-                  : "text-slate-700 hover:bg-slate-50"
-              )}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="absolute z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-56 top-full left-0 mt-1">
+      <p className="text-xs font-medium text-slate-700 mb-2">Name this segment</p>
+      <input
+        autoFocus
+        className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm mb-2 focus:outline-none focus:border-amber-400"
+        placeholder="e.g. Overdue Primary"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && name.trim()) onSave(name.trim());
+          if (e.key === "Escape") onClose();
+        }}
+      />
+      <div className="flex gap-2">
+        <button onClick={() => name.trim() && onSave(name.trim())} className="flex-1 bg-amber-500 text-white text-xs py-1.5 rounded-lg hover:bg-amber-600 cursor-pointer">Save</button>
+        <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 text-xs py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">Cancel</button>
+      </div>
     </div>
   );
 }
@@ -372,16 +338,43 @@ function InvoiceSlideover({
 // ─── Tab 1 — Invoices ─────────────────────────────────────────────────────────
 
 function InvoicesTab() {
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [deptFilter, setDeptFilter]     = useState("All");
-  const [dateFilter, setDateFilter]     = useState("This Term");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [deptFilter, setDeptFilter]     = useState<string[]>([]);
+  const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
   const [search, setSearch]             = useState("");
   const [selected, setSelected]         = useState<Invoice | null>(null);
 
+  // Sort
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Segments
+  const { segments, saveSegment, deleteSegment } = useSavedSegments("finance");
+  const [savePopoverOpen, setSavePopoverOpen] = useState(false);
+
+  const hasActiveFilters = statusFilter.length > 0 || deptFilter.length > 0 || dateRange.from != null;
+
+  useEffect(() => { setPage(1); }, [statusFilter, deptFilter, dateRange, search]);
+
+  function toggleSort(field: string) {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  }
+
+  function applySegment(filters: Record<string, string[]>) {
+    setStatusFilter(filters.status ?? []);
+    setDeptFilter(filters.department ?? []);
+    setPage(1);
+  }
+
   const filtered = useMemo(() => {
-    return invoices.filter((inv) => {
-      if (statusFilter !== "All" && inv.status !== statusFilter) return false;
-      if (deptFilter !== "All" && inv.department !== deptFilter) return false;
+    let data = invoices.filter((inv) => {
+      if (statusFilter.length > 0 && !statusFilter.includes(inv.status)) return false;
+      if (deptFilter.length > 0 && !deptFilter.includes(inv.department)) return false;
       if (search) {
         const q = search.toLowerCase();
         if (
@@ -392,7 +385,23 @@ function InvoicesTab() {
       }
       return true;
     });
-  }, [statusFilter, deptFilter, search]);
+    if (sortField) {
+      data = [...data].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[sortField];
+        const bv = (b as unknown as Record<string, unknown>)[sortField];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return data;
+  }, [statusFilter, deptFilter, search, sortField, sortDir]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
   return (
     <div className="space-y-4">
@@ -404,11 +413,39 @@ function InvoicesTab() {
         <SummaryCard label="Overdue"                  value="AED 18,400" sub="23 invoices" accent="red" />
       </div>
 
+      {/* Saved segments */}
+      {segments.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-400 uppercase tracking-wide">Saved:</span>
+          {segments.map(seg => (
+            <div key={seg.id} className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+              <button onClick={() => applySegment(seg.filters)} className="text-xs text-amber-700 font-medium hover:text-amber-900 cursor-pointer">{seg.name}</button>
+              <button onClick={() => deleteSegment(seg.id)} className="text-amber-400 hover:text-amber-700 ml-1 text-xs cursor-pointer">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Filter & Search */}
       <div className="flex items-center gap-2 flex-wrap">
-        <FilterDropdown label="Status"     value={statusFilter} options={STATUS_FILTERS} onChange={setStatusFilter} />
-        <FilterDropdown label="Department" value={deptFilter}   options={DEPT_FILTERS}   onChange={setDeptFilter}   />
-        <FilterDropdown label="Period"     value={dateFilter}   options={DATE_FILTERS}   onChange={setDateFilter}   />
+        <MultiSelectFilter label="Status"     options={STATUS_FILTER_OPTIONS} selected={statusFilter} onChange={setStatusFilter} />
+        <MultiSelectFilter label="Department" options={DEPT_FILTER_OPTIONS}   selected={deptFilter}   onChange={setDeptFilter}   />
+        <DateRangePicker value={dateRange} onChange={setDateRange} presets={DATE_PRESETS} placeholder="Period" />
+
+        {hasActiveFilters && (
+          <div className="relative flex items-center gap-2">
+            <button onClick={() => { setStatusFilter([]); setDeptFilter([]); setDateRange({ from: null, to: null }); }} className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700 font-medium cursor-pointer">
+              <X className="w-3.5 h-3.5" />Clear filters
+            </button>
+            <button onClick={() => setSavePopoverOpen(true)} className="text-xs text-amber-600 hover:text-amber-800 underline cursor-pointer">Save segment</button>
+            {savePopoverOpen && (
+              <SaveSegmentPopover
+                onSave={(name) => { saveSegment(name, { status: statusFilter, department: deptFilter }); setSavePopoverOpen(false); }}
+                onClose={() => setSavePopoverOpen(false)}
+              />
+            )}
+          </div>
+        )}
 
         <div className="relative min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -438,19 +475,19 @@ function InvoicesTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Invoice #</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Student</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Guardian</th>
+                <SortableHeader label="Invoice #"   field="id"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Student"     field="student"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Guardian"    field="guardian"    sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap hidden md:table-cell">Description</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Issue Date</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap hidden md:table-cell">Due Date</th>
-                <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Amount</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Status</th>
+                <SortableHeader label="Issue Date"  field="issueDate"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Due Date"    field="dueDate"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} className="hidden md:table-cell" />
+                <SortableHeader label="Amount"      field="amount"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="right" />
+                <SortableHeader label="Status"      field="status"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inv) => (
+              {paginated.map((inv) => (
                 <tr
                   key={inv.id}
                   onClick={() => setSelected(inv)}
@@ -516,6 +553,13 @@ function InvoicesTab() {
             />
           )}
         </div>
+        <PaginationBar
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {selected && <InvoiceSlideover invoice={selected} onClose={() => setSelected(null)} />}

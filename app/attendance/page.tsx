@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, Fragment } from "react";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import {
   Clock,
   MapPin,
@@ -124,6 +126,8 @@ export default function AttendancePage() {
   const [openNote, setOpenNote]     = useState<string | null>(null);
   const [openMenu, setOpenMenu]     = useState<string | null>(null);
   const [overviewTab, setOverviewTab] = useState<OverviewTab>("unmarked");
+  const [absenceDeptFilter, setAbsenceDeptFilter] = useState<string[]>([]);
+  const [absenceDateRange, setAbsenceDateRange]   = useState<DateRange>({ from: null, to: null });
 
   const todaySessions   = timetableSessions.filter(s => s.day === "Mon");
   const selectedSession = todaySessions.find(s => s.id === selectedId) ?? todaySessions[0];
@@ -583,6 +587,21 @@ export default function AttendancePage() {
 
           {/* ── Sub-tab B: Absence Summary ─────────────────────────────── */}
           {overviewTab === "absence" && (
+            <>
+            <div className="flex items-center gap-2 flex-wrap mb-4">
+              <MultiSelectFilter
+                label="Department"
+                options={["Primary", "Lower Secondary", "Senior"]}
+                selected={absenceDeptFilter}
+                onChange={setAbsenceDeptFilter}
+              />
+              <DateRangePicker
+                value={absenceDateRange}
+                onChange={setAbsenceDateRange}
+                presets={DATE_PRESETS}
+                placeholder="Date range"
+              />
+            </div>
             <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
               <table className="w-full min-w-[900px]">
                 <thead>
@@ -614,7 +633,10 @@ export default function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {absenceSummary.map((row, i) => (
+                  {(absenceDeptFilter.length > 0
+                    ? absenceSummary.filter(row => absenceDeptFilter.includes(row.dept))
+                    : absenceSummary
+                  ).map((row, i) => (
                     <tr key={i} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
@@ -679,6 +701,7 @@ export default function AttendancePage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* ── Sub-tab C: Makeup Log ──────────────────────────────────── */}

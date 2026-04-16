@@ -99,8 +99,8 @@ const staffMetaByName: Record<string, { feedback: number; attendance: number; co
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DEPT_COLORS = { Primary: "#F59E0B", LowerSec: "#14B8A6", Senior: "#0F172A" };
-const DONUT_COLORS = ["#F59E0B", "#14B8A6", "#0F172A"];
+const DEPT_COLORS = { Primary: "#f472b6", LowerSec: "#22d3ee", Senior: "#fb923c" };
+const DONUT_COLORS = ["#f472b6", "#22d3ee", "#fb923c"];
 
 function formatAED(val: number): string {
   return `AED ${val.toLocaleString()}`;
@@ -116,10 +116,11 @@ function getChurnBadge(level: ChurnRiskStudent["churnLevel"]) {
 }
 
 function getOccupancyColor(pct: number): string {
-  if (pct >= 85) return "bg-[#0F172A] text-white";
-  if (pct >= 70) return "bg-teal-500/20 text-teal-800";
-  if (pct >= 50) return "bg-amber-300/40 text-amber-900";
-  return "bg-slate-100 text-slate-400";
+  if (pct === 0) return "bg-slate-100 text-slate-700";
+  if (pct < 50)  return "bg-green-100 text-slate-700";
+  if (pct < 70)  return "bg-green-300 text-slate-700";
+  if (pct < 85)  return "bg-green-500 text-slate-700";
+  return "bg-green-700 text-white";
 }
 
 function getRoomStatusPill(status: string) {
@@ -204,7 +205,7 @@ function RevenueTab() {
               <XAxis type="number" tickFormatter={(v) => `${v / 1000}k`} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="subject" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} width={90} />
               <Tooltip formatter={(v: unknown) => [formatAED(v as number), "Revenue"]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-              <Bar dataKey="revenue" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="revenue" fill="#6366f1" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -292,16 +293,19 @@ function OccupancyTab() {
             {/* Legend */}
             <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500 flex-wrap">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-slate-100 border border-slate-200 inline-block" /> &lt;50%
+                <span className="w-3 h-3 rounded-sm bg-slate-100 border border-slate-200 inline-block" /> Empty
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-amber-300/40 inline-block" /> 50–69%
+                <span className="w-3 h-3 rounded-sm bg-green-100 inline-block" /> Low
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-teal-500/20 border border-teal-200 inline-block" /> 70–84%
+                <span className="w-3 h-3 rounded-sm bg-green-300 inline-block" /> Moderate
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-[#0F172A] inline-block" /> 85%+
+                <span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> Good
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-green-700 inline-block" /> Full
               </span>
             </div>
           </div>
@@ -394,7 +398,7 @@ function ChurnTab() {
               <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="signal" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} width={148} />
               <Tooltip formatter={(v: unknown) => [`${v as number} students`, "Count"]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-              <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="count" fill="#ef4444" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -466,7 +470,7 @@ function StaffTab() {
             <XAxis type="number" domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="teacher" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} width={120} />
             <Tooltip formatter={(v: unknown) => [`${v as number} / 5`, "Score"]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
-            <Bar dataKey="score" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="score" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Card>

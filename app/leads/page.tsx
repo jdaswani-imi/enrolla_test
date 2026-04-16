@@ -5,10 +5,10 @@ import {
   LayoutGrid,
   List,
   Table2,
-  ChevronDown,
   MoreHorizontal,
   Bell,
   Plus,
+  Search,
   X,
   MoveRight,
   StickyNote,
@@ -17,6 +17,10 @@ import {
   Eye,
   Filter,
 } from "lucide-react";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { useSavedSegments } from "@/hooks/use-saved-segments";
 import { cn } from "@/lib/utils";
 import { leads, type Lead, type LeadStage, type LeadSource } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -96,10 +100,10 @@ const SOURCE_CONFIG: Record<LeadSource, string> = {
   Event: "bg-purple-100 text-purple-700",
 };
 
-const STAGE_FILTERS = ["All", ...STAGES];
-const SOURCE_FILTERS: string[] = ["All", "Website", "Phone", "Walk-in", "Referral", "Event"];
-const DEPT_FILTERS = ["All", "Primary", "Lower Secondary", "Senior"];
-const ASSIGNED_FILTERS = ["All", "Jason Daswani", "Sarah Admin"];
+const STAGE_FILTER_OPTIONS: string[] = [...STAGES];
+const SOURCE_FILTER_OPTIONS: string[] = ["Website", "Phone", "Walk-in", "Referral", "Event"];
+const DEPT_FILTER_OPTIONS = ["Primary", "Lower Secondary", "Senior"];
+const ASSIGNED_FILTER_OPTIONS = ["Jason Daswani", "Sarah Admin"];
 
 // ─── Avatar helpers ───────────────────────────────────────────────────────────
 
@@ -126,64 +130,28 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-// ─── FilterDropdown ───────────────────────────────────────────────────────────
+// ─── Save Segment Popover ──────────────────────────────────────────────────────
 
-function FilterDropdown({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const active = value !== "All";
-
+function SaveSegmentPopover({ onSave, onClose }: { onSave: (name: string) => void; onClose: () => void }) {
+  const [name, setName] = useState("");
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors cursor-pointer",
-          active
-            ? "bg-amber-50 border-amber-300 text-amber-800"
-            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-        )}
-      >
-        {active ? `${label}: ${value}` : label}
-        <ChevronDown className="w-3.5 h-3.5" />
-      </button>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 z-30 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px]">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm transition-colors cursor-pointer",
-                value === opt
-                  ? "bg-amber-50 text-amber-800 font-medium"
-                  : "text-slate-700 hover:bg-slate-50"
-              )}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="absolute z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-56 top-full left-0 mt-1">
+      <p className="text-xs font-medium text-slate-700 mb-2">Name this segment</p>
+      <input
+        autoFocus
+        className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm mb-2 focus:outline-none focus:border-amber-400"
+        placeholder="e.g. High-priority leads"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && name.trim()) onSave(name.trim());
+          if (e.key === "Escape") onClose();
+        }}
+      />
+      <div className="flex gap-2">
+        <button onClick={() => name.trim() && onSave(name.trim())} className="flex-1 bg-amber-500 text-white text-xs py-1.5 rounded-lg hover:bg-amber-600 cursor-pointer">Save</button>
+        <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 text-xs py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">Cancel</button>
+      </div>
     </div>
   );
 }
@@ -268,7 +236,7 @@ function KanbanColumn({ stage, stageLeads }: { stage: LeadStage; stageLeads: Lea
   const cfg = STAGE_CONFIG[stage];
 
   return (
-    <div className="flex flex-col shrink-0 w-[280px]">
+    <div className="flex flex-col shrink-0 w-[260px]">
       {/* Column header */}
       <div className={cn("flex items-center justify-between px-3 py-2 rounded-t-lg border border-b-0 border-slate-200", cfg.colBg)}>
         <span className={cn("font-semibold text-sm", cfg.headerText)}>{stage}</span>
@@ -480,37 +448,96 @@ export default function LeadsPage() {
     if (typeof window !== "undefined" && window.innerWidth < 768) return "list";
     return "kanban";
   });
-  const [stageFilter, setStageFilter] = useState("All");
-  const [sourceFilter, setSourceFilter] = useState("All");
-  const [deptFilter, setDeptFilter] = useState("All");
-  const [assignedFilter, setAssignedFilter] = useState("All");
+  const [stageFilter, setStageFilter] = useState<string[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<string[]>([]);
+  const [deptFilter, setDeptFilter] = useState<string[]>([]);
+  const [assignedFilter, setAssignedFilter] = useState<string[]>([]);
   const [myLeads, setMyLeads] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
+  // Sort
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Pagination (list/table views)
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Segments
+  const { segments, saveSegment, deleteSegment } = useSavedSegments("leads");
+  const [savePopoverOpen, setSavePopoverOpen] = useState(false);
+
   const hasActiveFilters =
-    stageFilter !== "All" ||
-    sourceFilter !== "All" ||
-    deptFilter !== "All" ||
-    assignedFilter !== "All" ||
-    myLeads;
+    stageFilter.length > 0 || sourceFilter.length > 0 ||
+    deptFilter.length > 0 || assignedFilter.length > 0 || myLeads || searchQuery !== "";
+
+  // Reset page when filters/view change
+  useEffect(() => { setPage(1); }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view]);
+
+  function toggleSort(field: string) {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  }
 
   const filteredLeads = useMemo(() => {
-    return leads.filter((l) => {
-      if (stageFilter !== "All" && l.stage !== stageFilter) return false;
-      if (sourceFilter !== "All" && l.source !== sourceFilter) return false;
-      if (deptFilter !== "All" && l.department !== deptFilter) return false;
-      if (assignedFilter !== "All" && l.assignedTo !== assignedFilter) return false;
+    let data = leads.filter((l) => {
+      if (stageFilter.length > 0 && !stageFilter.includes(l.stage)) return false;
+      if (sourceFilter.length > 0 && !sourceFilter.includes(l.source)) return false;
+      if (deptFilter.length > 0 && !deptFilter.includes(l.department)) return false;
+      if (assignedFilter.length > 0 && !assignedFilter.includes(l.assignedTo)) return false;
       if (myLeads && l.assignedTo !== "Jason Daswani") return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (
+          !l.childName.toLowerCase().includes(q) &&
+          !l.guardian.toLowerCase().includes(q) &&
+          !l.subjects.join(" ").toLowerCase().includes(q)
+        ) return false;
+      }
       return true;
     });
-  }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads]);
+    if (sortField) {
+      data = [...data].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[sortField];
+        const bv = (b as unknown as Record<string, unknown>)[sortField];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return data;
+  }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, sortField, sortDir]);
+
+  const paginatedLeads = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredLeads.slice(start, start + pageSize);
+  }, [filteredLeads, page, pageSize]);
 
   function clearFilters() {
-    setStageFilter("All");
-    setSourceFilter("All");
-    setDeptFilter("All");
-    setAssignedFilter("All");
+    setStageFilter([]);
+    setSourceFilter([]);
+    setDeptFilter([]);
+    setAssignedFilter([]);
     setMyLeads(false);
+    setSearchQuery("");
+  }
+
+  const currentFilters = {
+    stage: stageFilter,
+    source: sourceFilter,
+    department: deptFilter,
+    assigned: assignedFilter,
+  };
+
+  function applySegment(filters: Record<string, string[]>) {
+    setStageFilter(filters.stage ?? []);
+    setSourceFilter(filters.source ?? []);
+    setDeptFilter(filters.department ?? []);
+    setAssignedFilter(filters.assigned ?? []);
+    setPage(1);
   }
 
   const viewButtons: { key: ViewMode; Icon: React.ElementType; label: string }[] = [
@@ -532,14 +559,53 @@ export default function LeadsPage() {
         </button>
       </div>
 
+      {/* ── Saved segments ──────────────────────────────────────────────────── */}
+      {segments.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <span className="text-xs text-slate-400 uppercase tracking-wide">Saved:</span>
+          {segments.map(seg => (
+            <div key={seg.id} className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+              <button onClick={() => applySegment(seg.filters)} className="text-xs text-amber-700 font-medium hover:text-amber-900 cursor-pointer">{seg.name}</button>
+              <button onClick={() => deleteSegment(seg.id)} className="text-amber-400 hover:text-amber-700 ml-1 text-xs cursor-pointer">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Filter & View Bar ───────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <FilterDropdown label="Stage" value={stageFilter} options={STAGE_FILTERS} onChange={setStageFilter} />
-          <FilterDropdown label="Source" value={sourceFilter} options={SOURCE_FILTERS} onChange={setSourceFilter} />
-          <FilterDropdown label="Department" value={deptFilter} options={DEPT_FILTERS} onChange={setDeptFilter} />
-          <FilterDropdown label="Assigned to" value={assignedFilter} options={ASSIGNED_FILTERS} onChange={setAssignedFilter} />
+          {/* Search — leftmost */}
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name, guardian, school, subject..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              className={cn(
+                "pl-8 pr-7 py-1.5 text-sm border border-slate-200 bg-white rounded-md outline-none text-slate-700 placeholder:text-slate-400 transition-[width] duration-200 focus:border-amber-400",
+                searchFocused || searchQuery ? "w-72" : "w-56"
+              )}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <MultiSelectFilter label="Stage"       options={STAGE_FILTER_OPTIONS}    selected={stageFilter}    onChange={setStageFilter}    />
+          <MultiSelectFilter label="Source"      options={SOURCE_FILTER_OPTIONS}   selected={sourceFilter}   onChange={setSourceFilter}   />
+          <MultiSelectFilter label="Department"  options={DEPT_FILTER_OPTIONS}     selected={deptFilter}     onChange={setDeptFilter}     />
+          <MultiSelectFilter label="Assigned to" options={ASSIGNED_FILTER_OPTIONS} selected={assignedFilter} onChange={setAssignedFilter} />
 
           {/* My Leads toggle */}
           <div className="flex items-center gap-2 pl-1">
@@ -563,12 +629,20 @@ export default function LeadsPage() {
           </div>
 
           {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="text-xs text-slate-500 hover:text-amber-600 underline cursor-pointer transition-colors"
-            >
-              Clear filters
-            </button>
+            <div className="relative flex items-center gap-2">
+              <button onClick={clearFilters} className="text-xs text-slate-500 hover:text-amber-600 underline cursor-pointer transition-colors">
+                Clear filters
+              </button>
+              <button onClick={() => setSavePopoverOpen(true)} className="text-xs text-amber-600 hover:text-amber-800 underline cursor-pointer">
+                Save segment
+              </button>
+              {savePopoverOpen && (
+                <SaveSegmentPopover
+                  onSave={(name) => { saveSegment(name, currentFilters); setSavePopoverOpen(false); }}
+                  onClose={() => setSavePopoverOpen(false)}
+                />
+              )}
+            </div>
           )}
         </div>
 
@@ -595,7 +669,7 @@ export default function LeadsPage() {
 
       {/* ── Kanban View ─────────────────────────────────────────────────── */}
       {view === "kanban" && (
-        <div className="flex gap-3 overflow-x-auto pb-4 min-h-0 flex-1">
+        <div className="flex gap-3 overflow-x-auto pb-4 min-h-0 flex-1 -mx-6 px-6">
           {STAGES.map((stage) => (
             <KanbanColumn
               key={stage}
@@ -613,18 +687,20 @@ export default function LeadsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  {["Lead", "Guardian", "Year", "Subject(s)", "Source", "Stage", "Assigned", "Last Activity", "Days", ""].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  <SortableHeader label="Lead"          field="childName"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Guardian"      field="guardian"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Year"          field="yearGroup"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Subject(s)</th>
+                  <SortableHeader label="Source"        field="source"         sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Stage"         field="stage"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Assigned"      field="assignedTo"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Last Activity" field="lastActivity"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Days"          field="daysInPipeline" sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
+                  <th className="w-12 px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
-                {filteredLeads.map((lead) => {
+                {paginatedLeads.map((lead) => {
                   const cfg = STAGE_CONFIG[lead.stage];
                   const palette = getAvatarPalette(lead.assignedTo);
                   return (
@@ -704,6 +780,13 @@ export default function LeadsPage() {
                 action={{ label: "Clear filters", onClick: clearFilters }}
               />
             )}
+            <PaginationBar
+              total={filteredLeads.length}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
           </div>
         </div>
       )}
@@ -715,18 +798,17 @@ export default function LeadsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  {["Child Name", "Year", "Stage", "Source", "Assigned", "Last Activity", "Days"].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-2.5 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  <SortableHeader label="Child Name"    field="childName"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Year"          field="yearGroup"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Stage"         field="stage"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Source"        field="source"         sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Assigned"      field="assignedTo"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Last Activity" field="lastActivity"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <SortableHeader label="Days"          field="daysInPipeline" sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
                 </tr>
               </thead>
               <tbody>
-                {filteredLeads.map((lead) => {
+                {paginatedLeads.map((lead) => {
                   const cfg = STAGE_CONFIG[lead.stage];
                   const palette = getAvatarPalette(lead.assignedTo);
                   return (
@@ -787,6 +869,13 @@ export default function LeadsPage() {
                 action={{ label: "Clear filters", onClick: clearFilters }}
               />
             )}
+            <PaginationBar
+              total={filteredLeads.length}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
           </div>
         </div>
       )}

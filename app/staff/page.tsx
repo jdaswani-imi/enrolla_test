@@ -3,11 +3,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Search,
-  ChevronDown,
   MoreHorizontal,
   X,
   Plus,
-  Check,
   UserCheck,
   UserMinus,
   Clock,
@@ -27,6 +25,9 @@ import {
 import { cn } from "@/lib/utils";
 import { staffMembers, type StaffMember, type StaffStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -105,69 +106,6 @@ function CpdBar({ hours, target }: { hours: number; target: number }) {
       <span className={cn("text-xs tabular-nums shrink-0", danger ? "text-red-500" : "text-slate-500")}>
         {hours} / {target}
       </span>
-    </div>
-  );
-}
-
-// ─── FilterDropdown ────────────────────────────────────────────────────────────
-
-function FilterDropdown({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const active = value !== options[0];
-
-  useEffect(() => {
-    function h(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer whitespace-nowrap",
-          active
-            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-            : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700"
-        )}
-      >
-        {active ? `${label}: ${value}` : label}
-        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-150", open && "rotate-180")} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[190px] py-1">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between gap-2 cursor-pointer",
-                value === opt ? "text-amber-600 font-medium bg-amber-50" : "text-slate-700 hover:bg-slate-50"
-              )}
-            >
-              {opt}
-              {value === opt && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -602,31 +540,59 @@ function StatCard({
 
 // ─── Filters ───────────────────────────────────────────────────────────────────
 
-const STATUS_FILTERS = ["All", "Active", "On Leave", "Suspended", "Off-boarded"];
-const DEPT_FILTERS   = ["All", "Primary", "Lower Secondary", "Senior", "Admin"];
-const ROLE_FILTERS   = ["All", "Teacher", "TA", "Admin", "Admin Head", "HOD", "Academic Head", "HR-Finance", "Super Admin"];
+const STATUS_FILTER_OPTIONS = ["Active", "On Leave", "Suspended", "Off-boarded"];
+const DEPT_FILTER_OPTIONS   = ["Primary", "Lower Secondary", "Senior", "Admin"];
+const ROLE_FILTER_OPTIONS   = ["Teacher", "TA", "Admin", "Admin Head", "HOD", "Academic Head", "HR-Finance", "Super Admin"];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function StaffPage() {
   const [outerTab,      setOuterTab]      = useState<"directory" | "hr">("directory");
-  const [statusFilter,  setStatusFilter]  = useState("All");
-  const [deptFilter,    setDeptFilter]    = useState("All");
-  const [roleFilter,    setRoleFilter]    = useState("All");
+  const [statusFilter,  setStatusFilter]  = useState<string[]>([]);
+  const [deptFilter,    setDeptFilter]    = useState<string[]>([]);
+  const [roleFilter,    setRoleFilter]    = useState<string[]>([]);
   const [search,        setSearch]        = useState("");
   const [openMenu,      setOpenMenu]      = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir,   setSortDir]   = useState<"asc" | "desc">("asc");
+  function toggleSort(field: string) {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  }
+
+  const [page,     setPage]     = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  useEffect(() => { setPage(1); }, [statusFilter, deptFilter, roleFilter, search]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return staffMembers.filter((s) => {
-      if (statusFilter !== "All" && s.status !== statusFilter) return false;
-      if (deptFilter   !== "All" && s.department !== deptFilter) return false;
-      if (roleFilter   !== "All" && s.role !== roleFilter) return false;
+    let data = staffMembers.filter((s) => {
+      if (statusFilter.length > 0 && !statusFilter.includes(s.status)) return false;
+      if (deptFilter.length > 0   && !deptFilter.includes(s.department)) return false;
+      if (roleFilter.length > 0   && !roleFilter.includes(s.role)) return false;
       if (q && !s.name.toLowerCase().includes(q) && !s.email.toLowerCase().includes(q) && !s.role.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [statusFilter, deptFilter, roleFilter, search]);
+    if (sortField) {
+      data = [...data].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[sortField];
+        const bv = (b as unknown as Record<string, unknown>)[sortField];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return data;
+  }, [statusFilter, deptFilter, roleFilter, search, sortField, sortDir]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
   const teachingStaff = useMemo(
     () => [...staffMembers.filter((s) => ["Teacher", "TA", "HOD"].includes(s.role))].sort((a, b) => b.sessionsThisWeek - a.sessionsThisWeek),
@@ -680,9 +646,9 @@ export default function StaffPage() {
           {/* Filter bar */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <FilterDropdown label="Status"     value={statusFilter} options={STATUS_FILTERS} onChange={setStatusFilter} />
-              <FilterDropdown label="Department" value={deptFilter}   options={DEPT_FILTERS}   onChange={setDeptFilter}   />
-              <FilterDropdown label="Role"       value={roleFilter}   options={ROLE_FILTERS}   onChange={setRoleFilter}   />
+              <MultiSelectFilter label="Status"     options={STATUS_FILTER_OPTIONS} selected={statusFilter} onChange={setStatusFilter} />
+              <MultiSelectFilter label="Department" options={DEPT_FILTER_OPTIONS}   selected={deptFilter}   onChange={setDeptFilter}   />
+              <MultiSelectFilter label="Role"       options={ROLE_FILTER_OPTIONS}   selected={roleFilter}   onChange={setRoleFilter}   />
 
               <div className="relative flex-1 min-w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -711,18 +677,18 @@ export default function StaffPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Staff Member</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Role</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden md:table-cell">Department</th>
+                    <SortableHeader label="Staff Member"  field="name"             sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Role"          field="role"             sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Department"    field="department"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} className="hidden md:table-cell" />
                     <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden lg:table-cell">Subjects</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden lg:table-cell">Sessions/Wk</th>
+                    <SortableHeader label="Sessions/Wk"  field="sessionsThisWeek" sortField={sortField} sortDir={sortDir} onSort={toggleSort} className="hidden lg:table-cell" />
                     <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden xl:table-cell">CPD Progress</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Status</th>
+                    <SortableHeader label="Status"        field="status"           sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((s) => {
+                  {paginated.map((s) => {
                     const pal = getAvatarPalette(s.name);
                     const rowTint =
                       s.status === "Suspended" ? "bg-red-50 hover:bg-red-100/60" :
@@ -822,9 +788,13 @@ export default function StaffPage() {
               </table>
             </div>
 
-            <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50">
-              <p className="text-xs text-slate-400">Showing {filtered.length} of {staffMembers.length} staff</p>
-            </div>
+            <PaginationBar
+              total={filtered.length}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+            />
           </div>
         </div>
       )}

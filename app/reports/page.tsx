@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   FileText,
   Download,
@@ -208,15 +209,24 @@ export default function ReportsPage() {
   const [formatFilter, setFormatFilter] = useState<ReportFormat | "All">("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("This Month");
   const [search, setSearch] = useState("");
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const filtered = reports.filter((r) => {
+  const filtered = useMemo(() => reports.filter((r) => {
     if (typeFilter !== "All" && r.type !== typeFilter) return false;
     if (statusFilter === "Unread" && r.read) return false;
     if (statusFilter === "Read" && !r.read) return false;
     if (formatFilter !== "All" && r.format !== formatFilter) return false;
     if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  });
+  }), [typeFilter, statusFilter, formatFilter, search]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
+  useEffect(() => { setPage(1); }, [typeFilter, statusFilter, formatFilter, search]);
 
   const unreadCount = reports.filter((r) => !r.read).length;
 
@@ -282,8 +292,15 @@ export default function ReportsPage() {
             description="No reports match your current filters."
           />
         ) : (
-          filtered.map((report) => <ReportRow key={report.id} report={report} />)
+          paginated.map((report) => <ReportRow key={report.id} report={report} />)
         )}
+        <PaginationBar
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Scheduled Reports section */}

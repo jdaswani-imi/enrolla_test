@@ -6,7 +6,6 @@ import {
   Search,
   Plus,
   MoreHorizontal,
-  ChevronDown,
   X,
   Eye,
   FileText,
@@ -17,6 +16,9 @@ import {
   ArrowUpCircle,
   AlertTriangle,
 } from "lucide-react";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -246,51 +248,6 @@ function StatCard({ label, value, accent = "none" }: StatCardProps) {
   );
 }
 
-interface FilterDropdownProps {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}
-
-function FilterDropdown({ label, value, options, onChange }: FilterDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const isDefault = value === options[0];
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors cursor-pointer",
-          isDefault
-            ? "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-            : "bg-amber-50 border-amber-300 text-amber-800"
-        )}
-      >
-        {isDefault ? label : value}
-        <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 cursor-pointer transition-colors",
-                value === opt ? "text-amber-700 font-medium" : "text-slate-700"
-              )}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface ActionMenuItem {
   label: string;
   icon: React.ReactNode;
@@ -488,30 +445,71 @@ function TrackerSlideOver({ tracker, onClose }: { tracker: Tracker; onClose: () 
 // ─── Tab 1 — Trackers ─────────────────────────────────────────────────────────
 
 function TrackersTab() {
-  const [dept,    setDept]    = useState("All");
-  const [subject, setSubject] = useState("All");
-  const [year,    setYear]    = useState("All");
-  const [tier,    setTier]    = useState("All");
+  const [dept,    setDept]    = useState<string[]>([]);
+  const [subject, setSubject] = useState<string[]>([]);
+  const [year,    setYear]    = useState<string[]>([]);
+  const [tier,    setTier]    = useState<string[]>([]);
   const [search,  setSearch]  = useState("");
   const [selected, setSelected] = useState<Tracker | null>(null);
 
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
+  function toggleSort(field: string) {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  }
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  useEffect(() => { setPage(1); }, [dept, subject, year, tier, search]);
+
   const filtered = useMemo(() => {
-    return TRACKERS.filter((t) => {
-      if (dept !== "All") {
+    let data = TRACKERS.filter((t) => {
+      if (dept.length > 0) {
         const yNum = parseInt(t.year.replace("Y", ""));
-        if (dept === "Primary"         && (yNum < 1  || yNum > 6))  return false;
-        if (dept === "Lower Secondary" && (yNum < 7  || yNum > 9))  return false;
-        if (dept === "Senior"          && (yNum < 10 || yNum > 13)) return false;
+        if (dept.includes("Primary")         && !(yNum >= 1  && yNum <= 6))  return false;
+        if (dept.includes("Lower Secondary") && !(yNum >= 7  && yNum <= 9))  return false;
+        if (dept.includes("Senior")          && !(yNum >= 10 && yNum <= 13)) return false;
+        // If dept filter is set but no dept matches this student, exclude
+        const inPrimary  = yNum >= 1  && yNum <= 6;
+        const inLower    = yNum >= 7  && yNum <= 9;
+        const inSenior   = yNum >= 10 && yNum <= 13;
+        const allowed = dept.some(d =>
+          (d === "Primary" && inPrimary) ||
+          (d === "Lower Secondary" && inLower) ||
+          (d === "Senior" && inSenior)
+        );
+        if (!allowed) return false;
       }
-      if (year !== "All" && t.year !== year) return false;
-      if (tier !== "All" && t.tier !== tier) return false;
+      if (year.length > 0    && !year.includes(t.year))     return false;
+      if (tier.length > 0    && !tier.includes(t.tier))     return false;
+      if (subject.length > 0) {
+        const subjectMatch = subject.some(s => t.subject.toLowerCase().includes(s.toLowerCase()));
+        if (!subjectMatch) return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (!t.student.toLowerCase().includes(q) && !t.subject.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [dept, subject, year, tier, search]);
+    if (sortField) {
+      data = [...data].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[sortField];
+        const bv = (b as unknown as Record<string, unknown>)[sortField];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return data;
+  }, [dept, subject, year, tier, search, sortField, sortDir]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
   return (
     <div className="space-y-5">
@@ -525,10 +523,10 @@ function TrackersTab() {
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <FilterDropdown label="Department" value={dept}    options={["All", "Primary", "Lower Secondary", "Senior"]}                                              onChange={setDept}    />
-        <FilterDropdown label="Subject"    value={subject} options={["All", "Maths", "English", "Physics", "Science"]}                                            onChange={setSubject} />
-        <FilterDropdown label="Year Group" value={year}    options={["All","Y1","Y2","Y3","Y4","Y5","Y6","Y7","Y8","Y9","Y10","Y11","Y12","Y13"]}                onChange={setYear}    />
-        <FilterDropdown label="Eval Tier"  value={tier}    options={["All", "Pass", "Requires Support", "Not Submitted"]}                                         onChange={setTier}    />
+        <MultiSelectFilter label="Department" options={["Primary", "Lower Secondary", "Senior"]} selected={dept} onChange={setDept} />
+        <MultiSelectFilter label="Subject" options={["Maths", "English", "Physics", "Science"]} selected={subject} onChange={setSubject} />
+        <MultiSelectFilter label="Year Group" options={["Y1","Y2","Y3","Y4","Y5","Y6","Y7","Y8","Y9","Y10","Y11","Y12","Y13"]} selected={year} onChange={setYear} />
+        <MultiSelectFilter label="Eval Tier" options={["Pass", "Requires Support", "Not Submitted"]} selected={tier} onChange={setTier} />
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
@@ -547,13 +545,20 @@ function TrackersTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                {["Student", "Year", "Subject", "Topics Covered", "Avg Score", "Predicted", "Target", "Tier", "Report", "Actions"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
+                <SortableHeader label="Student"        field="student"        sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Year"           field="year"           sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Subject"        field="subject"        sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Topics Covered</th>
+                <SortableHeader label="Avg Score"      field="avgScore"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Predicted"      field="predictedGrade" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Target"         field="targetGrade"    sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Tier"           field="tier"           sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Report"         field="reportStatus"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t, i) => (
+              {paginated.map((t, i) => (
                 <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer">
                   <td className="px-4 py-3"><AvatarCell name={t.student} /></td>
                   <td className="px-4 py-3">
@@ -594,6 +599,13 @@ function TrackersTab() {
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {selected && <TrackerSlideOver tracker={selected} onClose={() => setSelected(null)} />}
@@ -853,7 +865,7 @@ export default function ProgressPage() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Progress</h1>

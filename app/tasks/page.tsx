@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Plus,
   Search,
-  ChevronDown,
   ChevronRight,
   MoreHorizontal,
   Check,
@@ -19,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 import { tasks as allTasks, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { useSavedSegments } from "@/hooks/use-saved-segments";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,10 +27,10 @@ const TODAY_DATE = "16 Apr 2025";
 const TODAY_DAY = 16;
 const MONTH_YEAR = "April 2025";
 
-const ASSIGNEES = ["All", "Jason Daswani", "Sarah Thompson", "Ahmed Khalil", "Sarah Mitchell"];
-const TYPES = ["All", "Admin", "Academic", "Finance", "HR", "Student Follow-up", "Cover", "Personal"];
-const PRIORITIES = ["All", "High", "Medium", "Low"];
-const STATUSES = ["All", "Open", "In Progress", "Blocked", "Done"];
+const ASSIGNEE_OPTIONS = ["Jason Daswani", "Sarah Thompson", "Ahmed Khalil", "Sarah Mitchell"];
+const TYPE_OPTIONS     = ["Admin", "Academic", "Finance", "HR", "Student Follow-up", "Cover", "Personal"];
+const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
+const STATUS_OPTIONS   = ["Open", "In Progress", "Blocked", "Done"];
 
 const ACTIVITY_LOG = [
   { text: "Task created by Jason Daswani", date: "14 Apr" },
@@ -109,68 +110,6 @@ function getDueDateClass(task: Task, isDone: boolean): string {
 function parseDayNumber(dueDate: string): number | null {
   const match = dueDate.match(/(\d+) Apr/);
   return match ? parseInt(match[1]) : null;
-}
-
-// ─── FilterDropdown ───────────────────────────────────────────────────────────
-
-interface FilterDropdownProps {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-  active: boolean;
-}
-
-function FilterDropdown({ label, value, options, onChange, active }: FilterDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer whitespace-nowrap",
-          active
-            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-            : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700"
-        )}
-      >
-        {active ? `${label}: ${value}` : label}
-        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-150", open && "rotate-180")} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[180px] py-1">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between gap-2 cursor-pointer",
-                value === opt
-                  ? "text-amber-600 font-medium bg-amber-50"
-                  : "text-slate-700 hover:bg-slate-50"
-              )}
-            >
-              {opt}
-              {value === opt && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Three-dot Actions menu ───────────────────────────────────────────────────
@@ -674,11 +613,22 @@ type ViewMode = "list" | "kanban" | "calendar";
 
 export default function TasksPage() {
   const [view, setView] = useState<ViewMode>("list");
-  const [assigneeFilter, setAssigneeFilter] = useState("All");
-  const [typeFilter, setTypeFilter] = useState("All");
-  const [priorityFilter, setPriorityFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
+  const [typeFilter,     setTypeFilter]     = useState<string[]>([]);
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
+  const [statusFilter,   setStatusFilter]   = useState<string[]>([]);
   const [myTasksOnly, setMyTasksOnly] = useState(true);
+
+  const { segments, saveSegment, deleteSegment } = useSavedSegments("tasks");
+  const [savePopoverOpen, setSavePopoverOpen]    = useState(false);
+  const [segmentName, setSegmentName]            = useState("");
+
+  function applySegment(filters: Record<string, string[]>) {
+    setAssigneeFilter(filters.assignee ?? []);
+    setTypeFilter(filters.type ?? []);
+    setPriorityFilter(filters.priority ?? []);
+    setStatusFilter(filters.status ?? []);
+  }
   const [search, setSearch] = useState("");
   const [doneTasks, setDoneTasks] = useState<Set<string>>(
     new Set(allTasks.filter((t) => t.status === "Done").map((t) => t.id))
@@ -697,13 +647,13 @@ export default function TasksPage() {
   const filtered = useMemo(() => {
     return allTasks.filter((t) => {
       if (myTasksOnly && t.assignee !== "Jason Daswani") return false;
-      if (assigneeFilter !== "All" && t.assignee !== assigneeFilter) return false;
-      if (typeFilter !== "All" && t.type !== typeFilter) return false;
-      if (priorityFilter !== "All" && t.priority !== priorityFilter) return false;
-      if (statusFilter !== "All") {
-        if (statusFilter === "Done" && !doneTasks.has(t.id)) return false;
-        if (statusFilter !== "Done" && doneTasks.has(t.id)) return false;
-        if (statusFilter !== "Done" && t.status !== statusFilter) return false;
+      if (assigneeFilter.length > 0 && !assigneeFilter.includes(t.assignee)) return false;
+      if (typeFilter.length > 0 && !typeFilter.includes(t.type)) return false;
+      if (priorityFilter.length > 0 && !priorityFilter.includes(t.priority)) return false;
+      if (statusFilter.length > 0) {
+        if (statusFilter.includes("Done") && doneTasks.has(t.id)) return true;
+        if (!statusFilter.includes("Done") && doneTasks.has(t.id)) return false;
+        if (!statusFilter.includes(t.status)) return false;
       }
       if (search) {
         const q = search.toLowerCase();
@@ -786,12 +736,25 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {/* ── Saved Segments ──────────────────────────────────────────────────── */}
+      {segments.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap px-6 py-2 bg-white border-b border-slate-100">
+          <span className="text-xs text-slate-400 uppercase tracking-wide">Saved:</span>
+          {segments.map(seg => (
+            <div key={seg.id} className="flex items-center gap-1 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+              <button onClick={() => applySegment(seg.filters)} className="text-xs text-amber-700 font-medium hover:text-amber-900 cursor-pointer">{seg.name}</button>
+              <button onClick={() => deleteSegment(seg.id)} className="text-amber-400 hover:text-amber-700 ml-1 text-xs cursor-pointer">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ── Filter Bar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 px-6 py-3 bg-white border-b border-slate-200 flex-wrap shrink-0">
-        <FilterDropdown label="Assignee" value={assigneeFilter} options={ASSIGNEES} onChange={setAssigneeFilter} active={assigneeFilter !== "All"} />
-        <FilterDropdown label="Type"     value={typeFilter}     options={TYPES}     onChange={setTypeFilter}     active={typeFilter     !== "All"} />
-        <FilterDropdown label="Priority" value={priorityFilter} options={PRIORITIES} onChange={setPriorityFilter} active={priorityFilter !== "All"} />
-        <FilterDropdown label="Status"   value={statusFilter}   options={STATUSES}  onChange={setStatusFilter}   active={statusFilter   !== "All"} />
+        <MultiSelectFilter label="Assignee" options={ASSIGNEE_OPTIONS} selected={assigneeFilter} onChange={setAssigneeFilter} />
+        <MultiSelectFilter label="Type"     options={TYPE_OPTIONS}     selected={typeFilter}     onChange={setTypeFilter}     />
+        <MultiSelectFilter label="Priority" options={PRIORITY_OPTIONS} selected={priorityFilter} onChange={setPriorityFilter} />
+        <MultiSelectFilter label="Status"   options={STATUS_OPTIONS}   selected={statusFilter}   onChange={setStatusFilter}   />
 
         {/* My Tasks toggle */}
         <button
@@ -815,6 +778,37 @@ export default function TasksPage() {
           </div>
           My Tasks
         </button>
+
+        {/* Save segment */}
+        {(assigneeFilter.length > 0 || typeFilter.length > 0 || priorityFilter.length > 0 || statusFilter.length > 0) && (
+          <div className="relative">
+            <button onClick={() => setSavePopoverOpen(true)} className="text-xs text-amber-600 hover:text-amber-800 underline cursor-pointer">Save segment</button>
+            {savePopoverOpen && (
+              <div className="absolute z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-56 bottom-full left-0 mb-1">
+                <p className="text-xs font-medium text-slate-700 mb-2">Name this segment</p>
+                <input
+                  autoFocus
+                  className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm mb-2 focus:outline-none focus:border-amber-400"
+                  placeholder="e.g. My High Priority"
+                  value={segmentName}
+                  onChange={(e) => setSegmentName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && segmentName.trim()) {
+                      saveSegment(segmentName.trim(), { assignee: assigneeFilter, type: typeFilter, priority: priorityFilter, status: statusFilter });
+                      setSegmentName("");
+                      setSavePopoverOpen(false);
+                    }
+                    if (e.key === "Escape") setSavePopoverOpen(false);
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => { if (segmentName.trim()) { saveSegment(segmentName.trim(), { assignee: assigneeFilter, type: typeFilter, priority: priorityFilter, status: statusFilter }); setSegmentName(""); setSavePopoverOpen(false); } }} className="flex-1 bg-amber-500 text-white text-xs py-1.5 rounded-lg hover:bg-amber-600 cursor-pointer">Save</button>
+                  <button onClick={() => setSavePopoverOpen(false)} className="flex-1 border border-slate-200 text-slate-600 text-xs py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative ml-auto">
@@ -843,10 +837,10 @@ export default function TasksPage() {
                 action={{
                   label: "Show all tasks",
                   onClick: () => {
-                    setAssigneeFilter("All");
-                    setTypeFilter("All");
-                    setPriorityFilter("All");
-                    setStatusFilter("All");
+                    setAssigneeFilter([]);
+                    setTypeFilter([]);
+                    setPriorityFilter([]);
+                    setStatusFilter([]);
                     setMyTasksOnly(false);
                     setSearch("");
                   },

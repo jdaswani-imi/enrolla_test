@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Plus,
   MoreHorizontal,
-  ChevronDown,
   X,
   BookOpen,
   RefreshCw,
   UserMinus,
   Eye,
 } from "lucide-react";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import {
   enrolments,
@@ -75,53 +77,6 @@ function getRowTintClass(status: EnrolmentStatus): string {
     case "Pending":  return "bg-amber-50";
     default:         return "";
   }
-}
-
-// ─── FilterDropdown ───────────────────────────────────────────────────────────
-
-interface FilterDropdownProps {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}
-
-function FilterDropdown({ label, value, options, onChange }: FilterDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const displayLabel = value === options[0] ? label : value;
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors cursor-pointer",
-          value === options[0]
-            ? "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-            : "bg-amber-50 border-amber-300 text-amber-800"
-        )}
-      >
-        {displayLabel}
-        <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 cursor-pointer transition-colors",
-                value === opt ? "text-amber-700 font-medium" : "text-slate-700"
-              )}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Session Dot Visualisation ────────────────────────────────────────────────
@@ -485,25 +440,51 @@ function EnrolmentSlideOver({
 // ─── Tab 1 — Active Enrolments ────────────────────────────────────────────────
 
 function ActiveEnrolmentsTab() {
-  const [dept, setDept]     = useState("All Departments");
-  const [status, setStatus] = useState("All Statuses");
-  const [year, setYear]     = useState("All Years");
+  const [dept, setDept]     = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
+  const [year, setYear]     = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Enrolment | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
+  function toggleSort(field: string) {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  }
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  useEffect(() => { setPage(1); }, [dept, status, year, search]);
+
   const filtered = useMemo(() => {
-    return enrolments.filter((e) => {
-      if (dept !== "All Departments" && e.department !== dept) return false;
-      if (status !== "All Statuses" && e.enrolmentStatus !== status) return false;
-      if (year !== "All Years" && e.yearGroup !== year) return false;
+    let data = enrolments.filter((e) => {
+      if (dept.length > 0   && !dept.includes(e.department))               return false;
+      if (status.length > 0 && !status.includes(e.enrolmentStatus))        return false;
+      if (year.length > 0   && !year.includes(e.yearGroup))                return false;
       if (search) {
         const q = search.toLowerCase();
         if (!e.student.toLowerCase().includes(q) && !e.subject.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [dept, status, year, search]);
+    if (sortField) {
+      data = [...data].sort((a, b) => {
+        const av = (a as unknown as Record<string, unknown>)[sortField];
+        const bv = (b as unknown as Record<string, unknown>)[sortField];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+    return data;
+  }, [dept, status, year, search, sortField, sortDir]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
 
   return (
     <div className="space-y-5">
@@ -517,27 +498,9 @@ function ActiveEnrolmentsTab() {
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <FilterDropdown
-          label="All Departments"
-          value={dept}
-          options={["All Departments", "Primary", "Lower Secondary", "Senior"]}
-          onChange={setDept}
-        />
-        <FilterDropdown
-          label="All Statuses"
-          value={status}
-          options={["All Statuses", "Active", "Pending", "Expiring", "Expired"]}
-          onChange={setStatus}
-        />
-        <FilterDropdown
-          label="All Years"
-          value={year}
-          options={["All Years", "Y1","Y2","Y3","Y4","Y5","Y6","Y7","Y8","Y9","Y10","Y11","Y12","Y13"]}
-          onChange={setYear}
-        />
-        <div className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-500 cursor-default select-none">
-          Term 3 2024–25
-        </div>
+        <MultiSelectFilter label="Department" options={["Primary", "Lower Secondary", "Senior"]} selected={dept} onChange={setDept} />
+        <MultiSelectFilter label="Status" options={["Active", "Pending", "Expiring", "Expired"]} selected={status} onChange={setStatus} />
+        <MultiSelectFilter label="Year Group" options={["Y1","Y2","Y3","Y4","Y5","Y6","Y7","Y8","Y9","Y10","Y11","Y12","Y13"]} selected={year} onChange={setYear} />
 
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
@@ -563,18 +526,20 @@ function ActiveEnrolmentsTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                {["Student","Year","Subject","Teacher","Sessions","Frequency","Package","Invoice","Status",""].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
+                <SortableHeader label="Student"   field="student"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Year"      field="yearGroup"        sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Subject"   field="subject"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Teacher"   field="teacher"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Sessions</th>
+                <SortableHeader label="Frequency" field="frequency"        sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Package</th>
+                <SortableHeader label="Invoice"   field="invoiceStatus"    sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Status"    field="enrolmentStatus"  sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((enr) => {
+              {paginated.map((enr) => {
                 const palette = getAvatarPalette(enr.student);
                 const initials = getInitials(enr.student);
                 const rowTint = getRowTintClass(enr.enrolmentStatus);
@@ -672,6 +637,13 @@ function ActiveEnrolmentsTab() {
             </tbody>
           </table>
         </div>
+        <PaginationBar
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Slide-over */}

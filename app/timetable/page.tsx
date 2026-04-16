@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,7 +12,6 @@ import {
   User,
   MapPin,
 } from "lucide-react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   timetableSessions,
@@ -22,11 +21,11 @@ import {
 
 // ─── Grid constants ───────────────────────────────────────────────────────────
 
-const START_HOUR = 8;   // 08:00
-const END_HOUR   = 20;  // 20:00
-const SLOT_HEIGHT = 40; // px per 30-min slot
-const TOTAL_SLOTS = (END_HOUR - START_HOUR) * 2; // 24 half-hour slots
-const GRID_HEIGHT = TOTAL_SLOTS * SLOT_HEIGHT;   // 960 px
+const START_HOUR  = 8;
+const END_HOUR    = 20;
+const SLOT_HEIGHT = 40;
+const TOTAL_SLOTS = (END_HOUR - START_HOUR) * 2;
+const GRID_HEIGHT = TOTAL_SLOTS * SLOT_HEIGHT;
 
 // ─── Days ─────────────────────────────────────────────────────────────────────
 
@@ -38,9 +37,8 @@ const DAYS = [
   { key: "Fri", label: "Fri 25" },
 ];
 
-// Simulate "today" as Monday so the current-time line is visible
-const TODAY_KEY     = "Mon";
-const CURRENT_TIME  = "15:30"; // simulated current time
+const TODAY_KEY    = "Mon";
+const CURRENT_TIME = "15:30";
 
 // ─── Time labels (08:00 … 20:00, every 30 min) ────────────────────────────────
 
@@ -67,14 +65,25 @@ function durationToPx(dur: number): number {
   return (dur / 30) * SLOT_HEIGHT;
 }
 
-function getChipColors(session: TimetableSession): string {
-  if (session.type === "Meeting") return "bg-slate-100 border-slate-300 text-slate-700";
-  const map: Record<string, string> = {
-    Primary:           "bg-amber-100 border-amber-300 text-amber-900",
-    "Lower Secondary": "bg-teal-100 border-teal-300 text-teal-900",
-    Senior:            "bg-blue-100 border-blue-300 text-blue-900",
+// ─── Department colour scheme ─────────────────────────────────────────────────
+
+function getDeptColor(dept: string, type: string) {
+  if (type === "Blocked") return {
+    bg: "bg-slate-200", border: "border-slate-300", text: "text-slate-500", label: "Blocked",
   };
-  return map[session.department] ?? "bg-slate-100 border-slate-300 text-slate-700";
+  if (type === "Meeting") return {
+    bg: "bg-[#f3f4f6]", border: "border-slate-300", text: "text-slate-600", label: "Meeting",
+  };
+  switch (dept) {
+    case "Primary":
+      return { bg: "bg-[#fce7f3]", border: "border-pink-200",   text: "text-pink-800",   label: "Primary"   };
+    case "Lower Secondary":
+      return { bg: "bg-[#cffafe]", border: "border-cyan-200",   text: "text-cyan-800",   label: "Lower Sec" };
+    case "Senior":
+      return { bg: "bg-[#ffedd5]", border: "border-orange-200", text: "text-orange-800", label: "Senior"    };
+    default:
+      return { bg: "bg-slate-100", border: "border-slate-200",  text: "text-slate-600",  label: dept        };
+  }
 }
 
 const TYPE_BADGE: Record<string, string> = {
@@ -87,13 +96,12 @@ const TYPE_BADGE: Record<string, string> = {
 };
 
 const DEPT_BADGE: Record<string, string> = {
-  Primary:           "bg-amber-100 text-amber-800",
-  "Lower Secondary": "bg-teal-100 text-teal-800",
-  Senior:            "bg-blue-100 text-blue-800",
+  Primary:           "bg-[#fce7f3] text-pink-800",
+  "Lower Secondary": "bg-[#cffafe] text-cyan-800",
+  Senior:            "bg-[#ffedd5] text-orange-800",
 };
 
 // ─── Overlap layout ───────────────────────────────────────────────────────────
-// Assigns colIndex / colCount to each session so overlapping chips sit side-by-side.
 
 type LayoutSession = TimetableSession & { colIndex: number; colCount: number };
 
@@ -107,7 +115,6 @@ function layoutSessions(sessions: TimetableSession[]): LayoutSession[] {
     const sStart = timeToMins(s.startTime);
     const sEnd   = sStart + s.duration;
 
-    // Find already-placed sessions that overlap with s
     const overlapping = result.filter((r) => {
       const rStart = timeToMins(r.startTime);
       const rEnd   = rStart + r.duration;
@@ -117,7 +124,6 @@ function layoutSessions(sessions: TimetableSession[]): LayoutSession[] {
     if (overlapping.length === 0) {
       result.push({ ...s, colIndex: 0, colCount: 1 });
     } else {
-      // Widen all overlapping sessions to 2 columns
       overlapping.forEach((r) => { r.colCount = 2; });
       const usedCols = new Set(overlapping.map((r) => r.colIndex));
       const colIndex = usedCols.has(0) ? 1 : 0;
@@ -126,6 +132,117 @@ function layoutSessions(sessions: TimetableSession[]): LayoutSession[] {
   }
 
   return result;
+}
+
+// ─── Session chip (shared between Week and Day view) ──────────────────────────
+
+function SessionChip({
+  session,
+  style,
+  onClick,
+}: {
+  session: LayoutSession;
+  style: React.CSSProperties;
+  onClick: () => void;
+}) {
+  const deptColor    = getDeptColor(session.department, session.type);
+  const isDashed     = session.type === "Trial";
+  const isCover      = session.type === "Cover Required";
+  const isBlocked    = session.type === "Blocked";
+  const isMeeting    = session.type === "Meeting";
+  const isAssessment = session.type === "Assessment";
+  const chipHeight   = typeof style.height === "number" ? style.height : 0;
+  const showBadge    = session.type !== "Regular" && chipHeight > 64;
+  const showStudents = chipHeight > 56;
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "absolute rounded-lg border overflow-hidden cursor-pointer transition-all hover:shadow-md hover:brightness-95 z-[6]",
+        deptColor.bg,
+        deptColor.border,
+        deptColor.text,
+        isDashed && "border-dashed"
+      )}
+      style={style}
+    >
+      {/* Blocked Time stripe overlay */}
+      {isBlocked && (
+        <div
+          className="absolute inset-0 rounded opacity-30 pointer-events-none"
+          style={{
+            backgroundImage: "repeating-linear-gradient(45deg, #94a3b8 0, #94a3b8 1px, transparent 0, transparent 50%)",
+            backgroundSize: "6px 6px",
+          }}
+        />
+      )}
+
+      {/* Assessment dot */}
+      {isAssessment && (
+        <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-teal-400 z-[7]" />
+      )}
+
+      {/* Cover Required strip */}
+      {isCover && (
+        <div className="flex items-center gap-1 px-2 py-0.5 bg-red-400">
+          <AlertTriangle className="w-2.5 h-2.5 text-white flex-shrink-0" />
+          <span className="text-[9px] text-white font-semibold leading-none">Cover Required</span>
+        </div>
+      )}
+
+      <div className={cn("px-2 py-1.5", isCover && "pt-1")}>
+        <p className={cn("text-[11px] font-bold leading-tight truncate", isMeeting && "italic")}>
+          {session.subject}
+        </p>
+        <p className="text-[10px] opacity-70 leading-tight truncate mt-0.5">
+          {session.teacher.replace(/^(Mr|Ms|Mrs|Dr)\.?\s+/, "").split(" ").pop()}
+        </p>
+        {showStudents && (
+          <p className="text-[10px] opacity-60 mt-0.5">
+            {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}
+          </p>
+        )}
+        {showBadge && (
+          <span className={cn(
+            "inline-block mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium leading-tight",
+            TYPE_BADGE[session.type] ?? "bg-white/50 text-inherit"
+          )}>
+            {session.type}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Grid time column (shared) ────────────────────────────────────────────────
+
+function TimeColumn() {
+  return (
+    <div
+      className="w-[60px] flex-shrink-0 relative bg-white border-r border-slate-200"
+      style={{ height: GRID_HEIGHT }}
+    >
+      {TIME_LABELS.map((t, i) => {
+        const isHour = t.endsWith(":00");
+        return (
+          <div
+            key={t}
+            className="absolute right-2 flex items-center pointer-events-none"
+            style={{ top: i * SLOT_HEIGHT - 7 }}
+          >
+            <span className={cn(
+              "text-[10px] leading-none select-none",
+              isHour ? "font-semibold text-slate-500" : "text-slate-300"
+            )}>
+              {t}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ─── FilterChip ───────────────────────────────────────────────────────────────
@@ -195,6 +312,24 @@ function SessionSlideover({
   session: TimetableSession;
   onClose: () => void;
 }) {
+  const [attendanceMode,     setAttendanceMode]     = useState(false);
+  const [attendanceStatuses, setAttendanceStatuses] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    setAttendanceMode(false);
+    setAttendanceStatuses({});
+  }, [session]);
+
+  function markAllPresent() {
+    const all: Record<number, string> = {};
+    session.students.forEach((_, i) => { all[i] = "Present"; });
+    setAttendanceStatuses(all);
+  }
+
+  function handleSetAttendanceStatus(index: number, status: string) {
+    setAttendanceStatuses((prev) => ({ ...prev, [index]: status }));
+  }
+
   return (
     <>
       <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
@@ -232,119 +367,184 @@ function SessionSlideover({
           </button>
         </div>
 
-        <div className="flex-1 px-6 py-5 space-y-6">
+        {/* ── Attendance register mode ─────────────────────────────────────── */}
+        {attendanceMode ? (
+          <div className="flex-1 px-6 py-5">
+            <button
+              onClick={() => setAttendanceMode(false)}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4 cursor-pointer transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to session details
+            </button>
 
-          {/* Cover Required warning */}
-          {session.type === "Cover Required" && (
-            <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-              <p className="text-sm text-red-700 font-medium">Cover teacher required for this session</p>
-            </div>
-          )}
-
-          {/* Session details */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Session Details</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-start gap-2.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Date &amp; Time</p>
-                  <p className="text-sm font-medium text-slate-700">
-                    {session.day} {session.date}
-                  </p>
-                  <p className="text-sm text-slate-600">{session.startTime}–{session.endTime}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Duration</p>
-                  <p className="text-sm font-medium text-slate-700">{session.duration} minutes</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Room</p>
-                  <p className="text-sm font-medium text-slate-700">{session.room}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Teacher</p>
-                  <p className="text-sm font-medium text-slate-700">{session.teacher}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Status */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Status</p>
-            <span className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium",
-              session.status === "Scheduled" && "bg-blue-50 text-blue-700",
-              session.status === "Completed" && "bg-emerald-50 text-emerald-700",
-              session.status === "Cancelled" && "bg-red-50 text-red-600",
-            )}>
-              <span className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                session.status === "Scheduled" && "bg-blue-500",
-                session.status === "Completed" && "bg-emerald-500",
-                session.status === "Cancelled" && "bg-red-500",
-              )} />
-              {session.status}
-            </span>
-          </div>
-
-          {/* Students */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
-              Students Enrolled ({session.studentCount})
+            <h3 className="font-semibold text-slate-800 mb-1">{session.subject}</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              {session.date} · {session.startTime}–{session.endTime} · {session.room}
             </p>
-            {session.students.length === 0 ? (
-              <p className="text-sm text-slate-400 italic">No students — staff session</p>
-            ) : (
-              <div className="space-y-1">
-                {session.students.map((name) => (
-                  <div
-                    key={name}
-                    className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500 flex-shrink-0">
-                        {name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </div>
-                      <span className="text-sm text-slate-700">{name}</span>
-                    </div>
-                    <span className="text-xs text-slate-400 italic">Not yet marked</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Actions footer */}
-        <div className="border-t border-slate-200 px-6 py-4 bg-slate-50 flex items-center gap-2 flex-wrap">
-          <Link
-            href="/attendance"
-            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer min-w-[120px]"
-          >
-            Mark Attendance
-          </Link>
-          <button className="px-3 py-2 border border-slate-300 text-slate-600 text-xs font-medium rounded-lg hover:bg-white transition-colors cursor-pointer">
-            Edit Session
-          </button>
-          <button className="px-3 py-2 border border-slate-200 text-red-500 text-xs font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
-            Cancel Session
-          </button>
-          <button className="p-2 border border-slate-200 text-slate-500 rounded-lg hover:bg-white transition-colors cursor-pointer">
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              onClick={markAllPresent}
+              className="w-full mb-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors cursor-pointer"
+            >
+              ✓ Mark All Present
+            </button>
+
+            <div className="space-y-2">
+              {session.students.length === 0 ? (
+                <p className="text-sm text-slate-400 italic text-center py-6">No students — staff session</p>
+              ) : (
+                session.students.map((student, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
+                        {student.split(" ").map((n: string) => n[0]).join("")}
+                      </div>
+                      <span className="text-sm font-medium text-slate-800">{student}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {(["Present", "Late", "Absent"] as const).map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => handleSetAttendanceStatus(i, status)}
+                          className={cn(
+                            "px-2 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer",
+                            attendanceStatuses[i] === status
+                              ? status === "Present" ? "bg-green-500 text-white"
+                                : status === "Late"    ? "bg-amber-500 text-white"
+                                : "bg-red-500 text-white"
+                              : "bg-white border border-slate-200 text-slate-500 hover:border-slate-300"
+                          )}
+                        >
+                          {status}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setAttendanceMode(false)}
+              className="w-full mt-4 py-2.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              Save &amp; Confirm Attendance
+            </button>
+          </div>
+
+        ) : (
+          /* ── Session detail mode ─────────────────────────────────────────── */
+          <>
+            <div className="flex-1 px-6 py-5 space-y-6">
+
+              {session.type === "Cover Required" && (
+                <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-700 font-medium">Cover teacher required for this session</p>
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Session Details</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-start gap-2.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Date &amp; Time</p>
+                      <p className="text-sm font-medium text-slate-700">{session.day} {session.date}</p>
+                      <p className="text-sm text-slate-600">{session.startTime}–{session.endTime}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Duration</p>
+                      <p className="text-sm font-medium text-slate-700">{session.duration} minutes</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Room</p>
+                      <p className="text-sm font-medium text-slate-700">{session.room}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Teacher</p>
+                      <p className="text-sm font-medium text-slate-700">{session.teacher}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Status</p>
+                <span className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium",
+                  session.status === "Scheduled" && "bg-blue-50 text-blue-700",
+                  session.status === "Completed" && "bg-emerald-50 text-emerald-700",
+                  session.status === "Cancelled" && "bg-red-50 text-red-600",
+                )}>
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    session.status === "Scheduled" && "bg-blue-500",
+                    session.status === "Completed" && "bg-emerald-500",
+                    session.status === "Cancelled" && "bg-red-500",
+                  )} />
+                  {session.status}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
+                  Students Enrolled ({session.studentCount})
+                </p>
+                {session.students.length === 0 ? (
+                  <p className="text-sm text-slate-400 italic">No students — staff session</p>
+                ) : (
+                  <div className="space-y-1">
+                    {session.students.map((name) => (
+                      <div
+                        key={name}
+                        className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500 flex-shrink-0">
+                            {name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                          </div>
+                          <span className="text-sm text-slate-700">{name}</span>
+                        </div>
+                        <span className="text-xs text-slate-400 italic">Not yet marked</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions footer */}
+            <div className="border-t border-slate-200 px-6 py-4 bg-slate-50 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setAttendanceMode(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer min-w-[120px]"
+              >
+                Mark Attendance
+              </button>
+              <button className="px-3 py-2 border border-slate-300 text-slate-600 text-xs font-medium rounded-lg hover:bg-white transition-colors cursor-pointer">
+                Edit Session
+              </button>
+              <button className="px-3 py-2 border border-slate-200 text-red-500 text-xs font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                Cancel Session
+              </button>
+              <button className="p-2 border border-slate-200 text-slate-500 rounded-lg hover:bg-white transition-colors cursor-pointer">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -384,6 +584,7 @@ function NewSessionModal({ onClose }: { onClose: () => void }) {
 
 export default function TimetablePage() {
   const [activeDay,       setActiveDay]       = useState("Mon");
+  const [activeView,      setActiveView]      = useState<"Week" | "Day" | "Month">("Week");
   const [selectedSession, setSelectedSession] = useState<TimetableSession | null>(null);
   const [showNewSession,  setShowNewSession]  = useState(false);
   const [filterDept,      setFilterDept]      = useState("All");
@@ -391,18 +592,17 @@ export default function TimetablePage() {
   const [filterRoom,      setFilterRoom]      = useState("All");
   const [filterType,      setFilterType]      = useState("All");
 
-  // Unique teachers for filter
-  const teachers = useMemo(() => {
+  const teachers    = useMemo(() => {
     const names = Array.from(new Set(timetableSessions.map((s) => s.teacher))).sort();
     return ["All", ...names];
   }, []);
 
   const roomOptions = useMemo(() => ["All", ...rooms.map((r) => r.name)], []);
 
-  // Sessions for the active day, then filtered
+  // Sessions for the active day, with all filters applied
   const daySessions = useMemo(() =>
     timetableSessions.filter((s) => {
-      if (s.day !== activeDay)                                  return false;
+      if (s.day !== activeDay)                                       return false;
       if (filterDept    !== "All" && s.department !== filterDept)   return false;
       if (filterTeacher !== "All" && s.teacher    !== filterTeacher) return false;
       if (filterRoom    !== "All" && s.room       !== filterRoom)    return false;
@@ -412,7 +612,7 @@ export default function TimetablePage() {
     [activeDay, filterDept, filterTeacher, filterRoom, filterType]
   );
 
-  // Per-room layout (overlap detection)
+  // Week view: per-room layout
   const sessionsByRoom = useMemo(() => {
     const map: Record<string, LayoutSession[]> = {};
     for (const room of rooms) {
@@ -420,6 +620,21 @@ export default function TimetablePage() {
     }
     return map;
   }, [daySessions]);
+
+  // Day view: unique teachers from filtered day sessions
+  const dayTeachers = useMemo(() =>
+    [...new Set(daySessions.map((s) => s.teacher))],
+    [daySessions]
+  );
+
+  // Day view: per-teacher layout (overlap detection within each teacher column)
+  const sessionsByTeacher = useMemo(() => {
+    const map: Record<string, LayoutSession[]> = {};
+    for (const teacher of dayTeachers) {
+      map[teacher] = layoutSessions(daySessions.filter((s) => s.teacher === teacher));
+    }
+    return map;
+  }, [daySessions, dayTeachers]);
 
   const CURRENT_TIME_PX = timeToPx(CURRENT_TIME);
   const filtersActive =
@@ -432,7 +647,6 @@ export default function TimetablePage() {
       {/* ── Page header ───────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 flex-shrink-0">
 
-        {/* Week navigation */}
         <div className="flex items-center gap-2">
           <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
             <ChevronLeft className="w-4 h-4 text-slate-500" />
@@ -448,15 +662,15 @@ export default function TimetablePage() {
           </button>
         </div>
 
-        {/* View toggle + New Session */}
         <div className="flex items-center gap-2">
           <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
             {(["Week", "Day", "Month"] as const).map((v) => (
               <button
                 key={v}
+                onClick={() => setActiveView(v)}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
-                  v === "Week"
+                  activeView === v
                     ? "bg-slate-100 text-slate-800"
                     : "text-slate-500 hover:bg-slate-50"
                 )}
@@ -542,7 +756,7 @@ export default function TimetablePage() {
         </div>
       </div>
 
-      {/* ── Mobile day list (visible only on mobile) ──────────────────────── */}
+      {/* ── Mobile day list ────────────────────────────────────────────────── */}
       <div className="md:hidden flex-1 overflow-auto">
         <div className="px-4 py-3">
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-2.5">
@@ -561,27 +775,30 @@ export default function TimetablePage() {
             ) : (
               [...daySessions]
                 .sort((a, b) => timeToMins(a.startTime) - timeToMins(b.startTime))
-                .map((session) => (
-                  <button
-                    key={session.id}
-                    type="button"
-                    onClick={() => setSelectedSession(session)}
-                    className={cn(
-                      "w-full text-left rounded-lg border px-4 py-3 flex items-start gap-3 cursor-pointer hover:shadow-sm transition-shadow",
-                      getChipColors(session)
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold leading-tight">{session.subject}</p>
-                      <p className="text-xs opacity-70 mt-0.5">{session.teacher}</p>
-                      <p className="text-xs opacity-60 mt-0.5">{session.room} · {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-semibold">{session.startTime}</p>
-                      <p className="text-xs opacity-60">{session.endTime}</p>
-                    </div>
-                  </button>
-                ))
+                .map((session) => {
+                  const deptColor = getDeptColor(session.department, session.type);
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      onClick={() => setSelectedSession(session)}
+                      className={cn(
+                        "w-full text-left rounded-lg border px-4 py-3 flex items-start gap-3 cursor-pointer hover:shadow-sm transition-shadow",
+                        deptColor.bg, deptColor.border, deptColor.text
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold leading-tight">{session.subject}</p>
+                        <p className="text-xs opacity-70 mt-0.5">{session.teacher}</p>
+                        <p className="text-xs opacity-60 mt-0.5">{session.room} · {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-semibold">{session.startTime}</p>
+                        <p className="text-xs opacity-60">{session.endTime}</p>
+                      </div>
+                    </button>
+                  );
+                })
             )}
           </div>
         </div>
@@ -589,163 +806,210 @@ export default function TimetablePage() {
 
       {/* ── Calendar grid (hidden on mobile) ──────────────────────────────── */}
       <div className="hidden md:flex flex-1 overflow-auto">
-        <div className="min-w-max">
 
-          {/* Sticky room column headers */}
-          <div className="sticky top-0 z-20 flex bg-white border-b border-slate-200 shadow-sm">
-            {/* Time label spacer */}
-            <div className="w-[60px] flex-shrink-0 border-r border-slate-200" />
-            {rooms.map((room) => (
-              <div
-                key={room.id}
-                className="flex-1 min-w-[180px] px-3 py-2.5 border-l border-slate-200 text-center"
-              >
-                <p className="text-xs font-semibold text-slate-700">{room.name}</p>
-                <p className="text-[10px] text-slate-400">cap {room.capacity}</p>
-              </div>
-            ))}
-          </div>
+        {/* ════ WEEK VIEW (room columns) ════════════════════════════════════ */}
+        {activeView === "Week" && (
+          <div className="min-w-max">
+            {/* Sticky room headers */}
+            <div className="sticky top-0 z-20 flex bg-white border-b border-slate-200 shadow-sm">
+              <div className="w-[60px] flex-shrink-0 border-r border-slate-200" />
+              {rooms.map((room) => (
+                <div
+                  key={room.id}
+                  className="flex-1 min-w-[180px] px-3 py-2.5 border-l border-slate-200 text-center"
+                >
+                  <p className="text-xs font-semibold text-slate-700">{room.name}</p>
+                  <p className="text-[10px] text-slate-400">cap {room.capacity}</p>
+                </div>
+              ))}
+            </div>
 
-          {/* Grid body */}
-          <div className="flex" style={{ height: GRID_HEIGHT }}>
+            {/* Grid body */}
+            <div className="flex" style={{ height: GRID_HEIGHT }}>
+              <TimeColumn />
 
-            {/* ── Time labels column ──────────────────────────────── */}
-            <div
-              className="w-[60px] flex-shrink-0 relative bg-white border-r border-slate-200"
-              style={{ height: GRID_HEIGHT }}
-            >
-              {TIME_LABELS.map((t, i) => {
-                const isHour = t.endsWith(":00");
+              {rooms.map((room) => {
+                const roomSessions = sessionsByRoom[room.id] ?? [];
                 return (
                   <div
-                    key={t}
-                    className="absolute right-2 flex items-center pointer-events-none"
-                    style={{ top: i * SLOT_HEIGHT - 7 }}
+                    key={room.id}
+                    className="flex-1 min-w-[180px] relative border-l border-slate-200 bg-white"
+                    style={{ height: GRID_HEIGHT }}
                   >
-                    <span className={cn(
-                      "text-[10px] leading-none select-none",
-                      isHour ? "font-semibold text-slate-500" : "text-slate-300"
-                    )}>
-                      {t}
-                    </span>
+                    {TIME_LABELS.slice(1).map((t, i) => (
+                      <div
+                        key={t}
+                        className={cn(
+                          "absolute left-0 right-0 border-t pointer-events-none",
+                          t.endsWith(":00") ? "border-slate-200" : "border-slate-100"
+                        )}
+                        style={{ top: (i + 1) * SLOT_HEIGHT }}
+                      />
+                    ))}
+
+                    {activeDay === TODAY_KEY && (
+                      <div
+                        className="absolute left-0 right-0 z-10 pointer-events-none"
+                        style={{ top: CURRENT_TIME_PX }}
+                      >
+                        <div className="relative flex items-center">
+                          <div className="absolute left-0 w-2 h-2 rounded-full bg-red-500 -translate-x-1 -translate-y-[3px] flex-shrink-0" />
+                          <div className="w-full h-[2px] bg-red-400" />
+                        </div>
+                      </div>
+                    )}
+
+                    {TIME_LABELS.slice(0, -1).map((t, i) => (
+                      <div
+                        key={t}
+                        onClick={() => setShowNewSession(true)}
+                        className="absolute left-0 right-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer group z-[5]"
+                        style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-amber-100 flex items-center justify-center transition-colors">
+                          <Plus className="w-3 h-3 text-slate-400 group-hover:text-amber-600" />
+                        </div>
+                      </div>
+                    ))}
+
+                    {roomSessions.map((session) => {
+                      const top    = timeToPx(session.startTime);
+                      const height = durationToPx(session.duration);
+                      const colW   = 100 / session.colCount;
+                      return (
+                        <SessionChip
+                          key={session.id}
+                          session={session}
+                          onClick={() => setSelectedSession(session)}
+                          style={{
+                            top:    top + 2,
+                            height: Math.max(height - 4, 24),
+                            left:   `calc(${session.colIndex * colW}% + 3px)`,
+                            right:  `calc(${100 - (session.colIndex + 1) * colW}% + 3px)`,
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
-
-            {/* ── Room columns ────────────────────────────────────── */}
-            {rooms.map((room) => {
-              const roomSessions = sessionsByRoom[room.id] ?? [];
-
-              return (
-                <div
-                  key={room.id}
-                  className="flex-1 min-w-[180px] relative border-l border-slate-200 bg-white"
-                  style={{ height: GRID_HEIGHT }}
-                >
-                  {/* Horizontal gridlines */}
-                  {TIME_LABELS.slice(1).map((t, i) => (
-                    <div
-                      key={t}
-                      className={cn(
-                        "absolute left-0 right-0 border-t pointer-events-none",
-                        t.endsWith(":00") ? "border-slate-200" : "border-slate-100"
-                      )}
-                      style={{ top: (i + 1) * SLOT_HEIGHT }}
-                    />
-                  ))}
-
-                  {/* Current time indicator — Monday only */}
-                  {activeDay === TODAY_KEY && (
-                    <div
-                      className="absolute left-0 right-0 z-10 pointer-events-none"
-                      style={{ top: CURRENT_TIME_PX }}
-                    >
-                      <div className="relative flex items-center">
-                        <div className="absolute left-0 w-2 h-2 rounded-full bg-red-500 -translate-x-1 -translate-y-[3px] flex-shrink-0" />
-                        <div className="w-full h-[2px] bg-red-400" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Empty-slot hover zones */}
-                  {TIME_LABELS.slice(0, -1).map((t, i) => (
-                    <div
-                      key={t}
-                      onClick={() => setShowNewSession(true)}
-                      className="absolute left-0 right-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer group z-[5]"
-                      style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
-                    >
-                      <div className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-amber-100 flex items-center justify-center transition-colors">
-                        <Plus className="w-3 h-3 text-slate-400 group-hover:text-amber-600" />
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Session chips */}
-                  {roomSessions.map((session) => {
-                    const top          = timeToPx(session.startTime);
-                    const height       = durationToPx(session.duration);
-                    const colW         = 100 / session.colCount;
-                    const chipColors   = getChipColors(session);
-                    const isDashed     = session.type === "Trial";
-                    const isCover      = session.type === "Cover Required";
-                    const showBadge    = session.type !== "Regular" && height > 64;
-                    const showStudents = height > 56;
-
-                    return (
-                      <div
-                        key={session.id}
-                        onClick={() => setSelectedSession(session)}
-                        className={cn(
-                          "absolute rounded-lg border overflow-hidden cursor-pointer transition-all hover:shadow-md hover:brightness-95 z-[6]",
-                          chipColors,
-                          isDashed && "border-dashed"
-                        )}
-                        style={{
-                          top:   top + 2,
-                          height: Math.max(height - 4, 24),
-                          left:  `calc(${session.colIndex * colW}% + 3px)`,
-                          right: `calc(${100 - (session.colIndex + 1) * colW}% + 3px)`,
-                        }}
-                      >
-                        {/* Cover Required strip */}
-                        {isCover && (
-                          <div className="flex items-center gap-1 px-2 py-0.5 bg-red-400">
-                            <AlertTriangle className="w-2.5 h-2.5 text-white flex-shrink-0" />
-                            <span className="text-[9px] text-white font-semibold leading-none">Cover Required</span>
-                          </div>
-                        )}
-
-                        <div className={cn("px-2 py-1.5", isCover && "pt-1")}>
-                          <p className="text-[11px] font-bold leading-tight truncate">
-                            {session.subject}
-                          </p>
-                          <p className="text-[10px] opacity-70 leading-tight truncate mt-0.5">
-                            {session.teacher.replace(/^(Mr|Ms|Mrs|Dr)\.?\s+/, "").split(" ").pop()}
-                          </p>
-                          {showStudents && (
-                            <p className="text-[10px] opacity-60 mt-0.5">
-                              {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}
-                            </p>
-                          )}
-                          {showBadge && (
-                            <span className={cn(
-                              "inline-block mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium leading-tight",
-                              TYPE_BADGE[session.type] ?? "bg-white/50 text-inherit"
-                            )}>
-                              {session.type}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
           </div>
-        </div>
+        )}
+
+        {/* ════ DAY VIEW (teacher columns) ══════════════════════════════════ */}
+        {activeView === "Day" && (
+          <div className="min-w-max w-full">
+            {/* Sticky teacher headers */}
+            <div className="sticky top-0 z-20 flex bg-white border-b border-slate-200 shadow-sm">
+              <div className="w-[60px] flex-shrink-0 border-r border-slate-200" />
+              {dayTeachers.length === 0 ? (
+                <div className="flex-1 px-3 py-2.5 text-center text-xs text-slate-400">
+                  No sessions
+                </div>
+              ) : (
+                dayTeachers.map((teacher) => {
+                  const count = daySessions.filter((s) => s.teacher === teacher).length;
+                  return (
+                    <div
+                      key={teacher}
+                      className="flex-1 min-w-[200px] px-3 py-2.5 border-l border-slate-200 text-center"
+                    >
+                      <p className="text-xs font-bold text-slate-700">{teacher}</p>
+                      <span className="inline-block mt-0.5 px-1.5 py-0.5 text-[10px] bg-slate-100 text-slate-500 rounded-full">
+                        {count} session{count !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Grid body */}
+            <div className="flex" style={{ height: GRID_HEIGHT }}>
+              <TimeColumn />
+
+              {dayTeachers.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-sm text-slate-400">
+                  No sessions for this day.
+                </div>
+              ) : (
+                dayTeachers.map((teacher) => {
+                  const teacherSessions = sessionsByTeacher[teacher] ?? [];
+                  return (
+                    <div
+                      key={teacher}
+                      className="flex-1 min-w-[200px] relative border-l border-slate-200 bg-white"
+                      style={{ height: GRID_HEIGHT }}
+                    >
+                      {TIME_LABELS.slice(1).map((t, i) => (
+                        <div
+                          key={t}
+                          className={cn(
+                            "absolute left-0 right-0 border-t pointer-events-none",
+                            t.endsWith(":00") ? "border-slate-200" : "border-slate-100"
+                          )}
+                          style={{ top: (i + 1) * SLOT_HEIGHT }}
+                        />
+                      ))}
+
+                      {activeDay === TODAY_KEY && (
+                        <div
+                          className="absolute left-0 right-0 z-10 pointer-events-none"
+                          style={{ top: CURRENT_TIME_PX }}
+                        >
+                          <div className="relative flex items-center">
+                            <div className="absolute left-0 w-2 h-2 rounded-full bg-red-500 -translate-x-1 -translate-y-[3px] flex-shrink-0" />
+                            <div className="w-full h-[2px] bg-red-400" />
+                          </div>
+                        </div>
+                      )}
+
+                      {TIME_LABELS.slice(0, -1).map((t, i) => (
+                        <div
+                          key={t}
+                          onClick={() => setShowNewSession(true)}
+                          className="absolute left-0 right-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer group z-[5]"
+                          style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
+                        >
+                          <div className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-amber-100 flex items-center justify-center transition-colors">
+                            <Plus className="w-3 h-3 text-slate-400 group-hover:text-amber-600" />
+                          </div>
+                        </div>
+                      ))}
+
+                      {teacherSessions.map((session) => {
+                        const top    = timeToPx(session.startTime);
+                        const height = durationToPx(session.duration);
+                        const colW   = 100 / session.colCount;
+                        return (
+                          <SessionChip
+                            key={session.id}
+                            session={session}
+                            onClick={() => setSelectedSession(session)}
+                            style={{
+                              top:    top + 2,
+                              height: Math.max(height - 4, 24),
+                              left:   `calc(${session.colIndex * colW}% + 3px)`,
+                              right:  `calc(${100 - (session.colIndex + 1) * colW}% + 3px)`,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ════ MONTH VIEW (placeholder) ════════════════════════════════════ */}
+        {activeView === "Month" && (
+          <div className="flex-1 flex items-center justify-center text-sm text-slate-400">
+            Month view — coming soon
+          </div>
+        )}
       </div>
 
       {/* ── Overlays ──────────────────────────────────────────────────────── */}

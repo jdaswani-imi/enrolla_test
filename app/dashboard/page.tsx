@@ -102,17 +102,17 @@ const ACTIVITY_HREFS: Record<string, string> = {
 };
 
 const ACTIVITY_ICON_MAP: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
-  enrolment:    { icon: UserPlus,       color: "text-emerald-600",  bg: "bg-emerald-50" },
-  payment:      { icon: CreditCard,     color: "text-blue-600",     bg: "bg-blue-50" },
-  concern:      { icon: TriangleAlert,  color: "text-red-600",      bg: "bg-red-50" },
-  invoice:      { icon: FileText,       color: "text-amber-600",    bg: "bg-amber-50" },
-  trial:        { icon: FlaskConical,   color: "text-emerald-600",  bg: "bg-emerald-50" },
-  assessment:   { icon: ClipboardCheck, color: "text-slate-500",    bg: "bg-slate-100" },
-  lead:         { icon: MessageCircle,  color: "text-emerald-600",  bg: "bg-emerald-50" },
-  staff:        { icon: UserX,          color: "text-red-600",      bg: "bg-red-50" },
-  task:         { icon: CheckSquare,    color: "text-amber-600",    bg: "bg-amber-50" },
-  report:       { icon: BarChart2,      color: "text-slate-500",    bg: "bg-slate-100" },
-  "re-enrolment": { icon: UserCheck,   color: "text-blue-600",     bg: "bg-blue-50" },
+  enrolment:      { icon: UserPlus,       color: "text-emerald-600", bg: "bg-emerald-50" },
+  payment:        { icon: CreditCard,     color: "text-blue-600",    bg: "bg-blue-50" },
+  concern:        { icon: TriangleAlert,  color: "text-red-600",     bg: "bg-red-50" },
+  invoice:        { icon: FileText,       color: "text-amber-600",   bg: "bg-amber-50" },
+  trial:          { icon: FlaskConical,   color: "text-emerald-600", bg: "bg-emerald-50" },
+  assessment:     { icon: ClipboardCheck, color: "text-slate-500",   bg: "bg-slate-100" },
+  lead:           { icon: MessageCircle,  color: "text-emerald-600", bg: "bg-emerald-50" },
+  staff:          { icon: UserX,          color: "text-red-600",     bg: "bg-red-50" },
+  task:           { icon: CheckSquare,    color: "text-amber-600",   bg: "bg-amber-50" },
+  report:         { icon: BarChart2,      color: "text-slate-500",   bg: "bg-slate-100" },
+  "re-enrolment": { icon: UserCheck,     color: "text-blue-600",    bg: "bg-blue-50" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -123,36 +123,30 @@ function formatAED(value: number): string {
 
 function getChurnBadge(level: ChurnRiskStudent["churnLevel"]) {
   switch (level) {
-    case "Critical":
-      return "bg-red-600 text-white";
-    case "High":
-      return "bg-red-500 text-white";
-    case "Medium":
-      return "bg-amber-400 text-amber-950";
-    case "Low":
-      return "bg-emerald-100 text-emerald-800";
+    case "Critical": return "bg-red-600 text-white";
+    case "High":     return "bg-red-500 text-white";
+    case "Medium":   return "bg-amber-400 text-amber-950";
+    case "Low":      return "bg-emerald-100 text-emerald-800";
   }
 }
 
 function getOccupancyColor(pct: number): string {
-  if (pct >= 85) return "bg-[#0F172A] text-white";
-  if (pct >= 70) return "bg-teal-500/20 text-teal-800";
-  if (pct >= 50) return "bg-amber-300/40 text-amber-900";
-  return "bg-slate-100 text-slate-400";
+  if (pct === 0) return "bg-slate-100 text-slate-700";
+  if (pct < 50)  return "bg-green-100 text-slate-700";
+  if (pct < 70)  return "bg-green-300 text-slate-700";
+  if (pct < 85)  return "bg-green-500 text-slate-700";
+  return "bg-green-700 text-white";
 }
 
 function getThresholdPill(status: OperationalThreshold["status"]) {
   switch (status) {
-    case "ok":
-      return "bg-emerald-100 text-emerald-700";
-    case "warning":
-      return "bg-amber-100 text-amber-700";
-    case "critical":
-      return "bg-red-100 text-red-700";
+    case "ok":       return "bg-emerald-100 text-emerald-700";
+    case "warning":  return "bg-amber-100 text-amber-700";
+    case "critical": return "bg-red-100 text-red-700";
   }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Primitives ───────────────────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -170,34 +164,100 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-// ─── Row 1: KPI Cards ─────────────────────────────────────────────────────────
+// ─── Greeting & Live Clock ────────────────────────────────────────────────────
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function LiveClock() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const minutes  = time.getMinutes().toString().padStart(2, "0");
+  const seconds  = time.getSeconds().toString().padStart(2, "0");
+  const ampm     = time.getHours() >= 12 ? "PM" : "AM";
+  const hours12  = (time.getHours() % 12 || 12).toString().padStart(2, "0");
+
+  const minutesLeft    = 59 - time.getMinutes();
+  const secondsLeft    = 59 - time.getSeconds();
+  const countdownLabel = `${minutesLeft}m ${secondsLeft}s to next hour`;
+
+  const hourProgress      = (time.getMinutes() * 60 + time.getSeconds()) / 3600;
+  const circumference     = 2 * Math.PI * 20;
+  const strokeDashoffset  = circumference * (1 - hourProgress);
+
+  return (
+    <div className="flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-sm">
+      <div className="relative w-12 h-12">
+        <svg className="w-12 h-12 -rotate-90" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="20" fill="none" stroke="#F1F5F9" strokeWidth="3" />
+          <circle
+            cx="24" cy="24" r="20"
+            fill="none"
+            stroke="#F59E0B"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            style={{ transition: "stroke-dashoffset 1s linear" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[9px] font-bold text-slate-600">{hours12}:{minutes}</span>
+        </div>
+      </div>
+      <div>
+        <div className="text-xl font-bold text-slate-900 tabular-nums leading-none">
+          {hours12}:{minutes}:{seconds}
+          <span className="text-sm font-normal text-slate-400 ml-1">{ampm}</span>
+        </div>
+        <div className="text-xs text-slate-400 mt-0.5">{countdownLabel}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI Cards ────────────────────────────────────────────────────────────────
 
 function KpiCardItem({ card }: { card: KpiCard }) {
   const IconComponent = ICON_MAP[card.icon] ?? AlertCircle;
   const href = KPI_LINKS[card.id];
 
   const trendColor =
-    card.trendSentiment === "positive"
-      ? "text-emerald-600"
-      : card.trendSentiment === "negative"
-      ? "text-red-500"
-      : card.trendSentiment === "warning"
-      ? "text-amber-500"
-      : "text-slate-400";
+    card.trendSentiment === "positive" ? "text-emerald-600"
+    : card.trendSentiment === "negative" ? "text-red-500"
+    : card.trendSentiment === "warning"  ? "text-amber-500"
+    : "text-slate-400";
 
   const TrendIcon =
-    card.trendDirection === "up"
-      ? ArrowUpRight
-      : card.trendDirection === "down"
-      ? ArrowDownRight
-      : Minus;
+    card.trendDirection === "up"   ? ArrowUpRight
+    : card.trendDirection === "down" ? ArrowDownRight
+    : Minus;
 
   const inner = (
-    <Card className={cn("flex flex-col gap-2.5 transition-all duration-200", href && "cursor-pointer hover:shadow-md hover:border-amber-200 hover:-translate-y-px")}>
-      <div className="flex items-start justify-between">
-        <div className="rounded-md bg-amber-50 p-1.5">
-          <IconComponent className="w-4 h-4 text-amber-500" />
-        </div>
+    <Card className={cn(
+      "flex flex-col justify-between min-h-[120px] transition-all duration-200",
+      href && "cursor-pointer hover:shadow-md hover:border-amber-200 hover:-translate-y-px"
+    )}>
+      <div className="rounded-md bg-amber-50 p-1.5 self-start">
+        <IconComponent className="w-4 h-4 text-amber-500" />
+      </div>
+      <div>
+        <p className="text-xs text-slate-400 mb-0.5">{card.label}</p>
+        <p className="text-2xl font-bold text-slate-900 leading-none">{card.value}</p>
+        {card.subValue && (
+          <p className={cn("text-xs mt-1 font-medium", trendColor)}>{card.subValue}</p>
+        )}
+      </div>
+      <div>
         {card.trendDirection !== "neutral" ? (
           <span className={cn("flex items-center gap-0.5 text-xs font-medium", trendColor)}>
             <TrendIcon className="w-3.5 h-3.5" />
@@ -207,13 +267,6 @@ function KpiCardItem({ card }: { card: KpiCard }) {
           <span className={cn("text-xs font-medium", trendColor)}>{card.trend}</span>
         )}
       </div>
-      <div>
-        <p className="text-xs text-slate-400 mb-0.5">{card.label}</p>
-        <p className="text-2xl font-bold text-slate-900 leading-none">{card.value}</p>
-        {card.subValue && (
-          <p className={cn("text-xs mt-1 font-medium", trendColor)}>{card.subValue}</p>
-        )}
-      </div>
     </Card>
   );
 
@@ -221,7 +274,7 @@ function KpiCardItem({ card }: { card: KpiCard }) {
   return inner;
 }
 
-// ─── Row 2 Left: Churn Risk Table ─────────────────────────────────────────────
+// ─── Churn Risk Table ─────────────────────────────────────────────────────────
 
 function ChurnRiskTable() {
   return (
@@ -241,34 +294,21 @@ function ChurnRiskTable() {
           </thead>
           <tbody>
             {churnRiskStudents.map((s) => (
-              <tr
-                key={s.id}
-                className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
-              >
+              <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer">
                 <td className="py-2.5 px-1 font-medium text-slate-800">{s.name}</td>
                 <td className="py-2.5 px-1 text-slate-500">
                   <span className="font-medium">{s.yearGroup}</span>{" "}
                   <span className="text-slate-400 text-xs">{s.department}</span>
                 </td>
                 <td className="py-2.5 px-1">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
-                      getChurnBadge(s.churnLevel)
-                    )}
-                  >
+                  <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold", getChurnBadge(s.churnLevel))}>
                     {s.churnScore} {s.churnLevel}
                   </span>
                 </td>
                 <td className="py-2.5 px-1 text-slate-500 text-xs hidden md:table-cell">{s.topSignal}</td>
-                <td className="py-2.5 px-1 text-slate-400 text-xs hidden lg:table-cell">
-                  {s.daysSinceContact}d ago
-                </td>
+                <td className="py-2.5 px-1 text-slate-400 text-xs hidden lg:table-cell">{s.daysSinceContact}d ago</td>
                 <td className="py-2.5 px-1">
-                  <Link
-                    href={`/students/${s.studentId}`}
-                    className="text-xs text-amber-600 hover:text-amber-700 font-medium whitespace-nowrap transition-colors"
-                  >
+                  <Link href={`/students/${s.studentId}`} className="text-xs text-amber-600 hover:text-amber-700 font-medium whitespace-nowrap transition-colors">
                     View Profile
                   </Link>
                 </td>
@@ -281,7 +321,7 @@ function ChurnRiskTable() {
   );
 }
 
-// ─── Row 2 Right: Operational Thresholds ──────────────────────────────────────
+// ─── Operational Thresholds ───────────────────────────────────────────────────
 
 function OperationalThresholdStrip() {
   return (
@@ -289,10 +329,7 @@ function OperationalThresholdStrip() {
       <SectionLabel>Operational Thresholds</SectionLabel>
       <div className="flex flex-col gap-2">
         {operationalThresholds.map((t) => (
-          <div
-            key={t.id}
-            className="flex items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5"
-          >
+          <div key={t.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2.5">
             <div className="min-w-0">
               <p className="text-sm font-medium text-slate-700 truncate">{t.metric}</p>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -301,12 +338,7 @@ function OperationalThresholdStrip() {
                 {t.target}
               </p>
             </div>
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap",
-                getThresholdPill(t.status)
-              )}
-            >
+            <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap", getThresholdPill(t.status))}>
               {t.statusLabel}
             </span>
           </div>
@@ -316,7 +348,7 @@ function OperationalThresholdStrip() {
   );
 }
 
-// ─── Row 3 Left: Revenue Bar Chart ────────────────────────────────────────────
+// ─── Revenue Chart ────────────────────────────────────────────────────────────
 
 function RevenueChart() {
   return (
@@ -325,81 +357,50 @@ function RevenueChart() {
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={revenueData} barGap={4} barCategoryGap="28%">
           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-          <XAxis
-            dataKey="month"
-            tick={{ fontSize: 11, fill: "#94A3B8" }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis
-            tickFormatter={(v) => formatAED(v)}
-            tick={{ fontSize: 11, fill: "#94A3B8" }}
-            axisLine={false}
-            tickLine={false}
-            width={52}
-          />
+          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={(v) => formatAED(v)} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} width={52} />
           <Tooltip
             formatter={(value) => [`AED ${Number(value).toLocaleString()}`, ""]}
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid #E2E8F0",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-              fontSize: 12,
-            }}
+            contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: 12 }}
           />
-          <Legend
-            iconType="square"
-            iconSize={10}
-            wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
-          />
-          <Bar dataKey="invoiced" name="Invoiced" fill="#F59E0B" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="collected" name="Collected" fill="#0F172A" radius={[3, 3, 0, 0]} />
+          <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
+          <Bar dataKey="invoiced"  name="Invoiced"  fill="#F59E0B" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="collected" name="Collected" fill="#14B8A6" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </Card>
   );
 }
 
-// ─── Row 3 Right: Occupancy Heatmap ──────────────────────────────────────────
+// ─── Occupancy Heatmap ────────────────────────────────────────────────────────
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const DAYS  = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const TIMES = ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "20:30"];
 
 function OccupancyHeatmap() {
-  const lookup = new Map(
-    occupancyHeatmap.map((c) => [`${c.day}|${c.time}`, c.occupancy])
-  );
+  const lookup = new Map(occupancyHeatmap.map((c) => [`${c.day}|${c.time}`, c.occupancy]));
 
   return (
     <Card>
       <SectionLabel>Seat Occupancy Heatmap</SectionLabel>
       <div className="overflow-x-auto">
         <div className="min-w-[320px]">
-          {/* Header row */}
           <div className="grid grid-cols-[52px_repeat(5,1fr)] gap-1 mb-1">
             <div />
             {DAYS.map((d) => (
-              <div key={d} className="text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-                {d}
-              </div>
+              <div key={d} className="text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{d}</div>
             ))}
           </div>
-          {/* Data rows */}
           {TIMES.map((time) => (
             <div key={time} className="grid grid-cols-[52px_repeat(5,1fr)] gap-1 mb-1">
-              <div className="flex items-center text-[11px] text-slate-400 font-medium pr-1">
-                {time}
-              </div>
+              <div className="flex items-center text-[11px] text-slate-400 font-medium pr-1">{time}</div>
               {DAYS.map((day) => {
                 const pct = lookup.get(`${day}|${time}`) ?? 0;
                 return (
                   <div
                     key={day}
                     title={`${day} ${time}: ${pct}%`}
-                    className={cn(
-                      "rounded h-8 flex items-center justify-center text-[10px] font-semibold transition-opacity cursor-default",
-                      getOccupancyColor(pct)
-                    )}
+                    className={cn("rounded h-8 flex items-center justify-center text-[10px] font-semibold transition-opacity cursor-default", getOccupancyColor(pct))}
                   >
                     {pct}%
                   </div>
@@ -407,13 +408,13 @@ function OccupancyHeatmap() {
               })}
             </div>
           ))}
-          {/* Legend */}
           <div className="flex items-center gap-3 mt-3 flex-wrap">
             {[
-              { label: "< 50%", className: "bg-slate-100" },
-              { label: "50–69%", className: "bg-amber-300/40" },
-              { label: "70–84%", className: "bg-teal-500/20" },
-              { label: "85–100%", className: "bg-[#0F172A]" },
+              { label: "Empty",    className: "bg-slate-100" },
+              { label: "Low",      className: "bg-green-100" },
+              { label: "Moderate", className: "bg-green-300" },
+              { label: "Good",     className: "bg-green-500" },
+              { label: "Full",     className: "bg-green-700" },
             ].map((l) => (
               <div key={l.label} className="flex items-center gap-1.5">
                 <div className={cn("w-3 h-3 rounded", l.className)} />
@@ -427,7 +428,7 @@ function OccupancyHeatmap() {
   );
 }
 
-// ─── Row 4 Left: Activity Feed ────────────────────────────────────────────────
+// ─── Activity Feed ────────────────────────────────────────────────────────────
 
 function ActivityFeedPanel() {
   return (
@@ -435,24 +436,18 @@ function ActivityFeedPanel() {
       <SectionLabel>Live Activity</SectionLabel>
       <div className="flex flex-col divide-y divide-slate-50">
         {activityFeed.map((event: ActivityEvent) => {
-          const meta = ACTIVITY_ICON_MAP[event.type] ?? ACTIVITY_ICON_MAP["report"];
+          const meta  = ACTIVITY_ICON_MAP[event.type] ?? ACTIVITY_ICON_MAP["report"];
           const IconEl = meta.icon;
-          const href = ACTIVITY_HREFS[event.type] ?? "/dashboard";
+          const href  = ACTIVITY_HREFS[event.type] ?? "/dashboard";
           return (
-            <Link
-              key={event.id}
-              href={href}
-              className="flex items-start gap-3 py-2.5 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer"
-            >
+            <Link key={event.id} href={href} className="flex items-start gap-3 py-2.5 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
               <div className={cn("mt-0.5 rounded-md p-1.5 shrink-0", meta.bg)}>
                 <IconEl className={cn("w-3.5 h-3.5", meta.color)} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-slate-700 leading-snug">{event.description}</p>
               </div>
-              <span className="shrink-0 text-xs text-slate-400 whitespace-nowrap mt-0.5">
-                {event.timeAgo}
-              </span>
+              <span className="shrink-0 text-xs text-slate-400 whitespace-nowrap mt-0.5">{event.timeAgo}</span>
             </Link>
           );
         })}
@@ -461,7 +456,7 @@ function ActivityFeedPanel() {
   );
 }
 
-// ─── Row 4 Right: Reports Inbox ───────────────────────────────────────────────
+// ─── Reports Inbox ────────────────────────────────────────────────────────────
 
 const REPORT_ICON_MAP: Record<string, React.ElementType> = {
   BarChart2,
@@ -476,10 +471,7 @@ function ReportsInboxPanel() {
     <Card className="flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <SectionLabel>Reports Inbox</SectionLabel>
-        <Link
-          href="/reports"
-          className="text-xs text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 transition-colors -mt-3"
-        >
+        <Link href="/reports" className="text-xs text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 transition-colors -mt-3">
           View All
           <ExternalLink className="w-3 h-3" />
         </Link>
@@ -488,19 +480,13 @@ function ReportsInboxPanel() {
         {reportsInbox.map((report: ReportItem) => {
           const IconEl = REPORT_ICON_MAP[report.icon] ?? BarChart2;
           return (
-            <Link
-              key={report.id}
-              href="/reports"
-              className="flex items-center gap-3 py-3 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer"
-            >
+            <Link key={report.id} href="/reports" className="flex items-center gap-3 py-3 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
               <div className="rounded-md bg-slate-100 p-2 shrink-0">
                 <IconEl className="w-4 h-4 text-slate-500" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  {!report.read && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                  )}
+                  {!report.read && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
                   <p className={cn("text-sm truncate", report.read ? "text-slate-500" : "text-slate-800 font-medium")}>
                     {report.title}
                   </p>
@@ -518,6 +504,61 @@ function ReportsInboxPanel() {
   );
 }
 
+// ─── Dashboard section interface ──────────────────────────────────────────────
+
+interface DashboardSection {
+  id: string;
+  label: string;
+  component: React.ReactNode;
+}
+
+// ─── Row wrapper components ───────────────────────────────────────────────────
+
+function ActivityAndReportsRow() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="lg:col-span-3"><ActivityFeedPanel /></div>
+      <div className="lg:col-span-2"><ReportsInboxPanel /></div>
+    </div>
+  );
+}
+
+function ChurnAndThresholdsRow() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="lg:col-span-3"><ChurnRiskTable /></div>
+      <div className="lg:col-span-2"><OperationalThresholdStrip /></div>
+    </div>
+  );
+}
+
+function ChartsRow() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <RevenueChart />
+      <OccupancyHeatmap />
+    </div>
+  );
+}
+
+// ─── Drag handle ──────────────────────────────────────────────────────────────
+
+function DragHandle({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <div className="flex flex-col gap-0.5 cursor-grab active:cursor-grabbing p-1 rounded hover:bg-slate-100" title="Drag to reorder">
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="flex gap-0.5">
+            <div className="w-1 h-1 rounded-full bg-slate-300" />
+            <div className="w-1 h-1 rounded-full bg-slate-300" />
+          </div>
+        ))}
+      </div>
+      <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">{label}</span>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -528,36 +569,60 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  const [sections, setSections] = useState<DashboardSection[]>(() => [
+    { id: "activity", label: "Live Activity & Reports",  component: <ActivityAndReportsRow /> },
+    { id: "churn",    label: "Churn Risk & Thresholds",  component: <ChurnAndThresholdsRow /> },
+    { id: "charts",   label: "Revenue & Occupancy",      component: <ChartsRow /> },
+  ]);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+
+  function handleDragStart(id: string) {
+    setDragging(id);
+  }
+
+  function handleDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    setDragOver(id);
+  }
+
+  function handleDrop(targetId: string) {
+    if (!dragging || dragging === targetId) {
+      setDragging(null);
+      setDragOver(null);
+      return;
+    }
+    const from = sections.findIndex((s) => s.id === dragging);
+    const to   = sections.findIndex((s) => s.id === targetId);
+    const reordered = [...sections];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    setSections(reordered);
+    setDragging(null);
+    setDragOver(null);
+  }
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
-        {/* Row 1 — KPI skeletons */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {Array.from({ length: 10 }).map((_, i) => <SkeletonKpi key={i} />)}
         </div>
-        {/* Row 2 — Churn + Thresholds skeletons */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3">
-            <SkeletonTable rows={6} columns={5} />
-          </div>
+          <div className="lg:col-span-3"><SkeletonTable rows={6} columns={5} /></div>
           <div className="lg:col-span-2 flex flex-col gap-4">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
         </div>
-        {/* Rows 3 & 4 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <SkeletonTable rows={4} />
           <SkeletonTable rows={4} />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3">
-            <SkeletonTable rows={4} />
-          </div>
-          <div className="lg:col-span-2">
-            <SkeletonTable rows={4} />
-          </div>
+          <div className="lg:col-span-3"><SkeletonTable rows={4} /></div>
+          <div className="lg:col-span-2"><SkeletonTable rows={4} /></div>
         </div>
       </div>
     );
@@ -565,38 +630,47 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
-      {/* Row 1 — KPI Cards */}
+      {/* Welcome banner */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {getGreeting()}, Jason 👋
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Here&apos;s what&apos;s happening at IMI today.
+          </p>
+        </div>
+        <LiveClock />
+      </div>
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {kpiCards.map((card) => (
           <KpiCardItem key={card.id} card={card} />
         ))}
       </div>
 
-      {/* Row 2 — Churn Risk + Operational Thresholds */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3">
-          <ChurnRiskTable />
+      {/* Draggable sections */}
+      {sections.map((section) => (
+        <div
+          key={section.id}
+          draggable
+          onDragStart={() => handleDragStart(section.id)}
+          onDragOver={(e) => handleDragOver(e, section.id)}
+          onDrop={() => handleDrop(section.id)}
+          onDragEnd={() => { setDragging(null); setDragOver(null); }}
+          className={cn(
+            "transition-all duration-200",
+            dragOver === section.id && dragging !== section.id
+              ? "ring-2 ring-amber-400 ring-offset-2 rounded-xl"
+              : "",
+            dragging === section.id ? "opacity-50" : "opacity-100"
+          )}
+        >
+          <DragHandle label={section.label} />
+          {section.component}
         </div>
-        <div className="lg:col-span-2">
-          <OperationalThresholdStrip />
-        </div>
-      </div>
-
-      {/* Row 3 — Revenue Chart + Heatmap */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <RevenueChart />
-        <OccupancyHeatmap />
-      </div>
-
-      {/* Row 4 — Activity Feed + Reports Inbox */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3">
-          <ActivityFeedPanel />
-        </div>
-        <div className="lg:col-span-2">
-          <ReportsInboxPanel />
-        </div>
-      </div>
+      ))}
     </div>
   );
 }
