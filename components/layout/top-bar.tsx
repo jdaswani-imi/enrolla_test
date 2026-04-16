@@ -30,12 +30,22 @@ const initials = currentUser.name
   .join("")
   .slice(0, 2);
 
+const MOCK_NOTIFICATIONS = [
+  { title: "Overdue invoice — Aisha Rahman",        time: "2 min ago",  unread: true  },
+  { title: "New lead — Bilal Mahmood (Y7 Maths)",   time: "14 min ago", unread: true  },
+  { title: "Concern raised — L1, Y8 Maths",         time: "1 hr ago",   unread: true  },
+  { title: "Assessment completed — Ahmed Saleh",    time: "2 hr ago",   unread: false },
+];
+
 export function TopBar() {
   const pathname = usePathname();
   const title = routeTitles[pathname] ?? "Enrolla";
 
   const [searchOpen, setSearchOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
+  const bellRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (searchOpen) inputRef.current?.focus();
@@ -43,11 +53,26 @@ export function TopBar() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSearchOpen(false);
+      if (e.key === "Escape") {
+        setSearchOpen(false);
+        setNotificationsOpen(false);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  // Close notifications dropdown on outside click
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [notificationsOpen]);
 
   return (
     <header className="h-14 flex items-center px-4 bg-white border-b border-slate-200 flex-shrink-0 gap-4">
@@ -95,15 +120,55 @@ export function TopBar() {
         </div>
 
         {/* Notifications */}
-        <button
-          aria-label={`${notificationCount} notifications`}
-          className="relative p-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-        >
-          <Bell className="size-4" />
-          {notificationCount > 0 && (
-            <span className="notification-dot absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full bg-amber-500 ring-2 ring-white" />
+        <div ref={bellRef} className="relative">
+          <button
+            aria-label={`${notificationCount} notifications`}
+            onClick={() => setNotificationsOpen((o) => !o)}
+            className="relative p-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <Bell className="size-4" />
+            {notificationCount > 0 && (
+              <span className="notification-dot absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full bg-amber-500 ring-2 ring-white" />
+            )}
+          </button>
+
+          {/* Dropdown panel */}
+          {notificationsOpen && (
+            <div className="absolute right-0 top-12 w-80 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <span className="font-semibold text-slate-800 text-sm">Notifications</span>
+                <button
+                  onClick={() => setNotificationsOpen(false)}
+                  className="text-xs text-amber-600 cursor-pointer hover:underline"
+                >
+                  Mark all read
+                </button>
+              </div>
+              <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                {MOCK_NOTIFICATIONS.map((n, i) => (
+                  <div
+                    key={i}
+                    className={`px-4 py-3 flex gap-3 cursor-pointer hover:bg-slate-50 transition-colors ${n.unread ? "bg-amber-50/50" : ""}`}
+                  >
+                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.unread ? "bg-amber-500" : "bg-transparent"}`} />
+                    <div>
+                      <p className="text-sm text-slate-800 leading-snug">{n.title}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{n.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100 text-center">
+                <button
+                  onClick={() => setNotificationsOpen(false)}
+                  className="text-xs text-amber-600 cursor-pointer hover:underline"
+                >
+                  View all notifications
+                </button>
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         {/* Help */}
         <button

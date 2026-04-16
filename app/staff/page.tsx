@@ -26,6 +26,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { staffMembers, type StaffMember, type StaffStatus } from "@/lib/mock-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -666,7 +667,7 @@ export default function StaffPage() {
 
       {/* ═══════════ STAFF DIRECTORY ═══════════ */}
       {outerTab === "directory" && (
-        <div className="space-y-5">
+        <div key="directory" className="page-enter space-y-5">
 
           {/* Summary strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -696,7 +697,7 @@ export default function StaffPage() {
 
               <button
                 type="button"
-                className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors cursor-pointer shadow-sm whitespace-nowrap"
+                className="btn-primary ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold shadow-sm whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" />
                 Add Staff
@@ -710,11 +711,14 @@ export default function StaffPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    {["Staff Member", "Role", "Department", "Subjects", "Sessions/Wk", "CPD Progress", "Status", ""].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Staff Member</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Role</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden md:table-cell">Department</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden lg:table-cell">Subjects</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden lg:table-cell">Sessions/Wk</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden xl:table-cell">CPD Progress</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">Status</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -752,10 +756,10 @@ export default function StaffPage() {
                         </td>
 
                         {/* Department */}
-                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{s.department}</td>
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap hidden md:table-cell">{s.department}</td>
 
                         {/* Subjects */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 hidden lg:table-cell">
                           {s.subjects.length === 0 ? (
                             <span className="text-slate-400 text-xs">—</span>
                           ) : (
@@ -775,10 +779,10 @@ export default function StaffPage() {
                         </td>
 
                         {/* Sessions */}
-                        <td className="px-4 py-3 text-slate-600 text-center tabular-nums">{s.sessionsThisWeek}</td>
+                        <td className="px-4 py-3 text-slate-600 text-center tabular-nums hidden lg:table-cell">{s.sessionsThisWeek}</td>
 
                         {/* CPD */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 hidden xl:table-cell">
                           <CpdBar hours={s.cpdHours} target={s.cpdTarget} />
                         </td>
 
@@ -805,8 +809,12 @@ export default function StaffPage() {
 
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-slate-400 text-sm">
-                        No staff match the current filters.
+                      <td colSpan={8}>
+                        <EmptyState
+                          icon={UserCheck}
+                          title="No staff found"
+                          description="No staff match the current filters."
+                        />
                       </td>
                     </tr>
                   )}
@@ -823,7 +831,7 @@ export default function StaffPage() {
 
       {/* ═══════════ HR DASHBOARD ═══════════ */}
       {outerTab === "hr" && (
-        <div className="space-y-6">
+        <div key="hr" className="page-enter space-y-6">
 
           {/* 2×2 panel grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

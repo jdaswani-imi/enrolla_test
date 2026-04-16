@@ -190,3 +190,8 @@ button, a, [role="button"] {
 .fade-in {
   animation: fadeIn 0.15s ease-out forwards;
 }
+
+/* ─── Primary button utility ──────────────────────────────────────────────── */
+.btn-primary {
+  @apply bg-amber-500 text-white hover:bg-amber-600 active:scale-95 transition-all duration-150 cursor-pointer;
+}

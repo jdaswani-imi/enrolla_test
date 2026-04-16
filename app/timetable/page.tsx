@@ -467,7 +467,7 @@ export default function TimetablePage() {
           </div>
           <button
             onClick={() => setShowNewSession(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+            className="btn-primary flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg"
           >
             <Plus className="w-3.5 h-3.5" />
             New Session
@@ -542,8 +542,53 @@ export default function TimetablePage() {
         </div>
       </div>
 
-      {/* ── Calendar grid ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto">
+      {/* ── Mobile day list (visible only on mobile) ──────────────────────── */}
+      <div className="md:hidden flex-1 overflow-auto">
+        <div className="px-4 py-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 flex items-start gap-2.5">
+            <span className="text-amber-600 text-sm">📐</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Best viewed on desktop</p>
+              <p className="text-xs text-amber-700 mt-0.5">Switch to Day view or use a larger screen for the full timetable grid.</p>
+            </div>
+          </div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">
+            {DAYS.find((d) => d.key === activeDay)?.label} — {daySessions.length} session{daySessions.length !== 1 ? "s" : ""}
+          </p>
+          <div className="flex flex-col gap-2">
+            {daySessions.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">No sessions for this day.</p>
+            ) : (
+              [...daySessions]
+                .sort((a, b) => timeToMins(a.startTime) - timeToMins(b.startTime))
+                .map((session) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => setSelectedSession(session)}
+                    className={cn(
+                      "w-full text-left rounded-lg border px-4 py-3 flex items-start gap-3 cursor-pointer hover:shadow-sm transition-shadow",
+                      getChipColors(session)
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold leading-tight">{session.subject}</p>
+                      <p className="text-xs opacity-70 mt-0.5">{session.teacher}</p>
+                      <p className="text-xs opacity-60 mt-0.5">{session.room} · {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-semibold">{session.startTime}</p>
+                      <p className="text-xs opacity-60">{session.endTime}</p>
+                    </div>
+                  </button>
+                ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Calendar grid (hidden on mobile) ──────────────────────────────── */}
+      <div className="hidden md:flex flex-1 overflow-auto">
         <div className="min-w-max">
 
           {/* Sticky room column headers */}

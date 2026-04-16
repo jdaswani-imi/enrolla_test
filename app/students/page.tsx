@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   Upload,
   UserPlus,
+  Users,
   X,
   ChevronDown,
   MoreHorizontal,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { students, type Student } from "@/lib/mock-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -399,7 +401,7 @@ export default function StudentsPage() {
           </button>
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+            className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm"
           >
             <UserPlus className="w-3.5 h-3.5" />
             Add Student
@@ -578,20 +580,13 @@ export default function StudentsPage() {
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-20 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
-                        <Search className="w-5 h-5 text-slate-400" />
-                      </div>
-                      <p className="text-slate-500 font-medium">No students match your filters</p>
-                      <button
-                        type="button"
-                        onClick={clearFilters}
-                        className="text-sm text-amber-600 hover:text-amber-700 font-medium transition-colors cursor-pointer"
-                      >
-                        Clear filters
-                      </button>
-                    </div>
+                  <td colSpan={12}>
+                    <EmptyState
+                      icon={Users}
+                      title="No students found"
+                      description="No students match your current filters. Try adjusting or clearing them."
+                      action={{ label: "Clear filters", onClick: clearFilters }}
+                    />
                   </td>
                 </tr>
               ) : (

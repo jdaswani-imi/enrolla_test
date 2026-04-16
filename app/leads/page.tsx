@@ -15,9 +15,11 @@ import {
   XCircle,
   Archive,
   Eye,
+  Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { leads, type Lead, type LeadStage, type LeadSource } from "@/lib/mock-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -474,7 +476,10 @@ function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
 type ViewMode = "kanban" | "list" | "table";
 
 export default function LeadsPage() {
-  const [view, setView] = useState<ViewMode>("kanban");
+  const [view, setView] = useState<ViewMode>(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) return "list";
+    return "kanban";
+  });
   const [stageFilter, setStageFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All");
   const [deptFilter, setDeptFilter] = useState("All");
@@ -521,7 +526,7 @@ export default function LeadsPage() {
         <p className="text-sm text-slate-500">
           28 active leads · 6 stages with pending action
         </p>
-        <button className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer shadow-sm">
+        <button className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm">
           <Plus className="w-4 h-4" />
           Add Lead
         </button>
@@ -692,7 +697,12 @@ export default function LeadsPage() {
               </tbody>
             </table>
             {filteredLeads.length === 0 && (
-              <div className="py-12 text-center text-slate-400 text-sm">No leads match the current filters.</div>
+              <EmptyState
+                icon={Filter}
+                title="No leads match your filters"
+                description="Try adjusting the stage, source, or department filters."
+                action={{ label: "Clear filters", onClick: clearFilters }}
+              />
             )}
           </div>
         </div>
@@ -770,7 +780,12 @@ export default function LeadsPage() {
               </tbody>
             </table>
             {filteredLeads.length === 0 && (
-              <div className="py-10 text-center text-slate-400 text-sm">No leads match the current filters.</div>
+              <EmptyState
+                icon={Filter}
+                title="No leads match your filters"
+                description="Try adjusting the stage, source, or department filters."
+                action={{ label: "Clear filters", onClick: clearFilters }}
+              />
             )}
           </div>
         </div>

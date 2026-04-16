@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   FileText,
   Download,
@@ -230,7 +231,7 @@ export default function ReportsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#F59E0B] text-white text-sm font-semibold hover:bg-amber-500 transition-colors cursor-pointer shadow-sm">
+          <button className="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
             <Plus className="w-4 h-4" />
             Generate Report
           </button>
@@ -275,11 +276,11 @@ export default function ReportsPage() {
       {/* Reports list */}
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <FileText className="w-10 h-10 mb-3 opacity-40" />
-            <p className="text-sm font-medium">No reports match your filters</p>
-            <p className="text-xs mt-1">Try adjusting the filters above</p>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title="No reports found"
+            description="No reports match your current filters."
+          />
         ) : (
           filtered.map((report) => <ReportRow key={report.id} report={report} />)
         )}

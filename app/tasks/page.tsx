@@ -14,9 +14,11 @@ import {
   X,
   ArrowUpRight,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tasks as allTasks, type Task, type TaskStatus } from "@/lib/mock-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -776,7 +778,7 @@ export default function TasksPage() {
 
           <button
             type="button"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shadow-sm cursor-pointer"
+            className="btn-primary flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm"
           >
             <Plus className="w-4 h-4" />
             New Task
@@ -834,10 +836,22 @@ export default function TasksPage() {
         {view === "list" && (
           <div className="px-6 py-5 max-w-6xl mx-auto w-full">
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-                <AlertCircle className="w-10 h-10 mb-3 opacity-40" />
-                <p className="text-sm font-medium">No tasks match your filters</p>
-              </div>
+              <EmptyState
+                icon={CheckCircle}
+                title="No tasks found"
+                description="No tasks match your filters. Try 'All Assignees' or clearing the type filter."
+                action={{
+                  label: "Show all tasks",
+                  onClick: () => {
+                    setAssigneeFilter("All");
+                    setTypeFilter("All");
+                    setPriorityFilter("All");
+                    setStatusFilter("All");
+                    setMyTasksOnly(false);
+                    setSearch("");
+                  },
+                }}
+              />
             ) : (
               <>
                 <ListSection

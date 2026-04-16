@@ -13,8 +13,10 @@ import {
   Banknote,
   BookOpen,
   MoreHorizontal,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   invoices,
   payments,
@@ -395,7 +397,7 @@ function InvoicesTab() {
   return (
     <div className="space-y-4">
       {/* Summary strip */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="Total Invoiced This Term" value="AED 284,500" />
         <SummaryCard label="Collected This Term"      value="AED 241,200" accent="green" />
         <SummaryCard label="Outstanding"              value="AED 43,300" />
@@ -423,7 +425,7 @@ function InvoicesTab() {
           <button className="px-3 py-1.5 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
             Bulk Generate
           </button>
-          <button className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
+          <button className="btn-primary flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg">
             <Plus className="w-4 h-4" />
             Create Invoice
           </button>
@@ -436,17 +438,15 @@ function InvoicesTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Invoice #", "Student", "Guardian", "Description", "Issue Date", "Due Date", "Amount", "Status", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    className={cn(
-                      "text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap",
-                      h === "Amount" && "text-right"
-                    )}
-                  >
-                    {h}
-                  </th>
-                ))}
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Invoice #</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Student</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Guardian</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap hidden md:table-cell">Description</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Issue Date</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap hidden md:table-cell">Due Date</th>
+                <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Amount</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Status</th>
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -473,10 +473,10 @@ function InvoicesTab() {
                     <span className="block mt-0.5 px-1.5 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full w-fit">{inv.yearGroup}</span>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{inv.guardian}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 max-w-[180px] truncate">{inv.description}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500 max-w-[180px] truncate hidden md:table-cell">{inv.description}</td>
                   <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{inv.issueDate}</td>
                   <td className={cn(
-                    "px-4 py-3 text-sm whitespace-nowrap",
+                    "px-4 py-3 text-sm whitespace-nowrap hidden md:table-cell",
                     inv.status === "Overdue" ? "text-red-600 font-medium" : "text-slate-500"
                   )}>
                     {inv.dueDate}
@@ -509,7 +509,11 @@ function InvoicesTab() {
             </tbody>
           </table>
           {filtered.length === 0 && (
-            <div className="py-12 text-center text-slate-400 text-sm">No invoices match the current filters.</div>
+            <EmptyState
+              icon={Receipt}
+              title="No invoices found"
+              description="No invoices match your search or filters."
+            />
           )}
         </div>
       </div>
@@ -769,10 +773,12 @@ export default function FinancePage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto pb-4">
-        {tab === "invoices" && <InvoicesTab />}
-        {tab === "payments" && <PaymentsTab />}
-        {tab === "credits"  && <CreditsTab  />}
-        {tab === "reports"  && <ReportsTab  />}
+        <div key={tab} className="page-enter">
+          {tab === "invoices" && <InvoicesTab />}
+          {tab === "payments" && <PaymentsTab />}
+          {tab === "credits"  && <CreditsTab  />}
+          {tab === "reports"  && <ReportsTab  />}
+        </div>
       </div>
     </div>
   );

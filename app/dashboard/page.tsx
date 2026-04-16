@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -40,6 +41,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { SkeletonKpi, SkeletonTable, SkeletonCard } from "@/components/ui/skeleton-loader";
 import {
   kpiCards,
   churnRiskStudents,
@@ -519,6 +521,48 @@ function ReportsInboxPanel() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
+        {/* Row 1 — KPI skeletons */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 10 }).map((_, i) => <SkeletonKpi key={i} />)}
+        </div>
+        {/* Row 2 — Churn + Thresholds skeletons */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3">
+            <SkeletonTable rows={6} columns={5} />
+          </div>
+          <div className="lg:col-span-2 flex flex-col gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
+        {/* Rows 3 & 4 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SkeletonTable rows={4} />
+          <SkeletonTable rows={4} />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3">
+            <SkeletonTable rows={4} />
+          </div>
+          <div className="lg:col-span-2">
+            <SkeletonTable rows={4} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
       {/* Row 1 — KPI Cards */}
