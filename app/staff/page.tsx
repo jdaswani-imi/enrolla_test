@@ -1,0 +1,1064 @@
+"use client";
+
+import { useState, useMemo, useRef, useEffect } from "react";
+import {
+  Search,
+  ChevronDown,
+  MoreHorizontal,
+  X,
+  Plus,
+  Check,
+  UserCheck,
+  UserMinus,
+  Clock,
+  UserX,
+  Eye,
+  Edit2,
+  RefreshCw,
+  ShieldOff,
+  Send,
+} from "lucide-react";
+import {
+  LineChart,
+  Line,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { cn } from "@/lib/utils";
+import { staffMembers, type StaffMember, type StaffStatus } from "@/lib/mock-data";
+
+// ─── Avatar helpers ────────────────────────────────────────────────────────────
+
+const AVATAR_PALETTES = [
+  { bg: "bg-amber-100",   text: "text-amber-700"   },
+  { bg: "bg-teal-100",    text: "text-teal-700"     },
+  { bg: "bg-blue-100",    text: "text-blue-700"     },
+  { bg: "bg-violet-100",  text: "text-violet-700"   },
+  { bg: "bg-rose-100",    text: "text-rose-700"     },
+  { bg: "bg-emerald-100", text: "text-emerald-700"  },
+  { bg: "bg-indigo-100",  text: "text-indigo-700"   },
+  { bg: "bg-orange-100",  text: "text-orange-700"   },
+];
+
+function getAvatarPalette(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+// ─── Role badge config ─────────────────────────────────────────────────────────
+
+const ROLE_BADGE: Record<string, string> = {
+  "Super Admin":   "bg-slate-800 text-white",
+  "Admin Head":    "bg-indigo-100 text-indigo-700 border border-indigo-200",
+  "Admin":         "bg-slate-100 text-slate-600 border border-slate-200",
+  "HOD":           "bg-purple-100 text-purple-700 border border-purple-200",
+  "Teacher":       "bg-teal-100 text-teal-700 border border-teal-200",
+  "TA":            "bg-blue-100 text-blue-700 border border-blue-200",
+  "HR-Finance":    "bg-orange-100 text-orange-700 border border-orange-200",
+  "Academic Head": "bg-emerald-100 text-emerald-700 border border-emerald-200",
+};
+
+// ─── Status config ─────────────────────────────────────────────────────────────
+
+const STATUS_BADGE: Record<StaffStatus, string> = {
+  "Active":       "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  "On Leave":     "bg-amber-100 text-amber-700 border border-amber-200",
+  "Suspended":    "bg-red-100 text-red-700 border border-red-200",
+  "Off-boarded":  "bg-slate-100 text-slate-500 border border-slate-200",
+};
+
+// ─── Workload config ───────────────────────────────────────────────────────────
+
+const WORKLOAD_BADGE: Record<string, string> = {
+  "Low":      "bg-emerald-100 text-emerald-700",
+  "Moderate": "bg-amber-100 text-amber-700",
+  "High":     "bg-red-100 text-red-700",
+};
+
+const WORKLOAD_DOT: Record<string, string> = {
+  "Low":      "bg-emerald-500",
+  "Moderate": "bg-amber-500",
+  "High":     "bg-red-500",
+};
+
+// ─── CPD progress bar ──────────────────────────────────────────────────────────
+
+function CpdBar({ hours, target }: { hours: number; target: number }) {
+  const pct = Math.min((hours / target) * 100, 100);
+  const danger = hours < 10;
+  return (
+    <div className="flex items-center gap-2 min-w-[120px]">
+      <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+        <div
+          className={cn("h-full rounded-full", danger ? "bg-red-400" : "bg-amber-400")}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className={cn("text-xs tabular-nums shrink-0", danger ? "text-red-500" : "text-slate-500")}>
+        {hours} / {target}
+      </span>
+    </div>
+  );
+}
+
+// ─── FilterDropdown ────────────────────────────────────────────────────────────
+
+function FilterDropdown({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = value !== options[0];
+
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer whitespace-nowrap",
+          active
+            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+            : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700"
+        )}
+      >
+        {active ? `${label}: ${value}` : label}
+        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-150", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[190px] py-1">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt); setOpen(false); }}
+              className={cn(
+                "w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between gap-2 cursor-pointer",
+                value === opt ? "text-amber-600 font-medium bg-amber-50" : "text-slate-700 hover:bg-slate-50"
+              )}
+            >
+              {opt}
+              {value === opt && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RowActionsMenu ────────────────────────────────────────────────────────────
+
+function RowActionsMenu({
+  staff,
+  isOpen,
+  onOpen,
+  onClose,
+  onViewProfile,
+}: {
+  staff: StaffMember;
+  isOpen: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onViewProfile: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function h(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    if (isOpen) document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [isOpen, onClose]);
+
+  const actions = [
+    { icon: Eye,       label: "View Profile",         onClick: onViewProfile, danger: false },
+    { icon: Edit2,     label: "Edit",                  onClick: () => {},      danger: false },
+    { icon: RefreshCw, label: "Assign Cover",          onClick: () => {},      danger: false },
+    { icon: UserMinus, label: "Initiate Off-boarding", onClick: () => {},      danger: true  },
+    { icon: ShieldOff, label: "Revoke Access",         onClick: () => {},      danger: true  },
+  ];
+
+  return (
+    <div ref={ref} className="relative flex justify-end">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); isOpen ? onClose() : onOpen(); }}
+        aria-label="Row actions"
+        className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
+          {actions.map(({ icon: Icon, label, onClick, danger }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClick(); onClose(); }}
+              className={cn(
+                "w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer transition-colors",
+                danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"
+              )}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CPD log mock data (shared) ────────────────────────────────────────────────
+
+const CPD_LOG = [
+  { activity: "Differentiation Strategies Workshop", date: "10 Mar 2025", hours: 3, type: "Training",   status: "Verified"   },
+  { activity: "Reading: Cambridge Assessment Guide", date: "2 Feb 2025",  hours: 2, type: "Reading",    status: "Unverified" },
+  { activity: "Regional Teachers Conference",        date: "15 Jan 2025", hours: 6, type: "Conference", status: "Verified"   },
+  { activity: "Classroom Management Webinar",        date: "5 Dec 2024",  hours: 2, type: "Training",   status: "Queried"    },
+];
+
+const CPD_STATUS_BADGE: Record<string, string> = {
+  "Verified":   "bg-emerald-100 text-emerald-700",
+  "Unverified": "bg-slate-100 text-slate-600",
+  "Queried":    "bg-amber-100 text-amber-700",
+};
+
+const CPD_STATUS_LABEL: Record<string, string> = {
+  "Verified":   "Verified ✓",
+  "Unverified": "Unverified",
+  "Queried":    "Queried ⚠",
+};
+
+// ─── Performance trend data ────────────────────────────────────────────────────
+
+const PERF_TREND = [
+  { term: "T1 23", score: 4.1 },
+  { term: "T2 23", score: 4.3 },
+  { term: "T1 24", score: 4.0 },
+  { term: "T2 24", score: 4.5 },
+  { term: "T1 25", score: 4.4 },
+];
+
+// ─── StaffSlideOver ────────────────────────────────────────────────────────────
+
+function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () => void }) {
+  const [tab, setTab] = useState<"overview" | "cpd" | "performance">("overview");
+  const pal = getAvatarPalette(staff.name);
+
+  useEffect(() => {
+    function h(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const workloadLabel: Record<string, string> = {
+    "Low":      "Low load",
+    "Moderate": `Moderate load — ${staff.sessionsThisWeek} sessions/week`,
+    "High":     `High load — ${staff.sessionsThisWeek} sessions/week`,
+  };
+
+  const workloadStripColor: Record<string, string> = {
+    "Low":      "bg-emerald-500",
+    "Moderate": "bg-amber-500",
+    "High":     "bg-red-500",
+  };
+
+  const tabs = [
+    { id: "overview",     label: "Overview"    },
+    { id: "cpd",          label: "CPD Log"     },
+    { id: "performance",  label: "Performance" },
+  ] as const;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+
+      {/* Panel */}
+      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+
+        {/* Sticky header */}
+        <div className="px-6 pt-5 pb-0 border-b border-slate-200 bg-white shrink-0">
+          {/* Staff identity row */}
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-start gap-4">
+              <div className={cn("w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0", pal.bg, pal.text)}>
+                {getInitials(staff.name)}
+              </div>
+              <div className="pt-0.5">
+                <h2 className="text-lg font-bold text-slate-900 leading-tight">{staff.name}</h2>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", ROLE_BADGE[staff.role] ?? "bg-slate-100 text-slate-600")}>
+                    {staff.role}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                    {staff.department}
+                  </span>
+                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", STATUS_BADGE[staff.status])}>
+                    {staff.status}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">Joined {staff.hireDate}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close panel"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer shrink-0 mt-0.5"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Inner tab bar */}
+          <div className="flex gap-0">
+            {tabs.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer",
+                  tab === id
+                    ? "border-amber-500 text-amber-600"
+                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* ── Overview tab ── */}
+          {tab === "overview" && (
+            <div className="px-6 py-5 space-y-5">
+              {/* Key info grid */}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Work Email</p>
+                  <p className="text-slate-700 break-all">{staff.email}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Department</p>
+                  <p className="text-slate-700">{staff.department}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Contract</p>
+                  <p className="text-slate-700">{staff.contractType}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Line Manager</p>
+                  <p className="text-slate-700">{staff.lineManager}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Sessions This Week</p>
+                  <p className="text-slate-700">{staff.sessionsThisWeek}</p>
+                </div>
+                {staff.subjects.length > 0 && (
+                  <div className="col-span-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Subjects Taught</p>
+                    <p className="text-slate-700">{staff.subjects.join(", ")}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Workload strip */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Workload</p>
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <div className={cn("w-3 h-3 rounded-full shrink-0", workloadStripColor[staff.workloadLevel])} />
+                  <span className="text-sm text-slate-700 font-medium">{workloadLabel[staff.workloadLevel]}</span>
+                  <span className={cn("ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold", WORKLOAD_BADGE[staff.workloadLevel])}>
+                    {staff.workloadLevel}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick stats grid */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">This Term</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Sessions Delivered",  value: String(staff.sessionsThisWeek * 11) },
+                    { label: "Avg Feedback Score",   value: "4.3 / 5"                          },
+                    { label: "Attendance Rate",       value: "96%"                              },
+                    { label: "CPD Hours",             value: `${staff.cpdHours} / ${staff.cpdTarget}` },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-white border border-slate-200 rounded-lg p-3">
+                      <p className="text-[11px] text-slate-400 font-medium">{label}</p>
+                      <p className="text-sm font-bold text-slate-800 mt-0.5">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── CPD Log tab ── */}
+          {tab === "cpd" && (
+            <div className="px-6 py-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-slate-700">CPD Activities</p>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Log CPD
+                </button>
+              </div>
+
+              {/* Annual progress */}
+              <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between text-sm mb-1.5">
+                  <span className="text-slate-600 font-medium">Annual progress</span>
+                  <span className={cn("font-semibold tabular-nums", staff.cpdHours < 10 ? "text-red-500" : "text-amber-600")}>
+                    {staff.cpdHours} / {staff.cpdTarget} hrs
+                  </span>
+                </div>
+                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all", staff.cpdHours < 10 ? "bg-red-400" : "bg-amber-400")}
+                    style={{ width: `${Math.min((staff.cpdHours / staff.cpdTarget) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {CPD_LOG.map((entry) => (
+                  <div key={entry.activity} className="border border-slate-200 rounded-lg p-3 bg-white">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 leading-snug">{entry.activity}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-xs text-slate-400">{entry.date}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-xs text-slate-500">{entry.hours} hrs</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-xs text-slate-500">{entry.type}</span>
+                        </div>
+                      </div>
+                      <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium shrink-0 whitespace-nowrap", CPD_STATUS_BADGE[entry.status])}>
+                        {CPD_STATUS_LABEL[entry.status]}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Performance tab ── */}
+          {tab === "performance" && (
+            <div className="px-6 py-5 space-y-5">
+              {/* Overall rating */}
+              <div className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="text-3xl font-bold text-amber-600 leading-none">4.0</div>
+                <div>
+                  <div className="flex items-center gap-0.5 mb-1">
+                    {[1,2,3,4,5].map((s) => (
+                      <svg key={s} className={cn("w-4 h-4", s <= 4 ? "text-amber-400" : "text-slate-200")} fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <p className="text-sm font-semibold text-amber-800">Exceeds Expectations</p>
+                </div>
+              </div>
+
+              {/* Review dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                  <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Last Review</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">Term 2, 2024–25</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-lg p-3">
+                  <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wide">Next Review Due</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">Term 2, 2025–26</p>
+                </div>
+              </div>
+
+              {/* Agreed targets */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Agreed Targets</p>
+                <ul className="space-y-2">
+                  {[
+                    "Improve 48-hour marking compliance rate to 95%",
+                    "Complete 20 CPD hours by July 2025",
+                    "Take on Year 9 Science group from Term 3",
+                  ].map((target) => (
+                    <li key={target} className="flex items-start gap-2 text-sm text-slate-700">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                      {target}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Feedback trend chart */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Feedback Score Trend</p>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl pt-3 pb-1 px-1">
+                  <ResponsiveContainer width="100%" height={160}>
+                    <LineChart data={PERF_TREND} margin={{ top: 8, right: 12, bottom: 4, left: 12 }}>
+                      <Tooltip
+                        formatter={(v) => [typeof v === "number" ? v.toFixed(1) : v, "Score"]}
+                        labelFormatter={(l) => String(l)}
+                        contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", padding: "4px 10px" }}
+                        cursor={{ stroke: "#f59e0b", strokeWidth: 1, strokeDasharray: "3 3" }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="score"
+                        stroke="#f59e0b"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }}
+                        activeDot={{ r: 5, fill: "#d97706" }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="flex justify-between px-3 pb-2">
+                    {PERF_TREND.map((d) => (
+                      <span key={d.term} className="text-[10px] text-slate-400">{d.term}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  accent = "slate",
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  accent?: "green" | "amber" | "red" | "slate";
+}) {
+  const iconCls = {
+    green: "text-emerald-500 bg-emerald-50",
+    amber: "text-amber-500 bg-amber-50",
+    red:   "text-red-500 bg-red-50",
+    slate: "text-slate-500 bg-slate-100",
+  }[accent];
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-center gap-4">
+      <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", iconCls)}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <p className="text-xs text-slate-500 font-medium">{label}</p>
+        <p className="text-2xl font-bold text-slate-800">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Filters ───────────────────────────────────────────────────────────────────
+
+const STATUS_FILTERS = ["All", "Active", "On Leave", "Suspended", "Off-boarded"];
+const DEPT_FILTERS   = ["All", "Primary", "Lower Secondary", "Senior", "Admin"];
+const ROLE_FILTERS   = ["All", "Teacher", "TA", "Admin", "Admin Head", "HOD", "Academic Head", "HR-Finance", "Super Admin"];
+
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
+export default function StaffPage() {
+  const [outerTab,      setOuterTab]      = useState<"directory" | "hr">("directory");
+  const [statusFilter,  setStatusFilter]  = useState("All");
+  const [deptFilter,    setDeptFilter]    = useState("All");
+  const [roleFilter,    setRoleFilter]    = useState("All");
+  const [search,        setSearch]        = useState("");
+  const [openMenu,      setOpenMenu]      = useState<string | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return staffMembers.filter((s) => {
+      if (statusFilter !== "All" && s.status !== statusFilter) return false;
+      if (deptFilter   !== "All" && s.department !== deptFilter) return false;
+      if (roleFilter   !== "All" && s.role !== roleFilter) return false;
+      if (q && !s.name.toLowerCase().includes(q) && !s.email.toLowerCase().includes(q) && !s.role.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [statusFilter, deptFilter, roleFilter, search]);
+
+  const teachingStaff = useMemo(
+    () => [...staffMembers.filter((s) => ["Teacher", "TA", "HOD"].includes(s.role))].sort((a, b) => b.sessionsThisWeek - a.sessionsThisWeek),
+    []
+  );
+
+  const outerTabs = [
+    { id: "directory", label: "Staff Directory" },
+    { id: "hr",        label: "HR Dashboard"    },
+  ] as const;
+
+  return (
+    <div className="px-6 py-6 min-h-full">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Staff</h1>
+        <p className="text-sm text-slate-500 mt-0.5">People management — IMI teaching and admin team</p>
+      </div>
+
+      {/* Outer tabs */}
+      <div className="flex gap-0 border-b border-slate-200 mb-6">
+        {outerTabs.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setOuterTab(id)}
+            className={cn(
+              "px-5 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer",
+              outerTab === id
+                ? "border-amber-500 text-amber-600"
+                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════ STAFF DIRECTORY ═══════════ */}
+      {outerTab === "directory" && (
+        <div className="space-y-5">
+
+          {/* Summary strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard icon={UserCheck} label="Total Staff"        value={18} accent="slate" />
+            <StatCard icon={UserCheck} label="Active"             value={16} accent="green" />
+            <StatCard icon={Clock}     label="On Leave"           value={1}  accent="amber" />
+            <StatCard icon={UserX}     label="Pending Onboarding" value={1}  accent="slate" />
+          </div>
+
+          {/* Filter bar */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterDropdown label="Status"     value={statusFilter} options={STATUS_FILTERS} onChange={setStatusFilter} />
+              <FilterDropdown label="Department" value={deptFilter}   options={DEPT_FILTERS}   onChange={setDeptFilter}   />
+              <FilterDropdown label="Role"       value={roleFilter}   options={ROLE_FILTERS}   onChange={setRoleFilter}   />
+
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, role..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-200 rounded-full bg-slate-50 placeholder-slate-400 text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 transition"
+                />
+              </div>
+
+              <button
+                type="button"
+                className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors cursor-pointer shadow-sm whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                Add Staff
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    {["Staff Member", "Role", "Department", "Subjects", "Sessions/Wk", "CPD Progress", "Status", ""].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((s) => {
+                    const pal = getAvatarPalette(s.name);
+                    const rowTint =
+                      s.status === "Suspended" ? "bg-red-50 hover:bg-red-100/60" :
+                      s.status === "On Leave"  ? "bg-amber-50 hover:bg-amber-100/60" :
+                      "hover:bg-slate-50";
+
+                    return (
+                      <tr
+                        key={s.id}
+                        onClick={() => setSelectedStaff(s)}
+                        className={cn("border-b border-slate-100 last:border-0 transition-colors cursor-pointer", rowTint)}
+                      >
+                        {/* Staff member */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0", pal.bg, pal.text)}>
+                              {getInitials(s.name)}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-800 leading-snug">{s.name}</p>
+                              <p className="text-xs text-slate-400">{s.email}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Role */}
+                        <td className="px-4 py-3">
+                          <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap", ROLE_BADGE[s.role] ?? "bg-slate-100 text-slate-600")}>
+                            {s.role}
+                          </span>
+                        </td>
+
+                        {/* Department */}
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{s.department}</td>
+
+                        {/* Subjects */}
+                        <td className="px-4 py-3">
+                          {s.subjects.length === 0 ? (
+                            <span className="text-slate-400 text-xs">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {s.subjects.slice(0, 2).map((sub) => (
+                                <span key={sub} className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-xs whitespace-nowrap">
+                                  {sub}
+                                </span>
+                              ))}
+                              {s.subjects.length > 2 && (
+                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-xs">
+                                  +{s.subjects.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Sessions */}
+                        <td className="px-4 py-3 text-slate-600 text-center tabular-nums">{s.sessionsThisWeek}</td>
+
+                        {/* CPD */}
+                        <td className="px-4 py-3">
+                          <CpdBar hours={s.cpdHours} target={s.cpdTarget} />
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3">
+                          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap", STATUS_BADGE[s.status])}>
+                            {s.status}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <RowActionsMenu
+                            staff={s}
+                            isOpen={openMenu === s.id}
+                            onOpen={() => setOpenMenu(s.id)}
+                            onClose={() => setOpenMenu(null)}
+                            onViewProfile={() => { setSelectedStaff(s); setOpenMenu(null); }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-12 text-center text-slate-400 text-sm">
+                        No staff match the current filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50">
+              <p className="text-xs text-slate-400">Showing {filtered.length} of {staffMembers.length} staff</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ HR DASHBOARD ═══════════ */}
+      {outerTab === "hr" && (
+        <div className="space-y-6">
+
+          {/* 2×2 panel grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            {/* Panel 1 — Onboarding Completion */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="text-sm font-bold text-slate-800">Onboarding Completion</h3>
+              <p className="text-xs text-slate-400 mt-0.5 mb-4">Staff with incomplete mandatory fields</p>
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400">Staff</th>
+                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400">Missing</th>
+                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400">Progress</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="px-3 py-3 font-medium text-slate-800 whitespace-nowrap">Khalil Mansouri</td>
+                      <td className="px-3 py-3 text-xs text-slate-500">Home address, Emergency contact</td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-amber-400" style={{ width: "60%" }} />
+                          </div>
+                          <span className="text-xs text-slate-500 tabular-nums">60%</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <Send className="w-3 h-3" />
+                          Send Reminder
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Panel 2 — CPD Summary by Department */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="text-sm font-bold text-slate-800">CPD Summary</h3>
+              <p className="text-xs text-slate-400 mt-0.5 mb-4">Average CPD progress by department</p>
+              <div className="space-y-4">
+                {[
+                  { dept: "Primary",         count: 4, avg: 12 },
+                  { dept: "Lower Secondary", count: 3, avg: 8  },
+                  { dept: "Senior",          count: 3, avg: 17 },
+                ].map(({ dept, count, avg }) => (
+                  <div key={dept}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">{dept}</span>
+                        <span className="text-slate-400 ml-1.5 text-xs">({count} staff)</span>
+                      </div>
+                      <span className={cn("text-xs font-semibold tabular-nums", avg < 10 ? "text-red-500" : avg < 15 ? "text-amber-600" : "text-emerald-600")}>
+                        {avg} / 20 hrs avg
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className={cn("h-full rounded-full", avg < 10 ? "bg-red-400" : avg < 15 ? "bg-amber-400" : "bg-emerald-400")}
+                        style={{ width: `${(avg / 20) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Panel 3 — Upcoming Milestones */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="text-sm font-bold text-slate-800">Upcoming Milestones</h3>
+              <p className="text-xs text-slate-400 mt-0.5 mb-4">Staff events and achievements</p>
+              <div className="space-y-2">
+                {[
+                  { name: "Hana Yusuf",     event: "3-year anniversary",  whenLabel: "1 Sep 2025"  },
+                  { name: "Ahmed Khalil",    event: "CPD 100% complete",   whenLabel: "Today"       },
+                  { name: "Sarah Mitchell",  event: "CPD 90% reached",     whenLabel: "3 days ago"  },
+                ].map(({ name, event, whenLabel }) => {
+                  const pal = getAvatarPalette(name);
+                  return (
+                    <div key={name} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-amber-200 hover:bg-amber-50/40 transition-colors">
+                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0", pal.bg, pal.text)}>
+                        {getInitials(name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{name}</p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {event} <span className="text-slate-400">· {whenLabel}</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStaff(staffMembers.find((s) => s.name === name) ?? null)}
+                        className="text-xs text-amber-600 font-medium hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                      >
+                        View Profile
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Panel 4 — HR Actions Pending */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h3 className="text-sm font-bold text-slate-800">HR Actions Pending</h3>
+              <p className="text-xs text-slate-400 mt-0.5 mb-4">Active flags requiring attention</p>
+              <div className="space-y-2">
+                {[
+                  {
+                    dotCls:      "bg-red-500",
+                    name:        "Mariam Saleh",
+                    label:       "Access Revoked",
+                    detail:      "15 Apr 2025",
+                    action:      "View Details",
+                    actionCls:   "text-red-600 hover:bg-red-50 border-red-200",
+                  },
+                  {
+                    dotCls:      "bg-amber-400",
+                    name:        "Rania Aziz",
+                    label:       "Emergency Leave active",
+                    detail:      "Since 10 Apr 2025 · 12 sessions need cover",
+                    action:      "Assign Cover",
+                    actionCls:   "text-amber-700 hover:bg-amber-50 border-amber-200",
+                  },
+                  {
+                    dotCls:      "bg-slate-300",
+                    name:        "Khalil Mansouri",
+                    label:       "Onboarding incomplete",
+                    detail:      "Day 25",
+                    action:      "Complete Profile",
+                    actionCls:   "text-slate-600 hover:bg-slate-50 border-slate-200",
+                  },
+                ].map(({ dotCls, name, label, detail, action, actionCls }) => (
+                  <div key={name} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200">
+                    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", dotCls)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800">{name}</p>
+                      <p className="text-xs text-slate-500 truncate">{label} · <span className="text-slate-400">{detail}</span></p>
+                    </div>
+                    <button
+                      type="button"
+                      className={cn("text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors cursor-pointer whitespace-nowrap shrink-0", actionCls)}
+                    >
+                      {action}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Workload Overview Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h3 className="text-sm font-bold text-slate-800">Workload Overview</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Teaching staff — sessions per week and load rating</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    {["Staff", "Role", "Sessions / Week", "Workload"].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {teachingStaff.map((s) => {
+                    const pal = getAvatarPalette(s.name);
+                    const rowBg =
+                      s.status === "Suspended" ? "bg-red-50" :
+                      s.status === "On Leave"  ? "bg-amber-50/60" :
+                      "";
+                    return (
+                      <tr key={s.id} className={cn("border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-default", rowBg)}>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0", pal.bg, pal.text)}>
+                              {getInitials(s.name)}
+                            </div>
+                            <span className="font-medium text-slate-800">{s.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", ROLE_BADGE[s.role] ?? "bg-slate-100 text-slate-600")}>
+                            {s.role}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-slate-600 tabular-nums">
+                          {s.status === "Suspended" ? (
+                            <span className="text-slate-400 italic text-xs">Access revoked</span>
+                          ) : (
+                            s.sessionsThisWeek
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {s.status === "Suspended" ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">Suspended</span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className={cn("w-2 h-2 rounded-full shrink-0", WORKLOAD_DOT[s.workloadLevel])} />
+                              <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", WORKLOAD_BADGE[s.workloadLevel])}>
+                                {s.workloadLevel}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Staff slide-over */}
+      {selectedStaff && (
+        <StaffSlideOver
+          staff={selectedStaff}
+          onClose={() => setSelectedStaff(null)}
+        />
+      )}
+    </div>
+  );
+}
