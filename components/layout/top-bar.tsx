@@ -8,6 +8,7 @@ import { currentUser, notificationCount } from "@/lib/mock-data";
 
 const routeTitles: Record<string, string> = {
   "/dashboard":  "Dashboard",
+  "/people":     "People",
   "/students":   "Students",
   "/guardians":  "Guardians",
   "/leads":      "Leads",

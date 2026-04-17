@@ -1315,3 +1315,798 @@ export const tasks: Task[] = [
   { id: "TK-019", title: "Send Term 2 parent satisfaction survey", type: "Admin", priority: "Low", status: "Done", assignee: "Sarah Thompson", dueDate: "5 Apr 2025", linkedRecord: null, description: "NPS survey dispatched to all active guardians.", subtasks: ["Prepare survey link", "Send batch", "Mark as sent"], overdue: false },
   { id: "TK-020", title: "Archive inactive leads — Q1 batch", type: "Admin", priority: "Low", status: "Done", assignee: "Jason Daswani", dueDate: "1 Apr 2025", linkedRecord: null, description: "Archived 14 leads inactive for 90+ days.", subtasks: ["Generate list", "Archive with reason"], overdue: false },
 ];
+
+// ─── Feedback ─────────────────────────────────────────────────────────────────
+
+export type FeedbackStatus = "Draft" | "Pending Approval" | "Approved" | "Sent";
+
+export interface FeedbackSelector {
+  label: string;
+  value: string;
+}
+
+export interface FeedbackItem {
+  id: string;
+  studentName: string;
+  subject: string;
+  teacher: string;
+  department: string;
+  sessionDate: string;
+  status: FeedbackStatus;
+  aiSummary: string | null;
+  selectors: FeedbackSelector[];
+  teacherNotes: string;
+}
+
+export const feedbackItems: FeedbackItem[] = [
+  { id: "FB-001", studentName: "Aisha Rahman", subject: "Y8 Maths", teacher: "Mr Ahmed Khalil", department: "Lower Secondary", sessionDate: "16 Apr 2025", status: "Pending Approval", aiSummary: "Aisha demonstrated strong understanding of algebraic expressions and showed excellent focus throughout the session.", selectors: [{ label: "Engagement", value: "Good" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Aisha completed all practice problems correctly. She needs to work on simplifying complex fractions but overall the session went very well." },
+  { id: "FB-002", studentName: "Omar Al-Farsi", subject: "Y5 Maths", teacher: "Mr Ahmed Khalil", department: "Primary", sessionDate: "15 Apr 2025", status: "Pending Approval", aiSummary: "Omar worked through multiplication tables with growing confidence. His mental arithmetic is improving steadily each session.", selectors: [{ label: "Engagement", value: "Good" }, { label: "Homework", value: "Incomplete" }, { label: "Participation", value: "Moderate" }], teacherNotes: "Omar did not complete the homework set last session. We spent time reviewing missed work. Needs encouragement to complete independent tasks." },
+  { id: "FB-003", studentName: "Layla Hassan", subject: "Y10 Physics", teacher: "Mr Faris Al-Amin", department: "Senior", sessionDate: "15 Apr 2025", status: "Approved", aiSummary: "Layla tackled Newton's laws with confidence and demonstrated strong analytical thinking. Ready to move on to energy concepts next session.", selectors: [{ label: "Engagement", value: "Excellent" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Outstanding session. Layla is working well above year group expectations in Physics. Recommend extending to additional problem sets." },
+  { id: "FB-004", studentName: "Ziad Khalil", subject: "Y3 English", teacher: "Ms Sarah Mitchell", department: "Primary", sessionDate: "14 Apr 2025", status: "Sent", aiSummary: "Ziad practised reading comprehension and showed improvement in identifying key themes. His vocabulary is growing nicely.", selectors: [{ label: "Engagement", value: "Good" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Great session overall. Ziad is enjoying the new reading book and his fluency has noticeably improved since last term." },
+  { id: "FB-005", studentName: "Sara Nasser", subject: "Y9 Maths", teacher: "Mr Tariq Al-Amin", department: "Lower Secondary", sessionDate: "14 Apr 2025", status: "Pending Approval", aiSummary: "Sara showed improvement in quadratic equations but requires further reinforcement of factoring techniques before the upcoming exam.", selectors: [{ label: "Engagement", value: "Moderate" }, { label: "Homework", value: "Partial" }, { label: "Participation", value: "Moderate" }], teacherNotes: "Sara seemed distracted. She partially completed homework — missing last 4 questions. Will focus more on exam technique next time." },
+  { id: "FB-006", studentName: "Reem Al-Dosari", subject: "Y6 Maths", teacher: "Ms Hana Yusuf", department: "Primary", sessionDate: "13 Apr 2025", status: "Draft", aiSummary: null, selectors: [{ label: "Engagement", value: "Good" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Reem worked on fractions and decimals. Solid grasp of basics but struggles with mixed number operations. Will revisit next session." },
+  { id: "FB-007", studentName: "Faris Qasim", subject: "Y11 Physics", teacher: "Mr Faris Al-Amin", department: "Senior", sessionDate: "12 Apr 2025", status: "Sent", aiSummary: "Faris is well-prepared for his upcoming mock exam. He demonstrated a thorough understanding of electricity and magnetism concepts.", selectors: [{ label: "Engagement", value: "Excellent" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Faris is one of the strongest students in his year. Ready for A-level extension material." },
+  { id: "FB-008", studentName: "Nour Ibrahim", subject: "Y4 Maths", teacher: "Mr Ahmed Khalil", department: "Primary", sessionDate: "12 Apr 2025", status: "Approved", aiSummary: "Nour is building confidence in division and showed great persistence when tackling multi-step word problems today.", selectors: [{ label: "Engagement", value: "Good" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Very positive session. Nour needed some encouragement at the start but finished confidently. Homework was completed neatly." },
+  { id: "FB-009", studentName: "Hamdan Al-Maktoum", subject: "Y7 Maths", teacher: "Mr Tariq Al-Amin", department: "Lower Secondary", sessionDate: "11 Apr 2025", status: "Sent", aiSummary: "Hamdan is progressing well through the Year 7 curriculum. His problem-solving approach has become more structured and methodical.", selectors: [{ label: "Engagement", value: "Good" }, { label: "Homework", value: "Partial" }, { label: "Participation", value: "Moderate" }], teacherNotes: "Making good progress. Needs to complete homework more consistently — only completed 3 of 5 exercises this week." },
+  { id: "FB-010", studentName: "Khalid Mansoor", subject: "Y12 Maths", teacher: "Mr Faris Al-Amin", department: "Senior", sessionDate: "11 Apr 2025", status: "Draft", aiSummary: null, selectors: [{ label: "Engagement", value: "Excellent" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Khalid tackled integration by parts flawlessly. Ready to move into differential equations. Grade A prediction remains strong." },
+  { id: "FB-011", studentName: "Dana Al-Zaabi", subject: "Y2 English", teacher: "Ms Sarah Mitchell", department: "Primary", sessionDate: "10 Apr 2025", status: "Approved", aiSummary: "Dana is thriving in her English sessions. Her reading speed has improved significantly and she loves the creative writing exercises.", selectors: [{ label: "Engagement", value: "Excellent" }, { label: "Homework", value: "Complete" }, { label: "Participation", value: "Active" }], teacherNotes: "Dana wrote a wonderful short story this week. Her imagination is brilliant. Very positive session all round." },
+  { id: "FB-012", studentName: "Yousef Salim", subject: "Y9 Science", teacher: "Mr Tariq Al-Amin", department: "Lower Secondary", sessionDate: "10 Apr 2025", status: "Draft", aiSummary: null, selectors: [{ label: "Engagement", value: "Moderate" }, { label: "Homework", value: "Incomplete" }, { label: "Participation", value: "Low" }], teacherNotes: "Yousef seemed disengaged today. No homework completed. Will discuss with admin whether a guardian call is needed." },
+];
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+export type AnnouncementType = "Pre-session" | "Post-session";
+export type AnnouncementStatus = "Draft" | "Pending Approval" | "Sent";
+
+export interface Announcement {
+  id: string;
+  title: string;
+  type: AnnouncementType;
+  audience: string;
+  createdBy: string;
+  sendDate: string;
+  status: AnnouncementStatus;
+  message: string;
+}
+
+export const announcements: Announcement[] = [
+  { id: "ANN-001", title: "Mock Exam Preparation — Y11 Physics", type: "Pre-session", audience: "Y11 Physics — Group A", createdBy: "Mr Faris Al-Amin", sendDate: "17 Apr 2025", status: "Pending Approval", message: "Please remind Faris to bring his formula booklet and scientific calculator to tomorrow's session. We will be covering full mock paper practice." },
+  { id: "ANN-002", title: "Term 3 Wrap-up — Y8 Maths", type: "Post-session", audience: "Y8 Maths — Group B", createdBy: "Mr Ahmed Khalil", sendDate: "16 Apr 2025", status: "Sent", message: "Aisha had an excellent session today. She has mastered algebraic manipulation ahead of the end-of-term assessment. Keep up the great work!" },
+  { id: "ANN-003", title: "Holiday Schedule — Term 3 Remaining Sessions", type: "Pre-session", audience: "All Primary", createdBy: "Sarah Thompson", sendDate: "15 Apr 2025", status: "Sent", message: "A reminder that sessions will continue as normal through the Eid period. Please confirm attendance by replying to this message." },
+  { id: "ANN-004", title: "IGCSE Countdown — Y10 Physics", type: "Pre-session", audience: "Y10 Physics — Group A", createdBy: "Mr Faris Al-Amin", sendDate: "14 Apr 2025", status: "Draft", message: "With 6 weeks until the IGCSE Physics paper, Layla's sessions will shift to full past-paper practice. Please ensure she reviews notes before each session." },
+  { id: "ANN-005", title: "Reading Challenge Update — Y3 English", type: "Post-session", audience: "Y3 English — Group A", createdBy: "Ms Sarah Mitchell", sendDate: "13 Apr 2025", status: "Sent", message: "Ziad completed the second chapter of his reading challenge book this week. His fluency is excellent. Well done!" },
+  { id: "ANN-006", title: "New Resource Pack — Y9 Maths", type: "Pre-session", audience: "Y9 Maths — Group A", createdBy: "Mr Tariq Al-Amin", sendDate: "18 Apr 2025", status: "Pending Approval", message: "We have prepared a new exam technique pack for Sara. Please print and bring this to the next session, or we can access it digitally." },
+  { id: "ANN-007", title: "End of Term Achievement Summary", type: "Post-session", audience: "All Senior", createdBy: "Jason Daswani", sendDate: "20 Apr 2025", status: "Draft", message: "This term has been outstanding for our Senior students. Full achievement summaries will be sent in the next few days." },
+  { id: "ANN-008", title: "Welcome Back — Y7 Maths", type: "Pre-session", audience: "Y7 Maths — Group B", createdBy: "Mr Tariq Al-Amin", sendDate: "8 Apr 2025", status: "Sent", message: "Hamdan, welcome back from the break! We will be starting the new algebra unit this week — no prep needed, just bring your notebook." },
+];
+
+// ─── Complaints & Tickets ─────────────────────────────────────────────────────
+
+export type ComplaintCategory = "Teaching Quality" | "Administrative" | "Facilities" | "Safety & Wellbeing" | "Other";
+export type ComplaintStatus = "New" | "Investigating" | "Resolved" | "Escalated" | "Closed";
+export type ComplaintSeverity = "High" | "Medium" | "Low";
+
+export interface LinkedComplaintTicket {
+  id: string;
+  description: string;
+  assignee: string;
+  dueDate: string;
+  status: "Open" | "In Progress" | "Done";
+}
+
+export interface SignOff {
+  name: string;
+  role: string;
+  timestamp: string | null;
+}
+
+export interface EscalationEvent {
+  event: string;
+  actor: string;
+  timestamp: string;
+}
+
+export interface ComplaintTicket {
+  id: string;
+  student: string;
+  guardianName: string;
+  category: ComplaintCategory;
+  raisedBy: string;
+  assignedTo: string;
+  status: ComplaintStatus;
+  severity: ComplaintSeverity;
+  description: string;
+  createdDate: string;
+  linkedTickets: LinkedComplaintTicket[];
+  signOffs: [SignOff, SignOff];
+  escalationLog: EscalationEvent[];
+}
+
+export const complaintTickets: ComplaintTicket[] = [
+  { id: "CMP-001", student: "Aisha Rahman", guardianName: "Fatima Rahman", category: "Teaching Quality", raisedBy: "Fatima Rahman (Guardian)", assignedTo: "Sarah Thompson", status: "Investigating", severity: "High", description: "Guardian reports that Aisha has been making little progress in Y8 Maths despite regular attendance. Concerns about teaching pace and the amount of homework being set.", createdDate: "10 Apr 2025", linkedTickets: [{ id: "TK-004", description: "Review Y8 Maths progress report draft", assignee: "Jason Daswani", dueDate: "16 Apr 2025", status: "Open" }, { id: "TK-002", description: "Book parent meeting re: attendance — Aisha Rahman", assignee: "Jason Daswani", dueDate: "15 Apr 2025", status: "In Progress" }], signOffs: [{ name: "Sarah Thompson", role: "Admin Head", timestamp: "11 Apr 2025, 14:30" }, { name: "Jason Daswani", role: "Super Admin", timestamp: null }], escalationLog: [{ event: "Complaint received via email", actor: "Jason Daswani", timestamp: "10 Apr 2025, 09:15" }, { event: "Assigned to investigation — Sarah Thompson", actor: "Jason Daswani", timestamp: "10 Apr 2025, 09:30" }, { event: "Sign-off 1 completed", actor: "Sarah Thompson", timestamp: "11 Apr 2025, 14:30" }] },
+  { id: "CMP-002", student: "Sara Nasser", guardianName: "Hessa Nasser", category: "Administrative", raisedBy: "Hessa Nasser (Guardian)", assignedTo: "Jason Daswani", status: "New", severity: "Medium", description: "Guardian reports receiving an incorrect invoice for Term 3. Invoice shows 20 sessions but Sara only attends 18 sessions per term. Requesting urgent correction.", createdDate: "14 Apr 2025", linkedTickets: [{ id: "TK-006", description: "Invoice reconciliation — Term 3 batch", assignee: "Jason Daswani", dueDate: "18 Apr 2025", status: "Open" }], signOffs: [{ name: "Jason Daswani", role: "Super Admin", timestamp: null }, { name: "Rania Aziz", role: "HR-Finance", timestamp: null }], escalationLog: [{ event: "Complaint received via phone", actor: "Sarah Thompson", timestamp: "14 Apr 2025, 10:00" }] },
+  { id: "CMP-003", student: "Yousef Salim", guardianName: "Mona Salim", category: "Safety & Wellbeing", raisedBy: "Mona Salim (Guardian)", assignedTo: "Jason Daswani", status: "Escalated", severity: "High", description: "Guardian reports that Yousef mentioned feeling uncomfortable during a session due to an exchange between students in the waiting area. Guardian is requesting a formal investigation.", createdDate: "7 Apr 2025", linkedTickets: [{ id: "TK-010", description: "Update concern record — Yousef Salim", assignee: "Jason Daswani", dueDate: "17 Apr 2025", status: "Open" }], signOffs: [{ name: "Sarah Thompson", role: "Admin Head", timestamp: "8 Apr 2025, 11:00" }, { name: "Jason Daswani", role: "Super Admin", timestamp: null }], escalationLog: [{ event: "Complaint received in person", actor: "Sarah Thompson", timestamp: "7 Apr 2025, 17:00" }, { event: "Assigned to investigation", actor: "Jason Daswani", timestamp: "7 Apr 2025, 17:30" }, { event: "Sign-off 1 completed", actor: "Sarah Thompson", timestamp: "8 Apr 2025, 11:00" }, { event: "Escalated — pending guardian response", actor: "Sarah Thompson", timestamp: "10 Apr 2025, 09:00" }] },
+  { id: "CMP-004", student: "Omar Al-Farsi", guardianName: "Khalid Al-Farsi", category: "Facilities", raisedBy: "Khalid Al-Farsi (Guardian)", assignedTo: "Sarah Thompson", status: "Resolved", severity: "Low", description: "Guardian noted that the study room allocated to Omar's sessions is poorly ventilated and uncomfortably warm during afternoon sessions.", createdDate: "2 Apr 2025", linkedTickets: [], signOffs: [{ name: "Sarah Thompson", role: "Admin Head", timestamp: "3 Apr 2025, 10:00" }, { name: "Jason Daswani", role: "Super Admin", timestamp: "4 Apr 2025, 09:30" }], escalationLog: [{ event: "Complaint received via WhatsApp", actor: "Sarah Thompson", timestamp: "2 Apr 2025, 12:00" }, { event: "Room reassignment requested from facilities", actor: "Sarah Thompson", timestamp: "2 Apr 2025, 12:30" }, { event: "Sign-off 1 completed", actor: "Sarah Thompson", timestamp: "3 Apr 2025, 10:00" }, { event: "Room 2A assigned as replacement", actor: "Jason Daswani", timestamp: "4 Apr 2025, 09:00" }, { event: "Sign-off 2 completed — resolved", actor: "Jason Daswani", timestamp: "4 Apr 2025, 09:30" }] },
+  { id: "CMP-005", student: "Layla Hassan", guardianName: "Nadia Hassan", category: "Other", raisedBy: "Nadia Hassan (Guardian)", assignedTo: "Sarah Thompson", status: "Closed", severity: "Low", description: "Guardian requested to change the regular session time from 4:00pm to 5:30pm due to school pick-up changes. This has since been resolved and the schedule updated.", createdDate: "25 Mar 2025", linkedTickets: [], signOffs: [{ name: "Sarah Thompson", role: "Admin Head", timestamp: "26 Mar 2025, 09:00" }, { name: "Jason Daswani", role: "Super Admin", timestamp: "26 Mar 2025, 10:00" }], escalationLog: [{ event: "Request received via email", actor: "Sarah Thompson", timestamp: "25 Mar 2025, 16:00" }, { event: "Schedule updated in timetable", actor: "Sarah Thompson", timestamp: "26 Mar 2025, 08:45" }, { event: "Sign-off 1 completed", actor: "Sarah Thompson", timestamp: "26 Mar 2025, 09:00" }, { event: "Sign-off 2 completed — closed", actor: "Jason Daswani", timestamp: "26 Mar 2025, 10:00" }] },
+  { id: "CMP-006", student: "Hamdan Al-Maktoum", guardianName: "Shaikha Al-Maktoum", category: "Teaching Quality", raisedBy: "Shaikha Al-Maktoum (Guardian)", assignedTo: "Jason Daswani", status: "New", severity: "Medium", description: "Guardian has raised concerns that Y7 Maths sessions are moving too quickly through topics without adequate consolidation before moving on. Requests a meeting with the teacher.", createdDate: "15 Apr 2025", linkedTickets: [], signOffs: [{ name: "Sarah Thompson", role: "Admin Head", timestamp: null }, { name: "Jason Daswani", role: "Super Admin", timestamp: null }], escalationLog: [{ event: "Complaint received via app message", actor: "Jason Daswani", timestamp: "15 Apr 2025, 08:30" }] },
+];
+
+// ─── Surveys ──────────────────────────────────────────────────────────────────
+
+export type SurveyType = "Mid-term" | "End of term" | "Post-trial" | "Post-withdrawal" | "Manual";
+export type SurveyCategory = "Promoter" | "Passive" | "Detractor";
+export type SurveyPendingStatus = "Scheduled" | "Sent" | "Expired";
+
+export interface SurveyResponse {
+  id: string;
+  student: string;
+  guardian: string;
+  surveyType: SurveyType;
+  sentDate: string;
+  score: number;
+  category: SurveyCategory;
+  comment: string;
+}
+
+export interface SurveyPendingItem {
+  id: string;
+  student: string;
+  guardian: string;
+  trigger: string;
+  scheduledDate: string;
+  status: SurveyPendingStatus;
+}
+
+export const surveyResponses: SurveyResponse[] = [
+  { id: "SRV-001", student: "Aisha Rahman", guardian: "Fatima Rahman", surveyType: "Mid-term", sentDate: "1 Mar 2025", score: 5, category: "Promoter", comment: "Aisha has shown remarkable improvement this term. We are extremely happy with the quality of teaching and the personalised approach." },
+  { id: "SRV-002", student: "Layla Hassan", guardian: "Nadia Hassan", surveyType: "Mid-term", sentDate: "1 Mar 2025", score: 4, category: "Passive", comment: "Good progress overall. We would like to see more feedback on specific areas for improvement after each session." },
+  { id: "SRV-003", student: "Faris Qasim", guardian: "Tariq Qasim", surveyType: "End of term", sentDate: "20 Jan 2025", score: 5, category: "Promoter", comment: "Outstanding service. Faris has grown enormously in confidence. We have already recommended IMI to two other families." },
+  { id: "SRV-004", student: "Yousef Salim", guardian: "Mona Salim", surveyType: "Mid-term", sentDate: "1 Mar 2025", score: 2, category: "Detractor", comment: "We have seen limited progress and Yousef seems disengaged. We are considering our options for next term." },
+  { id: "SRV-005", student: "Hessa Al-Blooshi", guardian: "Noura Al-Blooshi", surveyType: "Post-trial", sentDate: "19 Apr 2025", score: 5, category: "Promoter", comment: "The trial session was excellent. The teacher was encouraging and Hessa came home very excited. We will be enrolling." },
+  { id: "SRV-006", student: "Omar Al-Farsi", guardian: "Khalid Al-Farsi", surveyType: "End of term", sentDate: "20 Jan 2025", score: 4, category: "Passive", comment: "Omar is progressing well. We are happy with the communication and the flexibility of scheduling." },
+  { id: "SRV-007", student: "Hind Al-Rashidi", guardian: "Saif Al-Rashidi", surveyType: "Post-withdrawal", sentDate: "20 Mar 2025", score: 2, category: "Detractor", comment: "We withdrew primarily due to scheduling conflicts, but we also felt the feedback quality could be improved." },
+  { id: "SRV-008", student: "Khalid Mansoor", guardian: "Amal Mansoor", surveyType: "End of term", sentDate: "20 Jan 2025", score: 5, category: "Promoter", comment: "Khalid is on track for an A* in A-level Maths. The teaching quality here is second to none. Highly recommended." },
+  { id: "SRV-009", student: "Hamdan Al-Maktoum", guardian: "Shaikha Al-Maktoum", surveyType: "Mid-term", sentDate: "1 Mar 2025", score: 3, category: "Passive", comment: "Sessions are going reasonably well but we would appreciate more clarity on the curriculum plan and upcoming topics." },
+  { id: "SRV-010", student: "Adam Benali", guardian: "Sofia Benali", surveyType: "Manual", sentDate: "10 Apr 2025", score: 5, category: "Promoter", comment: "Brilliant sessions. Adam loves coming to IMI and his Year 6 results have been brilliant. Thank you so much!" },
+];
+
+export const surveyPending: SurveyPendingItem[] = [
+  { id: "SP-001", student: "Ziad Khalil", guardian: "Rami Khalil", trigger: "Mid-term", scheduledDate: "18 Apr 2025", status: "Scheduled" },
+  { id: "SP-002", student: "Nour Ibrahim", guardian: "Leila Ibrahim", trigger: "Mid-term", scheduledDate: "18 Apr 2025", status: "Scheduled" },
+  { id: "SP-003", student: "Dana Al-Zaabi", guardian: "Saeed Al-Zaabi", trigger: "Mid-term", scheduledDate: "17 Apr 2025", status: "Sent" },
+  { id: "SP-004", student: "Raya Khouri", guardian: "Elias Khouri", trigger: "Post-trial", scheduledDate: "14 Apr 2025", status: "Expired" },
+  { id: "SP-005", student: "Sara Nasser", guardian: "Hessa Nasser", trigger: "Mid-term", scheduledDate: "20 Apr 2025", status: "Scheduled" },
+];
+
+// ─── People Directory ─────────────────────────────────────────────────────────
+
+export type PersonType = "Student" | "Guardian" | "Lead" | "Staff";
+
+export interface PersonRecord {
+  id: string;
+  name: string;
+  type: PersonType;
+  contact: string;
+  status: string;
+  departmentOrStage: string;
+  createdOn: string;
+}
+
+export const peopleAll: PersonRecord[] = [
+  { id: "P-001", name: "Aisha Rahman",       type: "Student",  contact: "+971 50 123 4567", status: "Enrolled",     departmentOrStage: "Lower Secondary", createdOn: "12/09/2022 08:00" },
+  { id: "P-002", name: "Omar Al-Farsi",      type: "Student",  contact: "+971 55 234 5678", status: "Enrolled",     departmentOrStage: "Primary",         createdOn: "03/03/2023 09:15" },
+  { id: "P-003", name: "Layla Hassan",       type: "Student",  contact: "+971 52 345 6789", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "01/09/2021 10:00" },
+  { id: "P-004", name: "Faris Qasim",        type: "Student",  contact: "+971 50 789 0123", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "05/09/2022 08:30" },
+  { id: "P-005", name: "Hind Al-Rashidi",    type: "Student",  contact: "+971 50 666 7788", status: "Withdrawn",    departmentOrStage: "Lower Secondary", createdOn: "15/03/2023 11:00" },
+  { id: "P-006", name: "Khalid Mansoor",     type: "Student",  contact: "+971 55 111 2233", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "01/09/2020 09:00" },
+  { id: "P-007", name: "Fatima Rahman",      type: "Guardian", contact: "+971 50 123 4567", status: "Active",       departmentOrStage: "—",               createdOn: "12/09/2022 08:00" },
+  { id: "P-008", name: "Khalid Al-Farsi",    type: "Guardian", contact: "+971 55 234 5678", status: "Active",       departmentOrStage: "—",               createdOn: "03/03/2023 09:15" },
+  { id: "P-009", name: "Nadia Hassan",       type: "Guardian", contact: "+971 52 345 6789", status: "Active",       departmentOrStage: "—",               createdOn: "01/09/2021 10:00" },
+  { id: "P-010", name: "Shaikha Al-Maktoum", type: "Guardian", contact: "+971 52 901 2345", status: "Inactive",     departmentOrStage: "—",               createdOn: "01/09/2023 09:00" },
+  { id: "P-011", name: "Bilal Mahmood",      type: "Lead",     contact: "+971 50 111 2222", status: "New",          departmentOrStage: "New",             createdOn: "17/04/2025 10:00" },
+  { id: "P-012", name: "Hessa Al-Blooshi",   type: "Lead",     contact: "+971 55 222 3333", status: "Trial Booked", departmentOrStage: "Trial Booked",    createdOn: "16/04/2025 14:00" },
+  { id: "P-013", name: "Majid Al-Romaithi",  type: "Lead",     contact: "+971 55 800 9000", status: "Trial Booked", departmentOrStage: "Trial Booked",    createdOn: "01/04/2025 14:00" },
+  { id: "P-014", name: "Nadia Al-Ghaith",    type: "Lead",     contact: "+971 50 100 2000", status: "Contacted",    departmentOrStage: "Contacted",       createdOn: "08/04/2025 11:00" },
+  { id: "P-015", name: "Jason Daswani",      type: "Staff",    contact: "+971 50 000 0001", status: "Active",       departmentOrStage: "Admin",           createdOn: "01/09/2021 08:00" },
+  { id: "P-016", name: "Sarah Thompson",     type: "Staff",    contact: "+971 50 000 0002", status: "Active",       departmentOrStage: "Admin",           createdOn: "15/01/2022 09:00" },
+  { id: "P-017", name: "Ahmed Khalil",       type: "Staff",    contact: "+971 50 000 0003", status: "Active",       departmentOrStage: "Lower Secondary", createdOn: "12/09/2022 08:00" },
+  { id: "P-018", name: "Faris Al-Amin",      type: "Staff",    contact: "+971 50 000 0004", status: "Active",       departmentOrStage: "Senior",          createdOn: "01/09/2021 08:00" },
+  { id: "P-019", name: "Tariq Al-Amin",      type: "Staff",    contact: "+971 50 000 0005", status: "Active",       departmentOrStage: "Lower Secondary", createdOn: "01/09/2020 08:00" },
+  { id: "P-020", name: "Sarah Mitchell",     type: "Staff",    contact: "+971 50 000 0006", status: "Active",       departmentOrStage: "Primary",         createdOn: "05/09/2022 08:00" },
+];
+
+// ─── Extended Guardians ───────────────────────────────────────────────────────
+
+export type GuardianChannel = "WhatsApp" | "Email" | "In-app";
+
+export interface ExtendedGuardian {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  linkedStudents: string[];
+  dnc: boolean;
+  unsubscribed: boolean;
+  preferredChannel: GuardianChannel;
+  createdOn: string;
+}
+
+export const extendedGuardians: ExtendedGuardian[] = [
+  { id: "G-001", name: "Fatima Rahman",       phone: "+971 50 123 4567", email: "fatima.rahman@gmail.com",      linkedStudents: ["Aisha Rahman"],                   dnc: false, unsubscribed: false, preferredChannel: "WhatsApp", createdOn: "12/09/2022 08:00" },
+  { id: "G-002", name: "Khalid Al-Farsi",     phone: "+971 55 234 5678", email: "khalid.alfarsi@gmail.com",     linkedStudents: ["Omar Al-Farsi"],                  dnc: false, unsubscribed: false, preferredChannel: "WhatsApp", createdOn: "03/03/2023 09:15" },
+  { id: "G-003", name: "Nadia Hassan",        phone: "+971 52 345 6789", email: "nadia.hassan@gmail.com",       linkedStudents: ["Layla Hassan"],                   dnc: false, unsubscribed: false, preferredChannel: "Email",    createdOn: "01/09/2021 10:00" },
+  { id: "G-004", name: "Rami Khalil",         phone: "+971 50 456 7890", email: "rami.khalil@gmail.com",        linkedStudents: ["Ziad Khalil"],                    dnc: false, unsubscribed: true,  preferredChannel: "Email",    createdOn: "15/01/2023 09:00" },
+  { id: "G-005", name: "Hessa Nasser",        phone: "+971 55 567 8901", email: "hessa.nasser@gmail.com",       linkedStudents: ["Sara Nasser"],                    dnc: false, unsubscribed: false, preferredChannel: "WhatsApp", createdOn: "08/04/2023 10:30" },
+  { id: "G-006", name: "Maryam Al-Dosari",    phone: "+971 52 678 9012", email: "maryam.aldosari@gmail.com",    linkedStudents: ["Reem Al-Dosari"],                 dnc: true,  unsubscribed: true,  preferredChannel: "In-app",   createdOn: "20/08/2022 09:00" },
+  { id: "G-007", name: "Tariq Qasim",         phone: "+971 50 789 0123", email: "tariq.qasim@gmail.com",        linkedStudents: ["Faris Qasim"],                    dnc: false, unsubscribed: false, preferredChannel: "WhatsApp", createdOn: "05/09/2022 08:30" },
+  { id: "G-008", name: "Leila Ibrahim",       phone: "+971 55 890 1234", email: "leila.ibrahim@gmail.com",      linkedStudents: ["Nour Ibrahim"],                   dnc: false, unsubscribed: false, preferredChannel: "Email",    createdOn: "10/11/2023 09:00" },
+  { id: "G-009", name: "Shaikha Al-Maktoum",  phone: "+971 52 901 2345", email: "shaikha.almaktoum@gmail.com",  linkedStudents: ["Hamdan Al-Maktoum"],              dnc: false, unsubscribed: false, preferredChannel: "In-app",   createdOn: "01/09/2023 09:00" },
+  { id: "G-010", name: "Saeed Al-Zaabi",      phone: "+971 50 012 3456", email: "saeed.alzaabi@gmail.com",      linkedStudents: ["Dana Al-Zaabi", "Ziad Khalil"],   dnc: false, unsubscribed: false, preferredChannel: "WhatsApp", createdOn: "03/09/2024 09:00" },
+  { id: "G-011", name: "Amal Mansoor",        phone: "+971 55 111 2233", email: "amal.mansoor@gmail.com",       linkedStudents: ["Khalid Mansoor"],                 dnc: false, unsubscribed: false, preferredChannel: "WhatsApp", createdOn: "01/09/2020 08:00" },
+  { id: "G-012", name: "Elias Khouri",        phone: "+971 55 100 2020", email: "elias.khouri@gmail.com",       linkedStudents: ["Raya Khouri", "Adam Benali"],     dnc: true,  unsubscribed: true,  preferredChannel: "Email",    createdOn: "05/09/2023 08:00" },
+];
+
+// ─── Student Outstanding Balance ──────────────────────────────────────────────
+
+export const studentOutstandingBalance: Record<string, number> = {
+  "IMI-0001": 0, "IMI-0002": 0, "IMI-0003": 3780, "IMI-0004": 0, "IMI-0005": 4200,
+  "IMI-0006": 0, "IMI-0007": 0, "IMI-0008": 0,    "IMI-0009": 3360, "IMI-0010": 3360,
+  "IMI-0011": 0, "IMI-0012": 0, "IMI-0013": 0,    "IMI-0014": 0,    "IMI-0015": 0,
+  "IMI-0016": 0, "IMI-0017": 0, "IMI-0018": 0,    "IMI-0019": 0,    "IMI-0020": 0,
+};
+
+// ─── Lead Created On Map ──────────────────────────────────────────────────────
+
+export const leadCreatedOnMap: Record<string, string> = {
+  "L-0041": "17/04/2025 10:00", "L-0042": "17/04/2025 14:30", "L-0043": "16/04/2025 11:00",
+  "L-0044": "16/04/2025 15:00", "L-0045": "13/04/2025 09:30", "L-0046": "12/04/2025 14:00",
+  "L-0047": "11/04/2025 10:00", "L-0048": "10/04/2025 09:00", "L-0049": "09/04/2025 16:00",
+  "L-0050": "08/04/2025 11:00", "L-0051": "07/04/2025 10:00", "L-0052": "06/04/2025 14:00",
+  "L-0053": "05/04/2025 10:00", "L-0054": "04/04/2025 15:00", "L-0055": "03/04/2025 12:00",
+  "L-0056": "02/04/2025 09:00", "L-0057": "01/04/2025 14:00", "L-0058": "31/03/2025 10:00",
+  "L-0059": "28/03/2025 11:00", "L-0060": "25/03/2025 09:00",
+};
+
+// ─── Duplicate Detections ─────────────────────────────────────────────────────
+
+export type DuplicateThreshold = "High" | "Medium" | "Low";
+export type DuplicateStatus = "Pending" | "Resolved" | "Dismissed";
+
+export interface DuplicatePerson {
+  name: string;
+  phone: string;
+  email: string;
+  type: PersonType;
+  createdOn: string;
+}
+
+export interface DuplicateDetection {
+  id: string;
+  recordA: DuplicatePerson;
+  recordB: DuplicatePerson;
+  matchScore: number;
+  matchedFields: string[];
+  threshold: DuplicateThreshold;
+  status: DuplicateStatus;
+  detected: string;
+}
+
+export const duplicateDetections: DuplicateDetection[] = [
+  { id: "DUP-001", recordA: { name: "Fatima Rahman",  phone: "+971 50 123 4567", email: "fatima.rahman@gmail.com",  type: "Guardian", createdOn: "12 Sep 2022" }, recordB: { name: "Fatima R.",     phone: "+971 50 123 4567", email: "f.rahman@hotmail.com",    type: "Guardian", createdOn: "03 Jan 2023" }, matchScore: 91, matchedFields: ["Phone", "Name"],  threshold: "High",   status: "Pending",   detected: "15 Apr 2025" },
+  { id: "DUP-002", recordA: { name: "Omar Al-Farsi",  phone: "+971 55 234 5678", email: "khalid.alfarsi@gmail.com", type: "Student",  createdOn: "03 Mar 2023" }, recordB: { name: "O. Al-Farsi",  phone: "+971 55 234 5678", email: "o.alfarsi@gmail.com",     type: "Lead",     createdOn: "10 Mar 2023" }, matchScore: 87, matchedFields: ["Phone", "Name"],  threshold: "High",   status: "Pending",   detected: "14 Apr 2025" },
+  { id: "DUP-003", recordA: { name: "Layla Hassan",   phone: "+971 52 345 6789", email: "nadia.hassan@gmail.com",   type: "Student",  createdOn: "01 Sep 2021" }, recordB: { name: "Layla Hassan", phone: "+971 52 999 1111", email: "layla.hassan@outlook.com", type: "Lead",     createdOn: "20 Mar 2025" }, matchScore: 74, matchedFields: ["Name", "Email"],  threshold: "Medium", status: "Resolved",  detected: "12 Apr 2025" },
+  { id: "DUP-004", recordA: { name: "Bilal Mahmood",  phone: "+971 50 111 2222", email: "tariq.mahmood@gmail.com",  type: "Lead",     createdOn: "17 Apr 2025" }, recordB: { name: "Bilal M.",     phone: "+971 50 111 2222", email: "bilal.mahmood@gmail.com",  type: "Lead",     createdOn: "17 Apr 2025" }, matchScore: 71, matchedFields: ["Phone", "Name"],  threshold: "Medium", status: "Pending",   detected: "17 Apr 2025" },
+  { id: "DUP-005", recordA: { name: "Sarah Mitchell", phone: "+971 50 000 0006", email: "s.mitchell@improvemeinstitute.com", type: "Staff", createdOn: "5 Sep 2022" }, recordB: { name: "Sarah M.",    phone: "+971 50 000 0006", email: "sarah.mitchell@gmail.com", type: "Staff",    createdOn: "6 Sep 2022" },  matchScore: 55, matchedFields: ["Email"],          threshold: "Low",    status: "Dismissed", detected: "10 Apr 2025" },
+  { id: "DUP-006", recordA: { name: "Nadia Hassan",   phone: "+971 52 345 6789", email: "nadia.hassan@gmail.com",   type: "Guardian", createdOn: "01 Sep 2021" }, recordB: { name: "N. Hassan",    phone: "+971 52 345 6789", email: "n.hassan@yahoo.com",       type: "Guardian", createdOn: "15 Feb 2024" }, matchScore: 82, matchedFields: ["Phone", "Name"],  threshold: "High",   status: "Pending",   detected: "16 Apr 2025" },
+];
+
+// ─── Segments ─────────────────────────────────────────────────────────────────
+
+export type SegmentScope = "Org-Wide" | "Personal";
+export type SegmentRecordType = "Students" | "Guardians" | "Leads" | "Staff";
+
+export interface Segment {
+  id: string;
+  name: string;
+  scope: SegmentScope;
+  recordType: SegmentRecordType;
+  filterSummary: string;
+  members: number;
+  lastRefreshed: string;
+  createdBy: string;
+}
+
+export const segments: Segment[] = [
+  { id: "SEG-001", name: "Active Enrolled Students",          scope: "Org-Wide", recordType: "Students",  filterSummary: "Status: Enrolled",                              members: 284, lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-002", name: "Guardians — DNC",                   scope: "Org-Wide", recordType: "Guardians", filterSummary: "DNC Status: True",                              members: 8,   lastRefreshed: "17 Apr 2025", createdBy: "Sarah Thompson" },
+  { id: "SEG-003", name: "All Active Staff",                  scope: "Org-Wide", recordType: "Staff",     filterSummary: "Status: Active",                                members: 41,  lastRefreshed: "16 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-004", name: "Leads in Trial Stage",              scope: "Org-Wide", recordType: "Leads",     filterSummary: "Stage: Trial Booked",                           members: 12,  lastRefreshed: "17 Apr 2025", createdBy: "Sarah Thompson" },
+  { id: "SEG-005", name: "Students with Outstanding Balance", scope: "Org-Wide", recordType: "Students",  filterSummary: "Outstanding Balance: > 0",                      members: 23,  lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-006", name: "High Churn Risk Students",          scope: "Org-Wide", recordType: "Students",  filterSummary: "Churn Risk: High",                              members: 18,  lastRefreshed: "15 Apr 2025", createdBy: "Sarah Thompson" },
+  { id: "SEG-007", name: "My Primary Students",               scope: "Personal", recordType: "Students",  filterSummary: "Department: Primary | Status: Enrolled",        members: 87,  lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-008", name: "My Senior Students",                scope: "Personal", recordType: "Students",  filterSummary: "Department: Senior | Status: Enrolled",         members: 64,  lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-009", name: "Guardians — WhatsApp Preferred",    scope: "Personal", recordType: "Guardians", filterSummary: "Preferred Channel: WhatsApp",                   members: 142, lastRefreshed: "16 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-010", name: "Lost Leads Q1 2025",                scope: "Personal", recordType: "Leads",     filterSummary: "Stage: Lost | Created: Jan–Mar 2025",          members: 9,   lastRefreshed: "14 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-011", name: "Y8 Maths Group",                    scope: "Personal", recordType: "Students",  filterSummary: "Year Group: Y8 | Subject: Maths",              members: 14,  lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-012", name: "Unsubscribed Guardians",            scope: "Personal", recordType: "Guardians", filterSummary: "Unsubscribed: True",                           members: 11,  lastRefreshed: "16 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-013", name: "New Leads This Month",              scope: "Personal", recordType: "Leads",     filterSummary: "Created: Apr 2025",                            members: 7,   lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+  { id: "SEG-014", name: "Staff — Sessional Contract",        scope: "Personal", recordType: "Staff",     filterSummary: "Contract: Sessional",                          members: 3,   lastRefreshed: "17 Apr 2025", createdBy: "Jason Daswani"  },
+];
+
+// ─── Broadcast Lists ──────────────────────────────────────────────────────────
+
+export interface BroadcastMember {
+  name: string;
+  type: PersonType;
+  addedBy: "Auto" | "Manual";
+}
+
+export interface BroadcastList {
+  id: string;
+  name: string;
+  members: number;
+  autoRule: boolean;
+  autoRuleName?: string;
+  lastUpdated: string;
+  membersList: BroadcastMember[];
+}
+
+export const broadcastLists: BroadcastList[] = [
+  { id: "BL-001", name: "All Active Guardians",        members: 198, autoRule: true,  autoRuleName: "Guardian Enrollment Auto-Rule",   lastUpdated: "17 Apr 2025", membersList: [{ name: "Fatima Rahman", type: "Guardian", addedBy: "Auto" }, { name: "Khalid Al-Farsi", type: "Guardian", addedBy: "Auto" }, { name: "Nadia Hassan", type: "Guardian", addedBy: "Auto" }, { name: "Rami Khalil", type: "Guardian", addedBy: "Auto" }, { name: "Hessa Nasser", type: "Guardian", addedBy: "Auto" }, { name: "Tariq Qasim", type: "Guardian", addedBy: "Auto" }, { name: "Leila Ibrahim", type: "Guardian", addedBy: "Auto" }, { name: "Amal Mansoor", type: "Guardian", addedBy: "Auto" }, { name: "Elias Khouri", type: "Guardian", addedBy: "Auto" }, { name: "Saeed Al-Zaabi", type: "Guardian", addedBy: "Auto" }] },
+  { id: "BL-002", name: "Y9–Y11 Students",             members: 87,  autoRule: true,  autoRuleName: "Secondary Students Auto-Rule",    lastUpdated: "17 Apr 2025", membersList: [{ name: "Layla Hassan", type: "Student", addedBy: "Auto" }, { name: "Sara Nasser", type: "Student", addedBy: "Auto" }, { name: "Faris Qasim", type: "Student", addedBy: "Auto" }, { name: "Yousef Salim", type: "Student", addedBy: "Auto" }, { name: "Hamdan Al-Maktoum", type: "Student", addedBy: "Auto" }] },
+  { id: "BL-003", name: "New Leads — Welcome Sequence",members: 24,  autoRule: true,  autoRuleName: "Lead Welcome Automation",         lastUpdated: "16 Apr 2025", membersList: [{ name: "Bilal Mahmood", type: "Lead", addedBy: "Auto" }, { name: "Hessa Al-Blooshi", type: "Lead", addedBy: "Auto" }, { name: "Ahmed Saleh", type: "Lead", addedBy: "Auto" }, { name: "Rana Farouk", type: "Lead", addedBy: "Auto" }, { name: "Saif Al-Nuaimi", type: "Lead", addedBy: "Auto" }] },
+  { id: "BL-004", name: "Withdrawn — Re-engagement",   members: 34,  autoRule: true,  autoRuleName: "Withdrawal Re-engagement Rule",   lastUpdated: "15 Apr 2025", membersList: [{ name: "Hind Al-Rashidi", type: "Student", addedBy: "Auto" }, { name: "Tariq Osman", type: "Student", addedBy: "Auto" }] },
+  { id: "BL-005", name: "IGCSE Prep Students",         members: 41,  autoRule: true,  autoRuleName: "IGCSE Cohort Rule",               lastUpdated: "14 Apr 2025", membersList: [{ name: "Layla Hassan", type: "Student", addedBy: "Auto" }, { name: "Faris Qasim", type: "Student", addedBy: "Auto" }, { name: "Khalid Mansoor", type: "Student", addedBy: "Auto" }] },
+  { id: "BL-006", name: "Senior Parents Group",        members: 41,  autoRule: false, lastUpdated: "12 Apr 2025", membersList: [{ name: "Tariq Qasim", type: "Guardian", addedBy: "Manual" }, { name: "Amal Mansoor", type: "Guardian", addedBy: "Manual" }, { name: "Nadia Hassan", type: "Guardian", addedBy: "Manual" }, { name: "Jassim Al-Suwaidi", type: "Guardian", addedBy: "Manual" }, { name: "Wafa Al-Otaibi", type: "Guardian", addedBy: "Manual" }] },
+  { id: "BL-007", name: "Ramadan Special Offer",       members: 63,  autoRule: false, lastUpdated: "10 Apr 2025", membersList: [{ name: "Fatima Rahman", type: "Guardian", addedBy: "Manual" }, { name: "Khalid Al-Farsi", type: "Guardian", addedBy: "Manual" }, { name: "Rami Khalil", type: "Guardian", addedBy: "Manual" }] },
+  { id: "BL-008", name: "Q2 Event RSVP",               members: 19,  autoRule: false, lastUpdated: "09 Apr 2025", membersList: [{ name: "Jason Daswani", type: "Staff", addedBy: "Manual" }, { name: "Sarah Thompson", type: "Staff", addedBy: "Manual" }, { name: "Fatima Rahman", type: "Guardian", addedBy: "Manual" }] },
+];
+
+// ─── Forms ────────────────────────────────────────────────────────────────────
+
+export type FormType = "Lead Enquiry" | "Profile Update" | "Custom";
+export type FormStatus = "Active" | "Draft" | "Archived";
+
+export interface Form {
+  id: string;
+  name: string;
+  type: FormType;
+  status: FormStatus;
+  submissions: number;
+  lastSubmission: string | null;
+  createdBy: string;
+  pinned: boolean;
+}
+
+export const forms: Form[] = [
+  { id: "FORM-001", name: "Lead Enquiry Form",          type: "Lead Enquiry",  status: "Active",   submissions: 147, lastSubmission: "17 Apr 2025", createdBy: "Jason Daswani",  pinned: true  },
+  { id: "FORM-002", name: "Profile Update Form",        type: "Profile Update",status: "Active",   submissions: 89,  lastSubmission: "16 Apr 2025", createdBy: "Jason Daswani",  pinned: true  },
+  { id: "FORM-003", name: "Trial Session Feedback",     type: "Custom",        status: "Active",   submissions: 41,  lastSubmission: "15 Apr 2025", createdBy: "Sarah Thompson", pinned: false },
+  { id: "FORM-004", name: "New Student Registration",   type: "Custom",        status: "Active",   submissions: 38,  lastSubmission: "14 Apr 2025", createdBy: "Sarah Thompson", pinned: false },
+  { id: "FORM-005", name: "End of Term Parent Survey",  type: "Custom",        status: "Draft",    submissions: 0,   lastSubmission: null,          createdBy: "Jason Daswani",  pinned: false },
+  { id: "FORM-006", name: "Complaint Submission Form",  type: "Custom",        status: "Draft",    submissions: 0,   lastSubmission: null,          createdBy: "Sarah Thompson", pinned: false },
+  { id: "FORM-007", name: "Session Preference Update",  type: "Custom",        status: "Archived", submissions: 26,  lastSubmission: "10 Jan 2025", createdBy: "Jason Daswani",  pinned: false },
+];
+
+// ─── Form Submissions ─────────────────────────────────────────────────────────
+
+export type SubmissionStatus = "New" | "Reviewed";
+
+export interface FormSubmission {
+  id: string;
+  formId: string;
+  submittedAt: string;
+  submittedBy: string;
+  status: SubmissionStatus;
+  linkedRecord: string;
+}
+
+export const formSubmissions: FormSubmission[] = [
+  { id: "SUB-001", formId: "FORM-001", submittedAt: "17 Apr 2025, 09:12", submittedBy: "Tariq Mahmood",    status: "New",      linkedRecord: "Lead: Bilal Mahmood"        },
+  { id: "SUB-002", formId: "FORM-001", submittedAt: "16 Apr 2025, 14:30", submittedBy: "Noura Al-Blooshi", status: "Reviewed", linkedRecord: "Lead: Hessa Al-Blooshi"     },
+  { id: "SUB-003", formId: "FORM-001", submittedAt: "15 Apr 2025, 11:00", submittedBy: "Omar Saleh",       status: "Reviewed", linkedRecord: "Lead: Ahmed Saleh"          },
+  { id: "SUB-004", formId: "FORM-002", submittedAt: "16 Apr 2025, 16:45", submittedBy: "Fatima Rahman",    status: "New",      linkedRecord: "Guardian: Fatima Rahman"    },
+  { id: "SUB-005", formId: "FORM-002", submittedAt: "15 Apr 2025, 10:20", submittedBy: "Khalid Al-Farsi",  status: "Reviewed", linkedRecord: "Guardian: Khalid Al-Farsi"  },
+  { id: "SUB-006", formId: "FORM-003", submittedAt: "15 Apr 2025, 18:00", submittedBy: "Hessa Nasser",     status: "New",      linkedRecord: "Student: Sara Nasser"       },
+  { id: "SUB-007", formId: "FORM-003", submittedAt: "14 Apr 2025, 17:30", submittedBy: "Nadia Hassan",     status: "Reviewed", linkedRecord: "Student: Layla Hassan"      },
+  { id: "SUB-008", formId: "FORM-003", submittedAt: "12 Apr 2025, 19:00", submittedBy: "Tariq Qasim",      status: "Reviewed", linkedRecord: "Student: Faris Qasim"       },
+  { id: "SUB-009", formId: "FORM-004", submittedAt: "14 Apr 2025, 09:00", submittedBy: "Leila Ibrahim",    status: "New",      linkedRecord: "Student: Nour Ibrahim"      },
+  { id: "SUB-010", formId: "FORM-004", submittedAt: "13 Apr 2025, 15:00", submittedBy: "Saeed Al-Zaabi",   status: "Reviewed", linkedRecord: "Student: Dana Al-Zaabi"     },
+  { id: "SUB-011", formId: "FORM-001", submittedAt: "14 Apr 2025, 08:30", submittedBy: "Dina Farouk",      status: "New",      linkedRecord: "Lead: Rana Farouk"          },
+  { id: "SUB-012", formId: "FORM-002", submittedAt: "13 Apr 2025, 11:15", submittedBy: "Amal Mansoor",     status: "New",      linkedRecord: "Guardian: Amal Mansoor"    },
+];
+
+// ─── Export History ───────────────────────────────────────────────────────────
+
+export type ExportFormat = "Standard CSV" | "Google Contacts CSV";
+
+export interface ExportRecord {
+  id: string;
+  exportedBy: string;
+  format: ExportFormat;
+  recordType: string;
+  filtersApplied: string;
+  rowCount: number;
+  exportedAt: string;
+}
+
+export const exportHistory: ExportRecord[] = [
+  { id: "EXP-001", exportedBy: "Jason Daswani",  format: "Standard CSV",        recordType: "Students",  filtersApplied: "Status: Enrolled | Dept: Senior",       rowCount: 64,  exportedAt: "17 Apr 2025, 09:14" },
+  { id: "EXP-002", exportedBy: "Sarah Thompson", format: "Google Contacts CSV", recordType: "Guardians", filtersApplied: "None",                                   rowCount: 198, exportedAt: "16 Apr 2025, 14:00" },
+  { id: "EXP-003", exportedBy: "Jason Daswani",  format: "Standard CSV",        recordType: "Leads",     filtersApplied: "Stage: New, Contacted",                  rowCount: 24,  exportedAt: "15 Apr 2025, 10:30" },
+  { id: "EXP-004", exportedBy: "Jason Daswani",  format: "Standard CSV",        recordType: "Students",  filtersApplied: "Status: Enrolled | Year Group: Y8, Y9",  rowCount: 47,  exportedAt: "14 Apr 2025, 16:00" },
+  { id: "EXP-005", exportedBy: "Sarah Thompson", format: "Google Contacts CSV", recordType: "Guardians", filtersApplied: "Preferred Channel: WhatsApp",            rowCount: 142, exportedAt: "12 Apr 2025, 11:00" },
+  { id: "EXP-006", exportedBy: "Jason Daswani",  format: "Standard CSV",        recordType: "Staff",     filtersApplied: "Status: Active",                         rowCount: 41,  exportedAt: "10 Apr 2025, 09:00" },
+  { id: "EXP-007", exportedBy: "Sarah Thompson", format: "Standard CSV",        recordType: "Students",  filtersApplied: "Dept: Primary | Year Group: Y3, Y4, Y5", rowCount: 82,  exportedAt: "08 Apr 2025, 14:30" },
+  { id: "EXP-008", exportedBy: "Jason Daswani",  format: "Google Contacts CSV", recordType: "Leads",     filtersApplied: "Source: Referral",                       rowCount: 18,  exportedAt: "05 Apr 2025, 10:00" },
+];
+
+// ─── Class Discussion ─────────────────────────────────────────────────────────
+
+export type PostType = "Announcement" | "Discussion" | "Question";
+
+export interface ClassPost {
+  id: string;
+  sender: string;
+  role: string;
+  timestamp: string;
+  type: PostType;
+  content: string;
+  removed: boolean;
+}
+
+export interface ClassGroup {
+  id: string;
+  name: string;
+  teacher: string;
+  unreadCount: number;
+  posts: ClassPost[];
+}
+
+// ─── Broadcast List Exclusions ───────────────────────────────────────────────
+
+export const broadcastListExclusions: Record<string, { name: string }[]> = {
+  "BL-001": [{ name: "Hessa Nasser" }],
+  "BL-002": [],
+  "BL-003": [{ name: "Khalifa Rashid" }, { name: "Lama Qasim" }],
+  "BL-004": [],
+  "BL-005": [],
+  "BL-006": [{ name: "Wafa Al-Otaibi" }],
+  "BL-007": [],
+  "BL-008": [],
+};
+
+// ─── Form Submission Fields ───────────────────────────────────────────────────
+
+export const formSubmissionFields: Record<string, { label: string; value: string }[]> = {
+  "SUB-001": [{ label: "Guardian Name", value: "Tariq Mahmood" },    { label: "Student Name",     value: "Bilal Mahmood" },       { label: "Year Group", value: "Y7" },  { label: "Subject Interest", value: "Maths" }],
+  "SUB-002": [{ label: "Guardian Name", value: "Noura Al-Blooshi" }, { label: "Student Name",     value: "Hessa Al-Blooshi" },    { label: "Year Group", value: "Y4" },  { label: "Subject Interest", value: "English, Maths" }],
+  "SUB-003": [{ label: "Guardian Name", value: "Omar Saleh" },       { label: "Student Name",     value: "Ahmed Saleh" },         { label: "Year Group", value: "Y10" }, { label: "Subject Interest", value: "Physics, Maths" }],
+  "SUB-004": [{ label: "Guardian Name", value: "Fatima Rahman" },    { label: "Student Name",     value: "Aisha Rahman" },        { label: "Year Group", value: "Y8" },  { label: "Subject Interest", value: "Maths" }],
+  "SUB-005": [{ label: "Guardian Name", value: "Khalid Al-Farsi" },  { label: "Student Name",     value: "Omar Al-Farsi" },       { label: "Year Group", value: "Y5" },  { label: "Subject Interest", value: "Maths, English" }],
+  "SUB-006": [{ label: "Guardian Name", value: "Hessa Nasser" },     { label: "Student Name",     value: "Sara Nasser" },         { label: "Year Group", value: "Y9" },  { label: "Subject Interest", value: "Maths" }],
+  "SUB-007": [{ label: "Guardian Name", value: "Nadia Hassan" },     { label: "Student Name",     value: "Layla Hassan" },        { label: "Year Group", value: "Y10" }, { label: "Subject Interest", value: "Physics" }],
+  "SUB-008": [{ label: "Guardian Name", value: "Tariq Qasim" },      { label: "Student Name",     value: "Faris Qasim" },         { label: "Year Group", value: "Y11" }, { label: "Subject Interest", value: "Physics, Chemistry" }],
+  "SUB-009": [{ label: "Guardian Name", value: "Leila Ibrahim" },    { label: "Student Name",     value: "Nour Ibrahim" },        { label: "Year Group", value: "Y4" },  { label: "Subject Interest", value: "Maths" }],
+  "SUB-010": [{ label: "Guardian Name", value: "Saeed Al-Zaabi" },   { label: "Student Name",     value: "Dana Al-Zaabi" },       { label: "Year Group", value: "Y2" },  { label: "Subject Interest", value: "English" }],
+  "SUB-011": [{ label: "Guardian Name", value: "Dina Farouk" },      { label: "Student Name",     value: "Rana Farouk" },         { label: "Year Group", value: "Y2" },  { label: "Subject Interest", value: "English" }],
+  "SUB-012": [{ label: "Guardian Name", value: "Amal Mansoor" },     { label: "Student Name",     value: "Khalid Mansoor" },      { label: "Year Group", value: "Y12" }, { label: "Subject Interest", value: "Maths, Physics, Chemistry" }],
+};
+
+export const classGroups: ClassGroup[] = [
+  {
+    id: "CG-001", name: "Y8 Maths — Group A", teacher: "Mr Ahmed Khalil", unreadCount: 2,
+    posts: [
+      { id: "P-001-1", sender: "Mr Ahmed Khalil", role: "Teacher", timestamp: "Mon 14 Apr, 09:00", type: "Announcement", content: "Welcome to Term 3! This term we will be covering algebra, geometry, and data handling. Please make sure calculators are charged for Saturday's session.", removed: false },
+      { id: "P-001-2", sender: "Fatima Rahman", role: "Guardian", timestamp: "Mon 14 Apr, 10:15", type: "Question", content: "Will there be a focus on IGCSE preparation in the second half of this term? Aisha has her mocks coming up.", removed: false },
+      { id: "P-001-3", sender: "Mr Ahmed Khalil", role: "Teacher", timestamp: "Mon 14 Apr, 11:00", type: "Discussion", content: "Great question, Fatima! Yes, from Week 6 we will shift towards exam technique and past papers. I will share a revision schedule this weekend.", removed: false },
+      { id: "P-001-4", sender: "Jason Daswani", role: "Admin", timestamp: "Tue 15 Apr, 09:00", type: "Announcement", content: "Reminder: The Eid schedule has been shared via email. Sessions continue as normal next week.", removed: false },
+      { id: "P-001-5", sender: "Unknown User", role: "Guardian", timestamp: "Tue 15 Apr, 12:00", type: "Discussion", content: "", removed: true },
+      { id: "P-001-6", sender: "Mr Ahmed Khalil", role: "Teacher", timestamp: "Wed 16 Apr, 09:30", type: "Announcement", content: "Homework for this week: Complete exercises 4.1–4.3 from the revision pack. Due Saturday before the session.", removed: false },
+    ],
+  },
+  {
+    id: "CG-002", name: "Y10 Physics — Group A", teacher: "Mr Faris Al-Amin", unreadCount: 0,
+    posts: [
+      { id: "P-002-1", sender: "Mr Faris Al-Amin", role: "Teacher", timestamp: "Mon 7 Apr, 09:00", type: "Announcement", content: "IGCSE Physics sessions are now in full exam-preparation mode. We have 6 weeks until Paper 1. Every session will include timed past paper practice.", removed: false },
+      { id: "P-002-2", sender: "Nadia Hassan", role: "Guardian", timestamp: "Mon 7 Apr, 14:00", type: "Question", content: "Should Layla be purchasing a specific formula booklet or will one be provided during sessions?", removed: false },
+      { id: "P-002-3", sender: "Mr Faris Al-Amin", role: "Teacher", timestamp: "Mon 7 Apr, 15:30", type: "Discussion", content: "I will provide printed formula booklets for all students. No need to purchase separately. The Cambridge issued booklet will be used for all practice sessions.", removed: false },
+      { id: "P-002-4", sender: "Mr Faris Al-Amin", role: "Teacher", timestamp: "Wed 9 Apr, 09:00", type: "Announcement", content: "This week's focus: Forces and Motion (Chapter 3). Please review your notes from last term before Saturday's session.", removed: false },
+      { id: "P-002-5", sender: "Tariq Qasim", role: "Guardian", timestamp: "Wed 9 Apr, 17:00", type: "Discussion", content: "Faris mentioned the sessions are going very well — he feels much more confident now. Thank you for the extra support!", removed: false },
+    ],
+  },
+  {
+    id: "CG-003", name: "Y9 Maths — Group A", teacher: "Mr Tariq Al-Amin", unreadCount: 3,
+    posts: [
+      { id: "P-003-1", sender: "Mr Tariq Al-Amin", role: "Teacher", timestamp: "Mon 14 Apr, 09:15", type: "Announcement", content: "Term 3 focus for Y9 Maths: Quadratic equations, simultaneous equations, and geometry proofs. A challenging but very rewarding term ahead!", removed: false },
+      { id: "P-003-2", sender: "Hessa Nasser", role: "Guardian", timestamp: "Mon 14 Apr, 18:00", type: "Question", content: "Sara has mentioned finding quadratic factoring particularly difficult. Is there anything we can do at home to help reinforce this?", removed: false },
+      { id: "P-003-3", sender: "Mr Tariq Al-Amin", role: "Teacher", timestamp: "Tue 15 Apr, 09:00", type: "Discussion", content: "Great question. I have shared a link to some recommended practice videos via email. 15 minutes per day on these will make a big difference. Sara is making progress!", removed: false },
+      { id: "P-003-4", sender: "Mona Salim", role: "Guardian", timestamp: "Tue 15 Apr, 20:00", type: "Question", content: "We haven't received the feedback summary for last Wednesday's session. Can you confirm it's been sent?", removed: false },
+      { id: "P-003-5", sender: "Jason Daswani", role: "Admin", timestamp: "Wed 16 Apr, 08:00", type: "Announcement", content: "Apologies for the delay. The feedback for last week's sessions will be sent out by end of day today.", removed: false },
+      { id: "P-003-6", sender: "Mr Tariq Al-Amin", role: "Teacher", timestamp: "Wed 16 Apr, 10:00", type: "Announcement", content: "This week's homework: Complete the quadratic practice sheet (10 questions). Bring it to Saturday's session.", removed: false },
+    ],
+  },
+  {
+    id: "CG-004", name: "Y3 English — Group A", teacher: "Ms Sarah Mitchell", unreadCount: 0,
+    posts: [
+      { id: "P-004-1", sender: "Ms Sarah Mitchell", role: "Teacher", timestamp: "Mon 7 Apr, 09:00", type: "Announcement", content: "Term 3 English focus: Creative writing, reading comprehension, and vocabulary building. We have some lovely new books for the reading programme this term!", removed: false },
+      { id: "P-004-2", sender: "Rami Khalil", role: "Guardian", timestamp: "Mon 7 Apr, 19:30", type: "Discussion", content: "Ziad is really excited about the new reading books. He has been talking about it all day! Thank you for making sessions so engaging.", removed: false },
+      { id: "P-004-3", sender: "Ms Sarah Mitchell", role: "Teacher", timestamp: "Tue 8 Apr, 08:30", type: "Discussion", content: "That is so lovely to hear, Rami! Ziad's enthusiasm for reading is wonderful. We will be starting Charlotte's Web this Saturday.", removed: false },
+      { id: "P-004-4", sender: "Ms Sarah Mitchell", role: "Teacher", timestamp: "Wed 9 Apr, 09:00", type: "Announcement", content: "Reading challenge update: All students in Group A have completed Chapter 1. Ziad is in the lead with Chapter 2 already done at home!", removed: false },
+      { id: "P-004-5", sender: "Ms Sarah Mitchell", role: "Teacher", timestamp: "Thu 10 Apr, 09:00", type: "Question", content: "Reminder: Can all guardians confirm whether their children prefer the printed vocabulary sheets or the digital version for homework?", removed: false },
+    ],
+  },
+];
+
+// ─── Automation Templates ─────────────────────────────────────────────────────
+
+export type AutomationTemplateType = 'Message' | 'Email' | 'Task' | 'Announcement';
+export type AutomationTemplateStatus = 'Active' | 'Draft' | 'Archived';
+export type AutomationTemplateOwner = 'Org-Wide' | 'Personal';
+
+export interface AutomationTemplate {
+  id: string;
+  name: string;
+  type: AutomationTemplateType;
+  status: AutomationTemplateStatus;
+  owner: AutomationTemplateOwner;
+  body: string;
+  mergeFields: string[];
+  version: number;
+  usedInRules: string[];
+  locked: boolean;
+}
+
+export const automationTemplates: AutomationTemplate[] = [
+  {
+    id: "TPL-001", name: "New Lead Welcome Message", type: "Message", status: "Active", owner: "Org-Wide",
+    body: "Hi [parent_name], welcome to [tenant_name]! We're thrilled to have you. Expect a call within 24 hours to discuss [child_name]'s learning journey.",
+    mergeFields: ["parent_name", "tenant_name", "child_name"], version: 2,
+    usedInRules: ["New Lead — Welcome Message"], locked: false,
+  },
+  {
+    id: "TPL-002", name: "Assessment Booking Confirmation", type: "Email", status: "Active", owner: "Org-Wide",
+    body: "Dear [parent_name], your assessment for [child_name] in [subject] is confirmed for [session_date] at [session_time]. We look forward to seeing you!",
+    mergeFields: ["parent_name", "child_name", "subject", "session_date", "session_time"], version: 1,
+    usedInRules: ["Assessment Booked — Confirmation"], locked: false,
+  },
+  {
+    id: "TPL-003", name: "Absence Alert — Parent Notification", type: "Message", status: "Active", owner: "Org-Wide",
+    body: "Hi [parent_name], we noticed [child_name] was absent from today's [subject] session. Please contact us to arrange a makeup or provide a reason.",
+    mergeFields: ["parent_name", "child_name", "subject"], version: 2,
+    usedInRules: ["Absent Not Notified — Alert Admin", "48h Attendance Lock"], locked: true,
+  },
+  {
+    id: "TPL-004", name: "Invoice Payment Reminder", type: "Email", status: "Active", owner: "Org-Wide",
+    body: "Dear [parent_name], your invoice of [amount] is due on [due_date]. Please log in to [tenant_name] to complete your payment at your earliest convenience.",
+    mergeFields: ["parent_name", "amount", "due_date", "tenant_name"], version: 1,
+    usedInRules: ["Invoice Overdue — Create Task", "Payment Received — Confirm to Parent"], locked: false,
+  },
+  {
+    id: "TPL-005", name: "Trial Class Confirmation", type: "Email", status: "Draft", owner: "Personal",
+    body: "Hi [parent_name], [child_name]'s trial [subject] session with [teacher_name] is confirmed for [session_date] at [session_time]. We can't wait to meet you!",
+    mergeFields: ["parent_name", "child_name", "subject", "teacher_name", "session_date"], version: 1,
+    usedInRules: ["Trial Complete — Send Survey"], locked: false,
+  },
+  {
+    id: "TPL-006", name: "End of Term Feedback Summary", type: "Announcement", status: "Active", owner: "Org-Wide",
+    body: "Dear [parent_name], [child_name]'s end-of-term summary from [tenant_name] is now available. Log in to view detailed notes from [teacher_name] for this term.",
+    mergeFields: ["parent_name", "child_name", "tenant_name", "teacher_name"], version: 2,
+    usedInRules: ["Feedback Approved — Send to Parent", "Term End — Trigger Bulk Reports"], locked: false,
+  },
+  {
+    id: "TPL-007", name: "Enrolment Confirmation", type: "Email", status: "Active", owner: "Org-Wide",
+    body: "Hi [parent_name], [child_name] is now officially enrolled in [subject] at [tenant_name]. First session: [session_date] at [session_time]. Welcome aboard!",
+    mergeFields: ["parent_name", "child_name", "subject", "session_date", "session_time"], version: 1,
+    usedInRules: ["Enrolment Confirmed — Parent Message"], locked: false,
+  },
+  {
+    id: "TPL-008", name: "Late Payment Follow-up", type: "Task", status: "Draft", owner: "Personal",
+    body: "Dear [parent_name], your payment of [amount] due on [due_date] remains outstanding. Please contact [tenant_name] immediately to avoid any interruption to services.",
+    mergeFields: ["parent_name", "amount", "due_date", "tenant_name"], version: 1,
+    usedInRules: ["Late Payment — Escalate Task"], locked: false,
+  },
+  {
+    id: "TPL-009", name: "CPD Milestone Congratulations", type: "Message", status: "Active", owner: "Org-Wide",
+    body: "Congratulations [teacher_name]! You've reached a significant CPD milestone at [tenant_name]. Your commitment to professional development is greatly appreciated by the team.",
+    mergeFields: ["teacher_name", "tenant_name"], version: 2,
+    usedInRules: ["CPD 50% Milestone — Notify Staff"], locked: false,
+  },
+  {
+    id: "TPL-010", name: "Progress Report Ready", type: "Announcement", status: "Archived", owner: "Org-Wide",
+    body: "Hi [parent_name], [child_name]'s [subject] progress report for this term is now available. Log in to [tenant_name] to review their detailed academic progress and notes.",
+    mergeFields: ["parent_name", "child_name", "subject", "tenant_name"], version: 1,
+    usedInRules: ["Progress Report — Dispatch Approval"], locked: false,
+  },
+  {
+    id: "TPL-011", name: "Makeup Session Booked", type: "Message", status: "Draft", owner: "Personal",
+    body: "Hi [parent_name], a makeup session for [child_name] in [subject] is now scheduled for [session_date] at [session_time] with [teacher_name]. See you then!",
+    mergeFields: ["parent_name", "child_name", "subject", "session_date", "session_time"], version: 1,
+    usedInRules: ["Makeup Booked — Notify Parent"], locked: false,
+  },
+  {
+    id: "TPL-012", name: "Withdrawal Confirmation", type: "Email", status: "Archived", owner: "Personal",
+    body: "Dear [parent_name], we confirm [child_name]'s withdrawal from [tenant_name] effective [session_date]. We sincerely hope to welcome you back in the future.",
+    mergeFields: ["parent_name", "child_name", "tenant_name", "session_date"], version: 2,
+    usedInRules: ["Withdrawal Confirmed — Exit Survey"], locked: true,
+  },
+];
+
+// ─── Automation Rules ─────────────────────────────────────────────────────────
+
+export type AutomationRuleTrigger = 'Status Change' | 'Time-based' | 'Threshold' | 'Form Submission' | 'Manual';
+export type AutomationRuleStatus = 'Enabled' | 'Disabled' | 'Locked';
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  triggerType: AutomationRuleTrigger;
+  module: string;
+  status: AutomationRuleStatus;
+  lastFired: string;
+  fireCount: number;
+  locked: boolean;
+}
+
+export const automationRules: AutomationRule[] = [
+  { id: "RULE-001", name: "New Lead — Welcome Message",          triggerType: "Status Change",   module: "M02", status: "Enabled",  lastFired: "2 hours ago",  fireCount: 143, locked: false },
+  { id: "RULE-002", name: "Assessment Booked — Confirmation",    triggerType: "Status Change",   module: "M03", status: "Enabled",  lastFired: "1 hour ago",   fireCount: 89,  locked: false },
+  { id: "RULE-003", name: "Absent Not Notified — Alert Admin",   triggerType: "Threshold",       module: "M05", status: "Enabled",  lastFired: "3 hours ago",  fireCount: 201, locked: false },
+  { id: "RULE-004", name: "Invoice Overdue — Create Task",       triggerType: "Time-based",      module: "M08", status: "Enabled",  lastFired: "Yesterday",    fireCount: 67,  locked: false },
+  { id: "RULE-005", name: "Trial Complete — Send Survey",        triggerType: "Form Submission", module: "M03", status: "Enabled",  lastFired: "4 hours ago",  fireCount: 52,  locked: false },
+  { id: "RULE-006", name: "Enrolment Confirmed — Parent Message",triggerType: "Status Change",   module: "M03", status: "Enabled",  lastFired: "30 mins ago",  fireCount: 118, locked: false },
+  { id: "RULE-007", name: "CPD 50% Milestone — Notify Staff",    triggerType: "Threshold",       module: "M09", status: "Enabled",  lastFired: "2 days ago",   fireCount: 34,  locked: false },
+  { id: "RULE-008", name: "Concern Auto-Task Creation",          triggerType: "Threshold",       module: "M07", status: "Locked",   lastFired: "5 hours ago",  fireCount: 312, locked: true  },
+  { id: "RULE-009", name: "DNC Interstitial Routing",            triggerType: "Status Change",   module: "M02", status: "Locked",   lastFired: "1 day ago",    fireCount: 88,  locked: true  },
+  { id: "RULE-010", name: "48h Attendance Lock",                 triggerType: "Time-based",      module: "M05", status: "Locked",   lastFired: "6 hours ago",  fireCount: 445, locked: true  },
+  { id: "RULE-011", name: "Progress Report — Dispatch Approval", triggerType: "Manual",          module: "M07", status: "Enabled",  lastFired: "3 days ago",   fireCount: 28,  locked: false },
+  { id: "RULE-012", name: "Lead Inactive 14 Days — Flag",        triggerType: "Time-based",      module: "M02", status: "Enabled",  lastFired: "6 hours ago",  fireCount: 77,  locked: false },
+  { id: "RULE-013", name: "Payment Received — Confirm to Parent",triggerType: "Status Change",   module: "M08", status: "Enabled",  lastFired: "45 mins ago",  fireCount: 156, locked: false },
+  { id: "RULE-014", name: "Makeup Booked — Notify Parent",       triggerType: "Status Change",   module: "M04", status: "Disabled", lastFired: "Never",        fireCount: 0,   locked: false },
+  { id: "RULE-015", name: "Withdrawal Confirmed — Exit Survey",  triggerType: "Status Change",   module: "M03", status: "Disabled", lastFired: "2 weeks ago",  fireCount: 23,  locked: false },
+  { id: "RULE-016", name: "Late Payment — Escalate Task",        triggerType: "Threshold",       module: "M08", status: "Disabled", lastFired: "1 week ago",   fireCount: 41,  locked: false },
+  { id: "RULE-017", name: "Feedback Approved — Send to Parent",  triggerType: "Manual",          module: "M07", status: "Disabled", lastFired: "5 days ago",   fireCount: 19,  locked: false },
+  { id: "RULE-018", name: "Term End — Trigger Bulk Reports",     triggerType: "Manual",          module: "M12", status: "Disabled", lastFired: "4 days ago",   fireCount: 8,   locked: false },
+];
+
+// ─── Dispatch Queue ───────────────────────────────────────────────────────────
+
+export interface DispatchQueueItem {
+  id: string;
+  templateName: string;
+  contactName: string;
+  generatedAt: string;
+  sourceRule: string;
+  claimedBy: string | null;
+  claimedUntil: string | null;
+  renderedBody: string;
+  status: 'Unclaimed' | 'Claimed' | 'Sent';
+}
+
+export const dispatchQueueItems: DispatchQueueItem[] = [
+  { id: "DQ-001", templateName: "Absence Alert — Parent Notification", contactName: "Fatima Rahman", generatedAt: "14 min ago", sourceRule: "Absent Not Notified — Alert Admin", claimedBy: null, claimedUntil: null, renderedBody: "Hi Fatima, we noticed Aisha was absent from today's Maths session. Please contact us to arrange a makeup or provide a reason.", status: "Unclaimed" },
+  { id: "DQ-002", templateName: "Invoice Payment Reminder", contactName: "Hessa Nasser", generatedAt: "32 min ago", sourceRule: "Invoice Overdue — Create Task", claimedBy: null, claimedUntil: null, renderedBody: "Dear Hessa, your invoice of AED 3,360 is due on 20 Apr 2025. Please log in to IMI to complete your payment at your earliest convenience.", status: "Unclaimed" },
+  { id: "DQ-003", templateName: "New Lead Welcome Message", contactName: "Tariq Mahmood", generatedAt: "1 hr ago", sourceRule: "New Lead — Welcome Message", claimedBy: "Noor Al-Mansoori", claimedUntil: "18:42", renderedBody: "Hi Tariq, welcome to IMI! We're thrilled to have you. Expect a call within 24 hours to discuss Bilal's learning journey.", status: "Claimed" },
+  { id: "DQ-004", templateName: "Absence Alert — Parent Notification", contactName: "Mona Salim", generatedAt: "1 hr ago", sourceRule: "Absent Not Notified — Alert Admin", claimedBy: null, claimedUntil: null, renderedBody: "Hi Mona, we noticed Yousef was absent from today's Physics session. Please contact us to arrange a makeup or provide a reason.", status: "Unclaimed" },
+  { id: "DQ-005", templateName: "Invoice Payment Reminder", contactName: "Khalid Al-Farsi", generatedAt: "2 hr ago", sourceRule: "Invoice Overdue — Create Task", claimedBy: null, claimedUntil: null, renderedBody: "Dear Khalid, your invoice of AED 4,200 is due on 22 Apr 2025. Please log in to IMI to complete your payment at your earliest convenience.", status: "Unclaimed" },
+  { id: "DQ-006", templateName: "Trial Class Confirmation", contactName: "Noura Al-Blooshi", generatedAt: "2 hr ago", sourceRule: "Trial Complete — Send Survey", claimedBy: "Noor Al-Mansoori", claimedUntil: "19:15", renderedBody: "Hi Noura, Hessa's trial Maths session with Mr Ahmed Khalil is confirmed for 19 Apr 2025 at 10:00. We can't wait to meet you!", status: "Claimed" },
+  { id: "DQ-007", templateName: "Absence Alert — Parent Notification", contactName: "Rami Khalil", generatedAt: "3 hr ago", sourceRule: "Absent Not Notified — Alert Admin", claimedBy: null, claimedUntil: null, renderedBody: "Hi Rami, we noticed Ziad was absent from today's English session. Please contact us to arrange a makeup or provide a reason.", status: "Unclaimed" },
+  { id: "DQ-008", templateName: "Invoice Payment Reminder", contactName: "Nadia Hassan", generatedAt: "3 hr ago", sourceRule: "Invoice Overdue — Create Task", claimedBy: null, claimedUntil: null, renderedBody: "Dear Nadia, your invoice of AED 3,780 is due on 25 Apr 2025. Please log in to IMI to complete your payment at your earliest convenience.", status: "Unclaimed" },
+  { id: "DQ-009", templateName: "New Lead Welcome Message", contactName: "Dina Farouk", generatedAt: "4 hr ago", sourceRule: "New Lead — Welcome Message", claimedBy: null, claimedUntil: null, renderedBody: "Hi Dina, welcome to IMI! We're thrilled to have you. Expect a call within 24 hours to discuss Rana's learning journey.", status: "Unclaimed" },
+  { id: "DQ-010", templateName: "Enrolment Confirmation", contactName: "Leila Ibrahim", generatedAt: "5 hr ago", sourceRule: "Enrolment Confirmed — Parent Message", claimedBy: null, claimedUntil: null, renderedBody: "Hi Leila, Nour is now officially enrolled in Maths at IMI. First session: 21 Apr 2025 at 09:00. Welcome aboard!", status: "Unclaimed" },
+  { id: "DQ-011", templateName: "Enrolment Confirmation", contactName: "Amal Mansoor", generatedAt: "9:14 AM", sourceRule: "Enrolment Confirmed — Parent Message", claimedBy: null, claimedUntil: null, renderedBody: "Hi Amal, Khalid is now officially enrolled in Physics at IMI. First session: 22 Apr 2025 at 14:00. Welcome aboard!", status: "Sent" },
+  { id: "DQ-012", templateName: "Absence Alert — Parent Notification", contactName: "Tariq Qasim", generatedAt: "8:52 AM", sourceRule: "Absent Not Notified — Alert Admin", claimedBy: null, claimedUntil: null, renderedBody: "Hi Tariq, we noticed Faris was absent from today's Physics session. Please contact us to arrange a makeup or provide a reason.", status: "Sent" },
+];
+
+// ─── Internal Messages ────────────────────────────────────────────────────────
+
+export interface InternalMessageReaction { emoji: string; count: number; }
+export interface InternalMessageRecordTag { name: string; type: string; }
+
+export interface InternalMessage {
+  id: string;
+  sender: string;
+  initials: string;
+  avatarColor: string;
+  timestamp: string;
+  body: string;
+  mentions: string[];
+  recordTags: InternalMessageRecordTag[];
+  reactions: InternalMessageReaction[];
+}
+
+export const internalMessages: InternalMessage[] = [
+  { id: "IM-001", sender: "Jason Daswani", initials: "JD", avatarColor: "bg-amber-500", timestamp: "09:02", body: "Morning team — just a heads up, Fatima Rahman called about an invoice discrepancy. I've raised a task.", mentions: [], recordTags: [], reactions: [{ emoji: "👍", count: 2 }] },
+  { id: "IM-002", sender: "Sarah Thompson", initials: "ST", avatarColor: "bg-blue-500", timestamp: "09:18", body: "Thanks Jason. @Noor Al-Mansoori can you pick up the dispatch queue this morning? There are 8 unclaimed messages.", mentions: ["Noor Al-Mansoori"], recordTags: [], reactions: [] },
+  { id: "IM-003", sender: "Noor Al-Mansoori", initials: "NM", avatarColor: "bg-purple-500", timestamp: "09:24", body: "On it! Just started claiming them now.", mentions: [], recordTags: [], reactions: [{ emoji: "✅", count: 1 }] },
+  { id: "IM-004", sender: "Ahmed Khalil", initials: "AK", avatarColor: "bg-green-500", timestamp: "10:05", body: "Flagging this student for the team — she's been absent 3 sessions in a row without notice.", mentions: [], recordTags: [{ name: "Aisha Rahman — Student", type: "Student" }], reactions: [] },
+  { id: "IM-005", sender: "Sarah Thompson", initials: "ST", avatarColor: "bg-blue-500", timestamp: "10:22", body: "Seen — I'll call the guardian today. @Jason Daswani can you ensure the concern is logged properly?", mentions: ["Jason Daswani"], recordTags: [], reactions: [] },
+  { id: "IM-006", sender: "Jason Daswani", initials: "JD", avatarColor: "bg-amber-500", timestamp: "10:31", body: "Will do. Concern is already open from the automation. I'll update the escalation log after the call.", mentions: [], recordTags: [], reactions: [{ emoji: "👍", count: 3 }] },
+];
+
+// ─── Marketing Moments ────────────────────────────────────────────────────────
+
+export interface MarketingMoment {
+  id: string;
+  name: string;
+  audience: string;
+  template: string;
+  status: 'Sent' | 'Scheduled' | 'Draft' | 'Cancelled';
+  scheduledFor: string;
+  dispatched: number;
+  total: number;
+  calendarDate: number;
+}
+
+export const marketingMoments: MarketingMoment[] = [
+  { id: "MM-001", name: "Eid Mubarak Greeting", audience: "All Active Guardians", template: "New Lead Welcome Message", status: "Sent", scheduledFor: "1 Apr 2025, 09:00", dispatched: 198, total: 198, calendarDate: 1 },
+  { id: "MM-002", name: "Q2 Term Launch Announcement", audience: "Active Enrolled Students", template: "End of Term Feedback Summary", status: "Sent", scheduledFor: "7 Apr 2025, 08:00", dispatched: 47, total: 52, calendarDate: 7 },
+  { id: "MM-003", name: "IGCSE Prep Drive", audience: "Leads in Trial Stage", template: "Trial Class Confirmation", status: "Sent", scheduledFor: "10 Apr 2025, 10:00", dispatched: 12, total: 12, calendarDate: 10 },
+  { id: "MM-004", name: "Outstanding Balance Nudge", audience: "Students with Outstanding Balance", template: "Invoice Payment Reminder", status: "Scheduled", scheduledFor: "20 Apr 2025, 09:00", dispatched: 0, total: 23, calendarDate: 20 },
+  { id: "MM-005", name: "End of Term Survey Blast", audience: "Active Enrolled Students", template: "End of Term Feedback Summary", status: "Scheduled", scheduledFor: "25 Apr 2025, 08:30", dispatched: 0, total: 284, calendarDate: 25 },
+  { id: "MM-006", name: "Summer Enrolment Teaser", audience: "High Churn Risk Students", template: "New Lead Welcome Message", status: "Draft", scheduledFor: "28 Apr 2025, 10:00", dispatched: 0, total: 18, calendarDate: 28 },
+];
+
+export interface MarketingCampaign {
+  id: string;
+  campaign: string;
+  audience: string;
+  template: string;
+  sent: number;
+  delivered: number;
+  failed: number;
+  scheduledAt: string;
+  status: 'Sent' | 'Scheduled' | 'Cancelled' | 'Draft';
+}
+
+export const marketingCampaigns: MarketingCampaign[] = [
+  { id: "MC-001", campaign: "Eid Mubarak Greeting",         audience: "All Active Guardians",           template: "New Lead Welcome Message",       sent: 198, delivered: 194, failed: 4,  scheduledAt: "1 Apr 2025, 09:00",  status: "Sent"      },
+  { id: "MC-002", campaign: "Q2 Term Launch Announcement",  audience: "Active Enrolled Students",        template: "End of Term Feedback Summary",    sent: 52,  delivered: 47,  failed: 5,  scheduledAt: "7 Apr 2025, 08:00",  status: "Sent"      },
+  { id: "MC-003", campaign: "IGCSE Prep Drive",             audience: "Leads in Trial Stage",            template: "Trial Class Confirmation",        sent: 12,  delivered: 12,  failed: 0,  scheduledAt: "10 Apr 2025, 10:00", status: "Sent"      },
+  { id: "MC-004", campaign: "March Re-engagement",          audience: "Withdrawn — Re-engagement",       template: "New Lead Welcome Message",        sent: 34,  delivered: 29,  failed: 5,  scheduledAt: "15 Mar 2025, 09:00", status: "Sent"      },
+  { id: "MC-005", campaign: "Ramadan Special Offer",        audience: "Guardians — WhatsApp Preferred",  template: "Invoice Payment Reminder",        sent: 63,  delivered: 61,  failed: 2,  scheduledAt: "10 Mar 2025, 10:00", status: "Sent"      },
+  { id: "MC-006", campaign: "Outstanding Balance Nudge",    audience: "Students with Outstanding Balance", template: "Invoice Payment Reminder",      sent: 0,   delivered: 0,   failed: 0,  scheduledAt: "20 Apr 2025, 09:00", status: "Scheduled" },
+  { id: "MC-007", campaign: "Summer Enrolment Teaser",      audience: "High Churn Risk Students",        template: "New Lead Welcome Message",        sent: 0,   delivered: 0,   failed: 0,  scheduledAt: "28 Apr 2025, 10:00", status: "Draft"     },
+  { id: "MC-008", campaign: "Q1 NPS Survey",                audience: "Active Enrolled Students",        template: "End of Term Feedback Summary",    sent: 0,   delivered: 0,   failed: 0,  scheduledAt: "31 Jan 2025, 08:00", status: "Cancelled" },
+];
+
+// ─── Execution Logs ───────────────────────────────────────────────────────────
+
+export interface ExecutionLogPayloadRow { key: string; value: string; }
+export interface ExecutionLogCondition { condition: string; result: 'pass' | 'fail'; }
+export interface ExecutionLogAction { type: string; outcome: string; target: string; }
+export interface ExecutionLogRecipient { recipient: string; channel: string; route: 'Live' | 'Queue'; outcome: string; }
+
+export interface ExecutionLog {
+  id: string;
+  rule: string;
+  triggerType: string;
+  firedAt: string;
+  recipients: number;
+  live: number;
+  queued: number;
+  status: 'Success' | 'Failed' | 'Skipped';
+  duration: string;
+  payload: ExecutionLogPayloadRow[];
+  conditionResults: ExecutionLogCondition[];
+  actionResults: ExecutionLogAction[];
+  recipientRouting: ExecutionLogRecipient[];
+}
+
+export const executionLogs: ExecutionLog[] = [
+  { id: "EL-001", rule: "Absent Not Notified — Alert Admin", triggerType: "Threshold", firedAt: "14 min ago", recipients: 3, live: 0, queued: 3, status: "Success", duration: "142ms", payload: [{ key: "student_id", value: "IMI-0042" }, { key: "event", value: "absent_not_notified" }, { key: "session_date", value: "17 Apr 2025" }], conditionResults: [{ condition: "absence_notified = false", result: "pass" }, { condition: "session_status = Marked", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "DQ-001 queued" }, { type: "Create Task", outcome: "Success", target: "Task created: T-0291" }], recipientRouting: [{ recipient: "Fatima Rahman", channel: "WhatsApp", route: "Queue", outcome: "Queued" }, { recipient: "Mona Salim", channel: "WhatsApp", route: "Queue", outcome: "Queued" }, { recipient: "Rami Khalil", channel: "Email", route: "Queue", outcome: "Queued" }] },
+  { id: "EL-002", rule: "New Lead — Welcome Message", triggerType: "Status Change", firedAt: "1 hr ago", recipients: 1, live: 1, queued: 0, status: "Success", duration: "98ms", payload: [{ key: "lead_id", value: "L-0041" }, { key: "event", value: "lead_created" }, { key: "source", value: "Website Form" }], conditionResults: [{ condition: "lead_status = New", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-001 dispatched" }], recipientRouting: [{ recipient: "Tariq Mahmood", channel: "WhatsApp", route: "Queue", outcome: "Queued" }, { recipient: "System Log", channel: "Internal", route: "Live", outcome: "Logged" }, { recipient: "Admin Inbox", channel: "In-app", route: "Live", outcome: "Delivered" }] },
+  { id: "EL-003", rule: "Invoice Overdue — Create Task", triggerType: "Time-based", firedAt: "2 hr ago", recipients: 2, live: 0, queued: 2, status: "Success", duration: "203ms", payload: [{ key: "invoice_id", value: "INV-0098" }, { key: "event", value: "invoice_overdue" }, { key: "days_overdue", value: "7" }], conditionResults: [{ condition: "outstanding_balance > 0", result: "pass" }, { condition: "invoice_status = Overdue", result: "pass" }], actionResults: [{ type: "Create Task", outcome: "Success", target: "Task created: T-0288" }, { type: "Send Message", outcome: "Success", target: "DQ-002 queued" }], recipientRouting: [{ recipient: "Hessa Nasser", channel: "WhatsApp", route: "Queue", outcome: "Queued" }, { recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Finance Dashboard", channel: "System", route: "Live", outcome: "Updated" }] },
+  { id: "EL-004", rule: "Enrolment Confirmed — Parent Message", triggerType: "Status Change", firedAt: "3 hr ago", recipients: 1, live: 1, queued: 0, status: "Success", duration: "77ms", payload: [{ key: "student_id", value: "IMI-0019" }, { key: "event", value: "enrolment_confirmed" }], conditionResults: [{ condition: "enrolment_status = Confirmed", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-007 dispatched" }], recipientRouting: [{ recipient: "Leila Ibrahim", channel: "Email", route: "Queue", outcome: "Queued" }, { recipient: "Admin Inbox", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Enrolment Log", channel: "System", route: "Live", outcome: "Logged" }] },
+  { id: "EL-005", rule: "Trial Complete — Send Survey", triggerType: "Form Submission", firedAt: "4 hr ago", recipients: 1, live: 0, queued: 1, status: "Skipped", duration: "54ms", payload: [{ key: "lead_id", value: "L-0043" }, { key: "event", value: "trial_completed" }], conditionResults: [{ condition: "trial_status = Completed", result: "pass" }, { condition: "guardian_unsubscribed = false", result: "fail" }], actionResults: [{ type: "Send Message", outcome: "Skipped", target: "Rule skipped — condition failed" }], recipientRouting: [{ recipient: "Hessa Al-Blooshi", channel: "WhatsApp", route: "Queue", outcome: "Skipped" }, { recipient: "Admin Inbox", channel: "In-app", route: "Live", outcome: "Notified" }, { recipient: "Survey System", channel: "System", route: "Live", outcome: "Not triggered" }] },
+  { id: "EL-006", rule: "CPD 50% Milestone — Notify Staff", triggerType: "Threshold", firedAt: "5 hr ago", recipients: 1, live: 1, queued: 0, status: "Success", duration: "61ms", payload: [{ key: "staff_id", value: "STAFF-004" }, { key: "event", value: "cpd_target_50_reached" }, { key: "cpd_hours", value: "25" }], conditionResults: [{ condition: "cpd_percentage >= 50", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-009 dispatched" }], recipientRouting: [{ recipient: "Faris Al-Amin", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "HR Dashboard", channel: "System", route: "Live", outcome: "Updated" }, { recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Notified" }] },
+  { id: "EL-007", rule: "Concern Auto-Task Creation", triggerType: "Threshold", firedAt: "5 hr ago", recipients: 2, live: 2, queued: 0, status: "Success", duration: "119ms", payload: [{ key: "concern_id", value: "CMP-006" }, { key: "event", value: "concern_raised_l1" }, { key: "severity", value: "Medium" }], conditionResults: [{ condition: "concern_level = L1", result: "pass" }, { condition: "assignee_available = true", result: "pass" }], actionResults: [{ type: "Create Task", outcome: "Success", target: "Task created: T-0289" }, { type: "Assign Owner", outcome: "Success", target: "Assigned: Jason Daswani" }], recipientRouting: [{ recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Sarah Thompson", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Concern Log", channel: "System", route: "Live", outcome: "Logged" }] },
+  { id: "EL-008", rule: "48h Attendance Lock", triggerType: "Time-based", firedAt: "6 hr ago", recipients: 5, live: 0, queued: 5, status: "Success", duration: "318ms", payload: [{ key: "session_ids", value: "SES-112,SES-113" }, { key: "event", value: "attendance_not_marked_48h" }], conditionResults: [{ condition: "attendance_marked = false", result: "pass" }, { condition: "session_age_hours >= 48", result: "pass" }], actionResults: [{ type: "Update Field", outcome: "Success", target: "attendance_status = Locked" }, { type: "Create Task", outcome: "Success", target: "Task created: T-0290" }], recipientRouting: [{ recipient: "Ahmed Khalil", channel: "In-app", route: "Queue", outcome: "Queued" }, { recipient: "Jason Daswani", channel: "In-app", route: "Queue", outcome: "Queued" }, { recipient: "Timetable System", channel: "System", route: "Live", outcome: "Updated" }] },
+  { id: "EL-009", rule: "Payment Received — Confirm to Parent", triggerType: "Status Change", firedAt: "45 min ago", recipients: 1, live: 1, queued: 0, status: "Success", duration: "88ms", payload: [{ key: "invoice_id", value: "INV-0094" }, { key: "event", value: "payment_received" }, { key: "amount", value: "AED 3360" }], conditionResults: [{ condition: "payment_status = Received", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-004 dispatched" }], recipientRouting: [{ recipient: "Tariq Qasim", channel: "WhatsApp", route: "Live", outcome: "Delivered" }, { recipient: "Finance Log", channel: "System", route: "Live", outcome: "Logged" }, { recipient: "Admin Inbox", channel: "In-app", route: "Live", outcome: "Notified" }] },
+  { id: "EL-010", rule: "DNC Interstitial Routing", triggerType: "Status Change", firedAt: "1 day ago", recipients: 1, live: 0, queued: 0, status: "Skipped", duration: "32ms", payload: [{ key: "guardian_id", value: "G-006" }, { key: "event", value: "message_attempted" }], conditionResults: [{ condition: "guardian_dnc = false", result: "fail" }], actionResults: [{ type: "Send Message", outcome: "Skipped", target: "DNC block applied" }], recipientRouting: [{ recipient: "Maryam Al-Dosari", channel: "WhatsApp", route: "Queue", outcome: "Blocked — DNC" }, { recipient: "Admin Inbox", channel: "In-app", route: "Live", outcome: "Warned" }, { recipient: "DNC Log", channel: "System", route: "Live", outcome: "Logged" }] },
+  { id: "EL-011", rule: "Lead Inactive 14 Days — Flag", triggerType: "Time-based", firedAt: "6 hr ago", recipients: 3, live: 0, queued: 3, status: "Success", duration: "174ms", payload: [{ key: "lead_ids", value: "L-0048,L-0050,L-0052" }, { key: "event", value: "lead_inactive_14_days" }], conditionResults: [{ condition: "last_contact_days >= 14", result: "pass" }, { condition: "lead_status != Lost", result: "pass" }], actionResults: [{ type: "Update Field", outcome: "Success", target: "lead_flag = Inactive" }, { type: "Create Task", outcome: "Success", target: "Task created: T-0286" }], recipientRouting: [{ recipient: "Jason Daswani", channel: "In-app", route: "Queue", outcome: "Queued" }, { recipient: "Sarah Thompson", channel: "In-app", route: "Queue", outcome: "Queued" }, { recipient: "CRM Dashboard", channel: "System", route: "Live", outcome: "Updated" }] },
+  { id: "EL-012", rule: "Progress Report — Dispatch Approval", triggerType: "Manual", firedAt: "3 days ago", recipients: 4, live: 4, queued: 0, status: "Failed", duration: "502ms", payload: [{ key: "batch_id", value: "RPT-BATCH-007" }, { key: "event", value: "progress_report_generated" }], conditionResults: [{ condition: "report_status = Approved", result: "pass" }, { condition: "template_id exists", result: "fail" }], actionResults: [{ type: "Send Message", outcome: "Failed", target: "Template not found: TPL-010" }], recipientRouting: [{ recipient: "Fatima Rahman", channel: "Email", route: "Queue", outcome: "Failed" }, { recipient: "Nadia Hassan", channel: "Email", route: "Queue", outcome: "Failed" }, { recipient: "Admin Inbox", channel: "In-app", route: "Live", outcome: "Error notified" }] },
+  { id: "EL-013", rule: "Feedback Approved — Send to Parent", triggerType: "Manual", firedAt: "5 days ago", recipients: 6, live: 0, queued: 6, status: "Success", duration: "241ms", payload: [{ key: "feedback_batch", value: "FB-BATCH-003" }, { key: "event", value: "feedback_approved" }], conditionResults: [{ condition: "feedback_status = Approved", result: "pass" }, { condition: "guardian_unsubscribed = false", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-006 dispatched x6" }], recipientRouting: [{ recipient: "Fatima Rahman", channel: "WhatsApp", route: "Queue", outcome: "Queued" }, { recipient: "Nadia Hassan", channel: "Email", route: "Queue", outcome: "Queued" }, { recipient: "Amal Mansoor", channel: "WhatsApp", route: "Queue", outcome: "Queued" }] },
+  { id: "EL-014", rule: "Term End — Trigger Bulk Reports", triggerType: "Manual", firedAt: "4 days ago", recipients: 8, live: 8, queued: 0, status: "Success", duration: "891ms", payload: [{ key: "term", value: "Term 2 2025" }, { key: "event", value: "progress_report_generated" }], conditionResults: [{ condition: "term_end_flag = true", result: "pass" }], actionResults: [{ type: "Create Task", outcome: "Success", target: "Bulk tasks created: T-0270 to T-0277" }], recipientRouting: [{ recipient: "Ahmed Khalil", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Faris Al-Amin", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Delivered" }] },
+  { id: "EL-015", rule: "Assessment Booked — Confirmation", triggerType: "Status Change", firedAt: "1 hr ago", recipients: 1, live: 0, queued: 1, status: "Success", duration: "103ms", payload: [{ key: "lead_id", value: "L-0042" }, { key: "event", value: "trial_booked" }], conditionResults: [{ condition: "trial_status = Booked", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-002 dispatched" }], recipientRouting: [{ recipient: "Noura Al-Blooshi", channel: "Email", route: "Queue", outcome: "Queued" }, { recipient: "Admin Calendar", channel: "System", route: "Live", outcome: "Updated" }, { recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Notified" }] },
+];

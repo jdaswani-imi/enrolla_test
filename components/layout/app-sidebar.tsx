@@ -13,16 +13,20 @@ import {
   ClipboardList,
   CreditCard,
   DollarSign,
+  Download,
   FileText,
   Filter,
   GraduationCap,
+  Layers,
   LayoutDashboard,
+  MessageSquare,
   Receipt,
   Settings,
   TrendingUp,
   User,
   UserCheck,
   Users,
+  Zap,
 } from "lucide-react";
 
 import { currentUser } from "@/lib/mock-data";
@@ -75,18 +79,32 @@ const navItems: NavItemDef[] = [
     type: "flyout",
     sections: [
       {
+        label: "Overview",
+        items: [
+          { label: "Dashboard", href: "/people", icon: LayoutDashboard },
+        ],
+      },
+      {
         label: "Students",
         items: [
-          { label: "Students", href: "/students", icon: UserCheck },
-          { label: "Guardians", href: "/guardians", icon: Users },
+          { label: "Students",  href: "/students",  icon: UserCheck },
+          { label: "Guardians", href: "/guardians", icon: Users     },
         ],
       },
       {
         label: "Pipeline",
         items: [
-          { label: "Leads", href: "/leads", icon: Filter },
-          { label: "Enrolment", href: "/enrolment", icon: ClipboardList },
-          { label: "Assessments", href: "/assessments", icon: ClipboardCheck },
+          { label: "Leads",        href: "/leads",        icon: Filter        },
+          { label: "Enrolment",    href: "/enrolment",    icon: ClipboardList },
+          { label: "Assessments",  href: "/assessments",  icon: ClipboardCheck},
+        ],
+      },
+      {
+        label: "Tools",
+        items: [
+          { label: "Segments", href: "/people?tab=Segments", icon: Layers   },
+          { label: "Forms",    href: "/people?tab=Forms",    icon: FileText },
+          { label: "Exports",  href: "/people?tab=Exports",  icon: Download },
         ],
       },
     ],
@@ -111,6 +129,12 @@ const navItems: NavItemDef[] = [
     icon: GraduationCap,
     type: "flyout",
     sections: [
+      {
+        label: "Communications",
+        items: [
+          { label: "Feedback", href: "/feedback", icon: MessageSquare },
+        ],
+      },
       {
         label: "Learning",
         items: [
@@ -155,6 +179,13 @@ const navItems: NavItemDef[] = [
     label: "Tasks",
     icon: CheckCircle,
     href: "/tasks",
+    type: "link",
+  },
+  {
+    id: "automations",
+    label: "Automations",
+    icon: Zap,
+    href: "/automations",
     type: "link",
   },
   {
@@ -244,11 +275,11 @@ function FlyoutPanel({
   return (
     <div
       ref={ref}
-      className="fixed left-14 top-0 h-screen w-56 bg-[#1E293B] border-r border-slate-700 z-[998] shadow-2xl"
+      className="fixed left-14 top-0 h-screen w-56 bg-[#1E293B] border-r border-slate-700 z-[998] shadow-2xl flex flex-col"
       style={{ animation: "slideInLeft 0.15s ease-out" }}
     >
       {/* Panel header */}
-      <div className="px-4 pt-5 pb-3 border-b border-slate-700">
+      <div className="px-4 pt-5 pb-3 border-b border-slate-700 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <item.icon className="w-4 h-4 text-amber-400" />
           <span className="text-sm font-semibold text-white">{item.label}</span>
@@ -256,7 +287,7 @@ function FlyoutPanel({
       </div>
 
       {/* Sections */}
-      <div className="py-3 overflow-y-auto">
+      <div className="py-3 overflow-y-auto flex-1 min-h-0">
         {item.sections.map((section, si) => (
           <div key={si} className={si > 0 ? "mt-4" : ""}>
             {item.sections.length > 1 && (
@@ -366,8 +397,8 @@ const initials = currentUser.name
 
 const dashboard = navItems[0] as LinkNavItemDef;
 const mainItems = navItems.slice(1, 7) as NavItemDef[];
-const midItems = navItems.slice(7, 9) as LinkNavItemDef[];
-const settingsItem = navItems[9] as LinkNavItemDef;
+const midItems = navItems.slice(7, 10) as LinkNavItemDef[];
+const settingsItem = navItems[10] as LinkNavItemDef;
 
 export function AppSidebar() {
   const pathname = usePathname();
