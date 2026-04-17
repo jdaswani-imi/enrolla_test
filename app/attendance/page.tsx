@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { RoleBanner } from "@/components/ui/role-banner";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   timetableSessions,
   students as allStudents,
@@ -118,6 +121,7 @@ allStudents.forEach(s => { STUDENT_YEAR[s.name] = s.yearGroup; });
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AttendancePage() {
+  const { can, role } = usePermission();
   const [mainTab, setMainTab]       = useState<MainTab>("register");
   const [selectedId, setSelectedId] = useState("s001");
   const [completed, setCompleted]   = useState<Set<string>>(new Set());
@@ -180,12 +184,17 @@ export default function AttendancePage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  if (!can('attendance.view')) return <AccessDenied />;
+
   return (
     <div
       className="flex flex-col bg-[#F8FAFC]"
       style={{ minHeight: "calc(100vh - 56px)" }}
       onClick={() => { if (openMenu) setOpenMenu(null); }}
     >
+      {(role === 'Teacher' || role === 'TA') && (
+        <RoleBanner message="You can mark attendance for your own sessions only." />
+      )}
       {/* Page header */}
       <div className="px-6 pt-6 pb-0">
         <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
@@ -371,12 +380,14 @@ export default function AttendancePage() {
                                       {STATUS_BTNS.map((btn, i) => (
                                         <button
                                           key={btn.key}
-                                          onClick={() => setStudentStatus(selectedSession.id, student, btn.key)}
+                                          onClick={() => can('attendance.mark') && setStudentStatus(selectedSession.id, student, btn.key)}
+                                          disabled={!can('attendance.mark')}
                                           className={cn(
-                                            "px-3 py-1.5 text-xs font-medium border transition-colors cursor-pointer whitespace-nowrap",
+                                            "px-3 py-1.5 text-xs font-medium border transition-colors whitespace-nowrap",
                                             i === 0 ? "rounded-l-md" : "-ml-px",
                                             i === STATUS_BTNS.length - 1 ? "rounded-r-md" : "",
                                             status === btn.key ? btn.activeClass : btn.inactiveClass,
+                                            !can('attendance.mark') ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
                                           )}
                                         >
                                           {btn.label}
@@ -572,10 +583,12 @@ export default function AttendancePage() {
                             <Bell className="w-3.5 h-3.5" />
                             Send Reminder
                           </button>
-                          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <BookOpen className="w-3.5 h-3.5" />
-                            Unlock &amp; Mark
-                          </button>
+                          {can('attendance.unlockWindow') && (
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              Unlock &amp; Mark
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -690,10 +703,12 @@ export default function AttendancePage() {
                             <Eye className="w-3.5 h-3.5" />
                             View Profile
                           </Link>
-                          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <CalendarPlus className="w-3.5 h-3.5" />
-                            Book Makeup
-                          </button>
+                          {can('attendance.bookMakeup') && (
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                              <CalendarPlus className="w-3.5 h-3.5" />
+                              Book Makeup
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -709,10 +724,12 @@ export default function AttendancePage() {
             <>
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm text-slate-500">{makeupLog.length} makeup sessions this term</p>
-                <button className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
-                  <CalendarPlus className="w-4 h-4" />
-                  Book Makeup
-                </button>
+                {can('attendance.bookMakeup') && (
+                  <button className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
+                    <CalendarPlus className="w-4 h-4" />
+                    Book Makeup
+                  </button>
+                )}
               </div>
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <table className="w-full">

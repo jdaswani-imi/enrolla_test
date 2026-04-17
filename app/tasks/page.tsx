@@ -16,6 +16,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { tasks as allTasks, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
@@ -115,6 +117,7 @@ function parseDayNumber(dueDate: string): number | null {
 // ─── Three-dot Actions menu ───────────────────────────────────────────────────
 
 function ActionsMenu({ onEdit }: { onEdit: () => void }) {
+  const { can } = usePermission();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -126,12 +129,13 @@ function ActionsMenu({ onEdit }: { onEdit: () => void }) {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
 
-  const items = [
-    { label: "Edit",     action: onEdit,   danger: false },
-    { label: "Reassign", action: () => {}, danger: false },
-    { label: "Snooze",   action: () => {}, danger: false },
-    { label: "Delete",   action: () => {}, danger: true  },
+  const allItems = [
+    { label: "Edit",     action: onEdit,   danger: false, permission: 'tasks.editOthers'   },
+    { label: "Reassign", action: () => {}, danger: false, permission: 'tasks.reassign'     },
+    { label: "Snooze",   action: () => {}, danger: false, permission: null                 },
+    { label: "Delete",   action: () => {}, danger: true,  permission: 'tasks.deleteOthers' },
   ];
+  const items = allItems.filter(item => item.permission === null || can(item.permission));
 
   return (
     <div ref={ref} className="relative">
@@ -612,6 +616,7 @@ function CalendarView({
 type ViewMode = "list" | "kanban" | "calendar";
 
 export default function TasksPage() {
+  const { can } = usePermission();
   const [view, setView] = useState<ViewMode>("list");
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
   const [typeFilter,     setTypeFilter]     = useState<string[]>([]);
@@ -683,6 +688,8 @@ export default function TasksPage() {
     .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
   const kanbanDone = filtered.filter((t) => doneTasks.has(t.id));
 
+  if (!can('tasks.view')) return <AccessDenied />;
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Page Header ─────────────────────────────────────────────────────── */}
@@ -726,6 +733,7 @@ export default function TasksPage() {
             ))}
           </div>
 
+          {can('tasks.create') && (
           <button
             type="button"
             className="btn-primary flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm"
@@ -733,6 +741,7 @@ export default function TasksPage() {
             <Plus className="w-4 h-4" />
             New Task
           </button>
+          )}
         </div>
       </div>
 

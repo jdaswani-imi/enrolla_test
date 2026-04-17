@@ -13,6 +13,8 @@ import {
   BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { assessments, type AssessmentStatus } from "@/lib/mock-data";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -141,6 +143,7 @@ function StatCard({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function UpcomingTab() {
+  const { can } = usePermission();
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
@@ -225,10 +228,12 @@ function UpcomingTab() {
           )}
         </div>
 
+        {can('assessments.book') && (
         <button className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer shadow-sm shrink-0">
           <Plus className="w-4 h-4" />
           Book Assessment
         </button>
+        )}
       </div>
 
       {/* Table */}
@@ -674,7 +679,10 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function AssessmentsPage() {
+  const { can } = usePermission();
   const [tab, setTab] = useState<Tab>("upcoming");
+
+  if (!can('assessments.view')) return <AccessDenied />;
 
   return (
     <div className="flex flex-col gap-4">
@@ -685,7 +693,9 @@ export default function AssessmentsPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-200">
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, label }) => {
+          if (key === 'slots' && !can('assessments.manageSlots')) return null;
+          return (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -698,7 +708,8 @@ export default function AssessmentsPage() {
           >
             {label}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tab content */}

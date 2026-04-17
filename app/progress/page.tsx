@@ -20,6 +20,9 @@ import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { RoleBanner } from "@/components/ui/role-banner";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -337,6 +340,7 @@ function AvgScoreCell({ score }: { score: number }) {
 // ─── Tracker Slide-Over ───────────────────────────────────────────────────────
 
 function TrackerSlideOver({ tracker, onClose }: { tracker: Tracker; onClose: () => void }) {
+  const { can } = usePermission();
   const palette  = getAvatarPalette(tracker.student);
   const initials = getInitials(tracker.student);
 
@@ -433,9 +437,11 @@ function TrackerSlideOver({ tracker, onClose }: { tracker: Tracker; onClose: () 
               </div>
             </div>
           </div>
+          {can('progress.generateReport') && (
           <button className="w-full py-2.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
             Generate Report
           </button>
+          )}
         </div>
       </div>
     </>
@@ -616,6 +622,7 @@ function TrackersTab() {
 // ─── Tab 2 — Reports ──────────────────────────────────────────────────────────
 
 function ReportsTab() {
+  const { can } = usePermission();
   return (
     <div className="space-y-5">
       {/* Summary strip */}
@@ -661,9 +668,11 @@ function ReportsTab() {
                       )}
                       {r.status === "Pending HOD" && (
                         <>
+                          {can('progress.approveReport') && (
                           <button className="px-3 py-1 text-xs font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap">
                             Approve
                           </button>
+                          )}
                           <button className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap">
                             Send Back
                           </button>
@@ -856,6 +865,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function ProgressPage() {
+  const { can, role } = usePermission();
   const [activeTab, setActiveTab] = useState<TabId>("trackers");
 
   useEffect(() => {
@@ -864,8 +874,13 @@ export default function ProgressPage() {
     if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab);
   }, []);
 
+  if (!can('progress.view')) return <AccessDenied />;
+
   return (
     <div className="space-y-6">
+      {(role === 'Teacher' || role === 'TA') && (
+        <RoleBanner message="You can view progress trackers and student data. Report approvals require a higher role." />
+      )}
       {/* Page header */}
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Progress</h1>

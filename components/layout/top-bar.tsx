@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, HelpCircle, Search } from "lucide-react";
+import { Bell, ChevronDown, HelpCircle, Search, Shield } from "lucide-react";
 
 import { currentUser, notificationCount } from "@/lib/mock-data";
+import { useRole } from "@/lib/role-context";
+import { type Role } from "@/lib/role-config";
+import { cn } from "@/lib/utils";
 
 const routeTitles: Record<string, string> = {
   "/dashboard":  "Dashboard",
@@ -23,7 +26,20 @@ const routeTitles: Record<string, string> = {
   "/analytics":  "Analytics",
   "/reports":    "Reports",
   "/settings":   "Settings",
+  "/automations":"Automations",
+  "/feedback":   "Feedback",
 };
+
+const ROLES: Role[] = [
+  "Super Admin",
+  "Admin Head",
+  "Admin",
+  "Academic Head",
+  "HOD",
+  "Teacher",
+  "TA",
+  "HR/Finance",
+];
 
 const initials = currentUser.name
   .split(" ")
@@ -37,6 +53,64 @@ const MOCK_NOTIFICATIONS = [
   { title: "Concern raised — L1, Y8 Maths",        time: "1 hr ago",   unread: true  },
   { title: "Assessment completed — Ahmed Saleh",   time: "2 hr ago",   unread: false },
 ];
+
+// ─── Role Switcher ────────────────────────────────────────────────────────────
+
+function RoleSwitcher() {
+  const { role, setRole } = useRole();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+        aria-label="Switch role"
+      >
+        <Shield className="w-3 h-3 flex-shrink-0" />
+        <span className="max-w-[100px] truncate">{role}</span>
+        <ChevronDown className={cn("w-3 h-3 opacity-60 transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[200] overflow-hidden min-w-[170px]">
+          <div className="px-3 py-2 border-b border-slate-100">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Switch role (demo)</p>
+          </div>
+          <div className="py-1">
+            {ROLES.map((r) => (
+              <button
+                key={r}
+                onClick={() => { setRole(r); setOpen(false); }}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-sm transition-colors cursor-pointer flex items-center gap-2",
+                  r === role
+                    ? "bg-amber-50 text-amber-700 font-medium"
+                    : "text-slate-700 hover:bg-slate-50"
+                )}
+              >
+                {r === role && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
+                {r !== role && <span className="w-1.5 h-1.5 flex-shrink-0" />}
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TopBar ───────────────────────────────────────────────────────────────────
 
 export function TopBar() {
   const pathname = usePathname();
@@ -71,7 +145,7 @@ export function TopBar() {
 
       {/* Right cluster */}
       <div className="flex items-center gap-2">
-        {/* Search — always visible */}
+        {/* Search */}
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-64 focus-within:bg-white focus-within:border-amber-400 transition-all">
           <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
           <input
@@ -80,6 +154,9 @@ export function TopBar() {
             className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
           />
         </div>
+
+        {/* Role switcher */}
+        <RoleSwitcher />
 
         {/* Notifications */}
         <div id="bell-container" className="relative">

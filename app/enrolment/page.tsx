@@ -15,6 +15,8 @@ import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   enrolments,
   trials,
@@ -277,6 +279,7 @@ function EnrolmentSlideOver({
   enrolment: Enrolment;
   onClose: () => void;
 }) {
+  const { can } = usePermission();
   const palette = getAvatarPalette(enrolment.student);
   const initials = getInitials(enrolment.student);
   const consumed = enrolment.sessionsTotal - enrolment.sessionsRemaining;
@@ -428,9 +431,11 @@ function EnrolmentSlideOver({
           <button className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
             Extend Package
           </button>
-          <button className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors cursor-pointer">
-            Withdraw
-          </button>
+          {can('enrolment.withdraw') && (
+            <button className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors cursor-pointer">
+              Withdraw
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -440,6 +445,7 @@ function EnrolmentSlideOver({
 // ─── Tab 1 — Active Enrolments ────────────────────────────────────────────────
 
 function ActiveEnrolmentsTab() {
+  const { can } = usePermission();
   const [dept, setDept]     = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>([]);
   const [year, setYear]     = useState<string[]>([]);
@@ -514,10 +520,12 @@ function ActiveEnrolmentsTab() {
           />
         </div>
 
-        <button className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer">
-          <Plus className="w-3.5 h-3.5" />
-          New Enrolment
-        </button>
+        {can('enrolment.create') && (
+          <button className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer">
+            <Plus className="w-3.5 h-3.5" />
+            New Enrolment
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -617,10 +625,10 @@ function ActiveEnrolmentsTab() {
                     <td className="px-4 py-3">
                       <ActionMenu
                         items={[
-                          { label: "View Student",    icon: <Eye className="w-3.5 h-3.5" /> },
-                          { label: "Edit Enrolment",  icon: <BookOpen className="w-3.5 h-3.5" /> },
-                          { label: "Add Subject",     icon: <Plus className="w-3.5 h-3.5" /> },
-                          { label: "Withdraw",        icon: <UserMinus className="w-3.5 h-3.5" />, danger: true },
+                          { label: "View Student", icon: <Eye className="w-3.5 h-3.5" /> },
+                          ...(can('enrolment.edit') ? [{ label: "Edit Enrolment", icon: <BookOpen className="w-3.5 h-3.5" /> }] : []),
+                          ...(can('enrolment.edit') ? [{ label: "Add Subject", icon: <Plus className="w-3.5 h-3.5" /> }] : []),
+                          ...(can('enrolment.withdraw') ? [{ label: "Withdraw", icon: <UserMinus className="w-3.5 h-3.5" />, danger: true as const }] : []),
                         ]}
                       />
                     </td>
@@ -869,7 +877,10 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function EnrolmentPage() {
+  const { can } = usePermission();
   const [activeTab, setActiveTab] = useState<TabId>("enrolments");
+
+  if (!can('enrolment.view')) return <AccessDenied />;
 
   return (
     <div className="p-6 space-y-6">

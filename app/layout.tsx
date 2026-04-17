@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
+import { RoleProvider } from "@/lib/role-context";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -25,9 +26,11 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakartaSans.variable} h-full antialiased`}>
       <body className="h-full">
         <TooltipProvider delay={300}>
-          <div className="flex h-full w-full">
-            <AppShell>{children}</AppShell>
-          </div>
+          <RoleProvider>
+            <div className="flex h-full w-full">
+              <AppShell>{children}</AppShell>
+            </div>
+          </RoleProvider>
         </TooltipProvider>
       </body>
     </html>

@@ -23,6 +23,7 @@ import {
   Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
 import { studentDetail } from "@/lib/mock-data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -328,35 +329,38 @@ const TABS = [
 
 type TabId = typeof TABS[number]["id"];
 
-function TabBar({ activeTab, setActiveTab }: { activeTab: TabId; setActiveTab: (t: TabId) => void }) {
+function TabBar({ activeTab, setActiveTab, can }: { activeTab: TabId; setActiveTab: (t: TabId) => void; can: (action: string) => boolean }) {
   return (
     <div className="shrink-0 bg-white border-b border-slate-200 px-6 overflow-x-auto">
       <div className="flex items-end gap-0 whitespace-nowrap">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "flex items-center gap-1.5 px-3.5 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer shrink-0",
-              activeTab === tab.id
-                ? "border-amber-500 text-amber-600"
-                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
-            )}
-          >
-            {tab.label}
-            {tab.badge && (
-              <span
-                className={cn(
-                  "w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center",
-                  tab.badge === "red"   ? "bg-red-500 text-white"   : "bg-amber-500 text-white",
-                )}
-              >
-                {tab.badgeCount}
-              </span>
-            )}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          if (tab.id === "invoices" && !can('students.viewFinancial')) return null;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3.5 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer shrink-0",
+                activeTab === tab.id
+                  ? "border-amber-500 text-amber-600"
+                  : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
+              )}
+            >
+              {tab.label}
+              {tab.badge && (
+                <span
+                  className={cn(
+                    "w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center",
+                    tab.badge === "red"   ? "bg-red-500 text-white"   : "bg-amber-500 text-white",
+                  )}
+                >
+                  {tab.badgeCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1065,6 +1069,7 @@ function FilesTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentProfilePage() {
+  const { can } = usePermission();
   useParams(); // ensures the [id] route is matched
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -1102,7 +1107,7 @@ export default function StudentProfilePage() {
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* Tab Bar */}
-          <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+          <TabBar activeTab={activeTab} setActiveTab={setActiveTab} can={can} />
 
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6">

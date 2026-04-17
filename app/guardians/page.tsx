@@ -13,6 +13,8 @@ import {
   Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { guardians, type Guardian } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -91,6 +93,7 @@ function RowActions({
   onClose: () => void;
   openUpward: boolean;
 }) {
+  const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -102,11 +105,11 @@ function RowActions({
   }, [isOpen, onClose]);
 
   const actions = [
-    { icon: Eye,          label: "View Profile",  onClick: () => {}, danger: false },
-    { icon: UserPlus2,    label: "Add Student",   onClick: () => {}, danger: false },
-    { icon: MessageSquare,label: "Send Message",  onClick: () => {}, danger: false },
-    { icon: Archive,      label: "Archive",       onClick: () => {}, danger: true  },
-  ];
+    { icon: Eye,          label: "View Profile",  onClick: () => {}, danger: false, show: true },
+    { icon: UserPlus2,    label: "Add Student",   onClick: () => {}, danger: false, show: can('students.create') },
+    { icon: MessageSquare,label: "Send Message",  onClick: () => {}, danger: false, show: true },
+    { icon: Archive,      label: "Archive",       onClick: () => {}, danger: true,  show: can('guardians.edit') },
+  ].filter(a => a.show);
 
   return (
     <div ref={ref} className="relative">
@@ -154,6 +157,7 @@ function RowActions({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function GuardiansPage() {
+  const { can } = usePermission();
   const [searchQuery,    setSearchQuery]    = useState("");
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [bulkSelect,     setBulkSelect]     = useState(false);
@@ -205,6 +209,8 @@ export default function GuardiansPage() {
     });
   }
 
+  if (!can('guardians.view')) return <AccessDenied />;
+
   return (
     <div className="flex flex-col gap-4 max-w-[1400px] mx-auto">
 
@@ -214,13 +220,15 @@ export default function GuardiansPage() {
           <h1 className="text-xl font-bold text-slate-800 leading-tight">Guardians</h1>
           <p className="text-sm text-slate-400 mt-0.5">Manage guardians and their linked students.</p>
         </div>
-        <button
-          type="button"
-          className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm shrink-0"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          Add Guardian
-        </button>
+        {can('guardians.create') && (
+          <button
+            type="button"
+            className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm shrink-0"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Add Guardian
+          </button>
+        )}
       </div>
 
       {/* ── Filter & search bar ──────────────────────────────────────────────── */}

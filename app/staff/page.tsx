@@ -23,6 +23,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { RoleBanner } from "@/components/ui/role-banner";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { staffMembers, type StaffMember, type StaffStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
@@ -125,6 +128,7 @@ function RowActionsMenu({
   onClose: () => void;
   onViewProfile: () => void;
 }) {
+  const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -135,13 +139,14 @@ function RowActionsMenu({
     return () => document.removeEventListener("mousedown", h);
   }, [isOpen, onClose]);
 
-  const actions = [
-    { icon: Eye,       label: "View Profile",         onClick: onViewProfile, danger: false },
-    { icon: Edit2,     label: "Edit",                  onClick: () => {},      danger: false },
-    { icon: RefreshCw, label: "Assign Cover",          onClick: () => {},      danger: false },
-    { icon: UserMinus, label: "Initiate Off-boarding", onClick: () => {},      danger: true  },
-    { icon: ShieldOff, label: "Revoke Access",         onClick: () => {},      danger: true  },
+  const allActions = [
+    { icon: Eye,       label: "View Profile",         onClick: onViewProfile, danger: false, permission: null               },
+    { icon: Edit2,     label: "Edit",                  onClick: () => {},      danger: false, permission: 'staff.edit'       },
+    { icon: RefreshCw, label: "Assign Cover",          onClick: () => {},      danger: false, permission: null               },
+    { icon: UserMinus, label: "Initiate Off-boarding", onClick: () => {},      danger: true,  permission: 'staff.initiateOffboarding' },
+    { icon: ShieldOff, label: "Revoke Access",         onClick: () => {},      danger: true,  permission: 'staff.revokeAccess'        },
   ];
+  const actions = allActions.filter(a => a.permission === null || can(a.permission));
 
   return (
     <div ref={ref} className="relative flex justify-end">
@@ -547,6 +552,7 @@ const ROLE_FILTER_OPTIONS   = ["Teacher", "TA", "Admin", "Admin Head", "HOD", "A
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function StaffPage() {
+  const { can, role } = usePermission();
   const [outerTab,      setOuterTab]      = useState<"directory" | "hr">("directory");
   const [statusFilter,  setStatusFilter]  = useState<string[]>([]);
   const [deptFilter,    setDeptFilter]    = useState<string[]>([]);
@@ -604,8 +610,13 @@ export default function StaffPage() {
     { id: "hr",        label: "HR Dashboard"    },
   ] as const;
 
+  if (!can('staff.view')) return <AccessDenied />;
+
   return (
     <div className="px-6 py-6 min-h-full">
+      {role === 'Academic Head' && (
+        <RoleBanner message="You have full access to staff management, including HR data and access controls." />
+      )}
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Staff</h1>
@@ -661,6 +672,7 @@ export default function StaffPage() {
                 />
               </div>
 
+              {can('staff.create') && (
               <button
                 type="button"
                 className="btn-primary ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold shadow-sm whitespace-nowrap"
@@ -668,6 +680,7 @@ export default function StaffPage() {
                 <Plus className="w-4 h-4" />
                 Add Staff
               </button>
+              )}
             </div>
           </div>
 

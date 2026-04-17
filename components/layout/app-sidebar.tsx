@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import { currentUser } from "@/lib/mock-data";
+import { usePermission } from "@/lib/use-permission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ type SubItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  navId: string;
 };
 
 type FlyoutSection = {
@@ -81,30 +83,30 @@ const navItems: NavItemDef[] = [
       {
         label: "Overview",
         items: [
-          { label: "Dashboard", href: "/people", icon: LayoutDashboard },
+          { label: "Dashboard", href: "/people", icon: LayoutDashboard, navId: "people" },
         ],
       },
       {
         label: "Students",
         items: [
-          { label: "Students",  href: "/students",  icon: UserCheck },
-          { label: "Guardians", href: "/guardians", icon: Users     },
+          { label: "Students",  href: "/students",  icon: UserCheck, navId: "students"  },
+          { label: "Guardians", href: "/guardians", icon: Users,     navId: "guardians" },
         ],
       },
       {
         label: "Pipeline",
         items: [
-          { label: "Leads",        href: "/leads",        icon: Filter        },
-          { label: "Enrolment",    href: "/enrolment",    icon: ClipboardList },
-          { label: "Assessments",  href: "/assessments",  icon: ClipboardCheck},
+          { label: "Leads",       href: "/leads",       icon: Filter,        navId: "leads"       },
+          { label: "Enrolment",   href: "/enrolment",   icon: ClipboardList, navId: "enrolment"   },
+          { label: "Assessments", href: "/assessments", icon: ClipboardCheck,navId: "assessments" },
         ],
       },
       {
         label: "Tools",
         items: [
-          { label: "Segments", href: "/people?tab=Segments", icon: Layers   },
-          { label: "Forms",    href: "/people?tab=Forms",    icon: FileText },
-          { label: "Exports",  href: "/people?tab=Exports",  icon: Download },
+          { label: "Segments", href: "/people?tab=Segments", icon: Layers,   navId: "people" },
+          { label: "Forms",    href: "/people?tab=Forms",    icon: FileText,  navId: "people" },
+          { label: "Exports",  href: "/people?tab=Exports",  icon: Download,  navId: "people" },
         ],
       },
     ],
@@ -132,14 +134,14 @@ const navItems: NavItemDef[] = [
       {
         label: "Communications",
         items: [
-          { label: "Feedback", href: "/feedback", icon: MessageSquare },
+          { label: "Feedback", href: "/feedback", icon: MessageSquare, navId: "feedback" },
         ],
       },
       {
         label: "Learning",
         items: [
-          { label: "Progress", href: "/progress", icon: TrendingUp },
-          { label: "Assignments", href: "/progress?tab=assignments", icon: BookOpen },
+          { label: "Progress",    href: "/progress",                 icon: TrendingUp, navId: "progress" },
+          { label: "Assignments", href: "/progress?tab=assignments", icon: BookOpen,   navId: "progress" },
         ],
       },
     ],
@@ -153,8 +155,8 @@ const navItems: NavItemDef[] = [
       {
         label: "Billing",
         items: [
-          { label: "Invoices & Payments", href: "/finance", icon: Receipt },
-          { label: "Credits", href: "/finance?tab=credits", icon: DollarSign },
+          { label: "Invoices & Payments", href: "/finance",             icon: Receipt,    navId: "finance" },
+          { label: "Credits",             href: "/finance?tab=credits", icon: DollarSign, navId: "finance" },
         ],
       },
     ],
@@ -168,8 +170,8 @@ const navItems: NavItemDef[] = [
       {
         label: "Insights",
         items: [
-          { label: "Analytics", href: "/analytics", icon: BarChart },
-          { label: "Reports", href: "/reports", icon: FileText },
+          { label: "Analytics", href: "/analytics", icon: BarChart,  navId: "analytics" },
+          { label: "Reports",   href: "/reports",   icon: FileText,  navId: "reports"   },
         ],
       },
     ],
@@ -395,12 +397,8 @@ const initials = currentUser.name
 
 // ─── Main sidebar ─────────────────────────────────────────────────────────────
 
-const dashboard = navItems[0] as LinkNavItemDef;
-const mainItems = navItems.slice(1, 7) as NavItemDef[];
-const midItems = navItems.slice(7, 10) as LinkNavItemDef[];
-const settingsItem = navItems[10] as LinkNavItemDef;
-
 export function AppSidebar() {
+  const { sees, role } = usePermission();
   const pathname = usePathname();
   const [openFlyout, setOpenFlyout] = useState<string | null>(null);
 
@@ -413,6 +411,27 @@ export function AppSidebar() {
     setOpenFlyout((prev) => (prev === id ? null : id));
   }
 
+  // ── Filter nav items by role permissions ────────────────────────────────────
+  const dashboard = navItems[0] as LinkNavItemDef; // always visible
+
+  const mainItems = (navItems.slice(1, 7) as NavItemDef[]).reduce<NavItemDef[]>((acc, item) => {
+    if (item.type === "link") {
+      if (sees(item.id)) acc.push(item);
+    } else {
+      const fly = item as FlyoutNavItemDef;
+      const filteredSections = fly.sections
+        .map((s) => ({ ...s, items: s.items.filter((si) => sees(si.navId)) }))
+        .filter((s) => s.items.length > 0);
+      if (filteredSections.length > 0) {
+        acc.push({ ...fly, sections: filteredSections });
+      }
+    }
+    return acc;
+  }, []);
+
+  const midItems = (navItems.slice(7, 10) as LinkNavItemDef[]).filter((item) => sees(item.id));
+  const settingsItem = sees("settings") ? (navItems[10] as LinkNavItemDef) : undefined;
+
   return (
     <aside className="w-14 h-screen bg-[#0F172A] flex flex-col items-center py-4 flex-shrink-0 border-r border-slate-800">
       {/* Logo */}
@@ -422,12 +441,12 @@ export function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex flex-col items-center gap-0.5 flex-1 w-full">
-        {/* Dashboard — direct link */}
+        {/* Dashboard — always visible */}
         <LinkNavItem item={dashboard} />
 
         <Divider />
 
-        {/* People, Timetable, Attendance, Academic, Finance, Reporting */}
+        {/* Main items */}
         {mainItems.map((item) =>
           item.type === "link" ? (
             <LinkNavItem key={item.id} item={item as LinkNavItemDef} />
@@ -441,18 +460,22 @@ export function AppSidebar() {
           )
         )}
 
-        <Divider />
-
-        {/* Tasks, Staff — direct links */}
-        {midItems.map((item) => (
-          <LinkNavItem key={item.id} item={item} />
-        ))}
+        {midItems.length > 0 && (
+          <>
+            <Divider />
+            {midItems.map((item) => (
+              <LinkNavItem key={item.id} item={item} />
+            ))}
+          </>
+        )}
 
         {/* Settings — pushed to bottom */}
-        <div className="mt-auto w-full flex flex-col">
-          <Divider />
-          <LinkNavItem item={settingsItem} />
-        </div>
+        {settingsItem && (
+          <div className="mt-auto w-full flex flex-col">
+            <Divider />
+            <LinkNavItem item={settingsItem} />
+          </div>
+        )}
       </nav>
 
       {/* User avatar */}
@@ -463,7 +486,7 @@ export function AppSidebar() {
         <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
           {currentUser.name}
           <div className="text-amber-400 font-normal text-[10px]">
-            {currentUser.role}
+            {role}
           </div>
           <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
         </div>

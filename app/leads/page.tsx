@@ -22,6 +22,8 @@ import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { leads, type Lead, type LeadStage, type LeadSource } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -389,6 +391,7 @@ function Slideover({ lead, onClose }: { lead: Lead; onClose: () => void }) {
 // ─── ActionMenu ───────────────────────────────────────────────────────────────
 
 function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
+  const { can } = usePermission();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -400,12 +403,12 @@ function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const actions: { icon: React.ElementType; label: string; onClick: () => void }[] = [
+  const actions: { icon: React.ElementType; label: string; onClick: () => void; hidden?: boolean }[] = [
     { icon: Eye, label: "View", onClick: onView },
     { icon: MoveRight, label: "Move Stage", onClick: () => {} },
     { icon: StickyNote, label: "Log Note", onClick: () => {} },
-    { icon: XCircle, label: "Mark Lost", onClick: () => {} },
-    { icon: Archive, label: "Archive", onClick: () => {} },
+    { icon: XCircle, label: "Mark Lost", onClick: () => {}, hidden: !can('leads.delete') },
+    { icon: Archive, label: "Archive", onClick: () => {}, hidden: !can('leads.delete') },
   ];
 
   return (
@@ -418,7 +421,7 @@ function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-          {actions.map(({ icon: Icon, label, onClick }) => (
+          {actions.filter(a => !a.hidden).map(({ icon: Icon, label, onClick }) => (
             <button
               key={label}
               onClick={() => { onClick(); setOpen(false); }}
@@ -444,6 +447,7 @@ function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
 type ViewMode = "kanban" | "list" | "table";
 
 export default function LeadsPage() {
+  const { can } = usePermission();
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) return "list";
     return "kanban";
@@ -546,6 +550,8 @@ export default function LeadsPage() {
     { key: "table", Icon: Table2, label: "Table" },
   ];
 
+  if (!can('leads.view')) return <AccessDenied />;
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Page Header ────────────────────────────────────────────────── */}
@@ -553,10 +559,12 @@ export default function LeadsPage() {
         <p className="text-sm text-slate-500">
           28 active leads · 6 stages with pending action
         </p>
-        <button className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm">
-          <Plus className="w-4 h-4" />
-          Add Lead
-        </button>
+        {can('leads.create') && (
+          <button className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm">
+            <Plus className="w-4 h-4" />
+            Add Lead
+          </button>
+        )}
       </div>
 
       {/* ── Saved segments ──────────────────────────────────────────────────── */}

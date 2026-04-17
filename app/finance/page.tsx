@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
+import { usePermission } from "@/lib/use-permission";
+import { RoleBanner } from "@/components/ui/role-banner";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   Search,
   Plus,
@@ -338,6 +341,7 @@ function InvoiceSlideover({
 // ─── Tab 1 — Invoices ─────────────────────────────────────────────────────────
 
 function InvoicesTab() {
+  const { can } = usePermission();
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
@@ -462,10 +466,12 @@ function InvoicesTab() {
           <button className="px-3 py-1.5 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
             Bulk Generate
           </button>
-          <button className="btn-primary flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg">
-            <Plus className="w-4 h-4" />
-            Create Invoice
-          </button>
+          {can('finance.createInvoice') && (
+            <button className="btn-primary flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg">
+              <Plus className="w-4 h-4" />
+              Create Invoice
+            </button>
+          )}
         </div>
       </div>
 
@@ -528,7 +534,7 @@ function InvoicesTab() {
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5">
-                      {inv.status !== "Paid" && inv.status !== "Cancelled" && inv.status !== "Draft" && (
+                      {can('finance.logPayment') && inv.status !== "Paid" && inv.status !== "Cancelled" && inv.status !== "Draft" && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setSelected(inv); }}
                           className="px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer whitespace-nowrap"
@@ -623,6 +629,7 @@ function PaymentsTab() {
 // ─── Tab 3 — Credits ──────────────────────────────────────────────────────────
 
 function CreditsTab() {
+  const { can } = usePermission();
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
@@ -630,10 +637,12 @@ function CreditsTab() {
           <SummaryCard label="Total Credits Issued This Term" value="AED 4,800" accent="amber" />
           <SummaryCard label="Applied / Unused" value="AED 3,200 applied" sub="AED 1,600 unused" />
         </div>
-        <button className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap mt-1">
-          <Plus className="w-4 h-4" />
-          Issue Credit
-        </button>
+        {can('finance.issueCredit') && (
+          <button className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap mt-1">
+            <Plus className="w-4 h-4" />
+            Issue Credit
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -718,6 +727,7 @@ const REPORT_HISTORY = [
 ];
 
 function ReportsTab() {
+  const { can } = usePermission();
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -738,10 +748,12 @@ function ReportsTab() {
               >
                 Generate
               </button>
-              <button className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                <Download className="w-3.5 h-3.5" />
-                CSV
-              </button>
+              {can('finance.export') && (
+                <button className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                  <Download className="w-3.5 h-3.5" />
+                  CSV
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -767,10 +779,12 @@ function ReportsTab() {
                   <td className="px-4 py-3 text-sm text-slate-500">{r.generatedBy}</td>
                   <td className="px-4 py-3 text-sm text-slate-500">{r.datetime}</td>
                   <td className="px-4 py-3">
-                    <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600 transition-colors cursor-pointer">
-                      <Download className="w-3.5 h-3.5" />
-                      Download
-                    </button>
+                    {can('finance.export') && (
+                      <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600 transition-colors cursor-pointer">
+                        <Download className="w-3.5 h-3.5" />
+                        Download
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -794,10 +808,16 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function FinancePage() {
+  const { can, role } = usePermission();
   const [tab, setTab] = useState<Tab>("invoices");
+
+  if (!can('finance.view')) return <AccessDenied />;
 
   return (
     <div className="flex flex-col gap-4 min-h-0">
+      {role === 'Admin' && (
+        <RoleBanner message="Discount and refund approvals require Admin Head or above." />
+      )}
       {/* Tab bar */}
       <div className="flex items-center gap-0 border-b border-slate-200 -mt-1">
         {TABS.map(({ key, label }) => (

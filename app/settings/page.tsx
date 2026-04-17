@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   Building2,
   GitBranch,
@@ -1403,7 +1405,10 @@ function renderSection(id: SectionId) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { can } = usePermission();
   const [activeSection, setActiveSection] = useState<SectionId>("organisation");
+
+  if (!can('settings.view')) return <AccessDenied />;
 
   return (
     <div className="flex -m-6 h-[calc(100svh-4rem)]">

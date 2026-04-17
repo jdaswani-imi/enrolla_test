@@ -13,6 +13,8 @@ import {
   MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   timetableSessions,
   rooms,
@@ -312,6 +314,7 @@ function SessionSlideover({
   session: TimetableSession;
   onClose: () => void;
 }) {
+  const { can } = usePermission();
   const [attendanceMode,     setAttendanceMode]     = useState(false);
   const [attendanceStatuses, setAttendanceStatuses] = useState<Record<number, string>>({});
 
@@ -533,12 +536,16 @@ function SessionSlideover({
               >
                 Mark Attendance
               </button>
-              <button className="px-3 py-2 border border-slate-300 text-slate-600 text-xs font-medium rounded-lg hover:bg-white transition-colors cursor-pointer">
-                Edit Session
-              </button>
-              <button className="px-3 py-2 border border-slate-200 text-red-500 text-xs font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
-                Cancel Session
-              </button>
+              {can('timetable.editSession') && (
+                <button className="px-3 py-2 border border-slate-300 text-slate-600 text-xs font-medium rounded-lg hover:bg-white transition-colors cursor-pointer">
+                  Edit Session
+                </button>
+              )}
+              {can('timetable.cancelSession') && (
+                <button className="px-3 py-2 border border-slate-200 text-red-500 text-xs font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
+                  Cancel Session
+                </button>
+              )}
               <button className="p-2 border border-slate-200 text-slate-500 rounded-lg hover:bg-white transition-colors cursor-pointer">
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -583,6 +590,7 @@ function NewSessionModal({ onClose }: { onClose: () => void }) {
 // ─── Timetable Page ───────────────────────────────────────────────────────────
 
 export default function TimetablePage() {
+  const { can } = usePermission();
   const [activeDay,       setActiveDay]       = useState("Mon");
   const [activeView,      setActiveView]      = useState<"Week" | "Day" | "Month">("Week");
   const [selectedSession, setSelectedSession] = useState<TimetableSession | null>(null);
@@ -641,6 +649,8 @@ export default function TimetablePage() {
     filterDept !== "All" || filterTeacher !== "All" ||
     filterRoom !== "All" || filterType    !== "All";
 
+  if (!can('timetable.view')) return <AccessDenied />;
+
   return (
     <div className="flex flex-col h-full">
 
@@ -679,13 +689,15 @@ export default function TimetablePage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowNewSession(true)}
-            className="btn-primary flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Session
-          </button>
+          {can('timetable.createSession') && (
+            <button
+              onClick={() => setShowNewSession(true)}
+              className="btn-primary flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Session
+            </button>
+          )}
         </div>
       </div>
 

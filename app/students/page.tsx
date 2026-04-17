@@ -17,6 +17,8 @@ import {
   UserX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import { students, type Student } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
@@ -82,6 +84,7 @@ function RowActions({
   openUpward: boolean;
 }) {
   const router = useRouter();
+  const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,12 +96,12 @@ function RowActions({
   }, [isOpen, onClose]);
 
   const actions = [
-    { icon: Eye,           label: "View Profile",   onClick: () => router.push(`/students/${student.id}`), danger: false },
-    { icon: BookOpen,      label: "Add Enrolment",  onClick: () => {},                                      danger: false },
-    { icon: FileText,      label: "Create Invoice", onClick: () => {},                                      danger: false },
-    { icon: MessageSquare, label: "Log Note",        onClick: () => {},                                      danger: false },
-    { icon: UserX,         label: "Withdraw",        onClick: () => {},                                      danger: true  },
-  ];
+    { icon: Eye,           label: "View Profile",   onClick: () => router.push(`/students/${student.id}`), danger: false, show: true },
+    { icon: BookOpen,      label: "Add Enrolment",  onClick: () => {},                                      danger: false, show: can('enrolment.create') },
+    { icon: FileText,      label: "Create Invoice", onClick: () => {},                                      danger: false, show: can('finance.createInvoice') },
+    { icon: MessageSquare, label: "Log Note",        onClick: () => {},                                      danger: false, show: true },
+    { icon: UserX,         label: "Withdraw",        onClick: () => {},                                      danger: true,  show: can('enrolment.withdraw') },
+  ].filter(a => a.show);
 
   return (
     <div ref={ref} className="relative">
@@ -238,6 +241,7 @@ function matchEnrolmentFilter(enrolments: number, selected: string[]): boolean {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentsPage() {
+  const { can } = usePermission();
   const router = useRouter();
 
   // Filters
@@ -362,25 +366,31 @@ export default function StudentsPage() {
     enrolments: enrolmentsFilter,
   };
 
+  if (!can('students.view')) return <AccessDenied />;
+
   return (
     <div className="flex flex-col gap-4 max-w-[1400px] mx-auto">
 
       {/* ── Page header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors cursor-pointer"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          Import CSV
-        </button>
-        <button
-          type="button"
-          className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          Add Student
-        </button>
+        {can('students.export') && (
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Import CSV
+          </button>
+        )}
+        {can('students.create') && (
+          <button
+            type="button"
+            className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Add Student
+          </button>
+        )}
       </div>
 
       {/* ── Stat cards ────────────────────────────────────────────────────────── */}
@@ -514,8 +524,12 @@ export default function StudentsPage() {
       {someSelected && (
         <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm flex-wrap">
           <span className="font-semibold text-amber-800">{selectedIds.size} selected</span>
-          <span className="text-amber-300 hidden sm:inline">·</span>
-          <button type="button" className="text-amber-700 hover:text-amber-900 font-medium transition-colors cursor-pointer">Export</button>
+          {can('students.export') && (
+            <>
+              <span className="text-amber-300 hidden sm:inline">·</span>
+              <button type="button" className="text-amber-700 hover:text-amber-900 font-medium transition-colors cursor-pointer">Export</button>
+            </>
+          )}
           <span className="text-amber-300 hidden sm:inline">·</span>
           <button type="button" className="text-amber-700 hover:text-amber-900 font-medium transition-colors cursor-pointer">Send Message</button>
           <span className="text-amber-300 hidden sm:inline">·</span>

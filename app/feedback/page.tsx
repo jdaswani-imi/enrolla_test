@@ -20,6 +20,9 @@ import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/d
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { RoleBanner } from "@/components/ui/role-banner";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   feedbackItems,
   announcements,
@@ -147,6 +150,7 @@ const POST_TYPE_CONFIG: Record<PostType, string> = {
 // ─── Tab 1 — Feedback Queue ───────────────────────────────────────────────────
 
 function ReviewSlideover({ item, onClose }: { item: FeedbackItem; onClose: () => void }) {
+  const { can } = usePermission();
   const [editedSummary, setEditedSummary] = useState(item.aiSummary ?? "");
   return (
     <>
@@ -209,12 +213,16 @@ function ReviewSlideover({ item, onClose }: { item: FeedbackItem; onClose: () =>
 
         {/* Footer */}
         <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
+          {can('feedback.approve') && (
           <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
             Approve & Mark Ready to Send
           </button>
+          )}
+          {can('feedback.approve') && (
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
             Return to Teacher
           </button>
+          )}
         </div>
       </div>
     </>
@@ -561,6 +569,7 @@ function AnnouncementsTab() {
 // ─── Tab 3 — Complaints & Tickets ────────────────────────────────────────────
 
 function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose: () => void }) {
+  const { can } = usePermission();
   const signedCount = ticket.signOffs.filter((s) => s.timestamp !== null).length;
   const isResolved  = signedCount === 2;
 
@@ -695,6 +704,7 @@ function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose
 
         {/* Footer */}
         <div className="flex items-center gap-2 px-6 py-4 border-t border-slate-200 bg-white flex-wrap">
+          {can('feedback.resolveComplaint') && (
           <button
             disabled={signedCount >= 2}
             className={cn(
@@ -706,9 +716,12 @@ function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose
           >
             Add Sign-off
           </button>
+          )}
+          {can('feedback.resolveComplaint') && (
           <button className="px-4 py-2 border border-orange-200 text-orange-700 bg-orange-50 text-sm font-medium rounded-lg hover:bg-orange-100 transition-colors cursor-pointer">
             Escalate
           </button>
+          )}
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer ml-auto">
             Close Ticket
           </button>
@@ -921,6 +934,7 @@ function SurveyDetailSlideover({ survey, onClose }: { survey: SurveyResponse; on
 }
 
 function SurveysTab() {
+  const { can } = usePermission();
   const [selectedSurvey, setSelectedSurvey] = useState<SurveyResponse | null>(null);
 
   return (
@@ -933,9 +947,11 @@ function SurveysTab() {
           <StatCard label="Average Score"         value="4.2★"  accent="amber" />
           <StatCard label="Detractors (score ≤ 2)" value="3"   accent="red"   />
         </div>
+        {can('feedback.sendSurvey') && (
         <button className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap self-start mt-1">
           <Send className="w-4 h-4" />Send Manual Survey
         </button>
+        )}
       </div>
 
       {/* Section A: Survey Responses */}
@@ -1032,7 +1048,7 @@ function SurveysTab() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {p.status === "Scheduled" ? (
+                      {p.status === "Scheduled" && can('feedback.sendSurvey') ? (
                         <button className="px-3 py-1 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer whitespace-nowrap">
                           Send Now
                         </button>
@@ -1059,6 +1075,7 @@ function SurveysTab() {
 // ─── Tab 5 — Class Discussion ─────────────────────────────────────────────────
 
 function ClassDiscussionTab() {
+  const { can } = usePermission();
   const [activeGroupId, setActiveGroupId] = useState(classGroups[0]?.id ?? "");
   const [newContent, setNewContent]       = useState("");
   const [newType, setNewType]             = useState<PostType>("Discussion");
@@ -1174,12 +1191,14 @@ function ClassDiscussionTab() {
                 <option value="Discussion">Discussion</option>
                 <option value="Question">Question</option>
               </select>
+              {can('feedback.postDiscussion') && (
               <button
                 onClick={() => setNewContent("")}
                 className="px-4 py-1.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
               >
                 Post
               </button>
+              )}
             </div>
           </div>
         </div>
@@ -1201,10 +1220,16 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function FeedbackPage() {
+  const { can, role } = usePermission();
   const [tab, setTab] = useState<Tab>("queue");
+
+  if (!can('feedback.view')) return <AccessDenied />;
 
   return (
     <div className="flex flex-col gap-4 min-h-0">
+      {(role === 'Teacher' || role === 'TA') && (
+        <RoleBanner message="You can submit and view feedback. Approvals and sign-offs require a higher role." />
+      )}
       {/* Tab bar */}
       <div className="flex items-center gap-0 border-b border-slate-200 -mt-1 overflow-x-auto">
         {TABS.map(({ key, label }) => (

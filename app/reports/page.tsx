@@ -20,6 +20,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -204,6 +206,7 @@ function ReportRow({ report }: { report: Report }) {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
+  const { can } = usePermission();
   const [typeFilter, setTypeFilter] = useState<ReportType | "All">("All");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [formatFilter, setFormatFilter] = useState<ReportFormat | "All">("All");
@@ -230,6 +233,8 @@ export default function ReportsPage() {
 
   const unreadCount = reports.filter((r) => !r.read).length;
 
+  if (!can('reports.view')) return <AccessDenied />;
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -241,10 +246,12 @@ export default function ReportsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {can('reports.generate') && (
           <button className="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
             <Plus className="w-4 h-4" />
             Generate Report
           </button>
+          )}
           <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
             <Package className="w-4 h-4" />
             Export All
@@ -334,9 +341,11 @@ export default function ReportsPage() {
                     <FormatBadge format={sr.format} />
                   </td>
                   <td className="py-3.5 px-5 text-right">
+                    {can('reports.schedule') && (
                     <button className="text-xs text-amber-600 hover:text-amber-700 font-medium cursor-pointer">
                       Edit Schedule
                     </button>
+                    )}
                   </td>
                 </tr>
               ))}

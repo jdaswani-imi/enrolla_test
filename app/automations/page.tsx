@@ -10,6 +10,8 @@ import {
   X, Check, CheckCircle2, XCircle, Hash, ArrowLeft, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePermission } from '@/lib/use-permission';
+import { AccessDenied } from '@/components/ui/access-denied';
 import {
   automationTemplates,
   automationRules,
@@ -1257,6 +1259,7 @@ function TemplateEditSheet({
   template: AutomationTemplate | null;
   onClose: () => void;
 }) {
+  const { can } = usePermission();
   const isNew = template === null;
   const [name,     setName]     = useState(template?.name     ?? '');
   const [type,     setType]     = useState<AutomationTemplateType>(template?.type ?? 'Message');
@@ -1336,12 +1339,14 @@ function TemplateEditSheet({
                 <button
                   key={o}
                   type="button"
-                  onClick={() => setOwner(o)}
+                  onClick={() => { if (o === 'Org-Wide' && !can('automations.createOrgTemplate')) return; setOwner(o); }}
+                  disabled={o === 'Org-Wide' && !can('automations.createOrgTemplate')}
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors cursor-pointer',
                     owner === o
                       ? 'bg-amber-500 text-white border-amber-500'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300',
+                    o === 'Org-Wide' && !can('automations.createOrgTemplate') && 'opacity-40 cursor-not-allowed'
                   )}
                 >
                   {o}
@@ -1809,6 +1814,7 @@ function RuleBuilderSheet({
 // ─── Templates Tab ────────────────────────────────────────────────────────────
 
 function TemplatesTab() {
+  const { can } = usePermission();
   const [search,   setSearch]   = useState('');
   const [typeF,    setTypeF]    = useState('All');
   const [statusF,  setStatusF]  = useState('All');
@@ -1862,6 +1868,7 @@ function TemplatesTab() {
           { label: 'Org-Wide',   value: 'Org-Wide'  },
           { label: 'Personal',   value: 'Personal'  },
         ]} />
+        {can('automations.createRule') && (
         <div className="ml-auto">
           <button
             onClick={() => openEdit(null)}
@@ -1871,6 +1878,7 @@ function TemplatesTab() {
             New Template
           </button>
         </div>
+        )}
       </div>
 
       {/* Grid */}
@@ -1919,6 +1927,7 @@ function TemplatesTab() {
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
+                  {can('automations.editRule') && (
                   <button
                     aria-label="Edit template"
                     disabled={tpl.locked}
@@ -1930,6 +1939,7 @@ function TemplatesTab() {
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
+                  )}
                   <button
                     aria-label="Duplicate template"
                     className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -1960,6 +1970,7 @@ function TemplatesTab() {
 // ─── Rules Tab ────────────────────────────────────────────────────────────────
 
 function RulesTab() {
+  const { can } = usePermission();
   const [search,      setSearch]      = useState('');
   const [statusF,     setStatusF]     = useState('All');
   const [triggerSel,  setTriggerSel]  = useState<string[]>([]);
@@ -2038,6 +2049,7 @@ function RulesTab() {
         </div>
         <MultiSelectFilter label="Trigger" options={TRIGGER_OPTIONS} selected={triggerSel} onChange={setTriggerSel} />
         <MultiSelectFilter label="Module"  options={MODULE_OPTIONS}  selected={moduleSel}  onChange={setModuleSel}  />
+        {can('automations.createRule') && (
         <div className="ml-auto">
           <button
             onClick={() => openBuilder(null)}
@@ -2047,6 +2059,7 @@ function RulesTab() {
             New Rule
           </button>
         </div>
+        )}
       </div>
 
       {/* Table */}
@@ -2097,8 +2110,9 @@ function RulesTab() {
                         <ToggleSwitch
                           enabled={rule.status === 'Enabled'}
                           onChange={() => {}}
-                          disabled={rule.locked}
+                          disabled={rule.locked || !can('automations.toggleRule')}
                         />
+                        {can('automations.editRule') && (
                         <button
                           type="button"
                           disabled={rule.locked}
@@ -2110,6 +2124,7 @@ function RulesTab() {
                         >
                           Edit
                         </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => openBuilder(rule)}
@@ -2139,7 +2154,10 @@ function RulesTab() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AutomationsPage() {
+  const { can } = usePermission();
   const [activeTab, setActiveTab] = useState<Tab>('Templates');
+
+  if (!can('automations.view')) return <AccessDenied />;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6">
@@ -2149,10 +2167,12 @@ export default function AutomationsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Automations</h1>
           <p className="text-sm text-slate-500 mt-0.5">Automation rules, templates, and communications</p>
         </div>
+        {can('automations.createRule') && (
         <button className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer flex-shrink-0">
           <Plus className="w-4 h-4" />
           New Rule
         </button>
+        )}
       </div>
 
       {/* Stat bar */}

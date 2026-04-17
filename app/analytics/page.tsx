@@ -17,6 +17,8 @@ import {
 } from "recharts";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   churnRiskStudents,
   staffMembers,
@@ -528,6 +530,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function AnalyticsPage() {
+  const { can } = usePermission();
   const [activeTab, setActiveTab] = useState<Tab>("Revenue");
 
   useEffect(() => {
@@ -541,6 +544,8 @@ export default function AnalyticsPage() {
     };
     if (tab && tabMap[tab]) setActiveTab(tabMap[tab]);
   }, []);
+
+  if (!can('analytics.view')) return <AccessDenied />;
 
   return (
     <div className="space-y-6">

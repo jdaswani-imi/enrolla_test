@@ -27,6 +27,8 @@ import { SortableHeader } from "@/components/ui/sortable-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   peopleAll,
   duplicateDetections,
@@ -586,6 +588,7 @@ function DuplicateReviewSlideover({
 }
 
 function DuplicatesTab() {
+  const { can } = usePermission();
   const [typeFilter, setType]     = useState<string[]>([]);
   const [tierFilter, setTier]     = useState<string[]>([]);
   const [statusFilter, setStatus] = useState<string[]>([]);
@@ -680,10 +683,10 @@ function DuplicatesTab() {
                   <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{d.detected}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => d.status === "Pending" ? setReviewing(d) : undefined}
+                      onClick={() => d.status === "Pending" && can('students.merge') ? setReviewing(d) : (d.status !== "Pending" ? undefined : undefined)}
                       className={cn(
                         "px-3 py-1 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap",
-                        d.status === "Pending"
+                        d.status === "Pending" && can('students.merge')
                           ? "text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100"
                           : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"
                       )}
@@ -709,6 +712,7 @@ function DuplicatesTab() {
 // ─── Tab 3 — Segments ────────────────────────────────────────────────────────
 
 function NewSegmentSlideover({ onClose }: { onClose: () => void }) {
+  const { can } = usePermission();
   const [name, setName]           = useState("");
   const [scope, setScope]         = useState<SegmentScope>("Personal");
   const [recType, setRecType]     = useState<SegmentRecordType>("Students");
@@ -751,8 +755,14 @@ function NewSegmentSlideover({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-slate-500 font-medium mb-2">Scope</p>
             <div className="flex gap-4">
               {(["Personal", "Org-Wide"] as SegmentScope[]).map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" checked={scope === s} onChange={() => setScope(s)} className="accent-amber-500" />
+                <label key={s} className={cn("flex items-center gap-2", s === "Org-Wide" && !can('people.createOrgSegment') ? "cursor-not-allowed opacity-40" : "cursor-pointer")}>
+                  <input
+                    type="radio"
+                    checked={scope === s}
+                    onChange={() => setScope(s)}
+                    disabled={s === "Org-Wide" && !can('people.createOrgSegment')}
+                    className="accent-amber-500"
+                  />
                   <span className="text-sm text-slate-700">{s}</span>
                 </label>
               ))}
@@ -922,6 +932,7 @@ function ViewSegmentSlideover({ seg, onClose }: { seg: Segment; onClose: () => v
 }
 
 function SegmentsTab() {
+  const { can } = usePermission();
   const [scopeFilter, setScopeFilter]   = useState<SegmentScope | "All">("All");
   const [typeFilter, setTypeFilter]     = useState<string[]>([]);
   const [search, setSearch]             = useState("");
@@ -990,12 +1001,14 @@ function SegmentsTab() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search segments…"
             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400" />
         </div>
-        <button
-          onClick={() => setNewOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />New Segment
-        </button>
+        {can('people.createSegment') && (
+          <button
+            onClick={() => setNewOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />New Segment
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -1043,10 +1056,18 @@ function SegmentsTab() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setViewing(seg)} className="text-xs text-slate-600 hover:text-amber-600 font-medium cursor-pointer transition-colors">View</button>
-                      <span className="text-slate-300">|</span>
-                      <button className="text-xs text-slate-600 hover:text-amber-600 font-medium cursor-pointer transition-colors">Edit</button>
-                      <span className="text-slate-300">|</span>
-                      <button className="text-xs text-slate-600 hover:text-amber-600 font-medium cursor-pointer transition-colors">Export</button>
+                      {can('people.createSegment') && (
+                        <>
+                          <span className="text-slate-300">|</span>
+                          <button className="text-xs text-slate-600 hover:text-amber-600 font-medium cursor-pointer transition-colors">Edit</button>
+                        </>
+                      )}
+                      {can('people.export') && (
+                        <>
+                          <span className="text-slate-300">|</span>
+                          <button className="text-xs text-slate-600 hover:text-amber-600 font-medium cursor-pointer transition-colors">Export</button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1253,6 +1274,7 @@ function ManageBroadcastListSheet({
 }
 
 function BroadcastListsTab() {
+  const { can } = usePermission();
   const [search, setSearch]         = useState("");
   const [typeFilter, setTypeFilter] = useState<"All" | "Auto" | "Manual">("All");
   const [newOpen, setNewOpen]       = useState(false);
@@ -1300,12 +1322,14 @@ function BroadcastListsTab() {
             </button>
           ))}
         </div>
+        {can('people.manageBroadcasts') && (
         <button
           onClick={() => setNewOpen(true)}
           className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />New List
         </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1334,12 +1358,14 @@ function BroadcastListsTab() {
                   </td>
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{list.lastUpdated}</td>
                   <td className="px-4 py-3">
+                    {can('people.manageBroadcasts') && (
                     <button
                       onClick={() => setManaging(list)}
                       className="px-3 py-1 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
                     >
                       Manage
                     </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1713,6 +1739,7 @@ function NewFormSheet({ onClose }: { onClose: () => void }) {
 }
 
 function FormsTab() {
+  const { can } = usePermission();
   const [search, setSearch]           = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [newOpen, setNewOpen]         = useState(false);
@@ -1761,12 +1788,14 @@ function FormsTab() {
           selected={statusFilter}
           onChange={setStatusFilter}
         />
+        {can('people.manageForms') && (
         <button
           onClick={() => setNewOpen(true)}
           className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" />New Form
         </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1835,9 +1864,11 @@ function FormsTab() {
                         Submissions
                       </button>
                       <span className="text-slate-300">|</span>
+                      {can('people.manageForms') && (
                       <button className="text-xs font-medium text-slate-600 hover:text-amber-600 transition-colors cursor-pointer">
                         Edit
                       </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1877,6 +1908,7 @@ const EXPORT_FIELDS = [
 ];
 
 function ExportsTab() {
+  const { can } = usePermission();
   const [selectedFields, setSelectedFields] = useState<Set<string>>(
     new Set(["fullName", "yearGroup", "department", "school", "phone", "email", "status", "createdOn", "dnc"])
   );
@@ -2006,12 +2038,14 @@ function ExportsTab() {
           </div>
         </div>
 
+        {can('people.export') && (
         <button
           onClick={handleExport}
           className="mt-5 w-full py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
         >
           Export
         </button>
+        )}
       </div>
 
       {/* Section B — Export History */}
@@ -2087,6 +2121,7 @@ const TABS: { key: ActiveTab; label: string }[] = [
 ];
 
 function PeoplePageContent() {
+  const { can } = usePermission();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -2106,6 +2141,8 @@ function PeoplePageContent() {
     router.push(`/people${params.size > 0 ? `?${params.toString()}` : ""}`);
   }
 
+  if (!can('people.view')) return <AccessDenied />;
+
   return (
     <div className="flex flex-col gap-4 min-h-0">
       {/* Page header */}
@@ -2124,7 +2161,9 @@ function PeoplePageContent() {
 
       {/* Tab strip */}
       <div className="flex items-center gap-0 border-b border-slate-200 -mt-1 overflow-x-auto">
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, label }) => {
+          if (key === "Exports" && !can('people.export')) return null;
+          return (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
@@ -2137,7 +2176,8 @@ function PeoplePageContent() {
           >
             {label}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tab content */}
