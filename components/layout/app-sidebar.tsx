@@ -2,83 +2,359 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
-  BarChart2,
+  BarChart,
+  BookOpen,
   Briefcase,
   Calendar,
   CheckCircle,
-  CheckSquare,
   ClipboardCheck,
   ClipboardList,
   CreditCard,
+  DollarSign,
   FileText,
-  Funnel,
-  Home,
-  LogOut,
+  Filter,
+  GraduationCap,
+  LayoutDashboard,
+  Receipt,
   Settings,
   TrendingUp,
+  User,
+  UserCheck,
   Users,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { currentUser } from "@/lib/mock-data";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
 
-const navSections = [
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type SubItem = {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+type FlyoutSection = {
+  label: string;
+  items: SubItem[];
+};
+
+type LinkNavItemDef = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  href: string;
+  type: "link";
+};
+
+type FlyoutNavItemDef = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  type: "flyout";
+  sections: FlyoutSection[];
+};
+
+type NavItemDef = LinkNavItemDef | FlyoutNavItemDef;
+
+// ─── Nav data ─────────────────────────────────────────────────────────────────
+
+const navItems: NavItemDef[] = [
   {
-    label: "Main",
-    items: [
-      { label: "Dashboard", icon: Home, href: "/dashboard" },
-      { label: "Students", icon: Users, href: "/students" },
-      { label: "Leads", icon: Funnel, href: "/leads" },
-      { label: "Enrolment", icon: ClipboardList, href: "/enrolment" },
-    ],
+    id: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    href: "/dashboard",
+    type: "link",
   },
   {
-    label: "Academic",
-    items: [
-      { label: "Timetable", icon: Calendar, href: "/timetable" },
-      { label: "Attendance", icon: CheckSquare, href: "/attendance" },
-      { label: "Assessments", icon: ClipboardCheck, href: "/assessments" },
-      { label: "Progress", icon: TrendingUp, href: "/progress" },
-    ],
-  },
-  {
-    label: "Finance",
-    items: [
-      { label: "Billing & Invoices", icon: CreditCard, href: "/finance" },
-    ],
-  },
-  {
+    id: "people",
     label: "People",
-    items: [
-      { label: "Staff", icon: Briefcase, href: "/staff" },
-      { label: "Tasks", icon: CheckCircle, href: "/tasks" },
+    icon: User,
+    type: "flyout",
+    sections: [
+      {
+        label: "Students",
+        items: [
+          { label: "Students", href: "/students", icon: UserCheck },
+          { label: "Guardians", href: "/guardians", icon: Users },
+        ],
+      },
+      {
+        label: "Pipeline",
+        items: [
+          { label: "Leads", href: "/leads", icon: Filter },
+          { label: "Enrolment", href: "/enrolment", icon: ClipboardList },
+          { label: "Assessments", href: "/assessments", icon: ClipboardCheck },
+        ],
+      },
     ],
   },
   {
-    label: "Management",
-    items: [
-      { label: "Analytics", icon: BarChart2, href: "/analytics" },
-      { label: "Reports", icon: FileText, href: "/reports" },
+    id: "timetable",
+    label: "Timetable",
+    icon: Calendar,
+    href: "/timetable",
+    type: "link",
+  },
+  {
+    id: "attendance",
+    label: "Attendance",
+    icon: ClipboardCheck,
+    href: "/attendance",
+    type: "link",
+  },
+  {
+    id: "academic",
+    label: "Academic",
+    icon: GraduationCap,
+    type: "flyout",
+    sections: [
+      {
+        label: "Learning",
+        items: [
+          { label: "Progress", href: "/progress", icon: TrendingUp },
+          { label: "Assignments", href: "/progress?tab=assignments", icon: BookOpen },
+        ],
+      },
     ],
   },
   {
+    id: "finance",
+    label: "Finance",
+    icon: CreditCard,
+    type: "flyout",
+    sections: [
+      {
+        label: "Billing",
+        items: [
+          { label: "Invoices & Payments", href: "/finance", icon: Receipt },
+          { label: "Credits", href: "/finance?tab=credits", icon: DollarSign },
+        ],
+      },
+    ],
+  },
+  {
+    id: "reporting",
+    label: "Reporting",
+    icon: BarChart,
+    type: "flyout",
+    sections: [
+      {
+        label: "Insights",
+        items: [
+          { label: "Analytics", href: "/analytics", icon: BarChart },
+          { label: "Reports", href: "/reports", icon: FileText },
+        ],
+      },
+    ],
+  },
+  {
+    id: "tasks",
+    label: "Tasks",
+    icon: CheckCircle,
+    href: "/tasks",
+    type: "link",
+  },
+  {
+    id: "staff",
+    label: "Staff",
+    icon: Briefcase,
+    href: "/staff",
+    type: "link",
+  },
+  {
+    id: "settings",
     label: "Settings",
-    items: [{ label: "Settings", icon: Settings, href: "/settings" }],
+    icon: Settings,
+    href: "/settings",
+    type: "link",
   },
 ];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function Divider() {
+  return <div className="my-3 mx-auto w-6 border-t border-slate-700/40" />;
+}
+
+// ─── Direct link nav item ─────────────────────────────────────────────────────
+
+function LinkNavItem({ item }: { item: LinkNavItemDef }) {
+  const pathname = usePathname();
+  const isActive =
+    pathname === item.href || pathname.startsWith(item.href + "/");
+
+  return (
+    <div className="relative w-full flex items-center justify-center py-0.5">
+      {isActive && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-amber-400 rounded-r-full z-10" />
+      )}
+      <Link
+        href={item.href}
+        aria-label={item.label}
+        className={[
+          "relative group w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-150",
+          isActive
+            ? "bg-slate-700/80 text-amber-400"
+            : "text-slate-400 hover:bg-slate-800 hover:text-slate-200",
+        ].join(" ")}
+      >
+        <item.icon className="w-5 h-5 flex-shrink-0" />
+        {/* Hover label */}
+        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
+          {item.label}
+          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+        </div>
+      </Link>
+    </div>
+  );
+}
+
+// ─── Flyout panel ─────────────────────────────────────────────────────────────
+
+function FlyoutPanel({
+  item,
+  onClose,
+  triggerRef,
+}: {
+  item: FlyoutNavItemDef;
+  onClose: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const pathname = usePathname();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose, triggerRef]);
+
+  return (
+    <div
+      ref={ref}
+      className="fixed left-14 top-0 h-screen w-56 bg-[#1E293B] border-r border-slate-700 z-[998] shadow-2xl"
+      style={{ animation: "slideInLeft 0.15s ease-out" }}
+    >
+      {/* Panel header */}
+      <div className="px-4 pt-5 pb-3 border-b border-slate-700">
+        <div className="flex items-center gap-2.5">
+          <item.icon className="w-4 h-4 text-amber-400" />
+          <span className="text-sm font-semibold text-white">{item.label}</span>
+        </div>
+      </div>
+
+      {/* Sections */}
+      <div className="py-3 overflow-y-auto">
+        {item.sections.map((section, si) => (
+          <div key={si} className={si > 0 ? "mt-4" : ""}>
+            {item.sections.length > 1 && (
+              <div className="px-4 pb-1">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
+                  {section.label}
+                </span>
+              </div>
+            )}
+            {section.items.map((subItem) => {
+              const isActive =
+                pathname === subItem.href ||
+                pathname.startsWith(subItem.href.split("?")[0] + "/");
+              return (
+                <Link
+                  key={subItem.href + subItem.label}
+                  href={subItem.href}
+                  onClick={onClose}
+                  className={[
+                    "flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm transition-all duration-150",
+                    isActive
+                      ? "bg-amber-500/20 text-amber-400 font-medium"
+                      : "text-slate-300 hover:bg-slate-700/50 hover:text-white",
+                  ].join(" ")}
+                >
+                  <subItem.icon
+                    className={`w-4 h-4 flex-shrink-0 ${
+                      isActive ? "text-amber-400" : "text-slate-400"
+                    }`}
+                  />
+                  {subItem.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Flyout trigger nav item ──────────────────────────────────────────────────
+
+function FlyoutNavItem({
+  item,
+  isOpen,
+  onToggle,
+}: {
+  item: FlyoutNavItemDef;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const pathname = usePathname();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const isActive = item.sections.some((s) =>
+    s.items.some(
+      (i) =>
+        pathname === i.href ||
+        pathname.startsWith(i.href.split("?")[0] + "/")
+    )
+  );
+
+  return (
+    <div className="relative w-full flex items-center justify-center py-0.5">
+      {(isActive || isOpen) && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-amber-400 rounded-r-full z-10" />
+      )}
+      <button
+        ref={buttonRef}
+        onClick={onToggle}
+        aria-label={item.label}
+        aria-expanded={isOpen}
+        className={[
+          "relative group w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-150 cursor-pointer",
+          isActive || isOpen
+            ? "bg-slate-700/80 text-amber-400"
+            : "text-slate-400 hover:bg-slate-800 hover:text-slate-200",
+        ].join(" ")}
+      >
+        <item.icon className="w-5 h-5 flex-shrink-0" />
+        {/* Hover label — only when panel is closed */}
+        {!isOpen && (
+          <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
+            {item.label}
+            <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+          </div>
+        )}
+      </button>
+
+      {isOpen && (
+        <FlyoutPanel item={item} onClose={onToggle} triggerRef={buttonRef} />
+      )}
+    </div>
+  );
+}
+
+// ─── Initials ─────────────────────────────────────────────────────────────────
 
 const initials = currentUser.name
   .split(" ")
@@ -86,104 +362,81 @@ const initials = currentUser.name
   .join("")
   .slice(0, 2);
 
+// ─── Main sidebar ─────────────────────────────────────────────────────────────
+
+const dashboard = navItems[0] as LinkNavItemDef;
+const mainItems = navItems.slice(1, 7) as NavItemDef[];
+const midItems = navItems.slice(7, 9) as LinkNavItemDef[];
+const settingsItem = navItems[9] as LinkNavItemDef;
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const [openFlyout, setOpenFlyout] = useState<string | null>(null);
+
+  // Close flyout on route change
+  useEffect(() => {
+    setOpenFlyout(null);
+  }, [pathname]);
+
+  function toggleFlyout(id: string) {
+    setOpenFlyout((prev) => (prev === id ? null : id));
+  }
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
-      {/* Header: Logo + Org */}
-      <SidebarHeader className="px-4 py-4 border-b border-white/6">
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-          {/* Enrolla wordmark icon */}
-          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
-            <span className="text-slate-900 font-bold text-sm leading-none">E</span>
-          </div>
-          <div className="flex flex-col min-w-0 group-data-[collapsible=icon]:hidden">
-            <span className="text-white font-semibold text-sm leading-tight tracking-wide">
-              Enrolla
-            </span>
-            <span className="text-slate-400 text-[11px] leading-tight mt-0.5">
-              {currentUser.org} — Tutoring Centre
-            </span>
-          </div>
-        </div>
-      </SidebarHeader>
+    <aside className="w-14 h-screen bg-[#0F172A] flex flex-col items-center py-4 flex-shrink-0 border-r border-slate-800">
+      {/* Logo */}
+      <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center mb-6 flex-shrink-0">
+        <span className="text-white font-bold text-sm">E</span>
+      </div>
 
       {/* Nav */}
-      <SidebarContent className="py-2">
-        {navSections.map((section) => (
-          <SidebarGroup key={section.label} className="py-1">
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-slate-600 font-medium px-3 mb-1">
-              {section.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.items.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton
-                        render={<Link href={item.href} />}
-                        isActive={isActive}
-                        tooltip={item.label}
-                        className={cn(
-                          "relative h-9 rounded-md transition-colors duration-150 cursor-pointer",
-                          isActive
-                            ? [
-                                "bg-white/10 text-white font-semibold",
-                                "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-r-full before:bg-amber-500",
-                              ]
-                            : "text-slate-400 hover:text-white hover:bg-slate-800/60 font-normal"
-                        )}
-                      >
-                        <item.icon
-                          className={cn(
-                            "size-4 flex-shrink-0",
-                            isActive ? "text-amber-500" : "text-slate-400"
-                          )}
-                        />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+      <nav className="flex flex-col items-center gap-0.5 flex-1 w-full">
+        {/* Dashboard — direct link */}
+        <LinkNavItem item={dashboard} />
+
+        <Divider />
+
+        {/* People, Timetable, Attendance, Academic, Finance, Reporting */}
+        {mainItems.map((item) =>
+          item.type === "link" ? (
+            <LinkNavItem key={item.id} item={item as LinkNavItemDef} />
+          ) : (
+            <FlyoutNavItem
+              key={item.id}
+              item={item as FlyoutNavItemDef}
+              isOpen={openFlyout === item.id}
+              onToggle={() => toggleFlyout(item.id)}
+            />
+          )
+        )}
+
+        <Divider />
+
+        {/* Tasks, Staff — direct links */}
+        {midItems.map((item) => (
+          <LinkNavItem key={item.id} item={item} />
         ))}
-      </SidebarContent>
 
-      {/* Footer: User */}
-      <SidebarFooter className="border-t border-slate-700 p-3">
-        <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center hover:bg-slate-800 rounded-lg px-2 py-1.5 -mx-2 transition-colors duration-150 cursor-default">
-          {/* Avatar */}
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
-            <span className="text-slate-900 font-bold text-xs leading-none">
-              {initials}
-            </span>
-          </div>
-
-          {/* User info */}
-          <div className="flex flex-col min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <span className="text-white text-sm font-medium leading-tight truncate">
-              {currentUser.name}
-            </span>
-            <span className="inline-flex items-center mt-0.5">
-              <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 rounded px-1.5 py-0.5 leading-none">
-                {currentUser.role}
-              </span>
-            </span>
-          </div>
-
-          {/* Logout */}
-          <button
-            aria-label="Log out"
-            className="flex-shrink-0 p-1.5 rounded-md text-slate-500 hover:text-white hover:bg-white/5 transition-colors cursor-pointer group-data-[collapsible=icon]:hidden"
-          >
-            <LogOut className="size-4" />
-          </button>
+        {/* Settings — pushed to bottom */}
+        <div className="mt-auto w-full flex flex-col">
+          <Divider />
+          <LinkNavItem item={settingsItem} />
         </div>
-      </SidebarFooter>
-    </Sidebar>
+      </nav>
+
+      {/* User avatar */}
+      <div className="mt-4 relative group cursor-pointer">
+        <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center">
+          <span className="text-white text-xs font-bold">{initials}</span>
+        </div>
+        <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
+          {currentUser.name}
+          <div className="text-amber-400 font-normal text-[10px]">
+            {currentUser.role}
+          </div>
+          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+        </div>
+      </div>
+    </aside>
   );
 }

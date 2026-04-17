@@ -244,33 +244,38 @@ function KpiCardItem({ card }: { card: KpiCard }) {
 
   const inner = (
     <Card className={cn(
-      "flex flex-col justify-between min-h-[120px] transition-all duration-200",
+      "flex flex-col justify-between h-[140px] w-full transition-all duration-200",
       href && "cursor-pointer hover:shadow-md hover:border-amber-200 hover:-translate-y-px"
     )}>
-      <div className="rounded-md bg-amber-50 p-1.5 self-start">
-        <IconComponent className="w-4 h-4 text-amber-500" />
+      {/* Row 1 — label left, icon right */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-slate-500 leading-tight">{card.label}</p>
+        <IconComponent className="w-4 h-4 text-amber-500 shrink-0" />
       </div>
-      <div>
-        <p className="text-xs text-slate-400 mb-0.5">{card.label}</p>
-        <p className="text-2xl font-bold text-slate-900 leading-none">{card.value}</p>
+
+      {/* Row 2 — value */}
+      <p className={cn("font-bold text-slate-900 leading-none truncate", String(card.value).length > 10 ? "text-[1.35rem]" : "text-2xl")}>
+        {card.value}
+      </p>
+
+      {/* Row 3 — trend / sub-text */}
+      <div className="text-xs">
         {card.subValue && (
-          <p className={cn("text-xs mt-1 font-medium", trendColor)}>{card.subValue}</p>
+          <p className={cn("font-medium mb-0.5", trendColor)}>{card.subValue}</p>
         )}
-      </div>
-      <div>
         {card.trendDirection !== "neutral" ? (
-          <span className={cn("flex items-center gap-0.5 text-xs font-medium", trendColor)}>
+          <span className={cn("flex items-center gap-0.5 font-medium", trendColor)}>
             <TrendIcon className="w-3.5 h-3.5" />
             {card.trend}
           </span>
         ) : (
-          <span className={cn("text-xs font-medium", trendColor)}>{card.trend}</span>
+          <span className={cn("font-medium", trendColor)}>{card.trend}</span>
         )}
       </div>
     </Card>
   );
 
-  if (href) return <Link href={href}>{inner}</Link>;
+  if (href) return <Link href={href} className="flex flex-col h-[140px] w-full">{inner}</Link>;
   return inner;
 }
 
@@ -605,7 +610,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {Array.from({ length: 10 }).map((_, i) => <SkeletonKpi key={i} />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -644,7 +649,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {kpiCards.map((card) => (
           <KpiCardItem key={card.id} card={card} />
         ))}

@@ -49,6 +49,37 @@ export const students: Student[] = [
   { id: "IMI-0020", name: "Raya Khouri", yearGroup: "Y3", department: "Primary", school: "GEMS Modern Academy", guardian: "Elias Khouri", guardianPhone: "+971 55 100 2020", enrolments: 2, churnScore: 41, status: "Active", lastContact: "8 days ago", createdOn: "5 Sep 2023" },
 ];
 
+// ─── Guardians ────────────────────────────────────────────────────────────────
+
+export interface GuardianStudent {
+  id: string;
+  name: string;
+  initials: string;
+}
+
+export interface Guardian {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  students: GuardianStudent[];
+}
+
+export const guardians: Guardian[] = [
+  { id: "G-001", name: "Fatima Rahman",      email: "fatima.rahman@gmail.com",      phone: "+971 50 123 4567", students: [{ id: "IMI-0001", name: "Aisha Rahman",     initials: "AR" }] },
+  { id: "G-002", name: "Khalid Al-Farsi",    email: "khalid.alfarsi@gmail.com",     phone: "+971 55 234 5678", students: [{ id: "IMI-0002", name: "Omar Al-Farsi",    initials: "OA" }] },
+  { id: "G-003", name: "Nadia Hassan",       email: "nadia.hassan@gmail.com",       phone: "+971 52 345 6789", students: [{ id: "IMI-0003", name: "Layla Hassan",     initials: "LH" }] },
+  { id: "G-004", name: "Rami Khalil",        email: "rami.khalil@gmail.com",        phone: "+971 50 456 7890", students: [{ id: "IMI-0004", name: "Ziad Khalil",      initials: "ZK" }] },
+  { id: "G-005", name: "Hessa Nasser",       email: "hessa.nasser@gmail.com",       phone: "+971 55 567 8901", students: [{ id: "IMI-0005", name: "Sara Nasser",      initials: "SN" }] },
+  { id: "G-006", name: "Maryam Al-Dosari",   email: "maryam.aldosari@gmail.com",    phone: "+971 52 678 9012", students: [{ id: "IMI-0006", name: "Reem Al-Dosari",   initials: "RA" }] },
+  { id: "G-007", name: "Tariq Qasim",        email: "tariq.qasim@gmail.com",        phone: "+971 50 789 0123", students: [{ id: "IMI-0007", name: "Faris Qasim",      initials: "FQ" }] },
+  { id: "G-008", name: "Leila Ibrahim",      email: "leila.ibrahim@gmail.com",      phone: "+971 55 890 1234", students: [{ id: "IMI-0008", name: "Nour Ibrahim",     initials: "NI" }] },
+  { id: "G-009", name: "Shaikha Al-Maktoum", email: "shaikha.almaktoum@gmail.com",  phone: "+971 52 901 2345", students: [{ id: "IMI-0009", name: "Hamdan Al-Maktoum", initials: "HA" }] },
+  { id: "G-010", name: "Saeed Al-Zaabi",     email: "saeed.alzaabi@gmail.com",      phone: "+971 50 012 3456", students: [{ id: "IMI-0012", name: "Dana Al-Zaabi",    initials: "DZ" }, { id: "IMI-0004", name: "Ziad Khalil", initials: "ZK" }] },
+  { id: "G-011", name: "Amal Mansoor",       email: "amal.mansoor@gmail.com",       phone: "+971 55 111 2233", students: [{ id: "IMI-0011", name: "Khalid Mansoor",   initials: "KM" }] },
+  { id: "G-012", name: "Elias Khouri",       email: "elias.khouri@gmail.com",       phone: "+971 55 100 2020", students: [{ id: "IMI-0020", name: "Raya Khouri",      initials: "RK" }, { id: "IMI-0015", name: "Adam Benali", initials: "AB" }] },
+];
+
 // ─── KPI Cards ────────────────────────────────────────────────────────────────
 
 export type TrendDirection = "up" | "down" | "neutral";

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
 
@@ -26,9 +25,9 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakartaSans.variable} h-full antialiased`}>
       <body className="h-full">
         <TooltipProvider delay={300}>
-          <SidebarProvider>
+          <div className="flex h-full w-full">
             <AppShell>{children}</AppShell>
-          </SidebarProvider>
+          </div>
         </TooltipProvider>
       </body>
     </html>

@@ -10,12 +10,12 @@ export function SkeletonPulse({ className }: { className?: string }) {
 
 export function SkeletonKpi() {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-      <div className="flex justify-between">
-        <SkeletonPulse className="h-4 w-24" />
-        <SkeletonPulse className="h-5 w-5 rounded-full" />
+    <div className="bg-white rounded-lg border border-slate-200 p-5 h-[140px] flex flex-col justify-between">
+      <SkeletonPulse className="h-5 w-5 rounded-md" />
+      <div className="space-y-1.5">
+        <SkeletonPulse className="h-3 w-24" />
+        <SkeletonPulse className="h-7 w-28" />
       </div>
-      <SkeletonPulse className="h-8 w-32" />
       <SkeletonPulse className="h-3 w-20" />
     </div>
   );

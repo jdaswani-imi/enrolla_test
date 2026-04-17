@@ -167,6 +167,18 @@ button, a, [role="button"] {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/* ─── Flyout panel animation ──────────────────────────────────────────────── */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 /* ─── Slide-over animations ───────────────────────────────────────────────── */
 @keyframes slideInRight {
   from {
