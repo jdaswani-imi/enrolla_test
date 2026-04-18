@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -342,6 +343,7 @@ function InvoiceSlideover({
 
 function InvoicesTab() {
   const { can } = usePermission();
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
@@ -467,7 +469,10 @@ function InvoicesTab() {
             Bulk Generate
           </button>
           {can('finance.createInvoice') && (
-            <button className="btn-primary flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg">
+            <button
+              onClick={() => router.push('/finance/invoice/new')}
+              className="btn-primary flex items-center gap-1.5 px-4 py-1.5 text-sm font-semibold rounded-lg"
+            >
               <Plus className="w-4 h-4" />
               Create Invoice
             </button>

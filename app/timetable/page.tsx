@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { RoleBanner } from "@/components/ui/role-banner";
 import {
   timetableSessions,
   rooms,
@@ -590,7 +591,7 @@ function NewSessionModal({ onClose }: { onClose: () => void }) {
 // ─── Timetable Page ───────────────────────────────────────────────────────────
 
 export default function TimetablePage() {
-  const { can } = usePermission();
+  const { can, role } = usePermission();
   const [activeDay,       setActiveDay]       = useState("Mon");
   const [activeView,      setActiveView]      = useState<"Week" | "Day" | "Month">("Week");
   const [selectedSession, setSelectedSession] = useState<TimetableSession | null>(null);
@@ -738,6 +739,13 @@ export default function TimetablePage() {
           </button>
         )}
       </div>
+
+      {/* ── Role banner (Teacher / TA only) ───────────────────────────────── */}
+      {(role === 'Teacher' || role === 'TA') && (
+        <div className="px-6 pt-3">
+          <RoleBanner message="You can edit and manage your own sessions only." />
+        </div>
+      )}
 
       {/* ── Day tabs ──────────────────────────────────────────────────────── */}
       <div className="flex items-center bg-white border-b border-slate-200 flex-shrink-0 px-6">

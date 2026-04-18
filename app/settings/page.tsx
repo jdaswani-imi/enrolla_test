@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
@@ -24,8 +24,15 @@ import {
   Plus,
   Upload,
   Lock as LockIcon,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  Pencil,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PERMISSIONS, type Role } from "@/lib/role-config";
 import {
   Tooltip,
   TooltipTrigger,
@@ -848,49 +855,472 @@ function StaffHRSection() {
 
 // ─── Section 10: Roles & Permissions ──────────────────────────────────────────
 
+const ROLES_ORDERED: Role[] = [
+  'Super Admin', 'Admin Head', 'Admin', 'Academic Head', 'HOD', 'Teacher', 'TA', 'HR/Finance',
+];
+
+const ROLE_META: Record<Role, { color: string; description: string; initials: string; shortName: string }> = {
+  'Super Admin':   { color: '#0F172A', description: 'Full platform access',       initials: 'SA',  shortName: 'SA'   },
+  'Admin Head':    { color: '#DC2626', description: 'Senior admin oversight',      initials: 'AH',  shortName: 'AH'   },
+  'Admin':         { color: '#EA580C', description: 'Day-to-day operations',       initials: 'Ad',  shortName: 'Adm'  },
+  'Academic Head': { color: '#7C3AED', description: 'Academic strategy & staff',   initials: 'AcH', shortName: 'AcH'  },
+  'HOD':           { color: '#2563EB', description: 'Department management',       initials: 'HD',  shortName: 'HOD'  },
+  'Teacher':       { color: '#059669', description: 'Teaching & feedback',         initials: 'Tc',  shortName: 'Tchr' },
+  'TA':            { color: '#0891B2', description: 'Teaching assistant duties',   initials: 'TA',  shortName: 'TA'   },
+  'HR/Finance':    { color: '#CA8A04', description: 'HR and finance operations',   initials: 'HF',  shortName: 'HR/F' },
+};
+
+const PERM_GROUPS: { id: string; label: string; prefixes: string[] }[] = [
+  { id: 'students',    label: 'Students',                prefixes: ['students.'] },
+  { id: 'guardians',   label: 'Guardians',               prefixes: ['guardians.'] },
+  { id: 'leads',       label: 'Leads',                   prefixes: ['leads.'] },
+  { id: 'enrolment',   label: 'Enrolment',               prefixes: ['enrolment.'] },
+  { id: 'finance',     label: 'Finance',                 prefixes: ['finance.'] },
+  { id: 'timetable',   label: 'Timetable',               prefixes: ['timetable.'] },
+  { id: 'attendance',  label: 'Attendance',              prefixes: ['attendance.'] },
+  { id: 'feedback',    label: 'Feedback',                prefixes: ['feedback.'] },
+  { id: 'progress',    label: 'Progress',                prefixes: ['progress.'] },
+  { id: 'concerns',    label: 'Concerns',                prefixes: ['concerns.'] },
+  { id: 'tasks',       label: 'Tasks',                   prefixes: ['tasks.'] },
+  { id: 'staff',       label: 'Staff',                   prefixes: ['staff.'] },
+  { id: 'automations', label: 'Automations & Templates', prefixes: ['automations.', 'templates.'] },
+  { id: 'people',      label: 'People & Segments',       prefixes: ['people.'] },
+  { id: 'assessments', label: 'Assessments',             prefixes: ['assessments.'] },
+  { id: 'analytics',   label: 'Analytics & Reports',     prefixes: ['analytics.', 'reports.'] },
+  { id: 'settings',    label: 'Settings',                prefixes: ['settings.'] },
+];
+
+function fmtAction(key: string): string {
+  const verb = key.split('.')[1] ?? key;
+  return verb
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (s) => s.toUpperCase());
+}
+
 function RolesSection() {
-  const roles = [
-    { name: "Super Admin", type: "System", count: "1", desc: "Full platform access. Cannot be restricted." },
-    { name: "Admin Head", type: "System", count: "1", desc: "Senior operational authority. Approves gateway actions." },
-    { name: "Admin", type: "System", count: "2", desc: "Day-to-day operations. Invoicing, scheduling, leads." },
-    { name: "Academic Head", type: "System", count: "0", desc: "Academic oversight across all departments." },
-    { name: "HOD", type: "System", count: "1", desc: "Department head. Scoped to assigned department." },
-    { name: "Head of Subject", type: "System", count: "0", desc: "Subject-level lead." },
-    { name: "Teacher", type: "System", count: "7", desc: "Session delivery. Scoped to own classes." },
-    { name: "TA", type: "System", count: "1", desc: "Read access to assigned classes." },
-    { name: "HR / Finance", type: "Custom", count: "1", desc: "Salary, staff profiles, documents, finance exports." },
-    { name: "Developer", type: "System", count: "0", desc: "Full access. Excluded from all routing and notifications." },
-    { name: "Student", type: "System", count: "—", desc: "Phase 2 portal access." },
-    { name: "Parent", type: "System", count: "—", desc: "Phase 2 portal access." },
-  ];
+  const { role } = usePermission();
+  const isSuperAdmin = role === 'Super Admin';
+
+  const [editMode, setEditMode]                   = useState(false);
+  const [editedPermissions, setEditedPermissions] = useState<Record<string, Role[]>>({});
+  const [savedMsg, setSavedMsg]                   = useState(false);
+
+  const [search, setSearch]       = useState('');
+  const [modFilter, setModFilter] = useState('All');
+  const [roleFilter, setRoleFilter] = useState<'All' | Role>('All');
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () => new Set(PERM_GROUPS.map((g) => g.id))
+  );
+
+  useEffect(() => {
+    setEditMode(false);
+    setEditedPermissions({});
+  }, [role]);
+
+  useEffect(() => {
+    if (editMode) {
+      setEditedPermissions(
+        Object.fromEntries(
+          Object.entries(PERMISSIONS).map(([k, v]) => [k, [...v]])
+        )
+      );
+    }
+  }, [editMode]);
+
+  const activePermissions: Record<string, Role[]> =
+    editMode && Object.keys(editedPermissions).length > 0 ? editedPermissions : PERMISSIONS;
+
+  function togglePermission(action: string, r: Role) {
+    if (r === 'Super Admin') return;
+    setEditedPermissions((prev) => {
+      const current = prev[action] ?? [];
+      const hasRole = current.includes(r);
+      return {
+        ...prev,
+        [action]: hasRole ? current.filter((x) => x !== r) : [...current, r],
+      };
+    });
+  }
+
+  function handleSave() {
+    setSavedMsg(true);
+    setEditMode(false);
+    setTimeout(() => setSavedMsg(false), 2500);
+  }
+
+  function handleCancel() {
+    setEditMode(false);
+    setEditedPermissions({});
+  }
+
+  const filteredGroups = useMemo(() => {
+    const q = search.toLowerCase();
+    return PERM_GROUPS
+      .filter((g) => modFilter === 'All' || g.label === modFilter)
+      .map((g) => {
+        const actions = (Object.entries(PERMISSIONS) as [string, Role[]][]).filter(([key, roles]) => {
+          if (!g.prefixes.some((p) => key.startsWith(p))) return false;
+          if (q && !fmtAction(key).toLowerCase().includes(q) && !key.toLowerCase().includes(q)) return false;
+          if (roleFilter !== 'All' && !roles.includes(roleFilter as Role)) return false;
+          return true;
+        });
+        return { ...g, actions };
+      })
+      .filter((g) => g.actions.length > 0);
+  }, [search, modFilter, roleFilter]);
+
+  const visibleActions = useMemo(
+    () => filteredGroups.flatMap((g) => g.actions),
+    [filteredGroups]
+  );
+
+  function toggleGroup(id: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const hasFilter = search !== '' || modFilter !== 'All' || roleFilter !== 'All';
+
   return (
     <div>
-      <SectionHeader
-        title="Roles & Permissions"
-        description="Platform roles, access scopes, and custom permission sets."
-        action={<AddButton label="Create Custom Role" />}
-      />
-      <Table headers={["Role", "Type", "Staff Count", "Description"]}>
-        {roles.map((r) => (
-          <tr key={r.name} className="hover:bg-slate-50 transition-colors">
-            <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{r.name}</td>
-            <td className="px-4 py-3.5">
-              <span
-                className={cn(
-                  "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                  r.type === "Custom"
-                    ? "bg-violet-100 text-violet-700"
-                    : "bg-slate-100 text-slate-600"
-                )}
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Roles & Permissions</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Define what each role can see and do across the platform.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <span className="text-xs bg-slate-100 text-slate-500 rounded-full px-3 py-1">Live from role-config.ts</span>
+          {savedMsg && (
+            <span className="text-xs bg-green-100 text-green-700 rounded-full px-3 py-1 font-medium">
+              Permissions updated — changes apply immediately
+            </span>
+          )}
+          {isSuperAdmin && !editMode && (
+            <button
+              onClick={() => setEditMode(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit Permissions
+            </button>
+          )}
+          {isSuperAdmin && editMode && (
+            <>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-2 border border-slate-200 bg-white text-sm text-slate-600 font-medium rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
               >
-                {r.type}
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors cursor-pointer"
+              >
+                Save Changes
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Role Legend Strip ── */}
+      <div className="flex gap-3 overflow-x-auto pb-2 mb-4">
+        {ROLES_ORDERED.map((r) => {
+          const meta = ROLE_META[r];
+          const actionCount = Object.values(PERMISSIONS).filter((roles) => roles.includes(r)).length;
+          const isActive = role === r;
+          return (
+            <div
+              key={r}
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 bg-white border rounded-xl min-w-fit flex-shrink-0',
+                isActive ? 'border-amber-400 bg-amber-50/30' : 'border-slate-200'
+              )}
+            >
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                style={{ backgroundColor: meta.color }}
+              >
+                {meta.initials}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{r}</p>
+                <p className="text-xs text-slate-400">{meta.description}</p>
+              </div>
+              <span className="text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5 whitespace-nowrap">
+                {actionCount} actions
               </span>
-            </td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{r.count}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-500">{r.desc}</td>
-          </tr>
-        ))}
-      </Table>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Filter Bar ── */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search permissions..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400"
+            />
+          </div>
+          <select
+            value={modFilter}
+            onChange={(e) => setModFilter(e.target.value)}
+            className="w-48 px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:border-amber-400 cursor-pointer"
+          >
+            <option value="All">All modules</option>
+            {PERM_GROUPS.map((g) => (
+              <option key={g.id} value={g.label}>{g.label}</option>
+            ))}
+          </select>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as 'All' | Role)}
+            className="w-40 px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:border-amber-400 cursor-pointer"
+          >
+            <option value="All">All roles</option>
+            {ROLES_ORDERED.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+          {hasFilter && (
+            <button
+              onClick={() => { setSearch(''); setModFilter('All'); setRoleFilter('All'); }}
+              className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
+        {search && (
+          <p className="text-xs text-slate-500 mt-2">
+            {visibleActions.length} permission{visibleActions.length !== 1 ? 's' : ''} match &lsquo;{search}&rsquo;
+          </p>
+        )}
+      </div>
+
+      {/* ── Edit Mode Banner ── */}
+      {editMode && (
+        <div className="flex items-center gap-2 bg-amber-50 border-l-4 border-amber-400 px-4 py-2 mb-4 rounded-r-md">
+          <Pencil className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <p className="text-sm text-amber-700">
+            Edit mode active — click any cell to toggle a permission. Super Admin cannot be restricted.
+          </p>
+        </div>
+      )}
+
+      {/* ── Permission Table ── */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+        <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: '65vh' }}>
+          <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '180px' }} />
+              {ROLES_ORDERED.map((r) => <col key={r} />)}
+            </colgroup>
+
+            {/* Sticky header */}
+            <thead className="sticky top-0 z-10 bg-white shadow-sm">
+              <tr className="border-b-2 border-slate-200">
+                <th className="pl-5 py-3 text-left">
+                  <span className="text-[10px] uppercase tracking-widest text-slate-400">PERMISSION</span>
+                </th>
+                {ROLES_ORDERED.map((r) => {
+                  const meta = ROLE_META[r];
+                  const isFiltered = roleFilter === r;
+                  const count = Object.values(activePermissions).filter((roles) => roles.includes(r)).length;
+                  return (
+                    <th
+                      key={r}
+                      className={cn(
+                        'py-3 text-center border-b-2 -mb-px',
+                        isFiltered ? 'bg-amber-50 border-amber-400' : 'border-transparent'
+                      )}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-white"
+                          style={{ backgroundColor: meta.color, fontSize: '9px', fontWeight: 700 }}
+                        >
+                          {meta.initials}
+                        </div>
+                        <span className="text-[11px] font-semibold text-slate-700 leading-tight">{meta.shortName}</span>
+                        <span className="text-[10px] text-slate-400">{count}</span>
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredGroups.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={ROLES_ORDERED.length + 1}
+                    className="px-4 py-8 text-center text-sm text-slate-400"
+                  >
+                    No actions match your filters.
+                  </td>
+                </tr>
+              ) : (
+                filteredGroups.flatMap((group) => {
+                  const isOpen = openGroups.has(group.id);
+
+                  const headerRow = (
+                    <tr
+                      key={`${group.id}__hdr`}
+                      className="cursor-pointer hover:bg-slate-50 transition-colors"
+                      onClick={() => toggleGroup(group.id)}
+                    >
+                      <td className="pl-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {isOpen
+                            ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            : <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          }
+                          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">{group.label}</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 ml-1">{group.actions.length}</span>
+                        </div>
+                      </td>
+                      {ROLES_ORDERED.map((r) => {
+                        const checked = group.actions.filter(([key]) => (activePermissions[key] ?? []).includes(r)).length;
+                        const total = group.actions.length;
+                        const allChecked = checked === total;
+                        const noneChecked = checked === 0;
+                        return (
+                          <td key={r} className="py-3 text-center">
+                            <span className={cn(
+                              'text-[10px]',
+                              allChecked ? 'text-green-600 font-medium' : noneChecked ? 'text-slate-300' : 'text-slate-400'
+                            )}>
+                              {checked}/{total}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+
+                  const actionRows = isOpen
+                    ? group.actions.map(([key], rowIdx) => (
+                        <tr
+                          key={key}
+                          className={cn(
+                            'border-b border-slate-100 hover:bg-slate-50/80 transition-colors',
+                            rowIdx % 2 === 1 && 'bg-slate-50/40'
+                          )}
+                          style={{ height: '44px' }}
+                        >
+                          <td className="pl-8 pr-2 text-sm text-slate-700">{fmtAction(key)}</td>
+                          {ROLES_ORDERED.map((r) => {
+                            const permitted = (activePermissions[key] ?? []).includes(r);
+                            const isSuperAdminCol = r === 'Super Admin';
+                            const isChanged = editMode && !isSuperAdminCol &&
+                              permitted !== (PERMISSIONS[key] ?? []).includes(r);
+
+                            if (!editMode) {
+                              return (
+                                <td key={r} className="text-center">
+                                  {permitted ? (
+                                    <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                                      <Check size={13} className="text-green-600" strokeWidth={2.5} />
+                                    </div>
+                                  ) : (
+                                    <div className="w-7 h-7 flex items-center justify-center mx-auto">
+                                      <span className="text-slate-200 text-lg leading-none">—</span>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            }
+
+                            if (isSuperAdminCol) {
+                              return (
+                                <td key={r} className="text-center">
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <span className="inline-flex">
+                                        <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                                          <Lock size={12} className="text-slate-300" />
+                                        </div>
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Super Admin always has full access</TooltipContent>
+                                  </Tooltip>
+                                </td>
+                              );
+                            }
+
+                            return (
+                              <td key={r} className="text-center">
+                                {permitted ? (
+                                  <button
+                                    onClick={() => togglePermission(key, r)}
+                                    className={cn(
+                                      'w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 flex items-center justify-center mx-auto transition-colors cursor-pointer',
+                                      isChanged && 'ring-2 ring-amber-400 ring-offset-1'
+                                    )}
+                                  >
+                                    <Check size={13} className="text-green-600" strokeWidth={2.5} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => togglePermission(key, r)}
+                                    className={cn(
+                                      'w-7 h-7 rounded-full bg-slate-100 hover:bg-amber-100 flex items-center justify-center mx-auto transition-colors cursor-pointer group',
+                                      isChanged && 'ring-2 ring-amber-400 ring-offset-1'
+                                    )}
+                                  >
+                                    <span className="text-slate-300 group-hover:text-amber-400 text-lg leading-none">—</span>
+                                  </button>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    : [];
+
+                  return [headerRow, ...actionRows];
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Stats Footer ── */}
+        <div className="border-t-2 border-slate-200 bg-slate-50 px-5 py-3 flex-shrink-0">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <span className="text-xs text-slate-500">Total permissions granted:</span>
+            <div className="flex items-center gap-4 flex-wrap">
+              {ROLES_ORDERED.map((r) => {
+                const meta = ROLE_META[r];
+                const count = visibleActions.filter(([key]) => (activePermissions[key] ?? []).includes(r)).length;
+                const total = visibleActions.length;
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div key={r} className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: meta.color }} />
+                    <span className="text-xs text-slate-500">{meta.shortName}</span>
+                    <span className="text-xs font-medium text-slate-700">{count}/{total}</span>
+                    <span className="text-xs text-slate-400">({pct}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1454,7 +1884,9 @@ export default function SettingsPage() {
 
       {/* Right Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-8 max-w-4xl">{renderSection(activeSection)}</div>
+        <div className={cn("p-8", activeSection !== "roles" && "max-w-4xl")}>
+          {renderSection(activeSection)}
+        </div>
       </div>
     </div>
   );

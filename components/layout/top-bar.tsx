@@ -21,6 +21,7 @@ const routeTitles: Record<string, string> = {
   "/assessments":"Assessments",
   "/progress":   "Progress",
   "/finance":    "Billing & Invoices",
+  "/finance/invoice/new": "New Invoice",
   "/staff":      "Staff",
   "/tasks":      "Tasks",
   "/analytics":  "Analytics",
@@ -28,6 +29,7 @@ const routeTitles: Record<string, string> = {
   "/settings":   "Settings",
   "/automations":"Automations",
   "/feedback":   "Feedback",
+  "/inventory":  "Inventory",
 };
 
 const ROLES: Role[] = [

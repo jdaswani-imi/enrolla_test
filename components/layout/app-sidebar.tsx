@@ -20,6 +20,7 @@ import {
   Layers,
   LayoutDashboard,
   MessageSquare,
+  Package,
   Receipt,
   Settings,
   TrendingUp,
@@ -188,6 +189,13 @@ const navItems: NavItemDef[] = [
     label: "Automations",
     icon: Zap,
     href: "/automations",
+    type: "link",
+  },
+  {
+    id: "inventory",
+    label: "Inventory",
+    icon: Package,
+    href: "/inventory",
     type: "link",
   },
   {
@@ -429,8 +437,8 @@ export function AppSidebar() {
     return acc;
   }, []);
 
-  const midItems = (navItems.slice(7, 10) as LinkNavItemDef[]).filter((item) => sees(item.id));
-  const settingsItem = sees("settings") ? (navItems[10] as LinkNavItemDef) : undefined;
+  const midItems = (navItems.slice(7, 11) as LinkNavItemDef[]).filter((item) => sees(item.id));
+  const settingsItem = sees("settings") ? (navItems[11] as LinkNavItemDef) : undefined;
 
   return (
     <aside className="w-14 h-screen bg-[#0F172A] flex flex-col items-center py-4 flex-shrink-0 border-r border-slate-800">

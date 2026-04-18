@@ -2110,3 +2110,616 @@ export const executionLogs: ExecutionLog[] = [
   { id: "EL-014", rule: "Term End — Trigger Bulk Reports", triggerType: "Manual", firedAt: "4 days ago", recipients: 8, live: 8, queued: 0, status: "Success", duration: "891ms", payload: [{ key: "term", value: "Term 2 2025" }, { key: "event", value: "progress_report_generated" }], conditionResults: [{ condition: "term_end_flag = true", result: "pass" }], actionResults: [{ type: "Create Task", outcome: "Success", target: "Bulk tasks created: T-0270 to T-0277" }], recipientRouting: [{ recipient: "Ahmed Khalil", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Faris Al-Amin", channel: "In-app", route: "Live", outcome: "Delivered" }, { recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Delivered" }] },
   { id: "EL-015", rule: "Assessment Booked — Confirmation", triggerType: "Status Change", firedAt: "1 hr ago", recipients: 1, live: 0, queued: 1, status: "Success", duration: "103ms", payload: [{ key: "lead_id", value: "L-0042" }, { key: "event", value: "trial_booked" }], conditionResults: [{ condition: "trial_status = Booked", result: "pass" }], actionResults: [{ type: "Send Message", outcome: "Success", target: "TPL-002 dispatched" }], recipientRouting: [{ recipient: "Noura Al-Blooshi", channel: "Email", route: "Queue", outcome: "Queued" }, { recipient: "Admin Calendar", channel: "System", route: "Live", outcome: "Updated" }, { recipient: "Jason Daswani", channel: "In-app", route: "Live", outcome: "Notified" }] },
 ];
+
+// ─── Inventory ─────────────────────────────────────────────────────────────────
+
+export interface AutoDeductRule {
+  id: string
+  trigger: string
+  departments: string[]
+  yearGroups: string[]
+  quantity: number
+  condition: string
+  active: boolean
+}
+
+export interface LedgerEntry {
+  id: string
+  changeType: 'auto_deduct' | 'manual_add' | 'reorder_received' | 'manual_deduct' | 'waste' | 'stock_take_correction'
+  quantityChange: number
+  actor: string
+  timestamp: string
+}
+
+export interface InventoryItem {
+  id: string
+  name: string
+  category: string
+  unit: string
+  currentStock: number
+  minStock: number
+  maxStock: number
+  reorderQty: number
+  autoDeduct: boolean
+  departmentScope: string
+  enrolTrigger: string | null
+  supplier: string
+  amazonLink: string | null
+  notes: string
+  health: 'healthy' | 'approaching' | 'below'
+  autoDeductRules: AutoDeductRule[]
+  recentLedger: LedgerEntry[]
+}
+
+export interface InventorySupplier {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  itemCount: number
+  notes: string | null
+}
+
+export interface ReorderAlert {
+  id: string
+  itemName: string
+  category: string
+  currentStock: number
+  minStock: number
+  reorderQty: number
+  supplierName: string
+  supplierPhone: string | null
+  supplierEmail: string | null
+  amazonLink: string | null
+  status: 'open' | 'ordered' | 'ignored'
+  openedAt: string
+}
+
+export interface StockLedgerEntry {
+  id: string
+  itemName: string
+  category: string
+  changeType: 'auto_deduct' | 'manual_add' | 'reorder_received' | 'manual_deduct' | 'waste' | 'stock_take_correction' | 'auto_deduct_failed'
+  quantityChange: number
+  stockBefore?: number
+  stockAfter?: number
+  actor: string
+  reference?: string
+  timestamp: string
+}
+
+export const inventoryItems: InventoryItem[] = [
+  // ── Folders & Files ───────────────────────────────────────────────────────
+  {
+    id: "inv-001", name: "Box File Folder — Orange (KG1)", category: "Folders & Files",
+    unit: "Each", currentStock: 42, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Orange folders for KG1. Order from Farook Deira branch.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-001-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-001-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 10:14" },
+      { id: "l-001-2", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "15 Apr 2026, 09:31" },
+      { id: "l-001-3", changeType: "reorder_received", quantityChange: 30, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+      { id: "l-001-4", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "8 Apr 2026, 11:22" },
+    ],
+  },
+  {
+    id: "inv-002", name: "Box File Folder — Yellow (KG2)", category: "Folders & Files",
+    unit: "Each", currentStock: 38, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Yellow folders for KG2.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-002-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG2"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-002-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "16 Apr 2026, 14:05" },
+      { id: "l-002-2", changeType: "reorder_received", quantityChange: 30, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+      { id: "l-002-3", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "7 Apr 2026, 10:00" },
+    ],
+  },
+  {
+    id: "inv-003", name: "Box File Folder — Red (Y1)", category: "Folders & Files",
+    unit: "Each", currentStock: 12, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Red folders for Y1. REORDER NOW.",
+    health: "below",
+    autoDeductRules: [{ id: "r-003-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y1"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-003-1", changeType: "auto_deduct", quantityChange: -3, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 09:00" },
+      { id: "l-003-2", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "14 Apr 2026, 11:30" },
+      { id: "l-003-3", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "12 Apr 2026, 15:00" },
+    ],
+  },
+  {
+    id: "inv-004", name: "Box File Folder — Blue (Y2)", category: "Folders & Files",
+    unit: "Each", currentStock: 29, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Blue folders for Y2.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-004-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y2"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-004-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "15 Apr 2026, 12:00" },
+      { id: "l-004-2", changeType: "reorder_received", quantityChange: 30, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+      { id: "l-004-3", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "5 Apr 2026, 10:00" },
+    ],
+  },
+  {
+    id: "inv-005", name: "Box File Folder — Green (Y3)", category: "Folders & Files",
+    unit: "Each", currentStock: 18, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Green folders for Y3. Running low.",
+    health: "approaching",
+    autoDeductRules: [{ id: "r-005-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y3"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-005-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "16 Apr 2026, 08:45" },
+      { id: "l-005-2", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "10 Apr 2026, 09:00" },
+      { id: "l-005-3", changeType: "reorder_received", quantityChange: 30, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-006", name: "Box File Folder — Purple (Y4)", category: "Folders & Files",
+    unit: "Each", currentStock: 33, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Purple folders for Y4.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-006-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y4"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-006-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "14 Apr 2026, 11:00" },
+      { id: "l-006-2", changeType: "reorder_received", quantityChange: 30, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-007", name: "Box File Folder — Grey (Y5/Y6)", category: "Folders & Files",
+    unit: "Each", currentStock: 16, minStock: 15, maxStock: 60, reorderQty: 30,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Grey folders for Y5 and Y6.",
+    health: "approaching",
+    autoDeductRules: [{ id: "r-007-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y5", "Y6"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-007-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 10:00" },
+      { id: "l-007-2", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "13 Apr 2026, 09:30" },
+      { id: "l-007-3", changeType: "reorder_received", quantityChange: 30, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-008", name: "Black Folder (Y7–Y9)", category: "Folders & Files",
+    unit: "Each", currentStock: 55, minStock: 20, maxStock: 80, reorderQty: 40,
+    autoDeduct: true, departmentScope: "Lower Secondary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Farook", amazonLink: null, notes: "Black folders for Lower Secondary Y7-Y9.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-008-1", trigger: "Enrolment Confirmed", departments: ["Lower Secondary"], yearGroups: ["Y7", "Y8", "Y9"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-008-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "15 Apr 2026, 13:00" },
+      { id: "l-008-2", changeType: "reorder_received", quantityChange: 40, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+      { id: "l-008-3", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "5 Apr 2026, 10:00" },
+    ],
+  },
+  // ── Plastic Folders ────────────────────────────────────────────────────────
+  {
+    id: "inv-009", name: "Plastic Folder Insert — Yellow (KG1)", category: "Plastic Folders",
+    unit: "Each", currentStock: 67, minStock: 20, maxStock: 100, reorderQty: 50,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Saleem", amazonLink: null, notes: "Yellow plastic inserts for KG1 box files.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-009-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1"], quantity: 2, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-009-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 10:14" },
+      { id: "l-009-2", changeType: "reorder_received", quantityChange: 50, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-010", name: "Plastic Folder Insert — Red (Y1)", category: "Plastic Folders",
+    unit: "Each", currentStock: 21, minStock: 20, maxStock: 100, reorderQty: 50,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Saleem", amazonLink: null, notes: "Red plastic inserts for Y1.",
+    health: "approaching",
+    autoDeductRules: [{ id: "r-010-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y1"], quantity: 2, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-010-1", changeType: "auto_deduct", quantityChange: -4, actor: "System (Enrolment)", timestamp: "16 Apr 2026, 09:00" },
+      { id: "l-010-2", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "10 Apr 2026, 10:00" },
+      { id: "l-010-3", changeType: "reorder_received", quantityChange: 50, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-011", name: "Plastic Folder Insert — Blue (Y2)", category: "Plastic Folders",
+    unit: "Each", currentStock: 45, minStock: 20, maxStock: 100, reorderQty: 50,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Saleem", amazonLink: null, notes: "Blue plastic inserts for Y2.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-011-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y2"], quantity: 2, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-011-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "15 Apr 2026, 12:00" },
+      { id: "l-011-2", changeType: "reorder_received", quantityChange: 50, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-012", name: "Plastic Folder Insert — Green (Y3)", category: "Plastic Folders",
+    unit: "Each", currentStock: 38, minStock: 20, maxStock: 100, reorderQty: 50,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Saleem", amazonLink: null, notes: "Green plastic inserts for Y3.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-012-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y3"], quantity: 2, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-012-1", changeType: "auto_deduct", quantityChange: -4, actor: "System (Enrolment)", timestamp: "14 Apr 2026, 11:00" },
+      { id: "l-012-2", changeType: "reorder_received", quantityChange: 50, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Stickers & Labels ──────────────────────────────────────────────────────
+  {
+    id: "inv-013", name: "Subject Sticker — Maths (Primary KG1–Y6)", category: "Stickers & Labels",
+    unit: "Sheet", currentStock: 8, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Selva", amazonLink: null, notes: "Maths subject stickers for Primary. REORDER NOW.",
+    health: "below",
+    autoDeductRules: [{ id: "r-013-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1","KG2","Y1","Y2","Y3","Y4","Y5","Y6"], quantity: 1, condition: "Every enrolment", active: true }],
+    recentLedger: [
+      { id: "l-013-1", changeType: "auto_deduct", quantityChange: -3, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 10:14" },
+      { id: "l-013-2", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "14 Apr 2026, 09:00" },
+      { id: "l-013-3", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-013-4", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-014", name: "Subject Sticker — English (Primary KG1–Y6)", category: "Stickers & Labels",
+    unit: "Sheet", currentStock: 14, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Selva", amazonLink: null, notes: "English subject stickers for Primary.",
+    health: "approaching",
+    autoDeductRules: [{ id: "r-014-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1","KG2","Y1","Y2","Y3","Y4","Y5","Y6"], quantity: 1, condition: "Every enrolment", active: true }],
+    recentLedger: [
+      { id: "l-014-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "16 Apr 2026, 10:00" },
+      { id: "l-014-2", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "13 Apr 2026, 09:00" },
+      { id: "l-014-3", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-015", name: "Subject Sticker — Maths (Lower Sec Y7–Y9)", category: "Stickers & Labels",
+    unit: "Sheet", currentStock: 32, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Lower Secondary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Selva", amazonLink: null, notes: "Maths stickers for Lower Secondary.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-015-1", trigger: "Enrolment Confirmed", departments: ["Lower Secondary"], yearGroups: ["Y7","Y8","Y9"], quantity: 1, condition: "Every enrolment", active: true }],
+    recentLedger: [
+      { id: "l-015-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "15 Apr 2026, 13:00" },
+      { id: "l-015-2", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-016", name: "Behaviour Rules Sticker", category: "Stickers & Labels",
+    unit: "Sheet", currentStock: 9, minStock: 20, maxStock: 100, reorderQty: 40,
+    autoDeduct: true, departmentScope: "Primary + Lower Secondary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Selva", amazonLink: null, notes: "Behaviour rules stickers for all year groups. REORDER NOW.",
+    health: "below",
+    autoDeductRules: [
+      { id: "r-016-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1","KG2","Y1","Y2","Y3","Y4","Y5","Y6"], quantity: 1, condition: "First enrolment only", active: true },
+      { id: "r-016-2", trigger: "Enrolment Confirmed", departments: ["Lower Secondary"], yearGroups: ["Y7","Y8","Y9"], quantity: 1, condition: "First enrolment only", active: true },
+    ],
+    recentLedger: [
+      { id: "l-016-1", changeType: "auto_deduct", quantityChange: -4, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 09:30" },
+      { id: "l-016-2", changeType: "auto_deduct", quantityChange: -3, actor: "System (Enrolment)", timestamp: "14 Apr 2026, 10:00" },
+      { id: "l-016-3", changeType: "manual_deduct", quantityChange: -2, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-016-4", changeType: "reorder_received", quantityChange: 40, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Lanyards ───────────────────────────────────────────────────────────────
+  {
+    id: "inv-017", name: "Lanyard — Orange (KG1)", category: "Lanyards",
+    unit: "Each", currentStock: 22, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Deira Stationery", amazonLink: null, notes: "Orange lanyards for KG1. Contact Co Srinivas.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-017-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-017-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 10:14" },
+      { id: "l-017-2", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-018", name: "Lanyard — Yellow (KG2)", category: "Lanyards",
+    unit: "Each", currentStock: 8, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Deira Stationery", amazonLink: null, notes: "Yellow lanyards for KG2. REORDER NOW.",
+    health: "below",
+    autoDeductRules: [{ id: "r-018-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG2"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-018-1", changeType: "auto_deduct", quantityChange: -2, actor: "System (Enrolment)", timestamp: "16 Apr 2026, 09:00" },
+      { id: "l-018-2", changeType: "auto_deduct", quantityChange: -3, actor: "System (Enrolment)", timestamp: "13 Apr 2026, 10:00" },
+      { id: "l-018-3", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-019", name: "Lanyard — Red (Y1)", category: "Lanyards",
+    unit: "Each", currentStock: 17, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Deira Stationery", amazonLink: null, notes: "Red lanyards for Y1.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-019-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y1"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-019-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "15 Apr 2026, 12:00" },
+      { id: "l-019-2", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-020", name: "Lanyard — Grey (Y5/Y6)", category: "Lanyards",
+    unit: "Each", currentStock: 11, minStock: 10, maxStock: 50, reorderQty: 20,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Deira Stationery", amazonLink: null, notes: "Grey lanyards for Y5/Y6.",
+    health: "approaching",
+    autoDeductRules: [{ id: "r-020-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["Y5","Y6"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-020-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "14 Apr 2026, 11:00" },
+      { id: "l-020-2", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "10 Apr 2026, 09:00" },
+      { id: "l-020-3", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Bags ───────────────────────────────────────────────────────────────────
+  {
+    id: "inv-021", name: "Tote Bag", category: "Bags",
+    unit: "Each", currentStock: 18, minStock: 5, maxStock: 30, reorderQty: 15,
+    autoDeduct: true, departmentScope: "Primary", enrolTrigger: "Enrolment Confirmed",
+    supplier: "Shafqat", amazonLink: null, notes: "IMI branded tote bags. Contact Shafqat.",
+    health: "healthy",
+    autoDeductRules: [{ id: "r-021-1", trigger: "Enrolment Confirmed", departments: ["Primary"], yearGroups: ["KG1","KG2","Y1","Y2","Y3","Y4","Y5","Y6"], quantity: 1, condition: "First enrolment only", active: true }],
+    recentLedger: [
+      { id: "l-021-1", changeType: "auto_deduct", quantityChange: -1, actor: "System (Enrolment)", timestamp: "17 Apr 2026, 10:14" },
+      { id: "l-021-2", changeType: "reorder_received", quantityChange: 15, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Writing Instruments ────────────────────────────────────────────────────
+  {
+    id: "inv-022", name: "Pencils — HB Standard", category: "Writing Instruments",
+    unit: "Box of 12", currentStock: 12, minStock: 5, maxStock: 20, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Findel", amazonLink: null, notes: "HB pencils. Order via findel-dryad.ae.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-022-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-022-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-023", name: "Pens — Blue Ballpoint", category: "Writing Instruments",
+    unit: "Box of 20", currentStock: 6, minStock: 5, maxStock: 25, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Blue ballpoint pens. Order on amazon.ae.",
+    health: "approaching", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-023-1", changeType: "manual_deduct", quantityChange: -2, actor: "Sarah Thompson", timestamp: "15 Apr 2026, 11:00" },
+      { id: "l-023-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-024", name: "Pens — Black Ballpoint", category: "Writing Instruments",
+    unit: "Box of 20", currentStock: 14, minStock: 5, maxStock: 25, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Black ballpoint pens.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-024-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "12 Apr 2026, 10:00" },
+      { id: "l-024-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-025", name: "Whiteboard Markers — Black", category: "Writing Instruments",
+    unit: "Box of 10", currentStock: 4, minStock: 5, maxStock: 30, reorderQty: 15,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Dubai Library", amazonLink: null, notes: "Black whiteboard markers. REORDER NOW.",
+    health: "below", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-025-1", changeType: "manual_deduct", quantityChange: -2, actor: "Ahmed Khalil", timestamp: "16 Apr 2026, 09:00" },
+      { id: "l-025-2", changeType: "waste", quantityChange: -1, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-025-3", changeType: "reorder_received", quantityChange: 15, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-026", name: "Highlighters — Assorted Pack", category: "Writing Instruments",
+    unit: "Pack of 6", currentStock: 9, minStock: 5, maxStock: 20, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Assorted highlighters.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-026-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-026-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Erasers & Correction ───────────────────────────────────────────────────
+  {
+    id: "inv-027", name: "Rubber Erasers — Standard White", category: "Erasers & Correction",
+    unit: "Box of 20", currentStock: 7, minStock: 3, maxStock: 15, reorderQty: 6,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Findel", amazonLink: null, notes: "Standard white erasers.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-027-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "8 Apr 2026, 11:00" },
+      { id: "l-027-2", changeType: "reorder_received", quantityChange: 6, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-028", name: "Whiteboard Erasers — Felt Block", category: "Erasers & Correction",
+    unit: "Each", currentStock: 8, minStock: 5, maxStock: 20, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Felt whiteboard erasers.",
+    health: "approaching", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-028-1", changeType: "manual_deduct", quantityChange: -1, actor: "Ahmed Khalil", timestamp: "14 Apr 2026, 09:00" },
+      { id: "l-028-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Paper Products ─────────────────────────────────────────────────────────
+  {
+    id: "inv-029", name: "A4 Paper — White 80gsm", category: "Paper Products",
+    unit: "Ream", currentStock: 22, minStock: 10, maxStock: 40, reorderQty: 20,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Fortune Stationery", amazonLink: null, notes: "Standard A4 white paper. High usage — check weekly.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-029-1", changeType: "manual_deduct", quantityChange: -3, actor: "Sarah Thompson", timestamp: "17 Apr 2026, 09:00" },
+      { id: "l-029-2", changeType: "reorder_received", quantityChange: 20, actor: "Jason Daswani", timestamp: "10 Apr 2026, 14:00" },
+      { id: "l-029-3", changeType: "manual_deduct", quantityChange: -2, actor: "Ahmed Khalil", timestamp: "5 Apr 2026, 10:00" },
+    ],
+  },
+  {
+    id: "inv-030", name: "A4 Paper — Coloured Orange", category: "Paper Products",
+    unit: "Ream", currentStock: 4, minStock: 3, maxStock: 15, reorderQty: 6,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Orange coloured A4 paper.",
+    health: "approaching", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-030-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "15 Apr 2026, 11:00" },
+      { id: "l-030-2", changeType: "reorder_received", quantityChange: 6, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Cleaning & Hygiene ─────────────────────────────────────────────────────
+  {
+    id: "inv-031", name: "Hand Sanitiser — 500ml", category: "Cleaning & Hygiene",
+    unit: "Bottle", currentStock: 6, minStock: 5, maxStock: 20, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "500ml hand sanitiser bottles.",
+    health: "approaching", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-031-1", changeType: "manual_deduct", quantityChange: -2, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-031-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  {
+    id: "inv-032", name: "Paper Towels — Roll", category: "Cleaning & Hygiene",
+    unit: "Pack of 6", currentStock: 12, minStock: 5, maxStock: 20, reorderQty: 10,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Paper towel rolls.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-032-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-032-2", changeType: "reorder_received", quantityChange: 10, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Filing & Organisation ──────────────────────────────────────────────────
+  {
+    id: "inv-033", name: "Index Dividers — A4 5-part", category: "Filing & Organisation",
+    unit: "Box of 50", currentStock: 4, minStock: 3, maxStock: 10, reorderQty: 5,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Farook", amazonLink: null, notes: "A4 5-part index dividers.",
+    health: "approaching", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-033-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "8 Apr 2026, 11:00" },
+      { id: "l-033-2", changeType: "reorder_received", quantityChange: 5, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Printing & Lamination ──────────────────────────────────────────────────
+  {
+    id: "inv-034", name: "Lamination Pouches — A4", category: "Printing & Lamination",
+    unit: "Pack of 100", currentStock: 3, minStock: 2, maxStock: 8, reorderQty: 4,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "A4 lamination pouches.",
+    health: "approaching", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-034-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "5 Apr 2026, 11:00" },
+      { id: "l-034-2", changeType: "reorder_received", quantityChange: 4, actor: "Jason Daswani", timestamp: "1 Mar 2026, 14:00" },
+    ],
+  },
+  // ── Electronics & Tech ─────────────────────────────────────────────────────
+  {
+    id: "inv-035", name: "AA Batteries — Pack", category: "Electronics & Tech",
+    unit: "Pack of 20", currentStock: 8, minStock: 3, maxStock: 15, reorderQty: 6,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "AA batteries for remotes and devices.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-035-1", changeType: "manual_deduct", quantityChange: -1, actor: "Ahmed Khalil", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-035-2", changeType: "reorder_received", quantityChange: 6, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Arts & Crafts ──────────────────────────────────────────────────────────
+  {
+    id: "inv-036", name: "Glue Sticks — Pack", category: "Arts & Crafts",
+    unit: "Pack of 10", currentStock: 6, minStock: 3, maxStock: 15, reorderQty: 6,
+    autoDeduct: false, departmentScope: "Primary", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "Glue sticks for Primary arts and crafts.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-036-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "10 Apr 2026, 11:00" },
+      { id: "l-036-2", changeType: "reorder_received", quantityChange: 6, actor: "Jason Daswani", timestamp: "1 Apr 2026, 14:00" },
+    ],
+  },
+  // ── Branded Materials ──────────────────────────────────────────────────────
+  {
+    id: "inv-037", name: "IMI Branded Pens", category: "Branded Materials",
+    unit: "Box of 50", currentStock: 120, minStock: 30, maxStock: 200, reorderQty: 50,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Farook", amazonLink: null, notes: "IMI branded pens for events and welcome kits.",
+    health: "healthy", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-037-1", changeType: "manual_deduct", quantityChange: -50, actor: "Jason Daswani", timestamp: "1 Apr 2026, 10:00" },
+      { id: "l-037-2", changeType: "reorder_received", quantityChange: 100, actor: "Jason Daswani", timestamp: "1 Mar 2026, 14:00" },
+    ],
+  },
+  // ── Health & Safety ────────────────────────────────────────────────────────
+  {
+    id: "inv-038", name: "First Aid Kit Refill", category: "Health & Safety",
+    unit: "Kit", currentStock: 2, minStock: 2, maxStock: 5, reorderQty: 2,
+    autoDeduct: false, departmentScope: "All", enrolTrigger: null,
+    supplier: "Amazon", amazonLink: "https://amazon.ae", notes: "First aid kit refill packs. REORDER NOW.",
+    health: "below", autoDeductRules: [],
+    recentLedger: [
+      { id: "l-038-1", changeType: "manual_deduct", quantityChange: -1, actor: "Sarah Thompson", timestamp: "1 Apr 2026, 11:00" },
+      { id: "l-038-2", changeType: "reorder_received", quantityChange: 2, actor: "Jason Daswani", timestamp: "1 Mar 2026, 14:00" },
+    ],
+  },
+];
+
+export const inventorySuppliers: InventorySupplier[] = [
+  { id: "sup-1",  name: "Farook",             phone: "+971561749841", email: "deira1@farook.ae",  itemCount: 12, notes: "IMI branded folders and filing — Deira branch" },
+  { id: "sup-2",  name: "Saleem",             phone: "+971564242011", email: null,                itemCount: 4,  notes: "Plastic folder inserts" },
+  { id: "sup-3",  name: "Selva",              phone: "+971551641104", email: null,                itemCount: 4,  notes: "Stickers and labels" },
+  { id: "sup-4",  name: "Deira Stationery",   phone: null,            email: null,                itemCount: 4,  notes: "Co Srinivas — lanyards" },
+  { id: "sup-5",  name: "Shafqat",            phone: "+971555526742", email: null,                itemCount: 1,  notes: "Tote bags" },
+  { id: "sup-6",  name: "Fortune Stationery", phone: "+971505442093", email: null,                itemCount: 2,  notes: "A4 paper — high usage item" },
+  { id: "sup-7",  name: "Findel",             phone: null,            email: null,                itemCount: 3,  notes: "findel-dryad.ae — UK stationery supplier" },
+  { id: "sup-8",  name: "Amazon",             phone: null,            email: null,                itemCount: 15, notes: "amazon.ae — various consumables" },
+  { id: "sup-9",  name: "Dubai Library",      phone: null,            email: null,                itemCount: 1,  notes: "Whiteboard markers" },
+  { id: "sup-10", name: "Carrefour UAE",       phone: null,            email: null,                itemCount: 3,  notes: "Bulk cleaning supplies" },
+  { id: "sup-11", name: "ACCO Brands",         phone: null,            email: null,                itemCount: 4,  notes: "Filing and binding products" },
+  { id: "sup-12", name: "Al Ghurair Print",    phone: "+971042231234", email: null,                itemCount: 2,  notes: "Custom print orders" },
+  { id: "sup-13", name: "GEMS Supplies",       phone: null,            email: null,                itemCount: 5,  notes: "School-grade stationery" },
+  { id: "sup-14", name: "Lulu Hypermarket",    phone: null,            email: null,                itemCount: 4,  notes: "General consumables backup" },
+];
+
+export const reorderAlerts: ReorderAlert[] = [
+  { id: "ra-001", itemName: "Box File Folder — Red (Y1)",              category: "Folders & Files",      currentStock: 12, minStock: 15, reorderQty: 30, supplierName: "Farook",         supplierPhone: "+971561749841", supplierEmail: "deira1@farook.ae", amazonLink: null,                  status: "open",    openedAt: "17 Apr 2026" },
+  { id: "ra-002", itemName: "Subject Sticker — Maths (Primary KG1–Y6)",category: "Stickers & Labels",    currentStock: 8,  minStock: 10, reorderQty: 20, supplierName: "Selva",          supplierPhone: "+971551641104", supplierEmail: null,               amazonLink: null,                  status: "open",    openedAt: "17 Apr 2026" },
+  { id: "ra-003", itemName: "Behaviour Rules Sticker",                 category: "Stickers & Labels",    currentStock: 9,  minStock: 20, reorderQty: 40, supplierName: "Selva",          supplierPhone: "+971551641104", supplierEmail: null,               amazonLink: null,                  status: "ordered", openedAt: "15 Apr 2026" },
+  { id: "ra-004", itemName: "Lanyard — Yellow (KG2)",                  category: "Lanyards",             currentStock: 8,  minStock: 10, reorderQty: 20, supplierName: "Deira Stationery",supplierPhone: null,           supplierEmail: null,               amazonLink: null,                  status: "open",    openedAt: "16 Apr 2026" },
+  { id: "ra-005", itemName: "Whiteboard Markers — Black",              category: "Writing Instruments",  currentStock: 4,  minStock: 5,  reorderQty: 15, supplierName: "Dubai Library",  supplierPhone: null,            supplierEmail: null,               amazonLink: null,                  status: "open",    openedAt: "16 Apr 2026" },
+  { id: "ra-006", itemName: "First Aid Kit Refill",                    category: "Health & Safety",      currentStock: 2,  minStock: 2,  reorderQty: 2,  supplierName: "Amazon",         supplierPhone: null,            supplierEmail: null,               amazonLink: "https://amazon.ae",  status: "open",    openedAt: "14 Apr 2026" },
+  { id: "ra-007", itemName: "Plastic Folder Insert — Red (Y1)",        category: "Plastic Folders",      currentStock: 21, minStock: 20, reorderQty: 50, supplierName: "Saleem",         supplierPhone: "+971564242011", supplierEmail: null,               amazonLink: null,                  status: "ignored", openedAt: "13 Apr 2026" },
+];
+
+export const stockLedgerEntries: StockLedgerEntry[] = [
+  { id: "sl-001", itemName: "Box File Folder — Orange (KG1)",   category: "Folders & Files",     changeType: "auto_deduct",          quantityChange: -1,  actor: "System (Enrolment)",  timestamp: "17 Apr 2026, 10:14" },
+  { id: "sl-002", itemName: "Subject Sticker — Maths (Primary)",category: "Stickers & Labels",   changeType: "auto_deduct",          quantityChange: -3,  actor: "System (Enrolment)",  timestamp: "17 Apr 2026, 10:14" },
+  { id: "sl-003", itemName: "Tote Bag",                         category: "Bags",                changeType: "auto_deduct",          quantityChange: -1,  actor: "System (Enrolment)",  timestamp: "17 Apr 2026, 10:14" },
+  { id: "sl-004", itemName: "Lanyard — Yellow (KG2)",           category: "Lanyards",            changeType: "auto_deduct",          quantityChange: -2,  actor: "System (Enrolment)",  timestamp: "16 Apr 2026, 09:00" },
+  { id: "sl-005", itemName: "Whiteboard Markers — Black",       category: "Writing Instruments", changeType: "manual_deduct",        quantityChange: -2,  actor: "Ahmed Khalil",        timestamp: "16 Apr 2026, 09:00" },
+  { id: "sl-006", itemName: "Pens — Blue Ballpoint",            category: "Writing Instruments", changeType: "manual_deduct",        quantityChange: -2,  actor: "Sarah Thompson",      timestamp: "15 Apr 2026, 11:00" },
+  { id: "sl-007", itemName: "A4 Paper — White 80gsm",           category: "Paper Products",      changeType: "manual_deduct",        quantityChange: -3,  actor: "Sarah Thompson",      timestamp: "17 Apr 2026, 09:00" },
+  { id: "sl-008", itemName: "Box File Folder — Red (Y1)",       category: "Folders & Files",     changeType: "auto_deduct",          quantityChange: -3,  actor: "System (Enrolment)",  timestamp: "17 Apr 2026, 09:00" },
+  { id: "sl-009", itemName: "Behaviour Rules Sticker",          category: "Stickers & Labels",   changeType: "auto_deduct",          quantityChange: -4,  actor: "System (Enrolment)",  timestamp: "17 Apr 2026, 09:30" },
+  { id: "sl-010", itemName: "Box File Folder — Grey (Y5/Y6)",   category: "Folders & Files",     changeType: "auto_deduct",          quantityChange: -2,  actor: "System (Enrolment)",  timestamp: "17 Apr 2026, 10:00" },
+  { id: "sl-011", itemName: "A4 Paper — White 80gsm",           category: "Paper Products",      changeType: "reorder_received",     quantityChange: 20,  actor: "Jason Daswani",       timestamp: "10 Apr 2026, 14:00" },
+  { id: "sl-012", itemName: "Box File Folder — Orange (KG1)",   category: "Folders & Files",     changeType: "reorder_received",     quantityChange: 30,  actor: "Jason Daswani",       timestamp: "10 Apr 2026, 14:00" },
+  { id: "sl-013", itemName: "Plastic Folder Insert — Yellow",   category: "Plastic Folders",     changeType: "reorder_received",     quantityChange: 50,  actor: "Jason Daswani",       timestamp: "10 Apr 2026, 14:00" },
+  { id: "sl-014", itemName: "Whiteboard Markers — Black",       category: "Writing Instruments", changeType: "waste",                quantityChange: -1,  actor: "Sarah Thompson",      timestamp: "10 Apr 2026, 11:00" },
+  { id: "sl-015", itemName: "Subject Sticker — English Primary",category: "Stickers & Labels",   changeType: "auto_deduct",          quantityChange: -2,  actor: "System (Enrolment)",  timestamp: "16 Apr 2026, 10:00" },
+  { id: "sl-016", itemName: "Lanyard — Red (Y1)",               category: "Lanyards",            changeType: "reorder_received",     quantityChange: 20,  actor: "Jason Daswani",       timestamp: "10 Apr 2026, 14:00" },
+  { id: "sl-017", itemName: "IMI Branded Pens",                 category: "Branded Materials",   changeType: "manual_deduct",        quantityChange: -50, actor: "Jason Daswani",       timestamp: "1 Apr 2026, 10:00" },
+  { id: "sl-018", itemName: "Behaviour Rules Sticker",          category: "Stickers & Labels",   changeType: "manual_deduct",        quantityChange: -2,  actor: "Sarah Thompson",      timestamp: "10 Apr 2026, 11:00" },
+  { id: "sl-019", itemName: "First Aid Kit Refill",             category: "Health & Safety",     changeType: "manual_deduct",        quantityChange: -1,  actor: "Sarah Thompson",      timestamp: "1 Apr 2026, 11:00" },
+  { id: "sl-020", itemName: "A4 Paper — White 80gsm",           category: "Paper Products",      changeType: "stock_take_correction", quantityChange: 2,   actor: "Jason Daswani",      timestamp: "15 Mar 2026, 10:00" },
+  { id: "sl-021", itemName: "Lanyard — Red (Y1)",               category: "Lanyards",            changeType: "auto_deduct_failed",    quantityChange: 0,   stockBefore: 0,  stockAfter: 0,  actor: "System (Enrolment)", reference: "ENR-0524",    timestamp: "15 Apr 2026, 14:22" },
+  { id: "sl-022", itemName: "Tote Bag",                         category: "Bags",                changeType: "manual_add",            quantityChange: 25,  stockBefore: 3,  stockAfter: 28, actor: "Jason Daswani",      reference: "PO-2026-041", timestamp: "14 Apr 2026, 09:30" },
+  { id: "sl-023", itemName: "Pens — Blue Ballpoint",            category: "Writing Instruments", changeType: "waste",                 quantityChange: -3,  stockBefore: 45, stockAfter: 42, actor: "Sarah Mitchell",     timestamp: "13 Apr 2026, 16:00" },
+  { id: "sl-024", itemName: "Box File Folder — Green (Y3)",     category: "Folders & Files",     changeType: "stock_take_correction", quantityChange: 2,   stockBefore: 16, stockAfter: 18, actor: "Nadia Al-Hassan",    reference: "STKT-APR26",  timestamp: "12 Apr 2026, 10:00" },
+  { id: "sl-025", itemName: "A4 Paper — White 80gsm",           category: "Paper Products",      changeType: "auto_deduct",           quantityChange: -5,  stockBefore: 200,stockAfter: 195,actor: "System (Enrolment)", reference: "ENR-0521",    timestamp: "11 Apr 2026, 08:45" },
+  { id: "sl-026", itemName: "Behaviour Rules Sticker",          category: "Stickers & Labels",   changeType: "reorder_received",      quantityChange: 40,  stockBefore: 9,  stockAfter: 49, actor: "Omar Farhat",        reference: "PO-2026-039", timestamp: "9 Apr 2026, 13:00"  },
+  { id: "sl-027", itemName: "First Aid Kit Refill",             category: "Health & Safety",     changeType: "manual_deduct",         quantityChange: -1,  stockBefore: 3,  stockAfter: 2,  actor: "Sarah Thompson",     timestamp: "8 Apr 2026, 11:15"  },
+  { id: "sl-028", itemName: "IMI Branded Pens",                 category: "Branded Materials",   changeType: "stock_take_correction", quantityChange: -5,  stockBefore: 145,stockAfter: 140,actor: "Jason Daswani",      reference: "STKT-APR26",  timestamp: "7 Apr 2026, 15:30"  },
+];
