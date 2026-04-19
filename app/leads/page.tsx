@@ -409,8 +409,8 @@ function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
     { icon: Eye, label: "View", onClick: onView },
     { icon: MoveRight, label: "Move Stage", onClick: () => {} },
     { icon: StickyNote, label: "Log Note", onClick: () => {} },
-    { icon: XCircle, label: "Mark Lost", onClick: () => {}, hidden: !can('leads.delete') },
-    { icon: Archive, label: "Archive", onClick: () => {}, hidden: !can('leads.delete') },
+    { icon: XCircle, label: "Mark Lost", onClick: () => {}, hidden: !can('delete.records') },
+    { icon: Archive, label: "Archive", onClick: () => {}, hidden: !can('delete.records') },
   ];
 
   return (

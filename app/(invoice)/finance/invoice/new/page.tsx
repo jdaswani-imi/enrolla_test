@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { students, staffMembers, invoices, type Student } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
+import { usePermission } from '@/lib/use-permission';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -378,6 +379,7 @@ function PDFPreview({
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const { can } = usePermission();
   const today = todayStr();
   const invoiceNo = useMemo(() => nextInvoiceNumber(), []);
   const [status, setStatus] = useState<'Draft' | 'Issued'>('Draft');
@@ -812,6 +814,7 @@ export default function NewInvoicePage() {
               <div className="mb-8">
 
                 {/* Discount */}
+                {can('approve.discount') && (
                 <div className="rounded-xl hover:bg-slate-50 transition-colors">
                   <div className="flex items-center justify-between py-3 px-4">
                     <div className="flex items-center">
@@ -873,6 +876,7 @@ export default function NewInvoicePage() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Enrolment fee */}
                 <div className="flex items-center justify-between py-3 px-4 rounded-xl hover:bg-slate-50 transition-colors">

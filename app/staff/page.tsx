@@ -145,7 +145,7 @@ function RowActionsMenu({
     { icon: Eye,       label: "View Profile",         onClick: onViewProfile, danger: false, permission: null               },
     { icon: Edit2,     label: "Edit",                  onClick: () => {},      danger: false, permission: 'staff.edit'       },
     { icon: RefreshCw, label: "Assign Cover",          onClick: () => {},      danger: false, permission: null               },
-    { icon: UserMinus, label: "Initiate Off-boarding", onClick: () => {},      danger: true,  permission: 'staff.initiateOffboarding' },
+    { icon: UserMinus, label: "Initiate Off-boarding", onClick: () => {},      danger: true,  permission: 'offboard.staff' },
     { icon: ShieldOff, label: "Revoke Access",         onClick: () => {},      danger: true,  permission: 'staff.revokeAccess'        },
   ];
   const actions = allActions.filter(a => a.permission === null || can(a.permission));

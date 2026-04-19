@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
@@ -21,10 +21,26 @@ import {
   ChevronDown,
   ChevronRight,
   Upload,
+  Download,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { studentDetail } from "@/lib/mock-data";
+import { ExportDialog, type ExportFormat } from "@/components/ui/export-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+type FireToast = (msg: string, tone?: "default" | "warning") => void;
+
+const STUDENT_NAME = "Aisha Rahman";
+const STUDENT_ID = "IMI-0001";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -76,15 +92,24 @@ function SessionDots({
 
 // ─── Zone 1 — Profile Header ──────────────────────────────────────────────────
 
-function ProfileHeader() {
-  const quickActions: { label: string; Icon: React.ElementType; href?: string }[] = [
-    { label: "Create Invoice",    Icon: FileText },
-    { label: "Add Enrolment",     Icon: Plus },
-    { label: "Raise Concern",     Icon: AlertTriangle },
-    { label: "Log Note",          Icon: PenLine },
-    { label: "Send Message",      Icon: Send },
-    { label: "New Task",          Icon: ListPlus },
-    { label: "Mark Attendance",   Icon: BookOpen, href: "/attendance" },
+type HeaderAction =
+  | "addEnrolment"
+  | "raiseConcern"
+  | "logNote"
+  | "sendMessage"
+  | "newTask";
+
+function ProfileHeader({ fireToast }: { fireToast: FireToast }) {
+  const router = useRouter();
+  const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
+
+  const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void }[] = [
+    { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${STUDENT_ID}`) },
+    { label: "Add Enrolment",  Icon: Plus, onClick: () => setOpenDialog("addEnrolment") },
+    { label: "Raise Concern",  Icon: AlertTriangle, onClick: () => setOpenDialog("raiseConcern") },
+    { label: "Log Note",       Icon: PenLine, onClick: () => setOpenDialog("logNote") },
+    { label: "Send Message",   Icon: Send, onClick: () => setOpenDialog("sendMessage") },
+    { label: "New Task",       Icon: ListPlus, onClick: () => setOpenDialog("newTask") },
   ];
 
   return (
@@ -96,8 +121,8 @@ function ProfileHeader() {
             <span className="text-white font-bold text-lg leading-none">AR</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 leading-tight">Aisha Rahman</h1>
-            <p className="text-xs text-slate-400 font-medium mt-0.5 leading-none">IMI-0001</p>
+            <h1 className="text-xl font-bold text-slate-900 leading-tight">{STUDENT_NAME}</h1>
+            <p className="text-xs text-slate-400 font-medium mt-0.5 leading-none">{STUDENT_ID}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-slate-300 text-slate-600">
                 Year 8
@@ -121,33 +146,466 @@ function ProfileHeader() {
             </span>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {quickActions.map(({ label, Icon, href }) =>
-              href ? (
-                <Link
-                  key={label}
-                  href={href}
-                  aria-label={label}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <Icon className="w-3 h-3 shrink-0" />
-                  {label}
-                </Link>
-              ) : (
-                <button
-                  key={label}
-                  type="button"
-                  aria-label={label}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <Icon className="w-3 h-3 shrink-0" />
-                  {label}
-                </button>
-              )
-            )}
+            {buttonActions.map(({ label, Icon, onClick }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onClick}
+                aria-label={label}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Icon className="w-3 h-3 shrink-0" />
+                {label}
+              </button>
+            ))}
+            <Link
+              href="/attendance"
+              aria-label="Mark Attendance"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <BookOpen className="w-3 h-3 shrink-0" />
+              Mark Attendance
+            </Link>
           </div>
         </div>
       </div>
+
+      <AddEnrolmentDialog
+        open={openDialog === "addEnrolment"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
+      <RaiseConcernDialog
+        open={openDialog === "raiseConcern"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
+      <LogNoteDialog
+        open={openDialog === "logNote"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
+      <SendMessageDialog
+        open={openDialog === "sendMessage"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
+      <NewTaskDialog
+        open={openDialog === "newTask"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
     </div>
+  );
+}
+
+// ─── Header Action Dialogs ────────────────────────────────────────────────────
+
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  return (
+    <label className="text-xs font-semibold text-slate-600">
+      {children}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </label>
+  );
+}
+
+const FIELD_INPUT =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400";
+
+function DialogActions({
+  onCancel,
+  onSubmit,
+  submitLabel = "Save",
+  submitDisabled,
+}: {
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitLabel?: string;
+  submitDisabled?: boolean;
+}) {
+  return (
+    <DialogFooter className="flex items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={submitDisabled}
+        className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {submitLabel}
+      </button>
+    </DialogFooter>
+  );
+}
+
+function AddEnrolmentDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [subject, setSubject] = useState("");
+  const [teacher, setTeacher] = useState("");
+  const [frequency, setFrequency] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const valid = subject && teacher && frequency && startDate;
+
+  function reset() {
+    setSubject("");
+    setTeacher("");
+    setFrequency("");
+    setStartDate("");
+  }
+  function submit() {
+    fireToast(`Enrolment added — ${subject || "new subject"}`);
+    reset();
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Add Enrolment</DialogTitle>
+          <DialogDescription>Enrol {STUDENT_NAME} in a new subject.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Subject</FieldLabel>
+            <select className={FIELD_INPUT} value={subject} onChange={(e) => setSubject(e.target.value)}>
+              <option value="">Select subject…</option>
+              <option>Y8 Maths</option>
+              <option>Y8 English</option>
+              <option>Y8 Science</option>
+              <option>Y8 History</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Teacher</FieldLabel>
+            <select className={FIELD_INPUT} value={teacher} onChange={(e) => setTeacher(e.target.value)}>
+              <option value="">Select teacher…</option>
+              <option>Mr Ahmed Khalil</option>
+              <option>Ms Sarah Mitchell</option>
+              <option>Mr Tariq Al-Amin</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Frequency</FieldLabel>
+            <select className={FIELD_INPUT} value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+              <option value="">Select frequency…</option>
+              <option>1× per week</option>
+              <option>2× per week</option>
+              <option>3× per week</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Start Date</FieldLabel>
+            <input type="date" className={FIELD_INPUT} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Save"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RaiseConcernDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [subject, setSubject] = useState("");
+  const [level, setLevel] = useState("L1");
+  const [description, setDescription] = useState("");
+  const valid = subject && description.trim().length > 0;
+
+  function submit() {
+    fireToast(`Concern raised — ${level} ${subject}`);
+    setSubject("");
+    setLevel("L1");
+    setDescription("");
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Raise Concern</DialogTitle>
+          <DialogDescription>Flag a concern for {STUDENT_NAME}.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Subject</FieldLabel>
+            <select className={FIELD_INPUT} value={subject} onChange={(e) => setSubject(e.target.value)}>
+              <option value="">Select subject…</option>
+              <option>Y8 Maths</option>
+              <option>Y8 English</option>
+              <option>Y8 Science</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Level</FieldLabel>
+            <select className={FIELD_INPUT} value={level} onChange={(e) => setLevel(e.target.value)}>
+              <option value="L1">L1 — Teacher + HOD</option>
+              <option value="L2">L2 — HOD + Academic Head</option>
+              <option value="L3">L3 — Academic Head + Admin Head</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Description</FieldLabel>
+            <textarea
+              className={cn(FIELD_INPUT, "min-h-[100px] resize-y")}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the concern…"
+            />
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Submit"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LogNoteDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [note, setNote] = useState("");
+  const [shared, setShared] = useState(false);
+  const valid = note.trim().length > 0;
+
+  function submit() {
+    fireToast(`Note saved — ${shared ? "shared with parent" : "internal only"}`);
+    setNote("");
+    setShared(false);
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Log Note</DialogTitle>
+          <DialogDescription>Add a note to {STUDENT_NAME}&apos;s record.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Note</FieldLabel>
+            <textarea
+              className={cn(FIELD_INPUT, "min-h-[120px] resize-y")}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Write your note…"
+            />
+          </div>
+          <div className="space-y-2">
+            <FieldLabel>Visibility</FieldLabel>
+            <label className="flex items-center gap-2.5 text-sm text-slate-700 cursor-pointer">
+              <button
+                type="button"
+                onClick={() => setShared((s) => !s)}
+                aria-pressed={shared}
+                className={cn(
+                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer",
+                  shared ? "bg-amber-500" : "bg-slate-300",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                    shared ? "translate-x-4" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+              <span>{shared ? "Shared with parent" : "Internal only"}</span>
+            </label>
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Save Note"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SendMessageDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [channel, setChannel] = useState<"WhatsApp" | "Email">("WhatsApp");
+  const [message, setMessage] = useState("");
+  const valid = message.trim().length > 0;
+
+  function submit() {
+    fireToast("Message queued — coming soon");
+    setMessage("");
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Send Message to Guardian</DialogTitle>
+          <DialogDescription>Send a message to the primary guardian.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel>To</FieldLabel>
+            <input
+              type="text"
+              readOnly
+              value="Fatima Rahman"
+              className={cn(FIELD_INPUT, "bg-slate-50 text-slate-600 cursor-not-allowed")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Channel</FieldLabel>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+              {(["WhatsApp", "Email"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setChannel(c)}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer",
+                    channel === c ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Message</FieldLabel>
+            <textarea
+              className={cn(FIELD_INPUT, "min-h-[100px] resize-y")}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Write your message…"
+            />
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Send"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewTaskDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [title, setTitle] = useState("");
+  const [priority, setPriority] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const valid = title && priority && dueDate && assignee;
+
+  function submit() {
+    fireToast(`Task saved — ${title}`);
+    setTitle("");
+    setPriority("");
+    setDueDate("");
+    setAssignee("");
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>New Task</DialogTitle>
+          <DialogDescription>Create a task linked to {STUDENT_NAME}.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Title</FieldLabel>
+            <input
+              type="text"
+              className={FIELD_INPUT}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Follow up on overdue invoice"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Priority</FieldLabel>
+            <select className={FIELD_INPUT} value={priority} onChange={(e) => setPriority(e.target.value)}>
+              <option value="">Select priority…</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Due Date</FieldLabel>
+            <input type="date" className={FIELD_INPUT} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Assignee</FieldLabel>
+            <select className={FIELD_INPUT} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+              <option value="">Select assignee…</option>
+              <option>Jason Daswani</option>
+              <option>Sarah Thompson</option>
+              <option>Ahmed Khalil</option>
+            </select>
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Save Task"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -540,14 +998,27 @@ const CAL_SESSIONS: Record<string, Record<number, { subject: string; teacher: st
   Fri: { 14: { subject: "Y8 Science", teacher: "Mr Tariq Al-Amin", color: "bg-blue-100 border-blue-300 text-blue-900"    } },
 };
 
-function CalendarTab() {
+function CalendarTab({ canExport, fireToast }: { canExport: boolean; fireToast: FireToast }) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100">
-        <p className="text-xs text-slate-400">
-          Week of Mon 21 Apr – Fri 25 Apr · Changes are made in Timetable
-        </p>
-      </div>
+    <div className="space-y-3">
+      {canExport && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => fireToast(`Downloading schedule for ${STUDENT_NAME}...`)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download Schedule
+          </button>
+        </div>
+      )}
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100">
+          <p className="text-xs text-slate-400">
+            Week of Mon 21 Apr – Fri 25 Apr · Changes are made in Timetable
+          </p>
+        </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -593,16 +1064,54 @@ function CalendarTab() {
           </tbody>
         </table>
       </div>
+      </div>
     </div>
   );
 }
 
 // ─── Tab 3 — Attendance ───────────────────────────────────────────────────────
 
-function AttendanceTab() {
+const ATTENDANCE_FORMATS: ExportFormat[] = [
+  {
+    id: "pdf",
+    label: "Attendance Report (PDF)",
+    description:
+      "Formatted attendance report showing per-subject rates, makeup log, and full history. Suitable for parent sharing.",
+    icon: "pdf",
+    recommended: true,
+  },
+  {
+    id: "csv",
+    label: "Raw Data (CSV)",
+    description: "All attendance records as a spreadsheet. One row per session.",
+    icon: "rows",
+  },
+];
+
+function AttendanceTab({ canExport }: { canExport: boolean }) {
   const { termRate, allTimeRate, consecutiveAbsences, noShows } = studentDetail.attendanceSummary;
+  const [exportOpen, setExportOpen] = useState(false);
   return (
     <div className="space-y-5">
+      {canExport && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Attendance
+          </button>
+        </div>
+      )}
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title={`Export Attendance — ${STUDENT_NAME}`}
+        recordCount={studentDetail.attendanceHistory.length}
+        formats={ATTENDANCE_FORMATS}
+      />
       {/* Summary strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
@@ -717,9 +1226,174 @@ function AttendanceTab() {
 
 // ─── Tab 4 — Invoices ─────────────────────────────────────────────────────────
 
-function InvoicesTab() {
+type StudentInvoiceRow = (typeof studentDetail.invoices)[number];
+
+const INVOICE_LINE_ITEMS: Record<string, { subject: string; sessions: number; rate: number }[]> = {
+  "INV-1042": [{ subject: "Y8 Maths",   sessions: 8, rate: 400 }],
+  "INV-0998": [{ subject: "Y8 English", sessions: 8, rate: 360 }],
+  "INV-0967": [{ subject: "Y8 Science", sessions: 4, rate: 360 }],
+  "INV-0821": [{ subject: "Y8 Maths",   sessions: 8, rate: 400 }],
+};
+
+const INVOICE_DUE_DATES: Record<string, string> = {
+  "INV-1042": "20 Apr 2025",
+  "INV-0998": "29 Mar 2025",
+  "INV-0967": "29 Mar 2025",
+  "INV-0821": "17 Jan 2025",
+};
+
+function InvoicePreviewDialog({
+  invoice,
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  invoice: StudentInvoiceRow | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  if (!invoice) return null;
+  const lineItems = INVOICE_LINE_ITEMS[invoice.id] ?? [{ subject: invoice.description, sessions: 1, rate: 0 }];
+  const subtotal = lineItems.reduce((sum, li) => sum + li.sessions * li.rate, 0);
+  const vat = Math.round(subtotal * 0.05);
+  const total = subtotal + vat;
+  const dueDate = INVOICE_DUE_DATES[invoice.id] ?? invoice.date;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="bg-[#0F172A] text-white border-b border-slate-800 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md bg-amber-500 flex items-center justify-center">
+                <span className="text-white font-bold text-base leading-none">IMI</span>
+              </div>
+              <div>
+                <DialogTitle className="text-white text-lg">TAX INVOICE</DialogTitle>
+                <DialogDescription className="text-slate-300">Improve ME Institute</DialogDescription>
+              </div>
+            </div>
+            <span
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-bold",
+                invoice.status === "Paid"
+                  ? "bg-emerald-500 text-white"
+                  : invoice.status === "Overdue"
+                    ? "bg-red-500 text-white"
+                    : "bg-amber-500 text-white",
+              )}
+            >
+              {invoice.status}
+            </span>
+          </div>
+        </DialogHeader>
+
+        <div className="p-6 space-y-5">
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Bill To</p>
+              <p className="text-sm font-bold text-slate-800 mt-1">Fatima Rahman</p>
+              <p className="text-sm text-slate-600">{STUDENT_NAME}</p>
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-slate-300 text-slate-600">
+                Year 8
+              </span>
+            </div>
+            <div className="text-right">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Invoice #</p>
+                <p className="text-sm font-mono font-semibold text-slate-800 mt-0.5">{invoice.id}</p>
+              </div>
+              <div className="mt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Issue Date</p>
+                <p className="text-sm text-slate-700 mt-0.5">{invoice.date} 2025</p>
+              </div>
+              <div className="mt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Due Date</p>
+                <p className="text-sm text-slate-700 mt-0.5">{dueDate}</p>
+              </div>
+            </div>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400">Subject</th>
+                <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sessions</th>
+                <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Rate</th>
+                <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lineItems.map((li, i) => (
+                <tr key={i} className="border-b border-slate-100">
+                  <td className="px-3 py-2.5 text-slate-700">{li.subject}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-700">{li.sessions}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-700">AED {li.rate.toLocaleString()}</td>
+                  <td className="px-3 py-2.5 text-right font-semibold text-slate-800">
+                    AED {(li.sessions * li.rate).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="flex justify-end">
+            <dl className="w-64 space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Subtotal</dt>
+                <dd className="text-slate-700 font-medium">AED {subtotal.toLocaleString()}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">VAT 5%</dt>
+                <dd className="text-slate-700 font-medium">AED {vat.toLocaleString()}</dd>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-1.5">
+                <dt className="text-slate-800 font-bold">Total Due</dt>
+                <dd className="text-slate-900 font-bold">AED {total.toLocaleString()}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => fireToast(`Downloading ${invoice.id}...`)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Download PDF
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InvoicesTab({ canExport, fireToast }: { canExport: boolean; fireToast: FireToast }) {
+  const [previewInvoice, setPreviewInvoice] = useState<StudentInvoiceRow | null>(null);
   return (
     <div className="space-y-4">
+      {canExport && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => fireToast(`Downloading all invoices for ${STUDENT_NAME} as PDF...`)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download All Invoices
+          </button>
+        </div>
+      )}
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -772,9 +1446,24 @@ function InvoicesTab() {
                         Record Payment
                       </button>
                     )}
-                    <Link href="/finance" className="text-xs text-slate-500 hover:text-amber-600 font-medium transition-colors cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewInvoice(inv)}
+                      className="text-xs text-slate-500 hover:text-amber-600 font-medium transition-colors cursor-pointer"
+                    >
                       View Invoice
-                    </Link>
+                    </button>
+                    {canExport && (
+                      <button
+                        type="button"
+                        onClick={() => fireToast(`Downloading ${inv.id}...`)}
+                        title={`Download ${inv.id}`}
+                        aria-label={`Download ${inv.id}`}
+                        className="inline-flex items-center justify-center h-6 w-6 rounded-md border border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+                      >
+                        <Download className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -782,6 +1471,13 @@ function InvoicesTab() {
           </tbody>
         </table>
       </div>
+
+      <InvoicePreviewDialog
+        invoice={previewInvoice}
+        open={previewInvoice !== null}
+        onOpenChange={(o) => !o && setPreviewInvoice(null)}
+        fireToast={fireToast}
+      />
     </div>
   );
 }
@@ -838,9 +1534,48 @@ function GradeAccordion({ subject, data }: { subject: string; data: typeof stude
   );
 }
 
-function GradesTab() {
+const GRADES_FORMATS: ExportFormat[] = [
+  {
+    id: "pdf",
+    label: "Progress Report (PDF)",
+    description:
+      "Formatted academic progress report. Shows predicted grades, targets, and assignment scores per subject.",
+    icon: "pdf",
+    recommended: true,
+  },
+  {
+    id: "csv",
+    label: "Grade Data (CSV)",
+    description: "All assignment scores as a spreadsheet.",
+    icon: "rows",
+  },
+];
+
+function GradesTab({ canExport }: { canExport: boolean }) {
+  const [exportOpen, setExportOpen] = useState(false);
+  const totalAssignments =
+    studentDetail.grades.maths.assignments.length + studentDetail.grades.english.assignments.length;
   return (
     <div className="space-y-4">
+      {canExport && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Grades
+          </button>
+        </div>
+      )}
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title={`Export Grades — ${STUDENT_NAME}`}
+        recordCount={totalAssignments}
+        formats={GRADES_FORMATS}
+      />
       <GradeAccordion subject="Y8 Maths"   data={studentDetail.grades.maths}   />
       <GradeAccordion subject="Y8 English" data={studentDetail.grades.english} />
     </div>
@@ -894,10 +1629,23 @@ function CoursesTab() {
 
 // ─── Tab 7 — Communication Log ────────────────────────────────────────────────
 
-function CommLogTab() {
+function CommLogTab({ canExport, fireToast }: { canExport: boolean; fireToast: FireToast }) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="space-y-3">
+      {canExport && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => fireToast(`Downloading communication log for ${STUDENT_NAME}...`)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Log
+          </button>
+        </div>
+      )}
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
             {["Date", "Channel", "Message", "Sent by", "Status"].map((h) => (
@@ -925,7 +1673,8 @@ function CommLogTab() {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -988,7 +1737,84 @@ function TasksTab() {
 
 // ─── Tab 9 — Concerns ─────────────────────────────────────────────────────────
 
-function ConcernsTab() {
+function AddNoteDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [note, setNote] = useState("");
+  const valid = note.trim().length > 0;
+  function submit() {
+    fireToast("Note added to concern");
+    setNote("");
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Add Note</DialogTitle>
+          <DialogDescription>Add a note to this concern.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-3">
+          <FieldLabel required>Note</FieldLabel>
+          <textarea
+            className={cn(FIELD_INPUT, "min-h-[100px] resize-y")}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Write your note…"
+          />
+        </div>
+        <DialogActions onCancel={() => onOpenChange(false)} onSubmit={submit} submitLabel="Save Note" submitDisabled={!valid} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DismissConcernDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [reason, setReason] = useState("");
+  const valid = reason.trim().length > 0;
+  function submit() {
+    fireToast("Concern dismissed — reason required", "warning");
+    setReason("");
+    onOpenChange(false);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Dismiss Concern</DialogTitle>
+          <DialogDescription>A reason is required to dismiss this concern.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-3">
+          <FieldLabel required>Reason</FieldLabel>
+          <textarea
+            className={cn(FIELD_INPUT, "min-h-[80px] resize-y")}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why is this concern being dismissed?"
+          />
+        </div>
+        <DialogActions onCancel={() => onOpenChange(false)} onSubmit={submit} submitLabel="Dismiss" submitDisabled={!valid} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToast: FireToast }) {
+  const [openDialog, setOpenDialog] = useState<"note" | "dismiss" | null>(null);
   return (
     <div className="space-y-4">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Active Concerns</p>
@@ -1023,45 +1849,248 @@ function ConcernsTab() {
               <dd className="text-slate-700 font-medium mt-0.5">{c.assignedTo}</dd>
             </div>
           </dl>
+          <div className="flex items-center gap-2 pt-2 border-t border-amber-100">
+            <button
+              type="button"
+              onClick={() => setOpenDialog("note")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+            >
+              <PenLine className="w-3 h-3" />
+              Add Note
+            </button>
+            {canEscalate && (
+              <button
+                type="button"
+                onClick={() => fireToast("Concern escalated to L2 — HOD and Academic Head notified")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <AlertTriangle className="w-3 h-3" />
+                Escalate to L2
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setOpenDialog("dismiss")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-600 transition-colors cursor-pointer ml-auto"
+            >
+              <XCircle className="w-3 h-3" />
+              Dismiss
+            </button>
+          </div>
         </div>
       ))}
       <div className="mt-2 px-4 py-3 rounded-lg border border-slate-100 bg-slate-50 text-xs text-slate-400 text-center">
         No dismissed concerns
       </div>
+
+      <AddNoteDialog
+        open={openDialog === "note"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
+      <DismissConcernDialog
+        open={openDialog === "dismiss"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        fireToast={fireToast}
+      />
     </div>
   );
 }
 
 // ─── Tab 10 — Tickets ────────────────────────────────────────────────────────
 
-function TicketsTab() {
+function RaiseTicketDialog({
+  open,
+  onOpenChange,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fireToast: FireToast;
+}) {
+  const [type, setType] = useState("");
+  const [subject, setSubject] = useState("");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState("Medium");
+  const valid = type && subject.trim() && description.trim();
+
+  function submit() {
+    fireToast("Ticket raised — reference TKT-001");
+    setType("");
+    setSubject("");
+    setDescription("");
+    setPriority("Medium");
+    onOpenChange(false);
+  }
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
-        <FileText className="w-7 h-7 text-slate-300" />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Raise Complaint Ticket</DialogTitle>
+          <DialogDescription>File a complaint or issue for {STUDENT_NAME}.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Type</FieldLabel>
+            <select className={FIELD_INPUT} value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="">Select type…</option>
+              <option>Academic</option>
+              <option>Billing</option>
+              <option>Scheduling</option>
+              <option>Conduct</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Subject</FieldLabel>
+            <input
+              type="text"
+              className={FIELD_INPUT}
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Brief subject line"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Description</FieldLabel>
+            <textarea
+              className={cn(FIELD_INPUT, "min-h-[100px] resize-y")}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe the issue…"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Priority</FieldLabel>
+            <div className="flex items-center gap-4">
+              {(["Low", "Medium", "High"] as const).map((p) => (
+                <label key={p} className="flex items-center gap-1.5 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ticket-priority"
+                    checked={priority === p}
+                    onChange={() => setPriority(p)}
+                    className="accent-amber-500"
+                  />
+                  {p}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Attachment</FieldLabel>
+            <button
+              type="button"
+              onClick={() => fireToast("File attach — coming soon")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Attach file
+            </button>
+          </div>
+        </div>
+        <DialogActions onCancel={() => onOpenChange(false)} onSubmit={submit} submitLabel="Submit Ticket" submitDisabled={!valid} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TicketsTab({ fireToast }: { fireToast: FireToast }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+        >
+          <Plus className="w-3 h-3" />
+          Raise Ticket
+        </button>
       </div>
-      <p className="text-sm font-medium text-slate-500">No complaint tickets raised for this student.</p>
-      <p className="text-xs text-slate-400">Tickets will appear here once raised.</p>
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+          <FileText className="w-7 h-7 text-slate-300" />
+        </div>
+        <p className="text-sm font-medium text-slate-500">No complaint tickets raised for this student.</p>
+        <p className="text-xs text-slate-400">Tickets will appear here once raised.</p>
+      </div>
+      <RaiseTicketDialog open={open} onOpenChange={setOpen} fireToast={fireToast} />
     </div>
   );
 }
 
 // ─── Tab 11 — Files ──────────────────────────────────────────────────────────
 
-function FilesTab() {
+const STUDENT_FILES = [
+  { name: "Term 3 Enrolment Contract.pdf",   uploadedOn: "6 Jan 2025",  uploadedBy: "Jason Daswani"  },
+  { name: "Assessment Report — Jan 2025.pdf", uploadedOn: "15 Jan 2025", uploadedBy: "Jason Daswani"  },
+  { name: "Guardian ID — Fatima Rahman.pdf",  uploadedOn: "12 Sep 2022", uploadedBy: "System"         },
+  { name: "Medical Note — Mar 2025.pdf",      uploadedOn: "3 Mar 2025",  uploadedBy: "Sarah Thompson" },
+];
+
+function FilesTab({
+  canDelete,
+  canExport,
+  fireToast,
+}: {
+  canDelete: boolean;
+  canExport: boolean;
+  fireToast: FireToast;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
-        <Upload className="w-7 h-7 text-slate-300" />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => fireToast("File upload — coming soon")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+        >
+          <Upload className="w-3 h-3" />
+          Upload File
+        </button>
       </div>
-      <p className="text-sm font-medium text-slate-500">No files uploaded for this student.</p>
-      <button
-        type="button"
-        className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-600 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
-      >
-        <Upload className="w-3.5 h-3.5" />
-        Upload File
-      </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {STUDENT_FILES.map((file) => (
+          <div
+            key={file.name}
+            className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex gap-3"
+          >
+            <div className="w-10 h-10 rounded-md bg-red-50 flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 text-red-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800 truncate">{file.name}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Uploaded {file.uploadedOn} · {file.uploadedBy}
+              </p>
+              <div className="flex items-center gap-2 mt-3">
+                {canExport && (
+                  <button
+                    type="button"
+                    onClick={() => fireToast(`Downloading ${file.name}...`)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => fireToast(`Deleted ${file.name}`, "warning")}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-600 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1073,6 +2102,12 @@ export default function StudentProfilePage() {
   useParams(); // ensures the [id] route is matched
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [toast, setToast] = useState<{ msg: string; tone: "default" | "warning" } | null>(null);
+
+  function fireToast(msg: string, tone: "default" | "warning" = "default") {
+    setToast({ msg, tone });
+    window.setTimeout(() => setToast(null), 2800);
+  }
 
   // Deep-link: read ?tab= query param on mount
   useEffect(() => {
@@ -1087,13 +2122,17 @@ export default function StudentProfilePage() {
     setActiveTab(tab as TabId);
   }
 
+  const canExport = can("export");
+  const canDelete = can("delete.records");
+  const canEscalate = can("approve.discount");
+
   return (
     <div
       className="-m-6 flex flex-col overflow-hidden"
       style={{ height: "calc(100dvh - 56px)" }}
     >
       {/* ── Zone 1: Profile Header ──────────────────────────────────────────── */}
-      <ProfileHeader />
+      <ProfileHeader fireToast={fireToast} />
 
       {/* ── Zones 2 + 3: Sidebar + Main Panel ──────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
@@ -1112,19 +2151,30 @@ export default function StudentProfilePage() {
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6">
             {activeTab === "overview"    && <OverviewTab    onTabChange={handleTabChange} />}
-            {activeTab === "calendar"    && <CalendarTab    />}
-            {activeTab === "attendance"  && <AttendanceTab  />}
-            {activeTab === "invoices"    && <InvoicesTab    />}
-            {activeTab === "grades"      && <GradesTab      />}
-            {activeTab === "courses"     && <CoursesTab     />}
-            {activeTab === "comms"       && <CommLogTab     />}
+            {activeTab === "calendar"    && <CalendarTab    canExport={canExport} fireToast={fireToast} />}
+            {activeTab === "attendance"  && <AttendanceTab  canExport={canExport} />}
+            {activeTab === "invoices"    && <InvoicesTab    canExport={canExport} fireToast={fireToast} />}
+            {activeTab === "grades"      && <GradesTab      canExport={canExport} />}
+            {activeTab === "courses"     && <CoursesTab />}
+            {activeTab === "comms"       && <CommLogTab     canExport={canExport} fireToast={fireToast} />}
             {activeTab === "tasks"       && <TasksTab       />}
-            {activeTab === "concerns"    && <ConcernsTab    />}
-            {activeTab === "tickets"     && <TicketsTab     />}
-            {activeTab === "files"       && <FilesTab       />}
+            {activeTab === "concerns"    && <ConcernsTab    canEscalate={canEscalate} fireToast={fireToast} />}
+            {activeTab === "tickets"     && <TicketsTab     fireToast={fireToast} />}
+            {activeTab === "files"       && <FilesTab       canDelete={canDelete} canExport={canExport} fireToast={fireToast} />}
           </div>
         </div>
       </div>
+
+      {toast && (
+        <div
+          className={cn(
+            "fixed bottom-6 right-6 z-[100] rounded-xl px-4 py-3 text-sm shadow-lg",
+            toast.tone === "warning" ? "bg-red-600 text-white" : "bg-slate-900 text-white",
+          )}
+        >
+          {toast.msg}
+        </div>
+      )}
     </div>
   );
 }

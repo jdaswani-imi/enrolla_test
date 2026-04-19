@@ -252,10 +252,12 @@ export default function ReportsPage() {
             Generate Report
           </button>
           )}
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
-            <Package className="w-4 h-4" />
-            Export All
-          </button>
+          {can('export.all') && (
+            <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer">
+              <Package className="w-4 h-4" />
+              Export All
+            </button>
+          )}
         </div>
       </div>
 

@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import SubjectsCatalogueSection from "./subjects-catalogue";
 
 // ─── Nav Structure ─────────────────────────────────────────────────────────────
 
@@ -759,47 +760,7 @@ function AcademicCalendarSection() {
 }
 
 // ─── Section 8: Subjects & Catalogue ──────────────────────────────────────────
-
-function SubjectsSection() {
-  const subjects = [
-    { name: "Primary Maths", dept: "Primary", groups: "Y1–Y6", duration: "60 min", rate: "AED 160–180" },
-    { name: "Primary English", dept: "Primary", groups: "Y1–Y6", duration: "60 min", rate: "AED 160–180" },
-    { name: "Primary Science", dept: "Primary", groups: "Y4–Y6", duration: "60 min", rate: "AED 150–180" },
-    { name: "Lower Sec Maths", dept: "Lower Secondary", groups: "Y7–Y9", duration: "60 min", rate: "Tier-based" },
-    { name: "Lower Sec English", dept: "Lower Secondary", groups: "Y7–Y9", duration: "60 min", rate: "Tier-based" },
-    { name: "Senior Maths", dept: "Senior", groups: "Y10–Y13", duration: "60 min", rate: "Tier-based" },
-  ];
-  return (
-    <div>
-      <SectionHeader
-        title="Subjects & Catalogue"
-        description="47 active subjects across 3 departments."
-        action={<AddButton label="Add Subject" />}
-      />
-      <Table headers={["Subject", "Department", "Year Groups", "Session Duration", "Rate", "Status"]}>
-        {subjects.map((s) => (
-          <tr key={s.name} className="hover:bg-slate-50 transition-colors">
-            <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{s.name}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{s.dept}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{s.groups}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{s.duration}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{s.rate}</td>
-            <td className="px-4 py-3.5">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                Active
-              </span>
-            </td>
-          </tr>
-        ))}
-      </Table>
-      <div className="mt-3 text-right">
-        <button className="text-sm text-amber-600 hover:text-amber-700 hover:underline cursor-pointer">
-          View all 47 subjects →
-        </button>
-      </div>
-    </div>
-  );
-}
+// Implementation lives in ./subjects-catalogue.tsx to keep this file tractable.
 
 // ─── Section 9: Staff & HR ─────────────────────────────────────────────────────
 
@@ -925,8 +886,8 @@ function fmtAction(key: string): string {
 }
 
 function RolesSection() {
-  const { role } = usePermission();
-  const isSuperAdmin = role === 'Super Admin';
+  const { role, can } = usePermission();
+  const canManageRoles = can('manage.roles');
 
   const [editMode, setEditMode]                   = useState(false);
   const [editedPermissions, setEditedPermissions] = useState<Record<string, Role[]>>({});
@@ -1026,7 +987,7 @@ function RolesSection() {
               Permissions updated — changes apply immediately
             </span>
           )}
-          {isSuperAdmin && !editMode && (
+          {canManageRoles && !editMode && (
             <button
               onClick={() => setEditMode(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600 transition-colors cursor-pointer"
@@ -1035,7 +996,7 @@ function RolesSection() {
               Edit Permissions
             </button>
           )}
-          {isSuperAdmin && editMode && (
+          {canManageRoles && editMode && (
             <>
               <button
                 onClick={handleCancel}
@@ -1846,7 +1807,7 @@ function renderSection(id: SectionId) {
     case "billing":          return <BillingSection />;
     case "payment-plans":    return <PaymentPlansSection />;
     case "academic-calendar":return <AcademicCalendarSection />;
-    case "subjects":         return <SubjectsSection />;
+    case "subjects":         return <SubjectsCatalogueSection />;
     case "staff-hr":         return <StaffHRSection />;
     case "roles":            return <RolesSection />;
     case "notifications":    return <NotificationsSection />;
@@ -1911,7 +1872,7 @@ export default function SettingsPage() {
 
       {/* Right Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className={cn("p-8", activeSection !== "roles" && "max-w-4xl")}>
+        <div className={cn("p-8", activeSection !== "roles" && activeSection !== "subjects" && "max-w-4xl")}>
           {renderSection(activeSection)}
         </div>
       </div>

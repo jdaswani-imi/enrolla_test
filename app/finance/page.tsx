@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -17,6 +18,9 @@ import {
   BookOpen,
   MoreHorizontal,
   Receipt,
+  Eye,
+  Bell,
+  Ban,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -27,12 +31,22 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   invoices,
   payments,
   creditLedger,
+  students,
   type Invoice,
   type InvoiceStatus,
   type PaymentMethod,
+  type Payment,
+  type Credit,
 } from "@/lib/mock-data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -120,58 +134,55 @@ function SummaryCard({
   );
 }
 
-// ─── Invoice Slide-Over ───────────────────────────────────────────────────────
+// ─── Invoice Preview Dialog ───────────────────────────────────────────────────
 
-function InvoiceSlideover({
+function InvoicePreviewDialog({
   invoice,
+  open,
   onClose,
 }: {
-  invoice: Invoice;
+  invoice: Invoice | null;
+  open: boolean;
   onClose: () => void;
 }) {
-  const [recordingPayment, setRecordingPayment] = useState(false);
-  const [payAmount, setPayAmount]   = useState(String(invoice.amount - invoice.amountPaid));
-  const [payMethod, setPayMethod]   = useState<PaymentMethod>("Bank Transfer");
-  const [payRef, setPayRef]         = useState("");
-  const [payNotes, setPayNotes]     = useState("");
+  if (!invoice) return null;
 
   const subtotal  = invoice.amount / 1.05;
   const vat       = invoice.amount - subtotal;
   const amountDue = invoice.amount - invoice.amountPaid;
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="font-mono font-bold text-slate-800 text-base">{invoice.id}</p>
-              <p className="text-xs text-slate-400">{invoice.issueDate}</p>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent showCloseButton={false} className="max-w-2xl w-full max-h-[90vh] overflow-y-auto p-0">
+        {/* Navy header */}
+        <div className="bg-[#0F172A] text-white px-6 py-5 rounded-t-xl flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-amber-500 flex items-center justify-center font-bold text-white text-lg">
+              IMI
             </div>
-            <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", STATUS_CONFIG[invoice.status])}>
-              {invoice.status === "Part" ? "Part Paid" : invoice.status}
-            </span>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-300">Tax Invoice</p>
+              <p className="font-mono font-bold text-xl mt-0.5">{invoice.id}</p>
+              <p className="text-xs text-slate-300 mt-1">
+                Issued {invoice.issueDate} · Due {invoice.dueDate}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 text-xs rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-              <Download className="w-3.5 h-3.5" />
-              PDF
-            </button>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-              <X className="w-4 h-4 text-slate-500" />
-            </button>
-          </div>
+          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", STATUS_CONFIG[invoice.status])}>
+            {invoice.status === "Part" ? "Part Paid" : invoice.status}
+          </span>
         </div>
 
-        <div className="flex-1 px-6 py-5 space-y-6">
-          {/* Invoice to */}
+        <div className="px-6 py-5 space-y-6">
+          {/* Bill To */}
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Invoice To</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Bill To</p>
             <p className="text-sm font-semibold text-slate-800">{invoice.guardian}</p>
-            <p className="text-sm text-slate-500">{invoice.student} · {invoice.yearGroup}</p>
-            <p className="text-sm text-slate-500">{invoice.department}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-slate-600">{invoice.student}</span>
+              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{invoice.yearGroup}</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">{invoice.department}</p>
           </div>
 
           {/* Line items */}
@@ -180,18 +191,18 @@ function InvoiceSlideover({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left text-xs text-slate-500 py-1.5 font-medium">Description</th>
-                  <th className="text-right text-xs text-slate-500 py-1.5 font-medium">Qty</th>
-                  <th className="text-right text-xs text-slate-500 py-1.5 font-medium">Unit</th>
-                  <th className="text-right text-xs text-slate-500 py-1.5 font-medium">Amount</th>
+                  <th className="text-left text-xs text-slate-500 py-2 font-medium">Subject</th>
+                  <th className="text-right text-xs text-slate-500 py-2 font-medium">Sessions</th>
+                  <th className="text-right text-xs text-slate-500 py-2 font-medium">Rate</th>
+                  <th className="text-right text-xs text-slate-500 py-2 font-medium">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-slate-100">
-                  <td className="py-2 text-slate-700 text-xs">{invoice.description}</td>
-                  <td className="py-2 text-right text-slate-600 text-xs">20</td>
-                  <td className="py-2 text-right text-slate-600 text-xs">AED {Math.round(subtotal / 20).toLocaleString()}</td>
-                  <td className="py-2 text-right text-slate-700 text-xs font-medium">{fmt(Math.round(subtotal))}</td>
+                  <td className="py-2 text-slate-700">{invoice.description}</td>
+                  <td className="py-2 text-right text-slate-600">20</td>
+                  <td className="py-2 text-right text-slate-600">AED {Math.round(subtotal / 20).toLocaleString()}</td>
+                  <td className="py-2 text-right text-slate-700 font-medium">{fmt(Math.round(subtotal))}</td>
                 </tr>
               </tbody>
             </table>
@@ -199,144 +210,724 @@ function InvoiceSlideover({
 
           {/* Totals */}
           <div className="space-y-1.5 border-t border-slate-200 pt-4">
-            {[
-              { label: "Subtotal",        value: fmt(Math.round(subtotal)) },
-              { label: "Discount",        value: "— AED 0" },
-              { label: "Total excl. VAT", value: fmt(Math.round(subtotal)) },
-              { label: "VAT (5%)",        value: fmt(Math.round(vat))      },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex justify-between text-sm">
-                <span className="text-slate-500">{label}</span>
-                <span className="text-slate-700">{value}</span>
-              </div>
-            ))}
-            <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-2 mt-2">
-              <span className="text-slate-800">Total</span>
-              <span className="text-slate-800">{fmt(invoice.amount)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Subtotal</span>
+              <span className="text-slate-700">{fmt(Math.round(subtotal))}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Amount Paid</span>
-              <span className="text-emerald-600">{invoice.amountPaid > 0 ? fmt(invoice.amountPaid) : "—"}</span>
+              <span className="text-slate-500">VAT (5%)</span>
+              <span className="text-slate-700">{fmt(Math.round(vat))}</span>
             </div>
-            <div className="flex justify-between text-base font-bold mt-1">
-              <span className="text-slate-800">Amount Due</span>
+            <div className="flex justify-between text-base font-bold border-t border-slate-200 pt-2 mt-2">
+              <span className="text-slate-800">Total Due</span>
               <span className={amountDue > 0 ? "text-red-600" : "text-emerald-600"}>
                 {amountDue > 0 ? fmt(amountDue) : "Paid in full"}
               </span>
             </div>
           </div>
 
-          {/* Payment history */}
+          {/* Bank transfer details */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Bank Transfer Details</p>
+            <div className="grid grid-cols-2 gap-y-1 text-xs text-slate-600">
+              <span className="text-slate-400">Bank</span><span>ADCB KBW</span>
+              <span className="text-slate-400">Account Name</span><span>Improve ME Institute</span>
+              <span className="text-slate-400">IBAN</span><span className="font-mono">AE12 3456 7890 1234 5678 901</span>
+              <span className="text-slate-400">Swift</span><span className="font-mono">ADCBAEAA</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => toast.success(`Downloading ${invoice.id}...`)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Download PDF
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Record Payment Dialog ────────────────────────────────────────────────────
+
+function RecordPaymentDialog({
+  invoice,
+  open,
+  onClose,
+  onSaved,
+}: {
+  invoice: Invoice | null;
+  open: boolean;
+  onClose: () => void;
+  onSaved: (id: string) => void;
+}) {
+  const amountDue = invoice ? invoice.amount - invoice.amountPaid : 0;
+  const [payAmount, setPayAmount] = useState("0");
+  const [payDate, setPayDate]     = useState(new Date().toISOString().slice(0, 10));
+  const [payMethod, setPayMethod] = useState<PaymentMethod>("Bank Transfer");
+  const [payRef, setPayRef]       = useState("");
+  const [payNotes, setPayNotes]   = useState("");
+
+  useEffect(() => {
+    if (invoice && open) {
+      setPayAmount(String(amountDue));
+      setPayDate(new Date().toISOString().slice(0, 10));
+      setPayMethod("Bank Transfer");
+      setPayRef("");
+      setPayNotes("");
+    }
+  }, [invoice, open, amountDue]);
+
+  if (!invoice) return null;
+
+  const showRef = payMethod === "Bank Transfer" || payMethod === "Cheque";
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Record Payment — {invoice.id}</DialogTitle>
+          <DialogDescription>{invoice.student} · {invoice.yearGroup}</DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-500">Amount Due</p>
+              <p className="text-lg font-bold text-slate-800">{fmt(amountDue)}</p>
+            </div>
+            <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", STATUS_CONFIG[invoice.status])}>
+              {invoice.status === "Part" ? "Part Paid" : invoice.status}
+            </span>
+          </div>
+
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Payment History</p>
-            {invoice.amountPaid === 0 ? (
-              <p className="text-sm text-slate-400 italic">No payments recorded</p>
-            ) : (
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-slate-50 text-xs">
-                  <span className="text-slate-600">Bank Transfer · {invoice.issueDate}</span>
-                  <span className="font-semibold text-slate-700">{fmt(invoice.amountPaid)}</span>
-                </div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="rp-amount">
+              Amount Paid <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="rp-amount"
+              type="number"
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="rp-date">
+              Payment Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="rp-date"
+              type="date"
+              value={payDate}
+              onChange={(e) => setPayDate(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-600 mb-1.5">
+              Method <span className="text-red-500">*</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(["Cash", "Card", "Bank Transfer", "Cheque"] as PaymentMethod[]).map((m) => (
+                <label
+                  key={m}
+                  className={cn(
+                    "flex items-center gap-2 border rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors",
+                    payMethod === m ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-600 hover:border-amber-300"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="rp-method"
+                    value={m}
+                    checked={payMethod === m}
+                    onChange={() => setPayMethod(m)}
+                    className="accent-amber-500"
+                  />
+                  {m}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {showRef && (
+            <div>
+              <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="rp-ref">Reference #</label>
+              <input
+                id="rp-ref"
+                type="text"
+                value={payRef}
+                onChange={(e) => setPayRef(e.target.value)}
+                placeholder={payMethod === "Cheque" ? "e.g. CHQ-441" : "e.g. TRF-88421"}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="rp-notes">Notes (optional)</label>
+            <textarea
+              id="rp-notes"
+              rows={2}
+              value={payNotes}
+              onChange={(e) => setPayNotes(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              toast.success(`Payment recorded for ${invoice.id}`);
+              onSaved(invoice.id);
+              onClose();
+            }}
+            className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Save Payment
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Void Confirm Dialog ──────────────────────────────────────────────────────
+
+function VoidConfirmDialog({
+  invoice,
+  open,
+  onClose,
+  onConfirm,
+}: {
+  invoice: Invoice | null;
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (id: string) => void;
+}) {
+  if (!invoice) return null;
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Void invoice?</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to void {invoice.id}? This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => { onConfirm(invoice.id); onClose(); }}
+            className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+          >
+            Void Invoice
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Invoice row three-dot menu ───────────────────────────────────────────────
+
+function InvoiceRowMenu({
+  invoice,
+  onView,
+  onVoid,
+}: {
+  invoice: Invoice;
+  onView: () => void;
+  onVoid: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  const actions: { icon: typeof Eye; label: string; onClick: () => void; danger?: boolean }[] = [
+    { icon: Eye,      label: "View Invoice",          onClick: onView },
+    { icon: Bell,     label: "Send Payment Reminder", onClick: () => toast("Payment reminder queued — coming soon") },
+    { icon: Download, label: "Download PDF",          onClick: () => toast.success(`Downloading ${invoice.id}...`) },
+    { icon: Ban,      label: "Mark as Void",          onClick: onVoid, danger: true },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        aria-label="Row actions"
+        className="p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+      >
+        <MoreHorizontal className="w-4 h-4 text-slate-400" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[200px] py-1">
+          {actions.map((a) => {
+            const Icon = a.icon;
+            return (
+              <button
+                key={a.label}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); a.onClick(); setOpen(false); }}
+                className={cn(
+                  "w-full text-left flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors cursor-pointer",
+                  a.danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                {a.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Payment Detail Dialog ────────────────────────────────────────────────────
+
+function PaymentDetailDialog({
+  payment,
+  open,
+  onClose,
+}: {
+  payment: Payment | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!payment) return null;
+  const ref = payment.reference || `PMT-${payment.invoice.replace("INV-", "")}`;
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Payment Detail</DialogTitle>
+          <DialogDescription>{ref} · {payment.date}</DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Student</p>
+              <p className="text-slate-800 font-medium mt-0.5">{payment.student}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Invoice</p>
+              <p className="text-slate-800 font-mono mt-0.5">{payment.invoice}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Amount</p>
+              <p className="text-slate-800 font-bold mt-0.5">{fmt(payment.amount)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Method</p>
+              <span className={cn("inline-block px-2.5 py-1 rounded-full text-xs font-semibold mt-0.5", METHOD_CONFIG[payment.method])}>
+                {payment.method}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Reference</p>
+              <p className="text-slate-800 font-mono mt-0.5">{payment.reference || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Recorded By</p>
+              <p className="text-slate-800 mt-0.5">{payment.recordedBy}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Recorded At</p>
+              <p className="text-slate-800 mt-0.5">{payment.date}, 14:30</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => toast.success(`Downloading receipt ${ref}...`)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            Download Receipt
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Issue Credit Dialog ──────────────────────────────────────────────────────
+
+const CREDIT_REASONS = [
+  "Session cancelled by teacher",
+  "Billing adjustment",
+  "Overpayment",
+  "Goodwill credit",
+  "Rescheduling disruption",
+  "Other",
+];
+
+function IssueCreditDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [studentQuery, setStudentQuery] = useState("");
+  const [studentPick, setStudentPick]   = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState(CREDIT_REASONS[0]);
+  const [notes, setNotes]   = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setStudentQuery("");
+      setStudentPick(null);
+      setAmount("");
+      setReason(CREDIT_REASONS[0]);
+      setNotes("");
+    }
+  }, [open]);
+
+  const matches = useMemo(() => {
+    if (!studentQuery || studentPick) return [];
+    const q = studentQuery.toLowerCase();
+    return students.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [studentQuery, studentPick]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Issue Credit</DialogTitle>
+          <DialogDescription>Apply a credit note to a student account.</DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-5 space-y-4">
+          <div className="relative">
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="ic-student">
+              Student <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="ic-student"
+              type="text"
+              value={studentPick ?? studentQuery}
+              onChange={(e) => { setStudentPick(null); setStudentQuery(e.target.value); }}
+              placeholder="Search by student name…"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+            {matches.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                {matches.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => { setStudentPick(s.name); setStudentQuery(""); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                  >
+                    <span className="font-medium text-slate-800">{s.name}</span>
+                    <span className="text-xs text-slate-400 ml-2">{s.yearGroup} · {s.department}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Record Payment — accordion */}
-          {amountDue > 0 && (
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="ic-amount">
+              Amount (AED) <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="ic-amount"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="ic-reason">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="ic-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            >
+              {CREDIT_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="ic-notes">Notes</label>
+            <textarea
+              id="ic-notes"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => { toast.success("Credit issued successfully"); onClose(); }}
+            className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Issue Credit
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Credit Detail Dialog ─────────────────────────────────────────────────────
+
+function CreditDetailDialog({
+  credit,
+  open,
+  onClose,
+}: {
+  credit: (Credit & { ref: string }) | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!credit) return null;
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Credit Detail</DialogTitle>
+          <DialogDescription>{credit.ref} · {credit.date}</DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div>
-              {!recordingPayment ? (
-                <button
-                  onClick={() => setRecordingPayment(true)}
-                  className="w-full py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-                >
-                  Record Payment
-                </button>
-              ) : (
-                <div className="border border-amber-200 rounded-xl bg-amber-50/40 p-4 space-y-3">
-                  <p className="text-sm font-semibold text-slate-700">Record Payment</p>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block" htmlFor="pay-amount">Amount (AED)</label>
-                    <input
-                      id="pay-amount"
-                      type="number"
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Payment Method</label>
-                    <div className="flex flex-wrap gap-2">
-                      {(["Cash", "Bank Transfer", "Cheque", "Card"] as PaymentMethod[]).map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => setPayMethod(m)}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer",
-                            payMethod === m
-                              ? "bg-amber-500 text-white border-amber-500"
-                              : "bg-white text-slate-600 border-slate-200 hover:border-amber-300"
-                          )}
-                        >
-                          {m}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block" htmlFor="pay-ref">Reference #</label>
-                    <input
-                      id="pay-ref"
-                      type="text"
-                      value={payRef}
-                      onChange={(e) => setPayRef(e.target.value)}
-                      placeholder="e.g. TRF-88421"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block" htmlFor="pay-date">Date Received</label>
-                    <input
-                      id="pay-date"
-                      type="date"
-                      defaultValue="2025-04-16"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block" htmlFor="pay-notes">Notes (optional)</label>
-                    <textarea
-                      id="pay-notes"
-                      rows={2}
-                      value={payNotes}
-                      onChange={(e) => setPayNotes(e.target.value)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-                      Save Payment
-                    </button>
-                    <button
-                      onClick={() => setRecordingPayment(false)}
-                      className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Student</p>
+              <p className="text-slate-800 font-medium mt-0.5">{credit.student}</p>
             </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Amount</p>
+              <p className="text-slate-800 font-bold mt-0.5">{fmt(credit.amount)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Issued By</p>
+              <p className="text-slate-800 mt-0.5">{credit.issuedBy}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Status</p>
+              <span className={cn(
+                "inline-block px-2.5 py-1 rounded-full text-xs font-semibold mt-0.5",
+                credit.status === "Unused" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+              )}>
+                {credit.status}
+              </span>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-slate-400 uppercase tracking-wide">Reason</p>
+              <p className="text-slate-800 mt-0.5">{credit.reason}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+          {credit.status === "Unused" && (
+            <button
+              type="button"
+              onClick={() => { toast.success(`Applying ${credit.ref} to invoice...`); onClose(); }}
+              className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              Apply to Invoice
+            </button>
           )}
         </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Generate Report Dialog ───────────────────────────────────────────────────
+
+const REPORT_TYPES = [
+  "Revenue Summary",
+  "VAT Report",
+  "Outstanding Invoices",
+  "Payment Reconciliation",
+];
+
+function GenerateReportDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [type, setType]   = useState(REPORT_TYPES[0]);
+  const [from, setFrom]   = useState("");
+  const [to, setTo]       = useState("");
+  const [format, setFormat] = useState<"PDF" | "CSV">("PDF");
+
+  useEffect(() => {
+    if (open) {
+      setType(REPORT_TYPES[0]);
+      setFrom("");
+      setTo("");
+      setFormat("PDF");
+    }
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Generate Report</DialogTitle>
+          <DialogDescription>Create a new financial report for a custom period.</DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="gr-type">
+              Report Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="gr-type"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            >
+              {REPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="gr-from">
+                From <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="gr-from"
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="gr-to">
+                To <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="gr-to"
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-600 mb-1.5">
+              Format <span className="text-red-500">*</span>
+            </p>
+            <div className="inline-flex border border-slate-200 rounded-lg p-0.5 bg-slate-50">
+              {(["PDF", "CSV"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFormat(f)}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer",
+                    format === f ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => { toast.success("Report queued — ready shortly"); onClose(); }}
+            className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Generate
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -350,7 +941,12 @@ function InvoicesTab() {
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
   const [search, setSearch]             = useState("");
-  const [selected, setSelected]         = useState<Invoice | null>(null);
+
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [payInvoice, setPayInvoice]         = useState<Invoice | null>(null);
+  const [voidInvoice, setVoidInvoice]       = useState<Invoice | null>(null);
+  const [paidOverrides, setPaidOverrides]   = useState<Set<string>>(new Set());
+  const [voidedOverrides, setVoidedOverrides] = useState<Set<string>>(new Set());
 
   // Sort
   const [sortField, setSortField] = useState<string | null>(null);
@@ -467,9 +1063,11 @@ function InvoicesTab() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <button className="px-3 py-1.5 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Bulk Generate
-          </button>
+          {can('bulk.generate.invoices') && (
+            <button className="px-3 py-1.5 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+              Bulk Generate
+            </button>
+          )}
           {can('export') && (
             <button
               type="button"
@@ -521,10 +1119,20 @@ function InvoicesTab() {
               </tr>
             </thead>
             <tbody>
-              {paginated.map((inv) => (
+              {paginated.map((baseInv) => {
+                const inv = {
+                  ...baseInv,
+                  status: voidedOverrides.has(baseInv.id)
+                    ? ("Cancelled" as InvoiceStatus)
+                    : paidOverrides.has(baseInv.id)
+                      ? ("Paid" as InvoiceStatus)
+                      : baseInv.status,
+                  amountPaid: paidOverrides.has(baseInv.id) ? baseInv.amount : baseInv.amountPaid,
+                };
+                return (
                 <tr
                   key={inv.id}
-                  onClick={() => setSelected(inv)}
+                  onClick={() => setPreviewInvoice(inv)}
                   className={cn(
                     "border-b border-slate-100 transition-colors cursor-pointer",
                     inv.status === "Overdue" ? "bg-red-50 hover:bg-red-100/60"   : "",
@@ -532,7 +1140,15 @@ function InvoicesTab() {
                     inv.status !== "Overdue" && inv.status !== "Part" ? "hover:bg-slate-50" : "",
                   )}
                 >
-                  <td className="px-4 py-3 font-mono font-semibold text-slate-800 text-sm whitespace-nowrap">{inv.id}</td>
+                  <td className="px-4 py-3 font-mono font-semibold text-sm whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPreviewInvoice(inv); }}
+                      className="text-slate-800 hover:text-amber-600 hover:underline transition-colors cursor-pointer"
+                    >
+                      {inv.id}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/students/${inv.studentId}`}
@@ -564,19 +1180,22 @@ function InvoicesTab() {
                     <div className="flex items-center gap-1.5">
                       {can('finance.logPayment') && inv.status !== "Paid" && inv.status !== "Cancelled" && inv.status !== "Draft" && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); setSelected(inv); }}
+                          onClick={(e) => { e.stopPropagation(); setPayInvoice(inv); }}
                           className="px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer whitespace-nowrap"
                         >
                           Record Payment
                         </button>
                       )}
-                      <button className="p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer">
-                        <MoreHorizontal className="w-4 h-4 text-slate-400" />
-                      </button>
+                      <InvoiceRowMenu
+                        invoice={inv}
+                        onView={() => setPreviewInvoice(inv)}
+                        onVoid={() => setVoidInvoice(inv)}
+                      />
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           {filtered.length === 0 && (
@@ -596,7 +1215,30 @@ function InvoicesTab() {
         />
       </div>
 
-      {selected && <InvoiceSlideover invoice={selected} onClose={() => setSelected(null)} />}
+      <InvoicePreviewDialog
+        invoice={previewInvoice}
+        open={previewInvoice !== null}
+        onClose={() => setPreviewInvoice(null)}
+      />
+      <RecordPaymentDialog
+        invoice={payInvoice}
+        open={payInvoice !== null}
+        onClose={() => setPayInvoice(null)}
+        onSaved={(id) => setPaidOverrides((prev) => {
+          const next = new Set(prev); next.add(id); return next;
+        })}
+      />
+      <VoidConfirmDialog
+        invoice={voidInvoice}
+        open={voidInvoice !== null}
+        onClose={() => setVoidInvoice(null)}
+        onConfirm={(id) => {
+          toast.success(`${id} voided`);
+          setVoidedOverrides((prev) => {
+            const next = new Set(prev); next.add(id); return next;
+          });
+        }}
+      />
     </div>
   );
 }
@@ -606,6 +1248,7 @@ function InvoicesTab() {
 function PaymentsTab() {
   const { can } = usePermission();
   const [exportOpen, setExportOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -658,7 +1301,11 @@ function PaymentsTab() {
             </thead>
             <tbody>
               {payments.map((p, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-default">
+                <tr
+                  key={i}
+                  onClick={() => setSelectedPayment(p)}
+                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{p.date}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{p.student}</td>
                   <td className="px-4 py-3 font-mono text-sm text-slate-600">{p.invoice}</td>
@@ -676,6 +1323,12 @@ function PaymentsTab() {
           </table>
         </div>
       </div>
+
+      <PaymentDetailDialog
+        payment={selectedPayment}
+        open={selectedPayment !== null}
+        onClose={() => setSelectedPayment(null)}
+      />
     </div>
   );
 }
@@ -685,6 +1338,8 @@ function PaymentsTab() {
 function CreditsTab() {
   const { can } = usePermission();
   const [exportOpen, setExportOpen] = useState(false);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [selectedCredit, setSelectedCredit] = useState<(Credit & { ref: string }) | null>(null);
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
@@ -702,8 +1357,12 @@ function CreditsTab() {
             Export
           </button>
         )}
-        {can('finance.issueCredit') && (
-          <button className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap mt-1">
+        {can('issue.credit') && (
+          <button
+            type="button"
+            onClick={() => setIssueOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap mt-1"
+          >
             <Plus className="w-4 h-4" />
             Issue Credit
           </button>
@@ -740,8 +1399,14 @@ function CreditsTab() {
               </tr>
             </thead>
             <tbody>
-              {creditLedger.map((c, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-default">
+              {creditLedger.map((c, i) => {
+                const ref = `CR-${String(1001 + i)}`;
+                return (
+                <tr
+                  key={i}
+                  onClick={() => setSelectedCredit({ ...c, ref })}
+                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{c.date}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{c.student}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-slate-800 text-right whitespace-nowrap">{fmt(c.amount)}</td>
@@ -756,11 +1421,19 @@ function CreditsTab() {
                     </span>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
+
+      <IssueCreditDialog open={issueOpen} onClose={() => setIssueOpen(false)} />
+      <CreditDetailDialog
+        credit={selectedCredit}
+        open={selectedCredit !== null}
+        onClose={() => setSelectedCredit(null)}
+      />
     </div>
   );
 }
@@ -804,8 +1477,20 @@ const REPORT_HISTORY = [
 
 function ReportsTab() {
   const { can } = usePermission();
+  const [generateOpen, setGenerateOpen] = useState(false);
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setGenerateOpen(true)}
+          className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          Generate Report
+        </button>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         {REPORT_CARDS.map(({ icon: Icon, name, description, lastGenerated }) => (
           <div key={name} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col gap-3">
@@ -819,13 +1504,18 @@ function ReportsTab() {
             <p className="text-xs text-slate-400">Last generated: {lastGenerated}</p>
             <div className="flex items-center gap-2 mt-auto">
               <button
-                onClick={() => console.log(`Generate: ${name}`)}
+                type="button"
+                onClick={() => toast.success("Report queued — ready shortly")}
                 className="flex-1 py-1.5 border border-slate-200 text-sm text-slate-600 rounded-lg hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer font-medium"
               >
                 Generate
               </button>
               {can('finance.export') && (
-                <button className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => toast.success(`Downloading ${name}...`)}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-slate-200 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   <Download className="w-3.5 h-3.5" />
                   CSV
                 </button>
@@ -856,7 +1546,11 @@ function ReportsTab() {
                   <td className="px-4 py-3 text-sm text-slate-500">{r.datetime}</td>
                   <td className="px-4 py-3">
                     {can('finance.export') && (
-                      <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600 transition-colors cursor-pointer">
+                      <button
+                        type="button"
+                        onClick={() => toast.success(`Downloading ${r.name}...`)}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
+                      >
                         <Download className="w-3.5 h-3.5" />
                         Download
                       </button>
@@ -868,6 +1562,8 @@ function ReportsTab() {
           </table>
         </div>
       </div>
+
+      <GenerateReportDialog open={generateOpen} onClose={() => setGenerateOpen(false)} />
     </div>
   );
 }

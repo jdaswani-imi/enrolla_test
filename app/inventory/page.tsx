@@ -18,6 +18,7 @@ import {
 import { EmptyState } from '@/components/ui/empty-state';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
+import { usePermission } from '@/lib/use-permission';
 import { DateRangePicker, DATE_PRESETS, type DateRange } from '@/components/ui/date-range-picker';
 import { PaginationBar } from '@/components/ui/pagination-bar';
 
@@ -1588,6 +1589,7 @@ function CatalogueTab({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function InventoryPage() {
+  const { can } = usePermission();
   const [activeTab, setActiveTab] = useState<Tab>('Catalogue');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
@@ -1601,9 +1603,11 @@ export default function InventoryPage() {
           <p className="text-sm text-slate-500 mt-0.5">113 items across 16 categories — IMI reference catalogue</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer">
-            <ClipboardList className="w-4 h-4" />Stock-take
-          </button>
+          {can('stock.take') && (
+            <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer">
+              <ClipboardList className="w-4 h-4" />Stock-take
+            </button>
+          )}
           <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors cursor-pointer">
             <Plus className="w-4 h-4" />Add Item
           </button>

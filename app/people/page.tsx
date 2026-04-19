@@ -383,11 +383,15 @@ function DuplicateReviewSheet({
   dup,
   onClose,
   onMerged,
+  onRequestMerge,
 }: {
   dup: DuplicateDetection;
   onClose: () => void;
   onMerged: () => void;
+  onRequestMerge: () => void;
 }) {
+  const { can } = usePermission();
+  const canMerge = can('merge.duplicates');
   const [step, setStep]       = useState<ReviewStep>(1);
   const [fieldChoices, setFc] = useState<Record<string, "A" | "B">>({
     Phone: "A", Email: "A", "Year Group": "A",
@@ -438,9 +442,15 @@ function DuplicateReviewSheet({
         <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
           Keep Separate
         </button>
-        <button onClick={() => setStep(2)} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-          Proceed to Merge →
-        </button>
+        {canMerge ? (
+          <button onClick={() => setStep(2)} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
+            Proceed to Merge →
+          </button>
+        ) : (
+          <button onClick={() => { onRequestMerge(); onClose(); }} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
+            Request Merge
+          </button>
+        )}
       </div>
     ) : step === 2 ? (
       <div className="flex justify-end gap-3">
@@ -693,6 +703,7 @@ function DuplicatesTab() {
           dup={reviewing}
           onClose={() => setReviewing(null)}
           onMerged={() => fireToast("Records merged successfully")}
+          onRequestMerge={() => fireToast("Merge request sent to Admin Head for approval")}
         />
       )}
 

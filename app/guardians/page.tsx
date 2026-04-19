@@ -12,6 +12,7 @@ import {
   MessageSquare,
   Archive,
   Download,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
@@ -111,6 +112,7 @@ function RowActions({
     { icon: UserPlus2,    label: "Add Student",   onClick: () => {}, danger: false, show: can('students.create') },
     { icon: MessageSquare,label: "Send Message",  onClick: () => {}, danger: false, show: true },
     { icon: Archive,      label: "Archive",       onClick: () => {}, danger: true,  show: can('guardians.edit') },
+    { icon: Trash2,       label: "Delete",        onClick: () => {}, danger: true,  show: can('delete.records') },
   ].filter(a => a.show);
 
   return (

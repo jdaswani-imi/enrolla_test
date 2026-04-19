@@ -16,6 +16,7 @@ import {
   MessageSquare,
   UserX,
   Download,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
@@ -103,6 +104,7 @@ function RowActions({
     { icon: FileText,      label: "Create Invoice", onClick: () => {},                                      danger: false, show: can('finance.createInvoice') },
     { icon: MessageSquare, label: "Log Note",        onClick: () => {},                                      danger: false, show: true },
     { icon: UserX,         label: "Withdraw",        onClick: () => {},                                      danger: true,  show: can('enrolment.withdraw') },
+    { icon: Trash2,        label: "Delete Record",  onClick: () => {},                                      danger: true,  show: can('delete.records') },
   ].filter(a => a.show);
 
   return (
@@ -376,7 +378,7 @@ export default function StudentsPage() {
 
       {/* ── Page header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-end gap-2">
-        {can('students.export') && (
+        {can('import') && (
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-colors cursor-pointer"

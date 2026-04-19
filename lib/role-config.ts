@@ -186,11 +186,31 @@ export const PERMISSIONS: Record<string, Role[]> = {
   // ── Export (bulk data export button shown on list pages) ──
   'export':                   ['Super Admin','Admin Head','Admin','HR/Finance'],
 
+  // ── Import (bulk data import / CSV upload — restricted to Super Admin) ──
+  'import':                   ['Super Admin'],
+
   // ── Settings ──
   'settings.view':            ['Super Admin'],
   'settings.edit':            ['Super Admin'],
   'settings.manageRoles':     ['Super Admin'],
   'settings.manageBilling':   ['Super Admin'],
+
+  // ── Subjects & Catalogue (Settings → Subjects) ──
+  'catalogue.edit':           ['Super Admin','Admin Head'],
+  'topic.edit':               ['Super Admin','Academic Head','HOD'],
+  'grades.edit':              ['Super Admin','Academic Head','HOD'],
+  'feedback.selectors.edit':  ['Super Admin','Academic Head','HOD'],
+
+  // ── Named actions (cross-module) ──
+  'delete.records':           ['Super Admin','Admin Head','Admin'],
+  'issue.credit':             ['Super Admin','Admin Head','Admin','HR/Finance'],
+  'approve.discount':         ['Super Admin','Admin Head','HR/Finance'],
+  'offboard.staff':           ['Super Admin','HR/Finance'],
+  'manage.roles':             ['Super Admin'],
+  'merge.duplicates':         ['Super Admin','Admin Head','Admin'],
+  'export.all':               ['Super Admin'],
+  'bulk.generate.invoices':   ['Super Admin','Admin Head','Admin'],
+  'stock.take':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
 }
 
 export function canDo(role: Role, action: string): boolean {

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
+import { Toaster } from "sonner";
+
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
 import { RoleProvider } from "@/lib/role-context";
@@ -30,6 +32,7 @@ export default function RootLayout({
             <div className="flex h-full w-full">
               <AppShell>{children}</AppShell>
             </div>
+            <Toaster position="bottom-right" richColors />
           </RoleProvider>
         </TooltipProvider>
       </body>
