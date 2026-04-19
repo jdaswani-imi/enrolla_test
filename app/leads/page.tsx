@@ -23,6 +23,15 @@ import {
   UserPlus,
   ArrowRight,
   MessageSquare,
+  Paperclip,
+  AtSign,
+  Link2,
+  CheckSquare,
+  Smile,
+  SendHorizontal,
+  User as UserIcon,
+  FileText,
+  ListTodo,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -455,50 +464,943 @@ const DETAIL_TIMELINE = [
   { label: "2 days ago", text: "Assessment booked for Sat 19 Apr", dot: "bg-purple-400" },
 ];
 
-type InternalNote = { id: string; author: string; time: string; text: string };
+// ─── Embedded Team Chat (types, seed, component) ──────────────────────────────
 
-const INITIAL_INTERNAL_NOTES: InternalNote[] = [
-  {
-    id: "n1",
-    author: "Jason Daswani",
-    time: "2 days ago",
-    text: "Guardian called — very keen, looking for Y7 Maths starting this term. Mentioned sibling at another centre.",
-  },
-  {
-    id: "n2",
-    author: "Sarah Thompson",
-    time: "Yesterday",
-    text: "Sent intro WhatsApp. She replied, assessment confirmed for Saturday. Dad will attend too.",
-  },
-  {
-    id: "n3",
-    author: "Jason Daswani",
-    time: "Today",
-    text: "Reminder: bring assessment rubric for Y7 Maths. Check if sibling discount applies.",
-  },
+const CHAT_STAFF = [
+  "Jason Daswani",
+  "Sarah Thompson",
+  "Ahmed Khalil",
+  "Tariq Al Nasser",
+  "Hana Malik",
+];
+const CHAT_CURRENT_USER = "Jason Daswani";
+const CHAT_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "🔥", "✅", "👀"];
+
+type ChatChipKind = "student" | "invoice" | "task";
+
+type ChatChip = {
+  id: string;
+  kind: ChatChipKind;
+  label: string;
+  ref: string;
+  targetId?: string;
+};
+
+type ChatReactionMap = Record<string, string[]>;
+
+type ChatMessage = {
+  id: string;
+  author: string;
+  day: string; // "Today" | "Yesterday" | e.g. "17 Apr"
+  time: string; // HH:mm
+  text: string;
+  chips: ChatChip[];
+  reactions: ChatReactionMap;
+};
+
+const CHAT_LINK_CATALOGUE: { kind: ChatChipKind; label: string; ref: string; targetId?: string }[] = [
+  { kind: "student", label: "Aisha Rahman", ref: "IMI-0001", targetId: "IMI-0001" },
+  { kind: "student", label: "Omar Al-Farsi", ref: "IMI-0002", targetId: "IMI-0002" },
+  { kind: "student", label: "Layla Hassan", ref: "IMI-0003", targetId: "IMI-0003" },
+  { kind: "student", label: "Bilal Mahmood", ref: "IMI-L-0041", targetId: "IMI-0001" },
+  { kind: "invoice", label: "Rahman · Term 3 Maths", ref: "INV-2416" },
+  { kind: "invoice", label: "Al-Farsi · Assessment Pack", ref: "INV-2418" },
+  { kind: "invoice", label: "Mahmood · Sibling Offer", ref: "INV-2422" },
+  { kind: "task", label: "Prep Y7 Maths rubric", ref: "T-0112" },
+  { kind: "task", label: "Confirm Sat assessment slot", ref: "T-0113" },
+  { kind: "task", label: "Follow up on sibling discount", ref: "T-0114" },
 ];
 
-type LeadTeamChatMessage = { author: string; time: string; text: string };
-
-function buildLeadTeamChat(lead: Lead): LeadTeamChatMessage[] {
-  const firstName = lead.childName.split(" ")[0];
-  return [
+const INITIAL_CHAT_BY_LEAD: Record<string, ChatMessage[]> = {
+  "L-0041": [
     {
-      author: "Sarah Thompson",
+      id: "c-0041-1",
+      author: "Jason Daswani",
+      day: "17 Apr",
       time: "09:12",
-      text:
-        lead.stage === "New" || lead.stage === "Contacted"
-          ? `New enquiry for ${firstName} — I'll pick up the intro call today.`
-          : lead.stage === "Trial Booked" || lead.stage === "Assessment Done" || lead.stage === "Assessment Booked"
-          ? `${firstName}'s assessment is locked in. Prep pack sent to the teacher.`
-          : `Still chasing ${firstName}'s guardian — left a voicemail this morning.`,
+      text: "Guardian called — very keen, looking for Y7 Maths starting this term. Mentioned sibling at another centre.",
+      chips: [],
+      reactions: { "👍": ["Sarah Thompson"] },
     },
     {
-      author: "Ahmed Khalil",
-      time: "09:34",
-      text: `Noted. Flagging ${firstName} in #leads-pipeline so the team has eyes on it.`,
+      id: "c-0041-2",
+      author: "Sarah Thompson",
+      day: "Yesterday",
+      time: "14:30",
+      text: "Sent intro WhatsApp. She replied, assessment confirmed for Saturday. Dad will attend too.",
+      chips: [],
+      reactions: {},
     },
-  ];
+    {
+      id: "c-0041-3",
+      author: "Jason Daswani",
+      day: "Today",
+      time: "08:05",
+      text: "Reminder: bring assessment rubric for Y7 Maths. Check if sibling discount applies.",
+      chips: [],
+      reactions: {},
+    },
+  ],
+  "L-0045": [
+    {
+      id: "c-0045-1",
+      author: "Sarah Thompson",
+      day: "17 Apr",
+      time: "10:22",
+      text: "Saif's mum prefers evening slots — Tues/Thurs ideally. Year 9 Science.",
+      chips: [],
+      reactions: {},
+    },
+    {
+      id: "c-0045-2",
+      author: "Jason Daswani",
+      day: "Yesterday",
+      time: "11:45",
+      text: "@Sarah Thompson check Tariq Al Nasser's availability — he mentioned he could do Tues 17:00.",
+      chips: [],
+      reactions: { "✅": ["Sarah Thompson"] },
+    },
+    {
+      id: "c-0045-3",
+      author: "Ahmed Khalil",
+      day: "Today",
+      time: "09:00",
+      text: "Intake form still pending. Will chase the guardian today.",
+      chips: [],
+      reactions: {},
+    },
+  ],
+};
+
+function getInitialChat(leadId: string): ChatMessage[] {
+  return INITIAL_CHAT_BY_LEAD[leadId] ?? [];
+}
+
+let chatIdCounter = 0;
+function nextChatId(prefix: string): string {
+  chatIdCounter += 1;
+  return `${prefix}-${chatIdCounter}`;
+}
+
+function formatMentionText(text: string): React.ReactNode {
+  if (!text) return null;
+  const parts: React.ReactNode[] = [];
+  const regex = /@([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let keyIdx = 0;
+  while ((match = regex.exec(text)) !== null) {
+    const candidate = match[1];
+    const isKnown = CHAT_STAFF.some((n) => n === candidate || candidate.startsWith(n));
+    if (!isKnown) continue;
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    // Use exact known name
+    const known = CHAT_STAFF.find((n) => candidate.startsWith(n)) ?? candidate;
+    parts.push(
+      <span key={`m-${keyIdx++}`} className="font-semibold text-amber-600">
+        @{known}
+      </span>,
+    );
+    const consumed = match.index + 1 + known.length;
+    lastIndex = consumed;
+    regex.lastIndex = consumed;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : text;
+}
+
+function chipIcon(kind: ChatChipKind): React.ElementType {
+  if (kind === "student") return UserIcon;
+  if (kind === "invoice") return FileText;
+  return ListTodo;
+}
+
+function chipColours(kind: ChatChipKind): string {
+  if (kind === "student") return "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100";
+  if (kind === "invoice") return "bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100";
+  return "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100";
+}
+
+function chipHref(chip: ChatChip): string {
+  if (chip.kind === "student") return `/students/${chip.targetId ?? chip.ref}`;
+  if (chip.kind === "invoice") return "/finance";
+  return "/tasks";
+}
+
+function LinkRecordDialog({
+  open,
+  onOpenChange,
+  onInsert,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onInsert: (chip: ChatChip) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const grouped = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filter = (k: ChatChipKind) =>
+      CHAT_LINK_CATALOGUE.filter(
+        (c) => c.kind === k && (!q || c.label.toLowerCase().includes(q) || c.ref.toLowerCase().includes(q)),
+      );
+    return {
+      student: filter("student"),
+      invoice: filter("invoice"),
+      task: filter("task"),
+    };
+  }, [query]);
+
+  function pick(kind: ChatChipKind, entry: { label: string; ref: string; targetId?: string }) {
+    onInsert({
+      id: nextChatId("chip"),
+      kind,
+      label: entry.label,
+      ref: entry.ref,
+      targetId: entry.targetId,
+    });
+    setQuery("");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle>Link a record</DialogTitle>
+          <DialogDescription>Attach a student, invoice, or task to this message.</DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-4 space-y-4">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search records…"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+          {(["student", "invoice", "task"] as ChatChipKind[]).map((kind) => {
+            const entries = grouped[kind];
+            const heading = kind === "student" ? "Students" : kind === "invoice" ? "Invoices" : "Tasks";
+            const Icon = chipIcon(kind);
+            return (
+              <div key={kind}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1.5">{heading}</p>
+                {entries.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-1.5">No matches</p>
+                ) : (
+                  <div className="border border-slate-200 rounded-lg divide-y divide-slate-100">
+                    {entries.map((e) => (
+                      <button
+                        key={`${kind}-${e.ref}`}
+                        type="button"
+                        onClick={() => pick(kind, e)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        <span className={cn("p-1 rounded", chipColours(kind).split(" ").slice(0, 2).join(" "))}>
+                          <Icon className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm text-slate-700 truncate">{e.label}</span>
+                          <span className="block text-xs text-slate-400 font-mono">{e.ref}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateTaskDialog({
+  open,
+  onOpenChange,
+  leadName,
+  onCreate,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  leadName: string;
+  onCreate: (chip: ChatChip) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <CreateTaskDialogBody
+          leadName={leadName}
+          onCancel={() => onOpenChange(false)}
+          onCreate={(chip) => {
+            onCreate(chip);
+            onOpenChange(false);
+          }}
+        />
+      ) : (
+        <DialogContent className="max-w-md w-full" />
+      )}
+    </Dialog>
+  );
+}
+
+let taskRefCounter = 200;
+function nextTaskRef(): string {
+  taskRefCounter += 1;
+  return `T-${String(taskRefCounter).padStart(4, "0")}`;
+}
+
+function CreateTaskDialogBody({
+  leadName,
+  onCancel,
+  onCreate,
+}: {
+  leadName: string;
+  onCancel: () => void;
+  onCreate: (chip: ChatChip) => void;
+}) {
+  const defaultDue = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const [title, setTitle] = useState(`Follow up with ${leadName}`);
+  const [priority, setPriority] = useState<"Low" | "Medium" | "High">("Medium");
+  const [assignee, setAssignee] = useState(CHAT_CURRENT_USER);
+  const [dueDate, setDueDate] = useState(defaultDue);
+
+  function submit() {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const ref = nextTaskRef();
+    onCreate({
+      id: nextChatId("chip"),
+      kind: "task",
+      label: trimmed,
+      ref,
+    });
+    toast.success(`Task created · ${ref} · ${priority} priority · ${assignee} · due ${dueDate}`);
+  }
+
+  return (
+    <DialogContent className="max-w-md w-full">
+      <DialogHeader>
+        <DialogTitle>Create & link task</DialogTitle>
+        <DialogDescription>Spins up a task and drops it into the chat.</DialogDescription>
+      </DialogHeader>
+      <div className="px-6 py-4 space-y-3">
+        <div>
+          <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Title</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Priority</label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as "Low" | "Medium" | "High")}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer bg-white"
+            >
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Due date</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Assignee</label>
+          <select
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer bg-white"
+          >
+            {CHAT_STAFF.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <DialogFooter className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          className="px-3 py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 cursor-pointer shadow-sm transition-colors"
+        >
+          Create & Link
+        </button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+function ChatChipIcon({ kind, className }: { kind: ChatChipKind; className?: string }) {
+  if (kind === "student") return <UserIcon className={className} />;
+  if (kind === "invoice") return <FileText className={className} />;
+  return <ListTodo className={className} />;
+}
+
+function ChatChipPill({
+  chip,
+  onClick,
+  onRemove,
+  size = "md",
+}: {
+  chip: ChatChip;
+  onClick?: () => void;
+  onRemove?: () => void;
+  size?: "sm" | "md";
+}) {
+  const interactive = !!onClick;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 border rounded-md font-medium transition-colors",
+        chipColours(chip.kind),
+        size === "sm" ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-0.5",
+        interactive && "cursor-pointer",
+      )}
+      onClick={onClick}
+      role={interactive ? "button" : undefined}
+    >
+      <ChatChipIcon kind={chip.kind} className="w-3 h-3" />
+      <span className="truncate max-w-[160px]">{chip.label}</span>
+      <span className="font-mono opacity-60">· {chip.ref}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label="Remove chip"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="ml-0.5 p-0.5 rounded hover:bg-black/10 cursor-pointer"
+        >
+          <X className="w-2.5 h-2.5" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function EmbeddedTeamChat({ lead }: { lead: Lead }) {
+  const router = useRouter();
+  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialChat(lead.id));
+  const [draft, setDraft] = useState("");
+  const [draftChips, setDraftChips] = useState<ChatChip[]>([]);
+  const [mentionMenu, setMentionMenu] = useState<{ open: boolean; query: string }>({ open: false, query: "" });
+  const [hoverMsgId, setHoverMsgId] = useState<string | null>(null);
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  // close popovers on outside click
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-chat-popover]")) {
+        setReactionPickerFor(null);
+        setEmojiPickerOpen(false);
+        setMentionMenu((cur) => (cur.open ? { open: false, query: "" } : cur));
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  function sendMessage(args?: { extraChips?: ChatChip[]; autoText?: string }) {
+    const text = (args?.autoText ?? draft).trim();
+    const chips = [...draftChips, ...(args?.extraChips ?? [])];
+    if (!text && chips.length === 0) return;
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const id = nextChatId("c");
+    setMessages((cur) => [
+      ...cur,
+      {
+        id,
+        author: CHAT_CURRENT_USER,
+        day: "Today",
+        time,
+        text,
+        chips,
+        reactions: {},
+      },
+    ]);
+    setDraft("");
+    setDraftChips([]);
+    setMentionMenu({ open: false, query: "" });
+    setEmojiPickerOpen(false);
+  }
+
+  function handleDraftChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const v = e.target.value;
+    setDraft(v);
+    const cursor = e.target.selectionStart ?? v.length;
+    const before = v.slice(0, cursor);
+    const match = /@([A-Za-z][A-Za-z ]{0,24})?$/.exec(before);
+    if (match) {
+      setMentionMenu({ open: true, query: (match[1] ?? "").toLowerCase() });
+    } else {
+      setMentionMenu({ open: false, query: "" });
+    }
+  }
+
+  function insertMention(name: string) {
+    const ta = textareaRef.current;
+    const cursor = ta?.selectionStart ?? draft.length;
+    const before = draft.slice(0, cursor);
+    const after = draft.slice(cursor);
+    const newBefore = before.replace(/@([A-Za-z][A-Za-z ]{0,24})?$/, `@${name} `);
+    const newVal = newBefore + after;
+    setDraft(newVal);
+    setMentionMenu({ open: false, query: "" });
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const pos = newBefore.length;
+        el.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
+  function triggerMention() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus();
+    const cursor = ta.selectionStart ?? draft.length;
+    const before = draft.slice(0, cursor);
+    const after = draft.slice(cursor);
+    const needsSpace = before.length > 0 && !/\s$/.test(before);
+    const insert = `${needsSpace ? " " : ""}@`;
+    const newVal = before + insert + after;
+    setDraft(newVal);
+    setMentionMenu({ open: true, query: "" });
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const pos = before.length + insert.length;
+        el.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
+  function insertEmojiIntoDraft(emoji: string) {
+    const ta = textareaRef.current;
+    const cursor = ta?.selectionStart ?? draft.length;
+    const before = draft.slice(0, cursor);
+    const after = draft.slice(cursor);
+    setDraft(before + emoji + after);
+    setEmojiPickerOpen(false);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const pos = before.length + emoji.length;
+        el.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
+  function toggleReaction(msgId: string, emoji: string) {
+    setMessages((cur) =>
+      cur.map((m) => {
+        if (m.id !== msgId) return m;
+        const users = m.reactions[emoji] ?? [];
+        const had = users.includes(CHAT_CURRENT_USER);
+        const nextUsers = had ? users.filter((u) => u !== CHAT_CURRENT_USER) : [...users, CHAT_CURRENT_USER];
+        const nextReactions = { ...m.reactions };
+        if (nextUsers.length === 0) delete nextReactions[emoji];
+        else nextReactions[emoji] = nextUsers;
+        return { ...m, reactions: nextReactions };
+      }),
+    );
+    setReactionPickerFor(null);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      if (mentionMenu.open && filteredMentions.length > 0) {
+        e.preventDefault();
+        insertMention(filteredMentions[0]);
+        return;
+      }
+      e.preventDefault();
+      sendMessage();
+    }
+    if (e.key === "Escape") {
+      setMentionMenu({ open: false, query: "" });
+    }
+  }
+
+  const filteredMentions = mentionMenu.open
+    ? CHAT_STAFF.filter((n) => n.toLowerCase().includes(mentionMenu.query))
+    : [];
+
+  function handleChipClick(chip: ChatChip) {
+    router.push(chipHref(chip));
+  }
+
+  function handleAttach() {
+    toast("File upload coming in Phase 2");
+  }
+
+  function handleTaskCreated(chip: ChatChip) {
+    sendMessage({ extraChips: [chip] });
+  }
+
+  // Render rows with day dividers + consecutive grouping
+  const rows: React.ReactNode[] = [];
+  let lastDay: string | null = null;
+  let lastAuthor: string | null = null;
+  messages.forEach((m) => {
+    if (m.day !== lastDay) {
+      rows.push(
+        <div key={`d-${m.id}`} className="flex items-center gap-2 py-1.5">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{m.day}</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>,
+      );
+      lastAuthor = null;
+    }
+    const grouped = m.author === lastAuthor && m.day === lastDay;
+    const palette = getAvatarPalette(m.author);
+    const isOwn = m.author === CHAT_CURRENT_USER;
+    rows.push(
+      <div
+        key={m.id}
+        className="group relative flex gap-2 px-3 py-1"
+        onMouseEnter={() => setHoverMsgId(m.id)}
+        onMouseLeave={() => setHoverMsgId((cur) => (cur === m.id ? null : cur))}
+      >
+        <div className="w-7 shrink-0">
+          {grouped ? (
+            <span
+              className={cn(
+                "block text-[10px] text-slate-400 text-right pr-1 pt-1 transition-opacity",
+                hoverMsgId === m.id ? "opacity-100" : "opacity-0",
+              )}
+            >
+              {m.time}
+            </span>
+          ) : (
+            <div
+              className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold",
+                palette.bg,
+                palette.text,
+              )}
+            >
+              {getInitials(m.author)}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          {!grouped && (
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className={cn(
+                  "text-xs font-semibold",
+                  isOwn ? "text-amber-600" : "text-slate-700",
+                )}
+              >
+                {m.author}
+              </span>
+              <span className="text-[10px] text-slate-400">· {m.time}</span>
+            </div>
+          )}
+          {m.chips.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {m.chips.map((chip) => (
+                <ChatChipPill key={chip.id} chip={chip} onClick={() => handleChipClick(chip)} />
+              ))}
+            </div>
+          )}
+          {m.text && (
+            <p className="text-sm text-slate-600 leading-snug mt-0.5 whitespace-pre-wrap break-words">
+              {formatMentionText(m.text)}
+            </p>
+          )}
+          {Object.keys(m.reactions).length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {Object.entries(m.reactions).map(([emoji, users]) => {
+                const own = users.includes(CHAT_CURRENT_USER);
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => toggleReaction(m.id, emoji)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer",
+                      own
+                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                    )}
+                  >
+                    <span>{emoji}</span>
+                    <span className="font-medium">{users.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {/* Quick-react button on hover */}
+        <div
+          data-chat-popover
+          className={cn(
+            "absolute right-3 -top-2 transition-opacity",
+            hoverMsgId === m.id || reactionPickerFor === m.id ? "opacity-100" : "opacity-0 pointer-events-none",
+          )}
+        >
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Add reaction"
+              onClick={() =>
+                setReactionPickerFor((cur) => (cur === m.id ? null : m.id))
+              }
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white shadow-sm px-1.5 py-0.5 text-xs hover:bg-slate-50 cursor-pointer"
+            >
+              <span>👍</span>
+              <Plus className="w-3 h-3 text-slate-400" />
+            </button>
+            {reactionPickerFor === m.id && (
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 flex gap-0.5">
+                {CHAT_EMOJIS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => toggleReaction(m.id, e)}
+                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer text-base"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>,
+    );
+    lastDay = m.day;
+    lastAuthor = m.author;
+  });
+
+  return (
+    <>
+      <div className="px-6 pt-4 pb-5 border-t border-slate-100">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5" /> Team Chat
+            <span className="text-[10px] font-normal normal-case tracking-normal text-slate-400">
+              · only visible to staff — not shared with parents
+            </span>
+          </p>
+        </div>
+
+        <div
+          className="flex flex-col rounded-lg border border-slate-200 bg-slate-50/60 overflow-hidden"
+          style={{ height: 420 }}
+        >
+          <div ref={scrollRef} className="flex-1 overflow-y-auto py-2">
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center px-6 text-center">
+                <p className="text-xs text-slate-400">
+                  No messages yet. Start the conversation with the team.
+                </p>
+              </div>
+            ) : (
+              rows
+            )}
+          </div>
+
+          {/* Draft attachment chips */}
+          {draftChips.length > 0 && (
+            <div className="px-3 pt-2 flex flex-wrap gap-1 border-t border-slate-200 bg-white">
+              {draftChips.map((chip) => (
+                <ChatChipPill
+                  key={chip.id}
+                  chip={chip}
+                  onRemove={() => setDraftChips((cur) => cur.filter((c) => c.id !== chip.id))}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Input + toolbar */}
+          <div className="relative border-t border-slate-200 bg-white">
+            {mentionMenu.open && filteredMentions.length > 0 && (
+              <div
+                data-chat-popover
+                className="absolute bottom-full left-3 mb-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[200px]"
+              >
+                {filteredMentions.map((name) => {
+                  const palette = getAvatarPalette(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => insertMention(name)}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50 cursor-pointer"
+                    >
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold",
+                          palette.bg,
+                          palette.text,
+                        )}
+                      >
+                        {getInitials(name)}
+                      </div>
+                      <span className="text-sm text-slate-700">{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={handleDraftChange}
+              onKeyDown={handleKeyDown}
+              rows={2}
+              placeholder="Message the team… Enter to send, Shift+Enter for a new line"
+              className="w-full resize-none px-3 pt-2 pb-0 text-sm text-slate-700 placeholder-slate-400 focus:outline-none bg-transparent"
+            />
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <div className="flex items-center gap-0.5">
+                <ChatToolbarButton label="Attach file" onClick={handleAttach} icon={Paperclip} />
+                <ChatToolbarButton label="Mention teammate" onClick={triggerMention} icon={AtSign} />
+                <ChatToolbarButton
+                  label="Link record"
+                  onClick={() => setLinkDialogOpen(true)}
+                  icon={Link2}
+                />
+                <ChatToolbarButton
+                  label="Create task"
+                  onClick={() => setTaskDialogOpen(true)}
+                  icon={CheckSquare}
+                />
+                <div data-chat-popover className="relative">
+                  <ChatToolbarButton
+                    label="Insert emoji"
+                    onClick={() => setEmojiPickerOpen((o) => !o)}
+                    icon={Smile}
+                    active={emojiPickerOpen}
+                  />
+                  {emojiPickerOpen && (
+                    <div className="absolute bottom-full left-0 mb-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 flex gap-0.5">
+                      {CHAT_EMOJIS.map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() => insertEmojiIntoDraft(e)}
+                          className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer text-base"
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => sendMessage()}
+                disabled={!draft.trim() && draftChips.length === 0}
+                aria-label="Send message"
+                className={cn(
+                  "inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors",
+                  draft.trim() || draftChips.length > 0
+                    ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed",
+                )}
+              >
+                Send
+                <SendHorizontal className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <LinkRecordDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        onInsert={(chip) => setDraftChips((cur) => [...cur, chip])}
+      />
+      <CreateTaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        leadName={lead.childName}
+        onCreate={handleTaskCreated}
+      />
+    </>
+  );
+}
+
+function ChatToolbarButton({
+  label,
+  onClick,
+  icon: Icon,
+  active,
+}: {
+  label: string;
+  onClick: () => void;
+  icon: React.ElementType;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "p-1.5 rounded-md transition-colors cursor-pointer",
+        active ? "bg-amber-50 text-amber-600" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
+      )}
+    >
+      <Icon className="w-4 h-4" />
+    </button>
+  );
 }
 
 function LeadDetailDialog({
@@ -516,16 +1418,11 @@ function LeadDetailDialog({
   onConvert: (lead: Lead) => void;
   onArchive: (lead: Lead) => void;
 }) {
-  const router = useRouter();
   const [currentStage, setCurrentStage] = useState<LeadStage | null>(null);
-  const [notes, setNotes] = useState<InternalNote[]>(INITIAL_INTERNAL_NOTES);
-  const [noteDraft, setNoteDraft] = useState("");
 
   useEffect(() => {
     if (lead) {
       setCurrentStage(lead.stage);
-      setNotes(INITIAL_INTERNAL_NOTES);
-      setNoteDraft("");
     }
   }, [lead]);
 
@@ -535,21 +1432,6 @@ function LeadDetailDialog({
         <DialogContent className="max-w-3xl w-full" />
       </Dialog>
     );
-  }
-
-  function postNote() {
-    const text = noteDraft.trim();
-    if (!text) return;
-    setNotes((cur) => [
-      ...cur,
-      {
-        id: `n-${Date.now()}`,
-        author: "Jason Daswani",
-        time: "Just now",
-        text,
-      },
-    ]);
-    setNoteDraft("");
   }
 
   const cfg = STAGE_CONFIG[currentStage];
@@ -705,104 +1587,7 @@ function LeadDetailDialog({
           </div>
         </div>
 
-        {/* TEAM CHAT PREVIEW */}
-        <div className="px-6 pt-4 pb-2 border-t border-slate-100">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" /> Team Chat
-            </p>
-            <span className="text-[10px] text-slate-400">#leads-pipeline</span>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 divide-y divide-slate-200">
-            {buildLeadTeamChat(lead).map((m, i) => {
-              const palette = getAvatarPalette(m.author);
-              return (
-                <div key={i} className="flex gap-2 px-3 py-2">
-                  <div
-                    className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-                      palette.bg,
-                      palette.text,
-                    )}
-                  >
-                    {getInitials(m.author)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-semibold text-slate-700">{m.author}</span>
-                      <span className="text-[10px] text-slate-400">· {m.time}</span>
-                    </div>
-                    <p className="text-xs text-slate-600 leading-snug mt-0.5">{m.text}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            onClick={() => router.push("/automations?tab=Internal%20Messages&channel=leads-pipeline")}
-            className="mt-2 text-xs font-medium text-amber-600 hover:text-amber-700 cursor-pointer inline-flex items-center gap-1 transition-colors"
-          >
-            View full conversation <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
-
-        {/* INTERNAL NOTES */}
-        <div className="px-6 py-5 border-t border-slate-100">
-          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Internal Notes</p>
-          <p className="text-xs text-slate-400 mb-3">Only visible to staff — not shared with parents</p>
-
-          <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 divide-y divide-slate-200">
-            {notes.map((n) => {
-              const palette = getAvatarPalette(n.author);
-              return (
-                <div key={n.id} className="flex gap-3 px-3 py-2.5">
-                  <div
-                    className={cn(
-                      "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-                      palette.bg,
-                      palette.text,
-                    )}
-                  >
-                    {getInitials(n.author)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-semibold text-slate-700">{n.author}</span>
-                      <span className="text-xs text-slate-400">· {n.time}</span>
-                    </div>
-                    <p className="text-sm text-slate-600 leading-snug mt-0.5 whitespace-pre-wrap">{n.text}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-3">
-            <textarea
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              placeholder="Add a note for your team..."
-              rows={2}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-            />
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                disabled={!noteDraft.trim()}
-                onClick={postNote}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors",
-                  noteDraft.trim()
-                    ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
-                    : "bg-slate-100 text-slate-400 cursor-not-allowed",
-                )}
-              >
-                Post Note
-              </button>
-            </div>
-          </div>
-        </div>
+        <EmbeddedTeamChat key={lead.id} lead={lead} />
 
         </div>
 
