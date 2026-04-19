@@ -1,13 +1,17 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { Suspense, useState, useRef, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Plus, Search, Eye, Pencil, Copy, Lock, Zap, Send,
   MessageSquare, Megaphone, Activity, Trash2, ChevronDown,
   RefreshCw, Calendar, Clock, AlertTriangle, ClipboardList,
   MousePointer, Repeat, CheckSquare, UserPlus, AlertCircle,
-  FileText, ChevronRight, Clipboard, Paperclip, ExternalLink,
+  FileText, ChevronRight, Clipboard, Paperclip,
   X, Check, CheckCircle2, XCircle, Hash, ArrowLeft, ArrowRight,
+  Info, Smile, AtSign, Link2, Image as ImageIcon, GraduationCap,
+  UserCircle2, Receipt, AlertOctagon, ListChecks,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
@@ -16,7 +20,6 @@ import {
   automationTemplates,
   automationRules,
   dispatchQueueItems,
-  internalMessages,
   marketingMoments,
   marketingCampaigns,
   executionLogs,
@@ -28,7 +31,6 @@ import {
   type AutomationRuleTrigger,
   type AutomationRuleStatus,
   type DispatchQueueItem,
-  type InternalMessage,
   type MarketingMoment,
   type MarketingCampaign,
   type ExecutionLog,
@@ -40,6 +42,13 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
@@ -511,173 +520,1190 @@ function DispatchQueueTab() {
 
 // ─── Internal Messages Tab ────────────────────────────────────────────────────
 
-const CHANNELS = {
-  departments: ['primary-team','lower-sec-team','senior-team','all-staff'],
-  topics: ['scheduling','academic-concerns','finance-admin'],
-  dms: [
-    { name: 'Noor Al-Mansoori', initials: 'NM', color: 'bg-purple-500', unread: 2 },
-    { name: 'Sara Ahmed',        initials: 'SA', color: 'bg-blue-500',   unread: 0 },
-    { name: 'Jason Daswani',     initials: 'JD', color: 'bg-amber-500',  unread: 0 },
+type ChipRecordType = 'Student' | 'Lead' | 'Invoice' | 'Task' | 'Concern';
+
+type RecordChip = {
+  type: ChipRecordType;
+  name: string;
+  detail: string;
+  id?: string;
+};
+
+type MsgReaction = { emoji: string; count: number };
+
+type DayLabel = 'Today' | 'Yesterday' | 'Monday 14 Apr';
+
+type IMMessage = {
+  id: string;
+  senderId: string;
+  senderName: string;
+  initials: string;
+  color: string;
+  day: DayLabel;
+  time: string;
+  body: string;
+  chips?: RecordChip[];
+  reactions?: MsgReaction[];
+};
+
+type IMChannel = {
+  id: string;
+  name: string;
+  memberCount: number;
+  unread?: boolean;
+};
+
+type IMDirectMessage = {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  online: boolean;
+};
+
+const IM_CHANNELS: IMChannel[] = [
+  { id: 'general',         name: 'general',         memberCount: 12, unread: true },
+  { id: 'leads-pipeline',  name: 'leads-pipeline',  memberCount: 6 },
+  { id: 'academic-team',   name: 'academic-team',   memberCount: 9 },
+  { id: 'finance-admin',   name: 'finance-admin',   memberCount: 4 },
+  { id: 'hr-notices',      name: 'hr-notices',      memberCount: 12 },
+];
+
+const IM_DMS: IMDirectMessage[] = [
+  { id: 'dm-sarah',  name: 'Sarah Thompson', initials: 'ST', color: 'bg-blue-500',   online: true  },
+  { id: 'dm-ahmed',  name: 'Ahmed Khalil',   initials: 'AK', color: 'bg-purple-500', online: false },
+  { id: 'dm-tariq',  name: 'Tariq Al-Amin',  initials: 'TA', color: 'bg-green-500',  online: true  },
+  { id: 'dm-hana',   name: 'Hana Yusuf',     initials: 'HY', color: 'bg-pink-500',   online: false },
+];
+
+const IM_THREAD_TYPES: { icon: string; label: string }[] = [
+  { icon: '📋', label: 'General' },
+  { icon: '🎫', label: 'Complaint' },
+  { icon: '📅', label: 'Scheduling' },
+  { icon: '🎓', label: 'Academic Concern' },
+  { icon: '💬', label: 'Feedback' },
+  { icon: '💰', label: 'Financial' },
+  { icon: '📍', label: 'Meeting' },
+];
+
+const EMOJI_PALETTE = ['👍','✅','👀','🎉','❤️','😂','🙏','💪'];
+
+const CURRENT_USER = {
+  id: 'jason',
+  name: 'Jason Daswani',
+  initials: 'JD',
+  color: 'bg-amber-500',
+};
+
+const IM_GENERAL_SEED: IMMessage[] = [
+  {
+    id: 'g-1',
+    senderId: 'jason',
+    senderName: 'Jason Daswani',
+    initials: 'JD', color: 'bg-amber-500',
+    day: 'Today', time: '09:14',
+    body: 'Good morning team 👋 Just a reminder — Term 3 invoices need to go out by end of week. @Sarah can you handle the Lower Secondary batch?',
+  },
+  {
+    id: 'g-2',
+    senderId: 'sarah',
+    senderName: 'Sarah Thompson',
+    initials: 'ST', color: 'bg-blue-500',
+    day: 'Today', time: '09:16',
+    body: "On it! I'll start with Y7–Y9 this morning.",
+    reactions: [{ emoji: '👍', count: 2 }],
+  },
+  {
+    id: 'g-3',
+    senderId: 'ahmed',
+    senderName: 'Ahmed Khalil',
+    initials: 'AK', color: 'bg-purple-500',
+    day: 'Today', time: '09:31',
+    body: "Quick heads up — Aisha Rahman missed her Y8 Maths session yesterday. I've logged it but her mum hasn't responded to my message.",
+    chips: [{ type: 'Student', name: 'Aisha Rahman', detail: 'IMI-0001', id: 'IMI-0001' }],
+  },
+  {
+    id: 'g-4',
+    senderId: 'jason',
+    senderName: 'Jason Daswani',
+    initials: 'JD', color: 'bg-amber-500',
+    day: 'Today', time: '09:33',
+    body: "Thanks Ahmed. @Sarah can you follow up with the guardian? There's already an overdue invoice on the account.",
+    chips: [{ type: 'Invoice', name: 'INV-1042', detail: 'AED 3,360 Overdue' }],
+  },
+  {
+    id: 'g-5',
+    senderId: 'sarah',
+    senderName: 'Sarah Thompson',
+    initials: 'ST', color: 'bg-blue-500',
+    day: 'Today', time: '09:45',
+    body: "I'll call her now. Also — new lead Bilal Mahmood has confirmed his assessment for Saturday.",
+    chips: [{ type: 'Lead', name: 'Bilal Mahmood', detail: 'Assessment Booked' }],
+  },
+  {
+    id: 'g-6',
+    senderId: 'tariq',
+    senderName: 'Tariq Al-Amin',
+    initials: 'TA', color: 'bg-green-500',
+    day: 'Today', time: '10:02',
+    body: "Just saw the churn risk report — Omar Al-Farsi is flagged. He's been missing sessions. Should I raise a concern?",
+  },
+  {
+    id: 'g-7',
+    senderId: 'jason',
+    senderName: 'Jason Daswani',
+    initials: 'JD', color: 'bg-amber-500',
+    day: 'Today', time: '10:05',
+    body: 'Yes please raise L1 concern. Tag me and his HOD.',
+    chips: [{ type: 'Task', name: 'Follow up Omar Al-Farsi attendance', detail: 'High' }],
+  },
+];
+
+const IM_LEADS_PIPELINE_SEED: IMMessage[] = [
+  {
+    id: 'lp-1',
+    senderId: 'sarah',
+    senderName: 'Sarah Thompson',
+    initials: 'ST', color: 'bg-blue-500',
+    day: 'Today', time: '08:52',
+    body: 'Pipeline check: 4 new leads from the weekend campaign. Prioritising Bilal Mahmood — parent sounded very keen on the call.',
+    chips: [{ type: 'Lead', name: 'Bilal Mahmood', detail: 'Assessment Booked' }],
+  },
+  {
+    id: 'lp-2',
+    senderId: 'ahmed',
+    senderName: 'Ahmed Khalil',
+    initials: 'AK', color: 'bg-purple-500',
+    day: 'Today', time: '09:05',
+    body: 'Saturday assessment booked for Bilal — Maths + English, 10:00am with Ms Priya.',
+  },
+  {
+    id: 'lp-3',
+    senderId: 'tariq',
+    senderName: 'Tariq Al-Amin',
+    initials: 'TA', color: 'bg-green-500',
+    day: 'Today', time: '09:40',
+    body: '@Sarah nudge on Fatima Al-Suwaidi? She went quiet after the tour last week.',
+    reactions: [{ emoji: '👀', count: 1 }],
+  },
+];
+
+const IM_ACADEMIC_TEAM_SEED: IMMessage[] = [
+  {
+    id: 'at-1',
+    senderId: 'ahmed',
+    senderName: 'Ahmed Khalil',
+    initials: 'AK', color: 'bg-purple-500',
+    day: 'Today', time: '08:30',
+    body: 'Y8 Maths cohort assessment results are in — averages are up 6% on last term. Nice work team.',
+    reactions: [{ emoji: '🎉', count: 3 }],
+  },
+  {
+    id: 'at-2',
+    senderId: 'hana',
+    senderName: 'Hana Yusuf',
+    initials: 'HY', color: 'bg-pink-500',
+    day: 'Today', time: '08:47',
+    body: 'Progress reports due Friday. Please flag any students needing additional intervention.',
+  },
+];
+
+const IM_FINANCE_ADMIN_SEED: IMMessage[] = [
+  {
+    id: 'fa-1',
+    senderId: 'sarah',
+    senderName: 'Sarah Thompson',
+    initials: 'ST', color: 'bg-blue-500',
+    day: 'Today', time: '08:20',
+    body: 'Aisha Rahman invoice is 14 days overdue. Second reminder sent, escalating to Jason.',
+    chips: [{ type: 'Invoice', name: 'INV-1042', detail: 'AED 3,360 Overdue' }],
+  },
+];
+
+const IM_HR_NOTICES_SEED: IMMessage[] = [
+  {
+    id: 'hr-1',
+    senderId: 'jason',
+    senderName: 'Jason Daswani',
+    initials: 'JD', color: 'bg-amber-500',
+    day: 'Yesterday', time: '16:10',
+    body: 'Reminder: term-break staff roster is due by Thursday. Please submit your availability in the shared sheet.',
+  },
+];
+
+const IM_DM_SARAH_SEED: IMMessage[] = [
+  {
+    id: 'dms-1',
+    senderId: 'sarah',
+    senderName: 'Sarah Thompson',
+    initials: 'ST', color: 'bg-blue-500',
+    day: 'Today', time: '09:50',
+    body: 'Called Aisha\'s mum — she\'s going to come in Thursday to sort the invoice.',
+  },
+];
+
+const IM_CHANNEL_SEEDS: Record<string, IMMessage[]> = {
+  'general':          IM_GENERAL_SEED,
+  'leads-pipeline':   IM_LEADS_PIPELINE_SEED,
+  'academic-team':    IM_ACADEMIC_TEAM_SEED,
+  'finance-admin':    IM_FINANCE_ADMIN_SEED,
+  'hr-notices':       IM_HR_NOTICES_SEED,
+  'dm-sarah':         IM_DM_SARAH_SEED,
+  'dm-ahmed':         [],
+  'dm-tariq':         [],
+  'dm-hana':          [],
+};
+
+// Seed mock records for the record picker.
+const IM_RECORD_LIBRARY: Record<ChipRecordType, RecordChip[]> = {
+  Student: [
+    { type: 'Student', name: 'Aisha Rahman',   detail: 'IMI-0001', id: 'IMI-0001' },
+    { type: 'Student', name: 'Omar Al-Farsi',  detail: 'IMI-0002', id: 'IMI-0002' },
+    { type: 'Student', name: 'Layla Hassan',   detail: 'IMI-0003', id: 'IMI-0003' },
+    { type: 'Student', name: 'Yousef Mahmoud', detail: 'IMI-0004', id: 'IMI-0004' },
+    { type: 'Student', name: 'Noura Saleh',    detail: 'IMI-0005', id: 'IMI-0005' },
+  ],
+  Lead: [
+    { type: 'Lead', name: 'Bilal Mahmood',      detail: 'Assessment Booked' },
+    { type: 'Lead', name: 'Fatima Al-Suwaidi',  detail: 'Awaiting Callback' },
+    { type: 'Lead', name: 'Kareem Ibrahim',     detail: 'Tour Completed' },
+    { type: 'Lead', name: 'Maya Othman',        detail: 'New Enquiry' },
+    { type: 'Lead', name: 'Zayd Hussein',       detail: 'Trial Booked' },
+  ],
+  Invoice: [
+    { type: 'Invoice', name: 'INV-1042', detail: 'AED 3,360 Overdue' },
+    { type: 'Invoice', name: 'INV-1058', detail: 'AED 2,100 Due Apr 24' },
+    { type: 'Invoice', name: 'INV-1061', detail: 'AED 4,200 Paid' },
+    { type: 'Invoice', name: 'INV-1073', detail: 'AED 1,680 Draft' },
+    { type: 'Invoice', name: 'INV-1082', detail: 'AED 5,040 Due Apr 30' },
+  ],
+  Task: [
+    { type: 'Task', name: 'Follow up Omar Al-Farsi attendance', detail: 'High' },
+    { type: 'Task', name: 'Confirm Bilal Mahmood assessment',   detail: 'Medium' },
+    { type: 'Task', name: 'Send Term 3 invoices (Y7-Y9)',       detail: 'High' },
+    { type: 'Task', name: 'Review Y8 Maths progress',           detail: 'Low' },
+    { type: 'Task', name: 'Collect term-break roster',          detail: 'Medium' },
+  ],
+  Concern: [
+    { type: 'Concern', name: 'Omar Al-Farsi attendance', detail: 'L1 Churn Risk' },
+    { type: 'Concern', name: 'Aisha Rahman fees',        detail: 'L2 Financial' },
+    { type: 'Concern', name: 'Y9 English engagement',    detail: 'L1 Academic' },
+    { type: 'Concern', name: 'Noura Saleh homework',     detail: 'L1 Academic' },
+    { type: 'Concern', name: 'Kareem lead cold',         detail: 'L1 Pipeline' },
   ],
 };
 
-function Avatar({ initials, color, size = 32 }: { initials: string; color: string; size?: number }) {
+function IMAvatar({ initials, color, size = 32 }: { initials: string; color: string; size?: number }) {
   return (
     <div
       className={cn('rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0', color)}
-      style={{ width: size, height: size, fontSize: size * 0.35 }}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
     >
       {initials}
     </div>
   );
 }
 
-function InternalMessagesTab() {
-  const [activeChannel, setActiveChannel] = useState('primary-team');
-  const [compose, setCompose] = useState('');
-
-  function renderBody(msg: InternalMessage) {
-    if (msg.mentions.length === 0 && msg.recordTags.length === 0) {
-      return <p className="text-sm text-slate-700 mt-1 ml-10">{msg.body}</p>;
-    }
-    let text = msg.body;
-    const parts: React.ReactNode[] = [];
-    const mentionRx = /@([A-Za-z\s]+)/g;
-    let last = 0;
-    let match;
-    while ((match = mentionRx.exec(text)) !== null) {
-      if (match.index > last) parts.push(text.slice(last, match.index));
-      const name = match[1].trim();
-      if (msg.mentions.includes(name)) {
-        parts.push(
-          <span key={match.index} className="bg-amber-100 text-amber-700 rounded px-1">@{name}</span>
-        );
-      } else {
-        parts.push(match[0]);
-      }
-      last = match.index + match[0].length;
-    }
-    if (last < text.length) parts.push(text.slice(last));
-    return (
-      <div className="text-sm text-slate-700 mt-1 ml-10">
-        <p>{parts}</p>
-        {msg.recordTags.map((rt, i) => (
-          <span key={i} className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 rounded px-2 py-0.5 text-xs mt-1 mr-1">
-            <ExternalLink className="w-3 h-3" /> {rt.name} — {rt.type}
-          </span>
-        ))}
-      </div>
-    );
+function chipIcon(type: ChipRecordType) {
+  switch (type) {
+    case 'Student': return <GraduationCap className="w-3.5 h-3.5 text-amber-500" />;
+    case 'Lead':    return <UserCircle2    className="w-3.5 h-3.5 text-amber-500" />;
+    case 'Invoice': return <Receipt        className="w-3.5 h-3.5 text-amber-500" />;
+    case 'Task':    return <ListChecks     className="w-3.5 h-3.5 text-amber-500" />;
+    case 'Concern': return <AlertOctagon   className="w-3.5 h-3.5 text-amber-500" />;
   }
+}
+
+function MessageBody({ body }: { body: string }) {
+  const mentionRx = /@([A-Za-z][A-Za-z\s]*?)(?=[\s,.!?]|$)/g;
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let match;
+  while ((match = mentionRx.exec(body)) !== null) {
+    if (match.index > last) parts.push(body.slice(last, match.index));
+    parts.push(
+      <span key={match.index} className="bg-amber-100 text-amber-700 rounded px-1 font-medium">
+        @{match[1].trim()}
+      </span>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < body.length) parts.push(body.slice(last));
+  return <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{parts}</p>;
+}
+
+function RecordPickerDialog({
+  open,
+  onOpenChange,
+  onPick,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onPick: (chip: RecordChip) => void;
+}) {
+  const [category, setCategory] = useState<ChipRecordType>('Student');
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const list = IM_RECORD_LIBRARY[category];
+    if (!query.trim()) return list;
+    const q = query.toLowerCase();
+    return list.filter(r => r.name.toLowerCase().includes(q) || r.detail.toLowerCase().includes(q));
+  }, [category, query]);
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex" style={{ height: 600 }}>
-      {/* Left panel */}
-      <div className="w-64 flex-shrink-0 border-r border-slate-200 flex flex-col">
-        <div className="px-4 pt-4 pb-2">
-          <p className="text-xs uppercase text-slate-400 tracking-wide font-semibold">Channels</p>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Link a record</DialogTitle>
+        </DialogHeader>
+        <div className="p-6 pt-4 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={`Search ${category.toLowerCase()}s...`}
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(IM_RECORD_LIBRARY) as ChipRecordType[]).map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCategory(c)}
+                className={cn(
+                  'px-3 py-1 text-xs font-medium rounded-full cursor-pointer transition-colors',
+                  category === c
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                {c}s
+              </button>
+            ))}
+          </div>
+
+          <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-slate-400 px-3 py-4 text-center">No matching records.</p>
+            ) : filtered.map((r, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onPick(r)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-amber-50 cursor-pointer transition-colors"
+              >
+                {chipIcon(r.type)}
+                <span className="text-sm font-medium text-slate-800 flex-1 truncate">{r.name}</span>
+                <span className="text-xs text-slate-500">{r.detail}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateTaskDialog({
+  open,
+  onOpenChange,
+  onCreate,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onCreate: (chip: RecordChip) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open && <CreateTaskDialogInner onOpenChange={onOpenChange} onCreate={onCreate} />}
+    </Dialog>
+  );
+}
+
+function CreateTaskDialogInner({
+  onOpenChange,
+  onCreate,
+}: {
+  onOpenChange: (o: boolean) => void;
+  onCreate: (chip: RecordChip) => void;
+}) {
+  const [title,    setTitle]    = useState('');
+  const [priority, setPriority] = useState<'Low'|'Medium'|'High'>('Medium');
+  const [assignee, setAssignee] = useState('Jason Daswani');
+  const [dueDate,  setDueDate]  = useState('');
+
+  const valid = title.trim() && priority && assignee && dueDate;
+
+  return (
+    <>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Create task & link</DialogTitle>
+        </DialogHeader>
+        <div className="p-6 pt-4 space-y-3">
+          <div>
+            <label className="text-xs text-slate-500 font-medium">Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300"
+              placeholder="e.g. Follow up guardian call"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-500 font-medium">Priority *</label>
+              <select
+                value={priority}
+                onChange={e => setPriority(e.target.value as typeof priority)}
+                className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer bg-white"
+              >
+                <option>Low</option>
+                <option>Medium</option>
+                <option>High</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 font-medium">Due date *</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 font-medium">Assignee *</label>
+            <select
+              value={assignee}
+              onChange={e => setAssignee(e.target.value)}
+              className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer bg-white"
+            >
+              <option>Jason Daswani</option>
+              <option>Sarah Thompson</option>
+              <option>Ahmed Khalil</option>
+              <option>Tariq Al-Amin</option>
+              <option>Hana Yusuf</option>
+            </select>
+          </div>
+        </div>
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-1.5 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!valid}
+            onClick={() => {
+              onCreate({ type: 'Task', name: title.trim(), detail: priority });
+              toast.success('Task created and linked');
+              onOpenChange(false);
+            }}
+            className={cn(
+              'px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors',
+              valid
+                ? 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            )}
+          >
+            Create & Link
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </>
+  );
+}
+
+function RecordChipInline({
+  chip,
+  onNavigate,
+}: {
+  chip: RecordChip;
+  onNavigate: (chip: RecordChip) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate(chip)}
+      className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-amber-50 rounded-lg pl-2 pr-3 py-1.5 border-l-2 border-amber-400 cursor-pointer transition-colors text-xs text-slate-700 mt-1.5 mr-1.5"
+    >
+      {chipIcon(chip.type)}
+      <span className="font-medium">{chip.type}:</span>
+      <span>{chip.name}</span>
+      <span className="text-slate-400">—</span>
+      <span>{chip.detail}</span>
+    </button>
+  );
+}
+
+function InternalMessagesTab() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialChannel = useMemo(() => {
+    const ch = searchParams.get('channel');
+    if (ch && IM_CHANNEL_SEEDS[ch] !== undefined) return ch;
+    return 'general';
+  }, [searchParams]);
+
+  const [activeId, setActiveId] = useState<string>(initialChannel);
+  useEffect(() => { setActiveId(initialChannel); }, [initialChannel]);
+
+  const [query, setQuery] = useState('');
+  const [messagesByChannel, setMessagesByChannel] = useState<Record<string, IMMessage[]>>(() => {
+    const copy: Record<string, IMMessage[]> = {};
+    Object.keys(IM_CHANNEL_SEEDS).forEach(k => { copy[k] = [...IM_CHANNEL_SEEDS[k]]; });
+    return copy;
+  });
+
+  const [compose, setCompose] = useState('');
+  const [pendingChips, setPendingChips] = useState<RecordChip[]>([]);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [recordPickerOpen, setRecordPickerOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+
+  const [threadReplies, setThreadReplies] = useState<Record<string, IMMessage[]>>({
+    'g-1': [{
+      id: 'g-1-r1',
+      senderId: 'ahmed',
+      senderName: 'Ahmed Khalil',
+      initials: 'AK', color: 'bg-purple-500',
+      day: 'Today', time: '09:18',
+      body: 'Concern raised — L1. HOD has been notified.',
+    }],
+  });
+  const [threadDraft, setThreadDraft] = useState('');
+
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const activeChannel = IM_CHANNELS.find(c => c.id === activeId);
+  const activeDM = IM_DMS.find(d => d.id === activeId);
+  const activeMessages = messagesByChannel[activeId] ?? [];
+
+  const filteredChannels = useMemo(
+    () => IM_CHANNELS.filter(c => c.name.toLowerCase().includes(query.toLowerCase())),
+    [query]
+  );
+  const filteredDMs = useMemo(
+    () => IM_DMS.filter(d => d.name.toLowerCase().includes(query.toLowerCase())),
+    [query]
+  );
+
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    }
+  }, [activeId, activeMessages.length]);
+
+  const selectedMessage = selectedMessageId
+    ? activeMessages.find(m => m.id === selectedMessageId) ?? null
+    : null;
+
+  function handleChipNavigate(chip: RecordChip) {
+    switch (chip.type) {
+      case 'Student': {
+        if (chip.id) router.push(`/students/${chip.id}`);
+        else toast('Opening student record...');
+        break;
+      }
+      case 'Lead':    toast('Opening lead record...'); break;
+      case 'Invoice': router.push('/finance'); break;
+      case 'Task':    router.push('/tasks'); break;
+      case 'Concern': router.push('/progress?tab=alerts'); break;
+    }
+  }
+
+  function toggleReaction(msgId: string, emoji: string) {
+    setMessagesByChannel(prev => {
+      const list = [...(prev[activeId] ?? [])];
+      const idx = list.findIndex(m => m.id === msgId);
+      if (idx === -1) return prev;
+      const msg = { ...list[idx] };
+      const reactions = [...(msg.reactions ?? [])];
+      const rIdx = reactions.findIndex(r => r.emoji === emoji);
+      if (rIdx === -1) reactions.push({ emoji, count: 1 });
+      else reactions[rIdx] = { ...reactions[rIdx], count: reactions[rIdx].count + 1 };
+      msg.reactions = reactions;
+      list[idx] = msg;
+      return { ...prev, [activeId]: list };
+    });
+  }
+
+  function sendMessage() {
+    const trimmed = compose.trim();
+    if (!trimmed && pendingChips.length === 0) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const newMsg: IMMessage = {
+      id: `m-${Date.now()}`,
+      senderId: CURRENT_USER.id,
+      senderName: CURRENT_USER.name,
+      initials: CURRENT_USER.initials,
+      color: CURRENT_USER.color,
+      day: 'Today',
+      time: `${hh}:${mm}`,
+      body: trimmed,
+      chips: pendingChips.length ? pendingChips : undefined,
+    };
+    setMessagesByChannel(prev => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), newMsg] }));
+    setCompose('');
+    setPendingChips([]);
+  }
+
+  function sendThreadReply() {
+    const text = threadDraft.trim();
+    if (!text || !selectedMessage) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const reply: IMMessage = {
+      id: `r-${Date.now()}`,
+      senderId: CURRENT_USER.id,
+      senderName: CURRENT_USER.name,
+      initials: CURRENT_USER.initials,
+      color: CURRENT_USER.color,
+      day: 'Today',
+      time: `${hh}:${mm}`,
+      body: text,
+    };
+    setThreadReplies(prev => ({
+      ...prev,
+      [selectedMessage.id]: [...(prev[selectedMessage.id] ?? []), reply],
+    }));
+    setThreadDraft('');
+  }
+
+  function insertAtCursor(value: string) {
+    const el = textareaRef.current;
+    if (!el) { setCompose(c => c + value); return; }
+    const start = el.selectionStart ?? compose.length;
+    const end = el.selectionEnd ?? compose.length;
+    const next = compose.slice(0, start) + value + compose.slice(end);
+    setCompose(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + value.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
+
+  const activeLabel = activeChannel ? `#${activeChannel.name}` : activeDM?.name ?? '';
+  const activeIsChannel = !!activeChannel;
+  const activeMembers = activeChannel?.memberCount ?? 0;
+
+  // Group messages by day then by consecutive sender.
+  const groupedByDay = useMemo(() => {
+    const groups: { day: DayLabel; messages: IMMessage[] }[] = [];
+    activeMessages.forEach(m => {
+      const last = groups[groups.length - 1];
+      if (last && last.day === m.day) last.messages.push(m);
+      else groups.push({ day: m.day, messages: [m] });
+    });
+    return groups;
+  }, [activeMessages]);
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex" style={{ height: '72vh', minHeight: 620 }}>
+      {/* LEFT PANEL */}
+      <div className="w-60 flex-shrink-0 border-r border-slate-200 flex flex-col bg-slate-50/60">
+        <div className="px-3 pt-3 pb-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search channels/DMs"
+              className="w-full pl-7 pr-2 py-1.5 text-xs border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+            />
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          <p className="text-xs text-slate-400 px-4 mb-1 mt-2">DEPARTMENTS</p>
-          {CHANNELS.departments.map(ch => (
-            <button key={ch} type="button" onClick={() => setActiveChannel(ch)}
-              className={cn('w-full text-left px-4 py-2 text-sm flex items-center gap-1.5 transition-colors cursor-pointer',
-                activeChannel === ch ? 'bg-amber-50 text-amber-700 font-medium' : 'text-slate-600 hover:bg-slate-50'
-              )}>
-              <Hash className="w-3 h-3 flex-shrink-0" />{ch}
-            </button>
-          ))}
-
-          <p className="text-xs text-slate-400 px-4 mb-1 mt-3">TOPICS</p>
-          {CHANNELS.topics.map(ch => (
-            <button key={ch} type="button" onClick={() => setActiveChannel(ch)}
-              className={cn('w-full text-left px-4 py-2 text-sm flex items-center gap-1.5 transition-colors cursor-pointer',
-                activeChannel === ch ? 'bg-amber-50 text-amber-700 font-medium' : 'text-slate-600 hover:bg-slate-50'
-              )}>
-              <Hash className="w-3 h-3 flex-shrink-0" />{ch}
-            </button>
-          ))}
-
-          <p className="text-xs text-slate-400 px-4 mb-1 mt-3">DIRECT MESSAGES</p>
-          {CHANNELS.dms.map(dm => (
-            <button key={dm.name} type="button" onClick={() => setActiveChannel(dm.name)}
-              className={cn('w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors cursor-pointer',
-                activeChannel === dm.name ? 'bg-amber-50 text-amber-700 font-medium' : 'text-slate-600 hover:bg-slate-50'
-              )}>
-              <Avatar initials={dm.initials} color={dm.color} size={28} />
-              <span className={dm.unread > 0 ? 'font-semibold' : ''}>{dm.name}</span>
-              {dm.unread > 0 && (
-                <span className="ml-auto bg-amber-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">{dm.unread}</span>
+        <div className="flex-1 overflow-y-auto pb-3">
+          {/* Channels */}
+          <div className="flex items-center justify-between px-3 mt-2 mb-1">
+            <p className="text-[10px] uppercase text-slate-400 tracking-wider font-semibold">Channels</p>
+          </div>
+          {filteredChannels.map(ch => (
+            <button
+              key={ch.id}
+              type="button"
+              onClick={() => { setActiveId(ch.id); setSelectedMessageId(null); }}
+              className={cn(
+                'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors cursor-pointer',
+                activeId === ch.id
+                  ? 'bg-amber-50 text-amber-700 font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100'
+              )}
+            >
+              <Hash className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
+              <span className={cn('flex-1 truncate', ch.unread && activeId !== ch.id && 'font-semibold text-slate-800')}>{ch.name}</span>
+              {ch.unread && activeId !== ch.id && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
               )}
             </button>
           ))}
-        </div>
+          <button
+            type="button"
+            onClick={() => toast('Create channel — coming soon')}
+            className="w-full text-left px-3 py-1.5 text-xs text-slate-500 hover:text-amber-600 hover:bg-slate-100 cursor-pointer flex items-center gap-1.5 transition-colors"
+          >
+            <Plus className="w-3 h-3" /> New Channel
+          </button>
 
-        <div className="px-4 py-2 border-t border-slate-100">
-          <button type="button" className="text-xs text-amber-600 hover:text-amber-700 cursor-pointer"># New Channel</button>
+          {/* DMs */}
+          <div className="flex items-center justify-between px-3 mt-4 mb-1">
+            <p className="text-[10px] uppercase text-slate-400 tracking-wider font-semibold">Direct Messages</p>
+          </div>
+          {filteredDMs.map(dm => (
+            <button
+              key={dm.id}
+              type="button"
+              onClick={() => { setActiveId(dm.id); setSelectedMessageId(null); }}
+              className={cn(
+                'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors cursor-pointer',
+                activeId === dm.id
+                  ? 'bg-amber-50 text-amber-700 font-semibold'
+                  : 'text-slate-600 hover:bg-slate-100'
+              )}
+            >
+              <div className="relative flex-shrink-0">
+                <IMAvatar initials={dm.initials} color={dm.color} size={22} />
+                {dm.online && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 ring-2 ring-slate-50" />
+                )}
+              </div>
+              <span className="flex-1 truncate">{dm.name}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => toast('DM — coming soon')}
+            className="w-full text-left px-3 py-1.5 text-xs text-slate-500 hover:text-amber-600 hover:bg-slate-100 cursor-pointer flex items-center gap-1.5 transition-colors"
+          >
+            <Plus className="w-3 h-3" /> New Direct Message
+          </button>
+
+          {/* Thread types */}
+          <div className="flex items-center justify-between px-3 mt-4 mb-1">
+            <p className="text-[10px] uppercase text-slate-400 tracking-wider font-semibold">Thread Types</p>
+          </div>
+          {IM_THREAD_TYPES.map(t => (
+            <button
+              key={t.label}
+              type="button"
+              onClick={() => toast(`${t.label} threads — coming soon`)}
+              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+            >
+              <span className="text-sm leading-none" aria-hidden>{t.icon}</span>
+              <span className="truncate">{t.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* MIDDLE PANEL */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="border-b border-slate-200 px-6 py-3 flex items-center gap-2">
-          <Hash className="w-4 h-4 text-slate-500" />
-          <span className="font-semibold text-slate-900">{activeChannel}</span>
-          <span className="text-xs text-slate-400 ml-1">4 members</span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-white">
-          {activeChannel === 'primary-team' ? internalMessages.map(msg => (
-            <div key={msg.id} className="flex items-start gap-3">
-              <Avatar initials={msg.initials} color={msg.avatarColor} size={32} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-medium text-sm text-slate-900">{msg.sender}</span>
-                  <span className="text-xs text-slate-400">{msg.timestamp}</span>
-                </div>
-                {renderBody(msg)}
-                {msg.reactions.length > 0 && (
-                  <div className="flex gap-1.5 mt-1 ml-10">
-                    {msg.reactions.map((r, i) => (
-                      <span key={i} className="bg-slate-100 rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1">
-                        {r.emoji} {r.count}
-                      </span>
-                    ))}
+        {/* Header */}
+        <div className="border-b border-slate-200 px-5 py-3 flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {activeIsChannel ? (
+              <>
+                <Hash className="w-4 h-4 text-slate-500" />
+                <span className="font-semibold text-slate-900 truncate">{activeChannel?.name}</span>
+                <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5 font-medium">
+                  {activeMembers} members
+                </span>
+              </>
+            ) : (
+              <>
+                {activeDM && (
+                  <div className="relative">
+                    <IMAvatar initials={activeDM.initials} color={activeDM.color} size={28} />
+                    {activeDM.online && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 ring-2 ring-white" />
+                    )}
                   </div>
                 )}
-              </div>
-            </div>
-          )) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
-              <MessageSquare className="w-8 h-8" />
-              <p className="text-sm">No messages in #{activeChannel} yet.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-slate-200 px-6 py-3">
-          <textarea
-            value={compose}
-            onChange={e => setCompose(e.target.value)}
-            rows={2}
-            placeholder="@mention or type a message..."
-            className="w-full border border-slate-200 rounded-lg text-sm px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300"
-          />
-          <div className="flex items-center justify-between mt-2">
-            <button type="button" title="Phase 2" className="flex items-center gap-1 text-xs text-slate-400 cursor-pointer hover:text-slate-500">
-              <Paperclip className="w-3.5 h-3.5" /> Attach
+                <span className="font-semibold text-slate-900 truncate">{activeDM?.name}</span>
+                {activeDM?.online && <span className="text-xs text-green-600">Online</span>}
+              </>
+            )}
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              title="Channel info"
+              onClick={() => toast('Channel info — coming soon')}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors"
+            >
+              <Info className="w-4 h-4" />
             </button>
             <button
               type="button"
-              onClick={() => setCompose('')}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded transition-colors cursor-pointer"
+              title="Search in channel"
+              onClick={() => toast('Search in channel — coming soon')}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors"
             >
-              Send
+              <Search className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div ref={messagesRef} className="flex-1 overflow-y-auto px-5 py-4 bg-white">
+          {activeMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
+              <MessageSquare className="w-8 h-8" />
+              <p className="text-sm">No messages in {activeLabel} yet.</p>
+            </div>
+          ) : (
+            groupedByDay.map((group, gi) => (
+              <div key={gi}>
+                <div className="flex items-center gap-3 my-3">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 bg-slate-100 rounded-full px-2.5 py-0.5">
+                    {group.day}
+                  </span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+
+                <div className="space-y-0.5">
+                  {group.messages.map((m, i) => {
+                    const prev = group.messages[i - 1];
+                    const grouped = prev && prev.senderId === m.senderId;
+                    const isOwn = m.senderId === CURRENT_USER.id;
+                    const isSelected = selectedMessageId === m.id;
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => setSelectedMessageId(m.id)}
+                        className={cn(
+                          'group flex items-start gap-3 px-2 py-1 rounded-md cursor-pointer transition-colors',
+                          isSelected ? 'bg-amber-50' : 'hover:bg-slate-50',
+                        )}
+                      >
+                        <div className="w-8 flex-shrink-0">
+                          {!grouped ? (
+                            <IMAvatar initials={m.initials} color={m.color} size={32} />
+                          ) : (
+                            <span className="text-[10px] text-slate-400 invisible group-hover:visible block text-right pr-1 pt-1">{m.time}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {!grouped && (
+                            <div className="flex items-baseline gap-2">
+                              <span className={cn('font-semibold text-sm', isOwn ? 'text-amber-600' : 'text-slate-900')}>
+                                {m.senderName}
+                              </span>
+                              <span className="text-xs text-slate-400">{m.time}</span>
+                            </div>
+                          )}
+                          <MessageBody body={m.body} />
+
+                          {m.chips && m.chips.length > 0 && (
+                            <div className="flex flex-wrap -mt-0.5">
+                              {m.chips.map((c, ci) => (
+                                <span
+                                  key={ci}
+                                  onClick={e => { e.stopPropagation(); handleChipNavigate(c); }}
+                                >
+                                  <RecordChipInline chip={c} onNavigate={handleChipNavigate} />
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Reactions */}
+                          <div className="flex flex-wrap gap-1 mt-1 items-center">
+                            {(m.reactions ?? []).map((r, ri) => (
+                              <button
+                                key={ri}
+                                type="button"
+                                onClick={e => { e.stopPropagation(); toggleReaction(m.id, r.emoji); }}
+                                className="bg-slate-100 hover:bg-amber-50 border border-transparent hover:border-amber-200 rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <span>{r.emoji}</span>
+                                <span className="text-slate-600 font-medium">{r.count}</span>
+                              </button>
+                            ))}
+                            <ReactionAdder
+                              onPick={emoji => toggleReaction(m.id, emoji)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Input area */}
+        <div className="border-t border-slate-200 px-5 py-3 flex-shrink-0 bg-white">
+          {/* Toolbar */}
+          <div className="flex items-center gap-1 mb-2 flex-wrap">
+            <ToolbarButton label="Attach file"        onClick={() => toast('File attachment — coming soon')}><Paperclip className="w-4 h-4" /></ToolbarButton>
+            <ToolbarButton label="Image"              onClick={() => toast('Image — coming soon')}><ImageIcon className="w-4 h-4" /></ToolbarButton>
+            <ToolbarButton label="Mention"            onClick={() => insertAtCursor('@')}><AtSign className="w-4 h-4" /></ToolbarButton>
+            <ToolbarButton label="Link record"        onClick={() => setRecordPickerOpen(true)}><Link2 className="w-4 h-4" /></ToolbarButton>
+            <ToolbarButton label="Create task"        onClick={() => setTaskDialogOpen(true)}><CheckSquare className="w-4 h-4" /></ToolbarButton>
+            <div className="relative">
+              <ToolbarButton label="Emoji" onClick={() => setShowEmoji(s => !s)}>
+                <Smile className="w-4 h-4" />
+              </ToolbarButton>
+              {showEmoji && (
+                <div className="absolute bottom-full left-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 flex gap-1 z-20">
+                  {EMOJI_PALETTE.map(e => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => { insertAtCursor(e); setShowEmoji(false); }}
+                      className="text-lg hover:bg-amber-50 rounded w-8 h-8 flex items-center justify-center cursor-pointer"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Pending chips */}
+          {pendingChips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {pendingChips.map((c, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 bg-slate-100 rounded-lg pl-2 pr-1 py-1 border-l-2 border-amber-400 text-xs text-slate-700"
+                >
+                  {chipIcon(c.type)}
+                  <span className="font-medium">{c.type}:</span>
+                  <span>{c.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingChips(p => p.filter((_, idx) => idx !== i))}
+                    className="ml-1 p-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                    aria-label="Remove link"
+                  >
+                    <X className="w-3 h-3 text-slate-500" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Textarea + send */}
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={textareaRef}
+              value={compose}
+              onChange={e => setCompose(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              rows={2}
+              placeholder={`Message ${activeLabel}`}
+              className="flex-1 resize-none border border-slate-200 rounded-xl text-sm px-3 py-2 max-h-40 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-transparent"
+              style={{ minHeight: 52 }}
+            />
+            <button
+              type="button"
+              onClick={sendMessage}
+              disabled={!compose.trim() && pendingChips.length === 0}
+              className={cn(
+                'flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0',
+                (compose.trim() || pendingChips.length)
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-sm'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed',
+              )}
+            >
+              <Send className="w-4 h-4" />
+              <span className="hidden sm:inline">Send</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* RIGHT PANEL — THREAD */}
+      <div className="w-72 flex-shrink-0 border-l border-slate-200 flex flex-col bg-slate-50/40">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 flex-shrink-0">
+          <span className="text-sm font-semibold text-slate-800">Thread</span>
+          {selectedMessage && (
+            <button
+              type="button"
+              onClick={() => setSelectedMessageId(null)}
+              className="p-1 rounded-md hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors"
+              aria-label="Close thread"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {selectedMessage ? (
+          <>
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {/* Parent */}
+              <div className="flex items-start gap-2 pb-3 border-b border-slate-200">
+                <IMAvatar initials={selectedMessage.initials} color={selectedMessage.color} size={28} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={cn('text-sm font-semibold', selectedMessage.senderId === CURRENT_USER.id ? 'text-amber-600' : 'text-slate-900')}>
+                      {selectedMessage.senderName}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{selectedMessage.time}</span>
+                  </div>
+                  <MessageBody body={selectedMessage.body} />
+                  {selectedMessage.chips?.map((c, i) => (
+                    <RecordChipInline key={i} chip={c} onNavigate={handleChipNavigate} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Replies */}
+              {(threadReplies[selectedMessage.id] ?? []).map(r => (
+                <div key={r.id} className="flex items-start gap-2">
+                  <IMAvatar initials={r.initials} color={r.color} size={26} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={cn('text-xs font-semibold', r.senderId === CURRENT_USER.id ? 'text-amber-600' : 'text-slate-900')}>
+                        {r.senderName}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{r.time}</span>
+                    </div>
+                    <p className="text-sm text-slate-700 leading-relaxed">{r.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-200 px-3 py-3 flex-shrink-0">
+              <textarea
+                value={threadDraft}
+                onChange={e => setThreadDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendThreadReply();
+                  }
+                }}
+                rows={2}
+                placeholder="Reply in thread..."
+                className="w-full resize-none border border-slate-200 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              />
+              <div className="flex justify-end mt-2">
+                <button
+                  type="button"
+                  disabled={!threadDraft.trim()}
+                  onClick={sendThreadReply}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    threadDraft.trim()
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed',
+                  )}
+                >
+                  <Send className="w-3 h-3" /> Reply
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 px-6 text-center text-slate-400">
+            <MessageSquare className="w-7 h-7" />
+            <p className="text-xs leading-relaxed">Click on a message to view thread or reply</p>
+          </div>
+        )}
+      </div>
+
+      <RecordPickerDialog
+        open={recordPickerOpen}
+        onOpenChange={setRecordPickerOpen}
+        onPick={chip => {
+          setPendingChips(p => [...p, chip]);
+          setRecordPickerOpen(false);
+        }}
+      />
+      <CreateTaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        onCreate={chip => setPendingChips(p => [...p, chip])}
+      />
+    </div>
+  );
+}
+
+function ToolbarButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ReactionAdder({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-slate-200 hover:border-amber-300 rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1 cursor-pointer text-slate-500"
+        aria-label="Add reaction"
+      >
+        <Smile className="w-3 h-3" /> +
+      </button>
+      {open && (
+        <div
+          onClick={e => e.stopPropagation()}
+          className="absolute bottom-full left-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg p-1 flex gap-0.5 z-20"
+        >
+          {EMOJI_PALETTE.map(e => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => { onPick(e); setOpen(false); }}
+              className="text-base hover:bg-amber-50 rounded w-7 h-7 flex items-center justify-center cursor-pointer"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2153,9 +3179,16 @@ function RulesTab() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function AutomationsPage() {
+function AutomationsPageContent() {
   const { can } = usePermission();
-  const [activeTab, setActiveTab] = useState<Tab>('Templates');
+  const searchParams = useSearchParams();
+  const initialTab = useMemo<Tab>(() => {
+    const raw = searchParams.get('tab');
+    return (raw && (TABS as readonly string[]).includes(raw)) ? (raw as Tab) : 'Templates';
+  }, [searchParams]);
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
 
   if (!can('automations.view')) return <AccessDenied />;
 
@@ -2211,5 +3244,13 @@ export default function AutomationsPage() {
       {activeTab === 'Marketing'        && <MarketingTab />}
       {activeTab === 'Execution Log'    && <ExecutionLogTab />}
     </div>
+  );
+}
+
+export default function AutomationsPage() {
+  return (
+    <Suspense>
+      <AutomationsPageContent />
+    </Suspense>
   );
 }

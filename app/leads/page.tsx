@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   LayoutGrid,
   List,
@@ -11,12 +13,16 @@ import {
   Search,
   X,
   MoveRight,
-  StickyNote,
   XCircle,
   Archive,
   Eye,
   Filter,
   Download,
+  Edit3,
+  BookOpen,
+  UserPlus,
+  ArrowRight,
+  MessageSquare,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -28,6 +34,14 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { leads, type Lead, type LeadStage, type LeadSource } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -109,6 +123,16 @@ const SOURCE_FILTER_OPTIONS: string[] = ["Website", "Phone", "Walk-in", "Referra
 const DEPT_FILTER_OPTIONS = ["Primary", "Lower Secondary", "Senior"];
 const ASSIGNED_FILTER_OPTIONS = ["Jason Daswani", "Sarah Admin"];
 
+const ADD_LEAD_YEAR_OPTIONS = [
+  "KG1", "KG2", "Y1", "Y2", "Y3", "Y4", "Y5", "Y6",
+  "Y7", "Y8", "Y9", "Y10", "Y11", "Y12", "Y13",
+];
+const ADD_LEAD_SUBJECT_OPTIONS = [
+  "Maths", "English", "Science", "Physics",
+  "Chemistry", "Biology", "Business", "Economics",
+];
+const ADD_LEAD_SOURCE_OPTIONS: LeadSource[] = ["Website", "Referral", "Event", "Phone", "Walk-in"];
+
 // ─── Avatar helpers ───────────────────────────────────────────────────────────
 
 const AVATAR_PALETTES = [
@@ -132,6 +156,14 @@ function getInitials(name: string): string {
   const parts = name.trim().split(" ");
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
+}
+
+// ─── Lead action handlers (shared across menus & detail dialog) ───────────────
+
+function nextStageOf(stage: LeadStage): LeadStage | null {
+  const idx = STAGES.indexOf(stage);
+  if (idx < 0 || idx >= STAGES.length - 1) return null;
+  return STAGES[idx + 1];
 }
 
 // ─── Save Segment Popover ──────────────────────────────────────────────────────
@@ -160,16 +192,124 @@ function SaveSegmentPopover({ onSave, onClose }: { onSave: (name: string) => voi
   );
 }
 
+// ─── Lead Action Menu (three-dot, shared) ─────────────────────────────────────
+
+type LeadActions = {
+  onView: () => void;
+  onEdit: () => void;
+  onMoveStage: () => void;
+  onBookAssessment: () => void;
+  onConvertToStudent: () => void;
+  onMarkLost: () => void;
+  onArchive: () => void;
+};
+
+function LeadActionMenu({
+  lead,
+  actions,
+  size = "md",
+}: {
+  lead: Lead;
+  actions: LeadActions;
+  size?: "sm" | "md";
+}) {
+  const { can } = usePermission();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const canConvert = lead.stage === "Trial Booked" || lead.stage === "Assessment Done";
+
+  const items: { icon: React.ElementType; label: string; onClick: () => void; hidden?: boolean; danger?: boolean }[] = [
+    { icon: Eye, label: "View", onClick: actions.onView },
+    { icon: Edit3, label: "Edit Lead", onClick: actions.onEdit },
+    { icon: MoveRight, label: "Move Stage", onClick: actions.onMoveStage },
+    { icon: BookOpen, label: "Book Assessment", onClick: actions.onBookAssessment },
+    { icon: UserPlus, label: "Convert to Student", onClick: actions.onConvertToStudent, hidden: !canConvert },
+    { icon: XCircle, label: "Mark as Lost", onClick: actions.onMarkLost, hidden: !can("delete.records"), danger: true },
+    { icon: Archive, label: "Archive", onClick: actions.onArchive, hidden: !can("delete.records"), danger: true },
+  ];
+
+  const btnClass =
+    size === "sm"
+      ? "p-0.5 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+      : "p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer";
+  const iconClass = size === "sm" ? "w-3.5 h-3.5 text-slate-400" : "w-4 h-4 text-slate-400";
+
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        aria-label="Lead actions"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className={btnClass}
+      >
+        <MoreHorizontal className={iconClass} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+          {items.filter((a) => !a.hidden).map(({ icon: Icon, label, onClick, danger }) => (
+            <button
+              key={label}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onClick();
+              }}
+              className={cn(
+                "w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm transition-colors cursor-pointer",
+                danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50",
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── KanbanCard ───────────────────────────────────────────────────────────────
 
-function KanbanCard({ lead }: { lead: Lead }) {
+function KanbanCard({
+  lead,
+  onOpenDetail,
+  onOpenReminder,
+  actions,
+}: {
+  lead: Lead;
+  onOpenDetail: () => void;
+  onOpenReminder: () => void;
+  actions: LeadActions;
+}) {
   const cfg = STAGE_CONFIG[lead.stage];
   const palette = getAvatarPalette(lead.assignedTo);
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpenDetail}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenDetail();
+        }
+      }}
       className={cn(
-        "rounded-lg border border-slate-200 shadow-sm border-l-4 p-3 cursor-pointer hover:shadow-md transition-shadow",
+        "rounded-lg border border-slate-200 shadow-sm border-l-4 p-3 cursor-pointer hover:shadow-md transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
         lead.dnc ? "border-l-red-400" : cfg.color,
         lead.stage === "Won" ? "bg-green-50" : "bg-white"
       )}
@@ -191,11 +331,19 @@ function KanbanCard({ lead }: { lead: Lead }) {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {lead.stageMessagePending && (
-            <Bell className="w-3.5 h-3.5 text-amber-500" />
+            <button
+              type="button"
+              aria-label="Set reminder"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenReminder();
+              }}
+              className="p-0.5 rounded hover:bg-amber-100 transition-colors cursor-pointer"
+            >
+              <Bell className="w-3.5 h-3.5 text-amber-500" />
+            </button>
           )}
-          <button className="p-0.5 rounded hover:bg-slate-100 transition-colors cursor-pointer">
-            <MoreHorizontal className="w-3.5 h-3.5 text-slate-400" />
-          </button>
+          <LeadActionMenu lead={lead} actions={actions} size="sm" />
         </div>
       </div>
 
@@ -236,7 +384,21 @@ function KanbanCard({ lead }: { lead: Lead }) {
 
 // ─── KanbanColumn ─────────────────────────────────────────────────────────────
 
-function KanbanColumn({ stage, stageLeads }: { stage: LeadStage; stageLeads: Lead[] }) {
+function KanbanColumn({
+  stage,
+  stageLeads,
+  onOpenDetail,
+  onOpenReminder,
+  onAddLead,
+  makeActions,
+}: {
+  stage: LeadStage;
+  stageLeads: Lead[];
+  onOpenDetail: (lead: Lead) => void;
+  onOpenReminder: (lead: Lead) => void;
+  onAddLead: (stage: LeadStage) => void;
+  makeActions: (lead: Lead) => LeadActions;
+}) {
   const cfg = STAGE_CONFIG[stage];
 
   return (
@@ -260,11 +422,23 @@ function KanbanColumn({ stage, stageLeads }: { stage: LeadStage; stageLeads: Lea
         {stageLeads.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-4">No leads at this stage</p>
         ) : (
-          stageLeads.map((lead) => <KanbanCard key={lead.id} lead={lead} />)
+          stageLeads.map((lead) => (
+            <KanbanCard
+              key={lead.id}
+              lead={lead}
+              onOpenDetail={() => onOpenDetail(lead)}
+              onOpenReminder={() => onOpenReminder(lead)}
+              actions={makeActions(lead)}
+            />
+          ))
         )}
 
         {/* Add ghost button */}
-        <button className="flex items-center justify-center gap-1 py-2 rounded-lg border border-dashed border-slate-300 text-xs text-slate-400 hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer mt-1">
+        <button
+          type="button"
+          onClick={() => onAddLead(stage)}
+          className="flex items-center justify-center gap-1 py-2 rounded-lg border border-dashed border-slate-300 text-xs text-slate-400 hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer mt-1"
+        >
           <Plus className="w-3 h-3" />
           Add Lead
         </button>
@@ -273,174 +447,853 @@ function KanbanColumn({ stage, stageLeads }: { stage: LeadStage; stageLeads: Lea
   );
 }
 
-// ─── Slideover ────────────────────────────────────────────────────────────────
+// ─── Lead Detail Dialog ───────────────────────────────────────────────────────
 
-const MOCK_STAGE_HISTORY = [
-  { stage: "New", date: "1 Apr", note: "Lead created via website enquiry" },
-  { stage: "Contacted", date: "3 Apr", note: "Called guardian — interested in the programme" },
-  { stage: "Assessment Booked", date: "6 Apr", note: "Assessment scheduled for 10 Apr" },
+const DETAIL_TIMELINE = [
+  { label: "Today", text: "Lead created via website form", dot: "bg-amber-400" },
+  { label: "Yesterday", text: "Contacted by Sarah Thompson", dot: "bg-blue-400" },
+  { label: "2 days ago", text: "Assessment booked for Sat 19 Apr", dot: "bg-purple-400" },
 ];
 
-function Slideover({ lead, onClose }: { lead: Lead; onClose: () => void }) {
-  const [note, setNote] = useState("");
-  const cfg = STAGE_CONFIG[lead.stage];
+type InternalNote = { id: string; author: string; time: string; text: string };
+
+const INITIAL_INTERNAL_NOTES: InternalNote[] = [
+  {
+    id: "n1",
+    author: "Jason Daswani",
+    time: "2 days ago",
+    text: "Guardian called — very keen, looking for Y7 Maths starting this term. Mentioned sibling at another centre.",
+  },
+  {
+    id: "n2",
+    author: "Sarah Thompson",
+    time: "Yesterday",
+    text: "Sent intro WhatsApp. She replied, assessment confirmed for Saturday. Dad will attend too.",
+  },
+  {
+    id: "n3",
+    author: "Jason Daswani",
+    time: "Today",
+    text: "Reminder: bring assessment rubric for Y7 Maths. Check if sibling discount applies.",
+  },
+];
+
+type LeadTeamChatMessage = { author: string; time: string; text: string };
+
+function buildLeadTeamChat(lead: Lead): LeadTeamChatMessage[] {
+  const firstName = lead.childName.split(" ")[0];
+  return [
+    {
+      author: "Sarah Thompson",
+      time: "09:12",
+      text:
+        lead.stage === "New" || lead.stage === "Contacted"
+          ? `New enquiry for ${firstName} — I'll pick up the intro call today.`
+          : lead.stage === "Trial Booked" || lead.stage === "Assessment Done" || lead.stage === "Assessment Booked"
+          ? `${firstName}'s assessment is locked in. Prep pack sent to the teacher.`
+          : `Still chasing ${firstName}'s guardian — left a voicemail this morning.`,
+    },
+    {
+      author: "Ahmed Khalil",
+      time: "09:34",
+      text: `Noted. Flagging ${firstName} in #leads-pipeline so the team has eyes on it.`,
+    },
+  ];
+}
+
+function LeadDetailDialog({
+  lead,
+  open,
+  onOpenChange,
+  onBookAssessment,
+  onConvert,
+  onArchive,
+}: {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onBookAssessment: (lead: Lead) => void;
+  onConvert: (lead: Lead) => void;
+  onArchive: (lead: Lead) => void;
+}) {
+  const router = useRouter();
+  const [currentStage, setCurrentStage] = useState<LeadStage | null>(null);
+  const [notes, setNotes] = useState<InternalNote[]>(INITIAL_INTERNAL_NOTES);
+  const [noteDraft, setNoteDraft] = useState("");
+
+  useEffect(() => {
+    if (lead) {
+      setCurrentStage(lead.stage);
+      setNotes(INITIAL_INTERNAL_NOTES);
+      setNoteDraft("");
+    }
+  }, [lead]);
+
+  if (!lead || !currentStage) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl w-full" />
+      </Dialog>
+    );
+  }
+
+  function postNote() {
+    const text = noteDraft.trim();
+    if (!text) return;
+    setNotes((cur) => [
+      ...cur,
+      {
+        id: `n-${Date.now()}`,
+        author: "Jason Daswani",
+        time: "Just now",
+        text,
+      },
+    ]);
+    setNoteDraft("");
+  }
+
+  const cfg = STAGE_CONFIG[currentStage];
+  const palette = getAvatarPalette(lead.assignedTo);
+  const next = nextStageOf(currentStage);
+  const canConvert = currentStage === "Trial Booked" || currentStage === "Assessment Done";
 
   return (
-    <>
-      {/* Overlay */}
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      {/* Panel */}
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white">
-          <div>
-            <p className="text-xs text-slate-400 font-mono">{lead.ref}</p>
-            <h2 className="text-lg font-bold text-slate-800">{lead.childName}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl w-full max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>{lead.childName}</DialogTitle>
+          <DialogDescription className="font-mono">{lead.ref}</DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 px-6 py-4 space-y-5">
-          {/* Meta */}
-          <div className="grid grid-cols-2 gap-3">
+        <div className="flex-1 overflow-y-auto">
+
+        <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* LEFT COLUMN */}
+          <div className="space-y-4">
             <div>
-              <p className="text-xs text-slate-400 mb-0.5">Year Group</p>
-              <p className="text-sm font-medium text-slate-700">{lead.yearGroup}</p>
+              <p className="text-lg font-bold text-slate-800 leading-tight">{lead.childName}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{lead.department}</p>
             </div>
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Department</p>
-              <p className="text-sm font-medium text-slate-700">{lead.department}</p>
-            </div>
+
             <div>
               <p className="text-xs text-slate-400 mb-0.5">Guardian</p>
               <p className="text-sm font-medium text-slate-700">{lead.guardian}</p>
+              <p className="text-xs text-slate-500">{lead.guardianPhone}</p>
             </div>
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Phone</p>
-              <p className="text-sm font-medium text-slate-700">{lead.guardianPhone}</p>
-            </div>
-          </div>
 
-          {/* Stage */}
-          <div>
-            <p className="text-xs text-slate-400 mb-1.5">Current Stage</p>
-            <span className={cn("inline-flex px-2.5 py-1 rounded-full text-xs font-semibold", cfg.badge)}>
-              {lead.stage}
-            </span>
-          </div>
-
-          {/* Subjects */}
-          <div>
-            <p className="text-xs text-slate-400 mb-1.5">Subject Interest</p>
             <div className="flex flex-wrap gap-1.5">
-              {lead.subjects.map((s) => (
-                <span key={s} className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
-                  {s}
+              <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", SOURCE_CONFIG[lead.source])}>
+                {lead.source}
+              </span>
+              {lead.sibling && (
+                <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                  Sibling
                 </span>
-              ))}
+              )}
+              {lead.dnc && (
+                <span className="inline-flex px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                  DNC
+                </span>
+              )}
             </div>
-          </div>
 
-          {/* Stage history */}
-          <div>
-            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Stage History</p>
-            <div className="space-y-3">
-              {MOCK_STAGE_HISTORY.map((entry, i) => (
-                <div key={i} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-2 h-2 rounded-full bg-amber-400 mt-1 shrink-0" />
-                    {i < MOCK_STAGE_HISTORY.length - 1 && (
-                      <div className="w-px flex-1 bg-slate-200 mt-1" />
-                    )}
-                  </div>
-                  <div className="pb-3 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-semibold text-slate-700">{entry.stage}</span>
-                      <span className="text-xs text-slate-400">{entry.date}</span>
-                    </div>
-                    <p className="text-xs text-slate-500">{entry.note}</p>
-                  </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-1.5">Year Group & Subjects</p>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
+                  {lead.yearGroup}
+                </span>
+                {lead.subjects.map((s) => (
+                  <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                {lead.daysInPipeline}d in pipeline
+              </span>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400 mb-1.5">Assigned to</p>
+              <div className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
+                    palette.bg,
+                    palette.text,
+                  )}
+                >
+                  {getInitials(lead.assignedTo)}
                 </div>
-              ))}
+                <span className="text-sm font-medium text-slate-700">{lead.assignedTo}</span>
+              </div>
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Add Note</p>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Type a note..."
-              rows={3}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-            />
-            <button className="mt-2 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-              Save Note
+          {/* RIGHT COLUMN */}
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-slate-400 mb-1.5 font-medium uppercase tracking-wide">Stage</p>
+              <span className={cn("inline-flex px-2.5 py-1 rounded-full text-xs font-semibold", cfg.badge)}>
+                {currentStage}
+              </span>
+            </div>
+
+            <div>
+              <label htmlFor="lead-stage-select" className="block text-xs text-slate-400 mb-1.5 font-medium uppercase tracking-wide">
+                Change stage
+              </label>
+              <select
+                id="lead-stage-select"
+                value={currentStage}
+                onChange={(e) => {
+                  const newStage = e.target.value as LeadStage;
+                  setCurrentStage(newStage);
+                  toast.success(`Stage changed to ${newStage}`);
+                }}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer bg-white"
+              >
+                {STAGES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              disabled={!next}
+              onClick={() => {
+                if (!next) return;
+                setCurrentStage(next);
+                toast.success(`Lead moved to ${next}`);
+              }}
+              className={cn(
+                "w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
+                next
+                  ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed",
+              )}
+            >
+              Move to next stage
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
-      </div>
-    </>
+
+        {/* TIMELINE */}
+        <div className="px-6 pb-2">
+          <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide">Activity Timeline</p>
+          <div className="space-y-3">
+            {DETAIL_TIMELINE.map((entry, i) => (
+              <div key={i} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                  <div className={cn("w-2.5 h-2.5 rounded-full mt-1 shrink-0", entry.dot)} />
+                  {i < DETAIL_TIMELINE.length - 1 && (
+                    <div className="w-px flex-1 bg-slate-200 mt-1" />
+                  )}
+                </div>
+                <div className="pb-2 min-w-0 flex-1">
+                  <p className="text-sm text-slate-700">{entry.text}</p>
+                  <p className="text-xs text-slate-400">{entry.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* TEAM CHAT PREVIEW */}
+        <div className="px-6 pt-4 pb-2 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> Team Chat
+            </p>
+            <span className="text-[10px] text-slate-400">#leads-pipeline</span>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/60 divide-y divide-slate-200">
+            {buildLeadTeamChat(lead).map((m, i) => {
+              const palette = getAvatarPalette(m.author);
+              return (
+                <div key={i} className="flex gap-2 px-3 py-2">
+                  <div
+                    className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                      palette.bg,
+                      palette.text,
+                    )}
+                  >
+                    {getInitials(m.author)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xs font-semibold text-slate-700">{m.author}</span>
+                      <span className="text-[10px] text-slate-400">· {m.time}</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-snug mt-0.5">{m.text}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/automations?tab=Internal%20Messages&channel=leads-pipeline")}
+            className="mt-2 text-xs font-medium text-amber-600 hover:text-amber-700 cursor-pointer inline-flex items-center gap-1 transition-colors"
+          >
+            View full conversation <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        {/* INTERNAL NOTES */}
+        <div className="px-6 py-5 border-t border-slate-100">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Internal Notes</p>
+          <p className="text-xs text-slate-400 mb-3">Only visible to staff — not shared with parents</p>
+
+          <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 divide-y divide-slate-200">
+            {notes.map((n) => {
+              const palette = getAvatarPalette(n.author);
+              return (
+                <div key={n.id} className="flex gap-3 px-3 py-2.5">
+                  <div
+                    className={cn(
+                      "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                      palette.bg,
+                      palette.text,
+                    )}
+                  >
+                    {getInitials(n.author)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-semibold text-slate-700">{n.author}</span>
+                      <span className="text-xs text-slate-400">· {n.time}</span>
+                    </div>
+                    <p className="text-sm text-slate-600 leading-snug mt-0.5 whitespace-pre-wrap">{n.text}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3">
+            <textarea
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              placeholder="Add a note for your team..."
+              rows={2}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                disabled={!noteDraft.trim()}
+                onClick={postNote}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors",
+                  noteDraft.trim()
+                    ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed",
+                )}
+              >
+                Post Note
+              </button>
+            </div>
+          </div>
+        </div>
+
+        </div>
+
+        <DialogFooter className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onBookAssessment(lead)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Book Assessment
+          </button>
+          {canConvert && (
+            <button
+              type="button"
+              onClick={() => onConvert(lead)}
+              className="px-3 py-2 text-sm font-medium border border-amber-300 bg-amber-50 rounded-lg hover:bg-amber-100 text-amber-700 cursor-pointer transition-colors"
+            >
+              Convert to Student
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onArchive(lead)}
+            className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
+          >
+            Archive Lead
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Close
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── ActionMenu ───────────────────────────────────────────────────────────────
+// ─── Reminder Dialog ──────────────────────────────────────────────────────────
 
-function ActionMenu({ lead, onView }: { lead: Lead; onView: () => void }) {
-  const { can } = usePermission();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+function ReminderDialog({
+  lead,
+  open,
+  onOpenChange,
+}: {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [note, setNote] = useState("");
 
   useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    if (open) {
+      setDate("");
+      setTime("");
+      setNote("");
     }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  }, [open, lead]);
 
-  const actions: { icon: React.ElementType; label: string; onClick: () => void; hidden?: boolean }[] = [
-    { icon: Eye, label: "View", onClick: onView },
-    { icon: MoveRight, label: "Move Stage", onClick: () => {} },
-    { icon: StickyNote, label: "Log Note", onClick: () => {} },
-    { icon: XCircle, label: "Mark Lost", onClick: () => {}, hidden: !can('delete.records') },
-    { icon: Archive, label: "Archive", onClick: () => {}, hidden: !can('delete.records') },
-  ];
+  const canSave = date && time;
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
-      >
-        <MoreHorizontal className="w-4 h-4 text-slate-400" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-          {actions.filter(a => !a.hidden).map(({ icon: Icon, label, onClick }) => (
-            <button
-              key={label}
-              onClick={() => { onClick(); setOpen(false); }}
-              className={cn(
-                "w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm transition-colors cursor-pointer",
-                label === "Mark Lost" || label === "Archive"
-                  ? "text-red-600 hover:bg-red-50"
-                  : "text-slate-700 hover:bg-slate-50"
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-            </button>
-          ))}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm w-full">
+        <DialogHeader>
+          <DialogTitle>Set Reminder</DialogTitle>
+          {lead && <DialogDescription>{lead.childName}</DialogDescription>}
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          <div>
+            <label htmlFor="reminder-date" className="block text-xs text-slate-500 mb-1 font-medium">
+              Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="reminder-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="reminder-time" className="block text-xs text-slate-500 mb-1 font-medium">
+              Time <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="reminder-time"
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="reminder-note" className="block text-xs text-slate-500 mb-1 font-medium">
+              Note
+            </label>
+            <textarea
+              id="reminder-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Optional note..."
+              rows={3}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
         </div>
-      )}
-    </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={() => {
+              toast.success("Reminder set");
+              onOpenChange(false);
+            }}
+            className={cn(
+              "px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
+              canSave
+                ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed",
+            )}
+          >
+            Save Reminder
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Add Lead Dialog ──────────────────────────────────────────────────────────
+
+function AddLeadDialog({
+  open,
+  onOpenChange,
+  initialStage,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initialStage: LeadStage | null;
+}) {
+  const [name, setName] = useState("");
+  const [guardian, setGuardian] = useState("");
+  const [phone, setPhone] = useState("");
+  const [whatsapp, setWhatsapp] = useState(true);
+  const [year, setYear] = useState("");
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [source, setSource] = useState<LeadSource | "">("");
+  const [assigned, setAssigned] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setGuardian("");
+      setPhone("");
+      setWhatsapp(true);
+      setYear("");
+      setSubjects([]);
+      setSource("");
+      setAssigned("");
+      setNotes("");
+    }
+  }, [open]);
+
+  const canSave = name.trim() && guardian.trim() && phone.trim() && year && subjects.length > 0 && source;
+
+  function toggleSubject(s: string) {
+    setSubjects((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add New Lead</DialogTitle>
+          {initialStage && (
+            <DialogDescription>Starting stage: {initialStage}</DialogDescription>
+          )}
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="new-name" className="block text-xs text-slate-500 mb-1 font-medium">
+                Lead Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="new-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-guardian" className="block text-xs text-slate-500 mb-1 font-medium">
+                Guardian Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="new-guardian"
+                value={guardian}
+                onChange={(e) => setGuardian(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-phone" className="block text-xs text-slate-500 mb-1 font-medium">
+                Phone <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="new-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+971 50 000 0000"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="block text-xs text-slate-500 font-medium">WhatsApp</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={whatsapp}
+                onClick={() => setWhatsapp((w) => !w)}
+                className={cn(
+                  "relative inline-flex w-9 h-5 rounded-full transition-colors cursor-pointer focus:outline-none",
+                  whatsapp ? "bg-amber-500" : "bg-slate-200",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform absolute top-0.5",
+                    whatsapp ? "translate-x-4" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+              <span className="text-sm text-slate-600">{whatsapp ? "Enabled" : "Disabled"}</span>
+            </div>
+
+            <div>
+              <label htmlFor="new-year" className="block text-xs text-slate-500 mb-1 font-medium">
+                Year Group <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="new-year"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer"
+              >
+                <option value="">Select year group…</option>
+                {ADD_LEAD_YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="new-source" className="block text-xs text-slate-500 mb-1 font-medium">
+                Source <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="new-source"
+                value={source}
+                onChange={(e) => setSource(e.target.value as LeadSource)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer"
+              >
+                <option value="">Select source…</option>
+                {ADD_LEAD_SOURCE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="new-assigned" className="block text-xs text-slate-500 mb-1 font-medium">
+                Assigned To
+              </label>
+              <select
+                id="new-assigned"
+                value={assigned}
+                onChange={(e) => setAssigned(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer"
+              >
+                <option value="">Unassigned</option>
+                {ASSIGNED_FILTER_OPTIONS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <p className="block text-xs text-slate-500 mb-1.5 font-medium">
+              Subject(s) <span className="text-red-500">*</span>
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {ADD_LEAD_SUBJECT_OPTIONS.map((s) => {
+                const on = subjects.includes(s);
+                return (
+                  <button
+                    type="button"
+                    key={s}
+                    onClick={() => toggleSubject(s)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer",
+                      on
+                        ? "bg-amber-500 text-white border-amber-500"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-amber-400",
+                    )}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="new-notes" className="block text-xs text-slate-500 mb-1 font-medium">
+              Notes
+            </label>
+            <textarea
+              id="new-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={() => {
+              toast.success("Lead added successfully");
+              onOpenChange(false);
+            }}
+            className={cn(
+              "px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
+              canSave
+                ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed",
+            )}
+          >
+            Save Lead
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Archive Confirm Dialog ───────────────────────────────────────────────────
+
+function ArchiveConfirmDialog({
+  lead,
+  open,
+  onOpenChange,
+}: {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Archive lead?</DialogTitle>
+          {lead && <DialogDescription>{lead.childName}</DialogDescription>}
+        </DialogHeader>
+
+        <div className="px-6 py-5 text-sm text-slate-600">
+          Archive this lead? You can restore it later.
+        </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              toast.success("Lead archived");
+              onOpenChange(false);
+            }}
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer transition-colors shadow-sm"
+          >
+            Confirm
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Move Stage Dialog ────────────────────────────────────────────────────────
+
+function MoveStageDialog({
+  lead,
+  open,
+  onOpenChange,
+}: {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const [stage, setStage] = useState<LeadStage | null>(null);
+
+  useEffect(() => {
+    if (lead) setStage(lead.stage);
+  }, [lead, open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm w-full">
+        <DialogHeader>
+          <DialogTitle>Move stage</DialogTitle>
+          {lead && <DialogDescription>{lead.childName}</DialogDescription>}
+        </DialogHeader>
+
+        <div className="px-6 py-5">
+          <label htmlFor="move-stage" className="block text-xs text-slate-500 mb-1.5 font-medium uppercase tracking-wide">
+            New stage
+          </label>
+          <select
+            id="move-stage"
+            value={stage ?? ""}
+            onChange={(e) => setStage(e.target.value as LeadStage)}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer"
+          >
+            {STAGES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!stage || stage === lead?.stage}
+            onClick={() => {
+              if (!stage) return;
+              toast.success(`Lead moved to ${stage}`);
+              onOpenChange(false);
+            }}
+            className={cn(
+              "px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
+              stage && stage !== lead?.stage
+                ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed",
+            )}
+          >
+            Move stage
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -462,7 +1315,18 @@ export default function LeadsPage() {
   const [myLeads, setMyLeads] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+
+  // Dialogs
+  const [detailLead, setDetailLead] = useState<Lead | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [reminderLead, setReminderLead] = useState<Lead | null>(null);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [archiveLead, setArchiveLead] = useState<Lead | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [moveStageLead, setMoveStageLead] = useState<Lead | null>(null);
+  const [moveStageOpen, setMoveStageOpen] = useState(false);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
+  const [addLeadStage, setAddLeadStage] = useState<LeadStage | null>(null);
 
   // Sort
   const [sortField, setSortField] = useState<string | null>(null);
@@ -547,6 +1411,41 @@ export default function LeadsPage() {
     setPage(1);
   }
 
+  // Dialog openers
+  function openDetail(lead: Lead) {
+    setDetailLead(lead);
+    setDetailOpen(true);
+  }
+  function openReminder(lead: Lead) {
+    setReminderLead(lead);
+    setReminderOpen(true);
+  }
+  function openArchive(lead: Lead) {
+    setArchiveLead(lead);
+    setArchiveOpen(true);
+    setDetailOpen(false);
+  }
+  function openMoveStage(lead: Lead) {
+    setMoveStageLead(lead);
+    setMoveStageOpen(true);
+  }
+  function openAddLead(stage: LeadStage | null = null) {
+    setAddLeadStage(stage);
+    setAddLeadOpen(true);
+  }
+
+  function makeActions(lead: Lead): LeadActions {
+    return {
+      onView: () => openDetail(lead),
+      onEdit: () => toast("Edit lead — coming soon"),
+      onMoveStage: () => openMoveStage(lead),
+      onBookAssessment: () => toast("Opening assessment booking..."),
+      onConvertToStudent: () => toast("Converting lead to student — coming soon"),
+      onMarkLost: () => toast.success("Lead marked as Lost"),
+      onArchive: () => openArchive(lead),
+    };
+  }
+
   const viewButtons: { key: ViewMode; Icon: React.ElementType; label: string }[] = [
     { key: "kanban", Icon: LayoutGrid, label: "Kanban" },
     { key: "list", Icon: List, label: "List" },
@@ -574,7 +1473,11 @@ export default function LeadsPage() {
             </button>
           )}
           {can('leads.create') && (
-            <button className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm">
+            <button
+              type="button"
+              onClick={() => openAddLead()}
+              className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm cursor-pointer"
+            >
               <Plus className="w-4 h-4" />
               Add Lead
             </button>
@@ -709,6 +1612,10 @@ export default function LeadsPage() {
               key={stage}
               stage={stage}
               stageLeads={filteredLeads.filter((l) => l.stage === stage)}
+              onOpenDetail={openDetail}
+              onOpenReminder={openReminder}
+              onAddLead={(s) => openAddLead(s)}
+              makeActions={makeActions}
             />
           ))}
         </div>
@@ -740,7 +1647,7 @@ export default function LeadsPage() {
                   return (
                     <tr
                       key={lead.id}
-                      onClick={() => setSelectedLead(lead)}
+                      onClick={() => openDetail(lead)}
                       className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
@@ -799,7 +1706,7 @@ export default function LeadsPage() {
                       <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{lead.lastActivity}</td>
                       <td className="px-4 py-3 text-sm text-slate-500 text-center">{lead.daysInPipeline}</td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <ActionMenu lead={lead} onView={() => setSelectedLead(lead)} />
+                        <LeadActionMenu lead={lead} actions={makeActions(lead)} />
                       </td>
                     </tr>
                   );
@@ -848,6 +1755,7 @@ export default function LeadsPage() {
                   return (
                     <tr
                       key={lead.id}
+                      onClick={() => openDetail(lead)}
                       className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors cursor-pointer"
                       style={{ height: "40px" }}
                     >
@@ -914,10 +1822,35 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {/* ── Slide-over ──────────────────────────────────────────────────── */}
-      {selectedLead && (
-        <Slideover lead={selectedLead} onClose={() => setSelectedLead(null)} />
-      )}
+      {/* ── Dialogs ─────────────────────────────────────────────────────── */}
+      <LeadDetailDialog
+        lead={detailLead}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onBookAssessment={() => toast("Opening assessment booking...")}
+        onConvert={() => toast("Converting lead to student — coming soon")}
+        onArchive={(l) => openArchive(l)}
+      />
+      <ReminderDialog
+        lead={reminderLead}
+        open={reminderOpen}
+        onOpenChange={setReminderOpen}
+      />
+      <AddLeadDialog
+        open={addLeadOpen}
+        onOpenChange={setAddLeadOpen}
+        initialStage={addLeadStage}
+      />
+      <ArchiveConfirmDialog
+        lead={archiveLead}
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+      />
+      <MoveStageDialog
+        lead={moveStageLead}
+        open={moveStageOpen}
+        onOpenChange={setMoveStageOpen}
+      />
     </div>
   );
 }
