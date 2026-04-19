@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { ExportDialog } from "@/components/ui/export-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -867,6 +868,7 @@ type TabId = (typeof TABS)[number]["id"];
 export default function ProgressPage() {
   const { can, role } = usePermission();
   const [activeTab, setActiveTab] = useState<TabId>("trackers");
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -882,10 +884,33 @@ export default function ProgressPage() {
         <RoleBanner message="You can view progress trackers and student data. Report approvals require a higher role." />
       )}
       {/* Page header */}
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Progress</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Academic monitoring — track student progress, manage reports, and review alerts.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-800">Progress</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Academic monitoring — track student progress, manage reports, and review alerts.</p>
+        </div>
+        {can('export') && (
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        )}
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Progress Data"
+        recordCount={3847}
+        formats={[
+          { id: 'csv-trackers', label: 'Tracker Export', description: 'One row per tracker. Student, subject, avg score, predicted grade, tier.', icon: 'rows', recommended: true },
+          { id: 'pdf-reports', label: 'Progress Reports (PDF)', description: 'Batch export of all approved progress reports as a single PDF.', icon: 'pdf' },
+        ]}
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200">

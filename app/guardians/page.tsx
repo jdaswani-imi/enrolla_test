@@ -11,10 +11,12 @@ import {
   UserPlus2,
   MessageSquare,
   Archive,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import { guardians, type Guardian } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -158,6 +160,7 @@ function RowActions({
 
 export default function GuardiansPage() {
   const { can } = usePermission();
+  const [exportOpen,     setExportOpen]     = useState(false);
   const [searchQuery,    setSearchQuery]    = useState("");
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [bulkSelect,     setBulkSelect]     = useState(false);
@@ -220,16 +223,39 @@ export default function GuardiansPage() {
           <h1 className="text-xl font-bold text-slate-800 leading-tight">Guardians</h1>
           <p className="text-sm text-slate-400 mt-0.5">Manage guardians and their linked students.</p>
         </div>
-        {can('guardians.create') && (
-          <button
-            type="button"
-            className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm shrink-0"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            Add Guardian
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {can('export') && (
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          )}
+          {can('guardians.create') && (
+            <button
+              type="button"
+              className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Add Guardian
+            </button>
+          )}
+        </div>
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Guardians"
+        recordCount={198}
+        formats={[
+          { id: 'csv-contacts', label: 'Contact List', description: 'Name, email, phone, WhatsApp status, linked students.', icon: 'rows', recommended: true },
+          { id: 'csv-full', label: 'Full Export', description: 'All fields including DNC status, communication history.', icon: 'items' },
+        ]}
+      />
 
       {/* ── Filter & search bar ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3">

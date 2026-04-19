@@ -16,12 +16,14 @@ import {
   MoreHorizontal,
   BookOpen,
   Users,
+  Download,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import {
   timetableSessions,
   students as allStudents,
@@ -122,6 +124,7 @@ allStudents.forEach(s => { STUDENT_YEAR[s.name] = s.yearGroup; });
 
 export default function AttendancePage() {
   const { can, role } = usePermission();
+  const [exportOpen, setExportOpen] = useState(false);
   const [mainTab, setMainTab]       = useState<MainTab>("register");
   const [selectedId, setSelectedId] = useState("s001");
   const [completed, setCompleted]   = useState<Set<string>>(new Set());
@@ -196,12 +199,35 @@ export default function AttendancePage() {
         <RoleBanner message="You can mark attendance for your own sessions only." />
       )}
       {/* Page header */}
-      <div className="px-6 pt-6 pb-0">
-        <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          Mon 21 Apr 2025 · {todaySessions.length} sessions today
-        </p>
+      <div className="px-6 pt-6 pb-0 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Mon 21 Apr 2025 · {todaySessions.length} sessions today
+          </p>
+        </div>
+        {can('export') && (
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        )}
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Attendance"
+        recordCount={7}
+        formats={[
+          { id: 'csv-register', label: 'Session Register', description: 'One row per student per session. Date, subject, teacher, status.', icon: 'rows', recommended: true },
+          { id: 'csv-summary', label: 'Attendance Summary', description: 'One row per student. Overall attendance rate and session counts.', icon: 'items' },
+        ]}
+      />
 
       {/* Main tab bar */}
       <div className="px-6 mt-4">

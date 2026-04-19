@@ -29,6 +29,9 @@ import {
   ClipboardList,
   GraduationCap,
   ExternalLink,
+  Clock,
+  Calendar,
+  CheckCircle2,
 } from "lucide-react";
 import {
   BarChart,
@@ -43,19 +46,35 @@ import {
 import { cn } from "@/lib/utils";
 import { SkeletonKpi, SkeletonTable, SkeletonCard } from "@/components/ui/skeleton-loader";
 import {
-  kpiCards,
   churnRiskStudents,
   operationalThresholds,
   revenueData,
   occupancyHeatmap,
   activityFeed,
   reportsInbox,
+  teacherTodaySessions,
+  taTodaySessions,
+  teacherPendingActions,
+  teacherTopTasks,
+  taTopTasks,
+  hodTeacherWorkload,
+  hodAcademicAlerts,
+  academicAlerts,
+  hodUpcomingSessions,
+  hodPendingApprovals,
+  invoiceStatusBreakdown,
+  staffCpdProgress,
   type KpiCard,
   type ChurnRiskStudent,
   type OperationalThreshold,
   type ActivityEvent,
   type ReportItem,
+  type DashboardSessionRow,
+  type DashboardTaskRow,
+  type AcademicAlertRow,
 } from "@/lib/mock-data";
+import { useRole } from "@/lib/role-context";
+import { getDashboardConfig, type DashboardSectionId } from "@/lib/dashboard-config";
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
 
@@ -73,6 +92,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   BarChart2,
   ClipboardList,
   GraduationCap,
+  UserCheck,
+  TriangleAlert,
 };
 
 // ─── KPI Link map ─────────────────────────────────────────────────────────────
@@ -83,6 +104,17 @@ const KPI_LINKS: Record<string, string> = {
   concerns:  "/progress?tab=alerts",
   occupancy: "/analytics?tab=occupancy",
   revenue:   "/analytics?tab=revenue",
+  "attendance-rate": "/attendance",
+  "tracker-breaches": "/progress?tab=alerts",
+  "my-sessions-week": "/timetable",
+  "my-students": "/students",
+  "my-attendance-rate": "/attendance",
+  "ta-assigned-sessions": "/timetable",
+  "ta-attendance-rate": "/attendance",
+  "dept-sessions-week": "/timetable",
+  "dept-concerns": "/progress?tab=alerts",
+  "active-staff": "/staff",
+  "cpd-completion": "/staff",
 };
 
 // ─── Activity destination map ─────────────────────────────────────────────────
@@ -143,6 +175,22 @@ function getThresholdPill(status: OperationalThreshold["status"]) {
     case "ok":       return "bg-emerald-100 text-emerald-700";
     case "warning":  return "bg-amber-100 text-amber-700";
     case "critical": return "bg-red-100 text-red-700";
+  }
+}
+
+function getWorkloadDot(level: "Low" | "Moderate" | "High") {
+  switch (level) {
+    case "Low":      return "bg-emerald-500";
+    case "Moderate": return "bg-amber-400";
+    case "High":     return "bg-red-500";
+  }
+}
+
+function getPriorityBadge(p: DashboardTaskRow["priority"]) {
+  switch (p) {
+    case "High":   return "bg-red-100 text-red-700";
+    case "Medium": return "bg-amber-100 text-amber-700";
+    case "Low":    return "bg-slate-100 text-slate-600";
   }
 }
 
@@ -247,18 +295,15 @@ function KpiCardItem({ card }: { card: KpiCard }) {
       "flex flex-col justify-between h-[140px] w-full transition-all duration-200",
       href && "cursor-pointer hover:shadow-md hover:border-amber-200 hover:-translate-y-px"
     )}>
-      {/* Row 1 — label left, icon right */}
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-slate-500 leading-tight">{card.label}</p>
         <IconComponent className="w-4 h-4 text-amber-500 shrink-0" />
       </div>
 
-      {/* Row 2 — value */}
       <p className={cn("font-bold text-slate-900 leading-none truncate", String(card.value).length > 10 ? "text-[1.35rem]" : "text-2xl")}>
         {card.value}
       </p>
 
-      {/* Row 3 — trend / sub-text */}
       <div className="text-xs">
         {card.subValue && (
           <p className={cn("font-medium mb-0.5", trendColor)}>{card.subValue}</p>
@@ -281,7 +326,7 @@ function KpiCardItem({ card }: { card: KpiCard }) {
 
 // ─── Churn Risk Table ─────────────────────────────────────────────────────────
 
-function ChurnRiskTable() {
+function ChurnRiskTable({ simple = false }: { simple?: boolean }) {
   return (
     <Card className="flex flex-col">
       <SectionLabel>Churn Risk</SectionLabel>
@@ -292,8 +337,12 @@ function ChurnRiskTable() {
               <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Student</th>
               <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Yr / Dept</th>
               <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Score</th>
-              <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Signal</th>
-              <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Last Contact</th>
+              {!simple && (
+                <>
+                  <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Signal</th>
+                  <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Last Contact</th>
+                </>
+              )}
               <th className="py-2 px-1" />
             </tr>
           </thead>
@@ -310,8 +359,12 @@ function ChurnRiskTable() {
                     {s.churnScore} {s.churnLevel}
                   </span>
                 </td>
-                <td className="py-2.5 px-1 text-slate-500 text-xs hidden md:table-cell">{s.topSignal}</td>
-                <td className="py-2.5 px-1 text-slate-400 text-xs hidden lg:table-cell">{s.daysSinceContact}d ago</td>
+                {!simple && (
+                  <>
+                    <td className="py-2.5 px-1 text-slate-500 text-xs hidden md:table-cell">{s.topSignal}</td>
+                    <td className="py-2.5 px-1 text-slate-400 text-xs hidden lg:table-cell">{s.daysSinceContact}d ago</td>
+                  </>
+                )}
                 <td className="py-2.5 px-1">
                   <Link href={`/students/${s.studentId}`} className="text-xs text-amber-600 hover:text-amber-700 font-medium whitespace-nowrap transition-colors">
                     View Profile
@@ -435,12 +488,18 @@ function OccupancyHeatmap() {
 
 // ─── Activity Feed ────────────────────────────────────────────────────────────
 
-function ActivityFeedPanel() {
+const ACADEMIC_ACTIVITY_TYPES = new Set(["concern", "assessment", "re-enrolment", "enrolment"]);
+
+function ActivityFeedPanel({ filter }: { filter?: "academic" }) {
+  const events = filter === "academic"
+    ? activityFeed.filter((e) => ACADEMIC_ACTIVITY_TYPES.has(e.type))
+    : activityFeed;
+
   return (
     <Card className="flex flex-col">
-      <SectionLabel>Live Activity</SectionLabel>
+      <SectionLabel>{filter === "academic" ? "Academic Activity" : "Live Activity"}</SectionLabel>
       <div className="flex flex-col divide-y divide-slate-50">
-        {activityFeed.map((event: ActivityEvent) => {
+        {events.map((event: ActivityEvent) => {
           const meta  = ACTIVITY_ICON_MAP[event.type] ?? ACTIVITY_ICON_MAP["report"];
           const IconEl = meta.icon;
           const href  = ACTIVITY_HREFS[event.type] ?? "/dashboard";
@@ -509,41 +568,421 @@ function ReportsInboxPanel() {
   );
 }
 
-// ─── Dashboard section interface ──────────────────────────────────────────────
+// ─── Today's Sessions ─────────────────────────────────────────────────────────
 
-interface DashboardSection {
-  id: string;
-  label: string;
-  component: React.ReactNode;
-}
-
-// ─── Row wrapper components ───────────────────────────────────────────────────
-
-function ActivityAndReportsRow() {
+function TodaySessionsPanel({ sessions, readOnly = false }: { sessions: DashboardSessionRow[]; readOnly?: boolean }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-      <div className="lg:col-span-3"><ActivityFeedPanel /></div>
-      <div className="lg:col-span-2"><ReportsInboxPanel /></div>
-    </div>
+    <Card className="flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <SectionLabel>{readOnly ? "Today's Sessions (read-only)" : "Today's Sessions"}</SectionLabel>
+        <Link href="/timetable" className="text-xs text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 transition-colors -mt-3">
+          View full timetable
+          <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="flex flex-col divide-y divide-slate-50">
+        {sessions.map((s) => (
+          <div key={s.id} className="flex items-center gap-3 py-3">
+            <div className="rounded-md bg-amber-50 p-2 shrink-0">
+              <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-semibold text-slate-800">{s.time}</span>
+                <span className="text-sm text-slate-700 truncate">{s.subject}</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5 truncate">{s.room} · {s.studentCount} students — {s.students}</p>
+            </div>
+            {!readOnly && (
+              <Link href="/attendance" className="shrink-0 text-xs font-medium text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-300 rounded px-2.5 py-1 transition-colors cursor-pointer">
+                Mark
+              </Link>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
-function ChurnAndThresholdsRow() {
+// ─── Pending Actions (Teacher) ────────────────────────────────────────────────
+
+function PendingActionsPanel() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-      <div className="lg:col-span-3"><ChurnRiskTable /></div>
-      <div className="lg:col-span-2"><OperationalThresholdStrip /></div>
-    </div>
+    <Card className="flex flex-col">
+      <SectionLabel>Pending Actions</SectionLabel>
+      <div className="flex flex-col divide-y divide-slate-50">
+        {teacherPendingActions.map((a) => {
+          const color =
+            a.severity === "critical" ? "text-red-600 bg-red-50"
+            : a.severity === "warning"  ? "text-amber-600 bg-amber-50"
+            : "text-emerald-600 bg-emerald-50";
+          const Icon = a.count === 0 ? CheckCircle2 : AlertCircle;
+          return (
+            <Link key={a.id} href={a.href} className="flex items-center gap-3 py-3 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
+              <div className={cn("rounded-md p-2 shrink-0", color.split(" ")[1])}>
+                <Icon className={cn("w-4 h-4", color.split(" ")[0])} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-slate-800 truncate">{a.label}</p>
+              </div>
+              <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums", color)}>
+                {a.count}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
-function ChartsRow() {
+// ─── My Tasks panel ───────────────────────────────────────────────────────────
+
+function MyTasksPanel({ tasks, label = "My Tasks" }: { tasks: DashboardTaskRow[]; label?: string }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <RevenueChart />
-      <OccupancyHeatmap />
-    </div>
+    <Card className="flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <SectionLabel>{label}</SectionLabel>
+        <Link href="/tasks" className="text-xs text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 transition-colors -mt-3">
+          View all
+          <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="flex flex-col divide-y divide-slate-50">
+        {tasks.map((t) => (
+          <Link key={t.id} href={t.href} className="flex items-center gap-3 py-3 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
+            <CheckSquare className="w-4 h-4 text-slate-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-800 truncate">{t.title}</p>
+              <p className="text-xs text-slate-400 mt-0.5">Due {t.dueLabel}</p>
+            </div>
+            <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", getPriorityBadge(t.priority))}>
+              {t.priority}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </Card>
   );
+}
+
+// ─── HOD — Teacher Workload ───────────────────────────────────────────────────
+
+function TeacherWorkloadPanel() {
+  return (
+    <Card className="flex flex-col">
+      <SectionLabel>Teacher Workload (Primary)</SectionLabel>
+      <div className="flex flex-col divide-y divide-slate-50">
+        {hodTeacherWorkload.map((t) => (
+          <div key={t.id} className="flex items-center gap-3 py-3">
+            <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", getWorkloadDot(t.level))} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-800 truncate">{t.name}</p>
+              <p className="text-xs text-slate-400 mt-0.5 truncate">{t.subjects}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-sm font-semibold text-slate-800 tabular-nums">{t.sessionsThisWeek}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">sessions</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ─── Academic Alerts ──────────────────────────────────────────────────────────
+
+function AcademicAlertsPanel({ alerts, label = "Academic Alerts" }: { alerts: AcademicAlertRow[]; label?: string }) {
+  return (
+    <Card className="flex flex-col">
+      <SectionLabel>{label}</SectionLabel>
+      {alerts.length === 0 ? (
+        <p className="text-sm text-slate-400 py-4">No active alerts.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-slate-50">
+          {alerts.map((a) => (
+            <Link key={a.id} href={a.href} className="flex items-center gap-3 py-3 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
+              <div className="rounded-md bg-red-50 p-2 shrink-0">
+                <TriangleAlert className="w-4 h-4 text-red-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate">{a.title}</p>
+                <p className="text-xs text-slate-400 mt-0.5 truncate">{a.student} · {a.subject}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px] font-semibold">
+                  {a.level}
+                </span>
+                <p className="text-[10px] text-slate-400 mt-0.5">{a.opened}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── HOD — Upcoming Sessions ──────────────────────────────────────────────────
+
+function UpcomingSessionsPanel() {
+  const byDay = hodUpcomingSessions.reduce<Record<string, typeof hodUpcomingSessions>>((acc, s) => {
+    (acc[s.day] ??= []).push(s);
+    return acc;
+  }, {});
+
+  return (
+    <Card className="flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <SectionLabel>Upcoming Sessions · This Week</SectionLabel>
+        <Link href="/timetable" className="text-xs text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 transition-colors -mt-3">
+          View timetable
+          <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="flex flex-col gap-3">
+        {Object.entries(byDay).map(([day, rows]) => (
+          <div key={day}>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5">{day}</p>
+            <div className="flex flex-col gap-1.5">
+              {rows.map((r) => (
+                <div key={r.id} className="flex items-center gap-3 text-sm rounded-md border border-slate-100 bg-slate-50/60 px-3 py-2">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="font-semibold text-slate-700 tabular-nums shrink-0">{r.time}</span>
+                  <span className="text-slate-700 truncate flex-1">{r.subject}</span>
+                  <span className="text-xs text-slate-400 truncate hidden md:inline">{r.teacher} · {r.room}</span>
+                  <span className="text-xs text-slate-400 tabular-nums shrink-0">{r.students}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ─── HOD — Pending Approvals ──────────────────────────────────────────────────
+
+function PendingApprovalsPanel() {
+  return (
+    <Card className="flex flex-col">
+      <SectionLabel>Pending Approvals</SectionLabel>
+      <div className="flex flex-col divide-y divide-slate-50">
+        {hodPendingApprovals.map((a) => (
+          <Link key={a.id} href={a.href} className="flex items-center gap-3 py-3 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
+            <ClipboardCheck className="w-4 h-4 text-slate-400 shrink-0" />
+            <p className="flex-1 text-sm text-slate-800 truncate">{a.label}</p>
+            <span className={cn(
+              "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums",
+              a.count > 0 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+            )}>
+              {a.count}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ─── HR/Finance — Invoice Status breakdown ───────────────────────────────────
+
+function InvoiceStatusPanel() {
+  const total = invoiceStatusBreakdown.reduce((sum, s) => sum + s.count, 0);
+  return (
+    <Card className="flex flex-col">
+      <SectionLabel>Invoice Status Breakdown</SectionLabel>
+      <div className="flex gap-0.5 rounded-full overflow-hidden h-2.5 bg-slate-100 mb-4">
+        {invoiceStatusBreakdown.map((s) => (
+          <div
+            key={s.label}
+            className={s.color}
+            style={{ width: `${(s.count / total) * 100}%` }}
+            title={`${s.label}: ${s.count}`}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {invoiceStatusBreakdown.map((s) => (
+          <div key={s.label} className="flex items-start gap-2.5">
+            <span className={cn("w-2.5 h-2.5 rounded-full shrink-0 mt-1.5", s.color)} />
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-sm font-semibold text-slate-800 tabular-nums">{s.count}</span>
+                <span className="text-xs text-slate-500">{s.label}</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5 tabular-nums">{s.amount}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// ─── HR/Finance — Staff CPD Progress ──────────────────────────────────────────
+
+function StaffCpdPanel() {
+  return (
+    <Card className="flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <SectionLabel>Staff CPD Progress</SectionLabel>
+        <Link href="/staff" className="text-xs text-amber-600 hover:text-amber-700 font-medium flex items-center gap-1 transition-colors -mt-3">
+          View staff
+          <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {staffCpdProgress.map((s) => {
+          const pct = Math.min(100, Math.round((s.cpdHours / s.cpdTarget) * 100));
+          const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-500";
+          return (
+            <div key={s.id}>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-slate-800 truncate">{s.name}</span>
+                  <span className="text-slate-400 ml-1.5">· {s.role}</span>
+                </div>
+                <span className="text-slate-500 tabular-nums shrink-0 ml-2">{s.cpdHours}/{s.cpdTarget}h</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div className={cn("h-full rounded-full", barColor)} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// ─── Section renderer ─────────────────────────────────────────────────────────
+
+function renderSection(id: DashboardSectionId): { label: string; node: React.ReactNode } {
+  switch (id) {
+    case "activity-reports":
+      return {
+        label: "Live Activity & Reports",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3"><ActivityFeedPanel /></div>
+            <div className="lg:col-span-2"><ReportsInboxPanel /></div>
+          </div>
+        ),
+      };
+    case "churn-thresholds":
+      return {
+        label: "Churn Risk & Thresholds",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3"><ChurnRiskTable /></div>
+            <div className="lg:col-span-2"><OperationalThresholdStrip /></div>
+          </div>
+        ),
+      };
+    case "charts":
+      return {
+        label: "Revenue & Occupancy",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <RevenueChart />
+            <OccupancyHeatmap />
+          </div>
+        ),
+      };
+    case "admin-activity":
+      return {
+        label: "Live Activity & Reports",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3"><ActivityFeedPanel /></div>
+            <div className="lg:col-span-2"><ReportsInboxPanel /></div>
+          </div>
+        ),
+      };
+    case "admin-churn-simple":
+      return {
+        label: "Churn Risk",
+        node: <ChurnRiskTable simple />,
+      };
+    case "academic-alerts":
+      return {
+        label: "Academic Alerts",
+        node: <AcademicAlertsPanel alerts={academicAlerts} />,
+      };
+    case "academic-churn":
+      return {
+        label: "Churn Risk · Academic Signals",
+        node: <ChurnRiskTable />,
+      };
+    case "academic-activity":
+      return {
+        label: "Academic Activity",
+        node: <ActivityFeedPanel filter="academic" />,
+      };
+    case "hod-workload":
+      return {
+        label: "Teacher Workload",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <TeacherWorkloadPanel />
+            <AcademicAlertsPanel alerts={hodAcademicAlerts} label="Academic Alerts · Primary" />
+          </div>
+        ),
+      };
+    case "hod-alerts":
+      return { label: "", node: null };
+    case "hod-upcoming":
+      return {
+        label: "Upcoming Sessions",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2"><UpcomingSessionsPanel /></div>
+            <PendingApprovalsPanel />
+          </div>
+        ),
+      };
+    case "hod-approvals":
+      return { label: "", node: null };
+    case "teacher-sessions":
+      return {
+        label: "Today",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <TodaySessionsPanel sessions={teacherTodaySessions} />
+            <PendingActionsPanel />
+          </div>
+        ),
+      };
+    case "teacher-pending":
+      return { label: "", node: null };
+    case "teacher-tasks":
+      return { label: "My Tasks", node: <MyTasksPanel tasks={teacherTopTasks} /> };
+    case "ta-sessions":
+      return {
+        label: "Today's Sessions",
+        node: <TodaySessionsPanel sessions={taTodaySessions} readOnly />,
+      };
+    case "ta-tasks":
+      return { label: "My Tasks", node: <MyTasksPanel tasks={taTopTasks} /> };
+    case "hr-revenue":
+      return { label: "Revenue", node: <RevenueChart /> };
+    case "hr-invoice-status":
+      return {
+        label: "Invoices",
+        node: (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <InvoiceStatusPanel />
+            <OperationalThresholdStrip />
+          </div>
+        ),
+      };
+    case "hr-cpd":
+      return { label: "Staff CPD", node: <StaffCpdPanel /> };
+  }
 }
 
 // ─── Drag handle ──────────────────────────────────────────────────────────────
@@ -564,32 +1003,22 @@ function DragHandle({ label }: { label: string }) {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Draggable sections (Super Admin / Admin Head only) ───────────────────────
 
-export default function DashboardPage() {
-  const [isLoading, setIsLoading] = useState(true);
+interface DraggableSection {
+  id: string;
+  label: string;
+  node: React.ReactNode;
+}
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const [sections, setSections] = useState<DashboardSection[]>(() => [
-    { id: "activity", label: "Live Activity & Reports",  component: <ActivityAndReportsRow /> },
-    { id: "churn",    label: "Churn Risk & Thresholds",  component: <ChurnAndThresholdsRow /> },
-    { id: "charts",   label: "Revenue & Occupancy",      component: <ChartsRow /> },
-  ]);
+function DraggableSections({ initial }: { initial: DraggableSection[] }) {
+  const [sections, setSections] = useState<DraggableSection[]>(initial);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
-  function handleDragStart(id: string) {
-    setDragging(id);
-  }
-
-  function handleDragOver(e: React.DragEvent, id: string) {
-    e.preventDefault();
-    setDragOver(id);
-  }
+  useEffect(() => {
+    setSections(initial);
+  }, [initial]);
 
   function handleDrop(targetId: string) {
     if (!dragging || dragging === targetId) {
@@ -607,61 +1036,14 @@ export default function DashboardPage() {
     setDragOver(null);
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          {Array.from({ length: 10 }).map((_, i) => <SkeletonKpi key={i} />)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3"><SkeletonTable rows={6} columns={5} /></div>
-          <div className="lg:col-span-2 flex flex-col gap-4">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SkeletonTable rows={4} />
-          <SkeletonTable rows={4} />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3"><SkeletonTable rows={4} /></div>
-          <div className="lg:col-span-2"><SkeletonTable rows={4} /></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
-      {/* Welcome banner */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            {getGreeting()}, Jason 👋
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Here&apos;s what&apos;s happening at IMI today.
-          </p>
-        </div>
-        <LiveClock />
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {kpiCards.map((card) => (
-          <KpiCardItem key={card.id} card={card} />
-        ))}
-      </div>
-
-      {/* Draggable sections */}
+    <>
       {sections.map((section) => (
         <div
           key={section.id}
           draggable
-          onDragStart={() => handleDragStart(section.id)}
-          onDragOver={(e) => handleDragOver(e, section.id)}
+          onDragStart={() => setDragging(section.id)}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(section.id); }}
           onDrop={() => handleDrop(section.id)}
           onDragEnd={() => { setDragging(null); setDragOver(null); }}
           className={cn(
@@ -673,9 +1055,84 @@ export default function DashboardPage() {
           )}
         >
           <DragHandle label={section.label} />
-          {section.component}
+          {section.node}
         </div>
       ))}
+    </>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function DashboardPage() {
+  const { role } = useRole();
+  const config = getDashboardConfig(role);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
+        <div className={cn("grid gap-4", config.kpiGridClass)}>
+          {Array.from({ length: config.kpis.length }).map((_, i) => <SkeletonKpi key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-3"><SkeletonTable rows={6} columns={5} /></div>
+          <div className="lg:col-span-2 flex flex-col gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const rendered = config.sections
+    .map((id) => ({ id, ...renderSection(id) }))
+    .filter((s) => s.node !== null);
+
+  return (
+    <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
+      {/* Welcome banner */}
+      <div className="flex items-start justify-between mb-6 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            {getGreeting()}, Jason 👋
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {config.subtitle}
+          </p>
+        </div>
+        <LiveClock />
+      </div>
+
+      {/* KPI Cards */}
+      <div className={cn("grid gap-4", config.kpiGridClass)}>
+        {config.kpis.map((card) => (
+          <KpiCardItem key={card.id} card={card} />
+        ))}
+      </div>
+
+      {/* Sections */}
+      {config.draggable ? (
+        <DraggableSections
+          initial={rendered.map((s) => ({ id: s.id, label: s.label, node: s.node }))}
+        />
+      ) : (
+        rendered.map((s) => (
+          <div key={s.id}>
+            {s.label && (
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">{s.label}</p>
+            )}
+            {s.node}
+          </div>
+        ))
+      )}
     </div>
   );
 }

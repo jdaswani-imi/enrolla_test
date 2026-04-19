@@ -15,10 +15,12 @@ import {
   FileText,
   MessageSquare,
   UserX,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import { students, type Student } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
@@ -243,6 +245,7 @@ function matchEnrolmentFilter(enrolments: number, selected: string[]): boolean {
 export default function StudentsPage() {
   const { can } = usePermission();
   const router = useRouter();
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Filters
   const [statusFilter,     setStatusFilter]     = useState<string[]>([]);
@@ -382,6 +385,16 @@ export default function StudentsPage() {
             Import CSV
           </button>
         )}
+        {can('export') && (
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        )}
         {can('students.create') && (
           <button
             type="button"
@@ -392,6 +405,17 @@ export default function StudentsPage() {
           </button>
         )}
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Students"
+        recordCount={1847}
+        formats={[
+          { id: 'csv-summary', label: 'Student Summary', description: 'One row per student. Name, year, subjects, status, guardian contact.', icon: 'rows', recommended: true },
+          { id: 'csv-full', label: 'Full Export', description: 'All fields including enrolment history and notes.', icon: 'items' },
+        ]}
+      />
 
       {/* ── Stat cards ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">

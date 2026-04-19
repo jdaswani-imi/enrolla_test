@@ -183,6 +183,9 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'reports.generate':         ['Super Admin','Admin Head','Admin'],
   'reports.schedule':         ['Super Admin','Admin Head'],
 
+  // ── Export (bulk data export button shown on list pages) ──
+  'export':                   ['Super Admin','Admin Head','Admin','HR/Finance'],
+
   // ── Settings ──
   'settings.view':            ['Super Admin'],
   'settings.edit':            ['Super Admin'],

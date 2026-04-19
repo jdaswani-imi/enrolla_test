@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ShieldOff,
   Send,
+  Download,
 } from "lucide-react";
 import {
   LineChart,
@@ -31,6 +32,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { ExportDialog } from "@/components/ui/export-dialog";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -553,6 +555,7 @@ const ROLE_FILTER_OPTIONS   = ["Teacher", "TA", "Admin", "Admin Head", "HOD", "A
 
 export default function StaffPage() {
   const { can, role } = usePermission();
+  const [exportOpen,    setExportOpen]    = useState(false);
   const [outerTab,      setOuterTab]      = useState<"directory" | "hr">("directory");
   const [statusFilter,  setStatusFilter]  = useState<string[]>([]);
   const [deptFilter,    setDeptFilter]    = useState<string[]>([]);
@@ -672,15 +675,27 @@ export default function StaffPage() {
                 />
               </div>
 
-              {can('staff.create') && (
-              <button
-                type="button"
-                className="btn-primary ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold shadow-sm whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" />
-                Add Staff
-              </button>
-              )}
+              <div className="ml-auto flex items-center gap-2">
+                {can('export') && (
+                  <button
+                    type="button"
+                    onClick={() => setExportOpen(true)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors whitespace-nowrap"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export
+                  </button>
+                )}
+                {can('staff.create') && (
+                  <button
+                    type="button"
+                    className="btn-primary flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold shadow-sm whitespace-nowrap"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Staff
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1050,6 +1065,17 @@ export default function StaffPage() {
           onClose={() => setSelectedStaff(null)}
         />
       )}
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Staff"
+        recordCount={18}
+        formats={[
+          { id: 'csv-directory', label: 'Staff Directory', description: 'Name, email, role, department, subjects, status.', icon: 'rows', recommended: true },
+          { id: 'csv-hr', label: 'HR Export', description: 'Includes CPD hours, review dates, employment type, and leave records.', icon: 'items' },
+        ]}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   RefreshCw,
   UserMinus,
   Eye,
+  Download,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -17,6 +18,7 @@ import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import {
   enrolments,
   trials,
@@ -446,6 +448,7 @@ function EnrolmentSlideOver({
 
 function ActiveEnrolmentsTab() {
   const { can } = usePermission();
+  const [exportOpen, setExportOpen] = useState(false);
   const [dept, setDept]     = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>([]);
   const [year, setYear]     = useState<string[]>([]);
@@ -520,13 +523,36 @@ function ActiveEnrolmentsTab() {
           />
         </div>
 
-        {can('enrolment.create') && (
-          <button className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer">
-            <Plus className="w-3.5 h-3.5" />
-            New Enrolment
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {can('export') && (
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          )}
+          {can('enrolment.create') && (
+            <button className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer">
+              <Plus className="w-3.5 h-3.5" />
+              New Enrolment
+            </button>
+          )}
+        </div>
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Enrolments"
+        recordCount={3847}
+        formats={[
+          { id: 'csv-summary', label: 'Enrolment Summary', description: 'One row per enrolment. Student, subject, teacher, sessions, status.', icon: 'rows', recommended: true },
+          { id: 'csv-invoiced', label: 'With Invoice Data', description: 'Includes invoice status and payment information per enrolment.', icon: 'items' },
+        ]}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

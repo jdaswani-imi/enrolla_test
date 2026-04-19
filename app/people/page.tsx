@@ -30,6 +30,20 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   peopleAll,
   duplicateDetections,
   segments,
@@ -365,19 +379,19 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
 
 type ReviewStep = 1 | 2 | 3;
 
-function DuplicateReviewSlideover({
+function DuplicateReviewSheet({
   dup,
   onClose,
+  onMerged,
 }: {
   dup: DuplicateDetection;
   onClose: () => void;
+  onMerged: () => void;
 }) {
-  const [step, setStep]           = useState<ReviewStep>(1);
-  const [primary, setPrimary]     = useState<"A" | "B">("A");
-  const [fieldChoices, setFc]     = useState<Record<string, "A" | "B">>({
+  const [step, setStep]       = useState<ReviewStep>(1);
+  const [fieldChoices, setFc] = useState<Record<string, "A" | "B">>({
     Phone: "A", Email: "A", "Year Group": "A",
   });
-  const [confirmed, setConfirmed] = useState(false);
 
   const diffFields = [
     { label: "Phone",      valA: dup.recordA.phone, valB: dup.recordB.phone },
@@ -385,205 +399,169 @@ function DuplicateReviewSlideover({
     { label: "Year Group", valA: "Y9",              valB: "Y10"             },
   ];
 
-  const primaryRec  = primary === "A" ? dup.recordA : dup.recordB;
+  const stepper = (
+    <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-center gap-0">
+      {([1, 2, 3] as ReviewStep[]).map((s, i) => {
+        const labels = ["Compare", "Merge Fields", "Confirm"];
+        const done   = step > s;
+        const active = step === s;
+        return (
+          <div key={s} className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
+              <div className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2",
+                done   ? "bg-emerald-500 border-emerald-500 text-white" :
+                active ? "bg-amber-500 border-amber-500 text-white"    :
+                         "bg-white border-slate-300 text-slate-400"
+              )}>
+                {s}
+              </div>
+              <span className={cn("text-xs font-medium whitespace-nowrap",
+                active ? "text-amber-600" : done ? "text-emerald-600" : "text-slate-400"
+              )}>
+                {labels[i]}
+              </span>
+            </div>
+            {s < 3 && <div className={cn(
+              "w-16 h-0.5 mx-3 mb-4 transition-colors",
+              step > s ? "bg-emerald-400" : "bg-slate-200",
+            )} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const footer =
+    step === 1 ? (
+      <div className="flex justify-end gap-3">
+        <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+          Keep Separate
+        </button>
+        <button onClick={() => setStep(2)} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
+          Proceed to Merge →
+        </button>
+      </div>
+    ) : step === 2 ? (
+      <div className="flex justify-end gap-3">
+        <button onClick={() => setStep(1)} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+          ← Back
+        </button>
+        <button onClick={() => setStep(3)} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
+          Confirm Merge →
+        </button>
+      </div>
+    ) : (
+      <div className="flex justify-end gap-3">
+        <button onClick={() => setStep(2)} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+          Go Back
+        </button>
+        <button
+          onClick={() => { onMerged(); onClose(); }}
+          className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+        >
+          Merge Records
+        </button>
+      </div>
+    );
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[720px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <p className="font-semibold text-slate-800 text-base">
-            Duplicate Review — {dup.matchScore}% match
-          </p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl w-full max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{`Duplicate Review — ${dup.matchScore}% match`}</DialogTitle>
+          <DialogDescription>{`${dup.recordA.name} · ${dup.recordB.name}`}</DialogDescription>
+        </DialogHeader>
+        {stepper}
+        <div className="p-6">
 
-        {/* Step indicator */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-0">
-          {([1, 2, 3] as ReviewStep[]).map((s, i) => {
-            const labels = ["Compare", "Merge Fields", "Confirm"];
-            const done   = step > s;
-            const active = step === s;
-            return (
-              <div key={s} className="flex items-center">
-                <div className="flex flex-col items-center gap-1">
-                  <div className={cn(
-                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2",
-                    done   ? "bg-emerald-500 border-emerald-500 text-white" :
-                    active ? "bg-amber-500 border-amber-500 text-white"    :
-                             "bg-white border-slate-300 text-slate-400"
-                  )}>
-                    {s}
-                  </div>
-                  <span className={cn("text-xs font-medium whitespace-nowrap",
-                    active ? "text-amber-600" : done ? "text-emerald-600" : "text-slate-400"
-                  )}>
-                    {labels[i]}
-                  </span>
-                </div>
-                {s < 3 && <div className="w-20 h-0.5 bg-slate-200 mx-2 mb-4" />}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-
-          {/* Step 1 — Compare */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: "Record A", rec: dup.recordA, color: "border-l-blue-400" },
-                  { label: "Record B", rec: dup.recordB, color: "border-l-amber-400" },
-                ].map(({ label, rec, color }) => (
-                  <div key={label} className={cn("bg-white rounded-xl border border-slate-200 border-l-4 p-4 space-y-2", color)}>
-                    <p className={cn("text-sm font-semibold", label === "Record A" ? "text-blue-700" : "text-amber-600")}>
-                      {label}
-                    </p>
-                    {[
-                      ["Full Name", rec.name],
-                      ["Phone",     rec.phone],
-                      ["Email",     rec.email],
-                      ["Type",      rec.type],
-                      ["Created On",rec.createdOn],
-                    ].map(([k, v]) => {
-                      const isMatch = dup.matchedFields.some(f =>
-                        k.toLowerCase().includes(f.toLowerCase())
-                      );
-                      return (
-                        <div key={k} className={cn("rounded-lg px-3 py-2", isMatch ? "bg-amber-50 border border-amber-200" : "bg-slate-50")}>
-                          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{k}</p>
-                          <p className="text-sm font-medium text-slate-800">{v}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  Keep Separate
-                </button>
-                <button onClick={() => setStep(2)} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-                  Proceed to Merge →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2 — Merge Fields */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-slate-500 font-medium mb-1 block">Select primary record</label>
-                <select
-                  value={primary}
-                  onChange={e => setPrimary(e.target.value as "A" | "B")}
-                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
-                >
-                  <option value="A">Record A — {dup.recordA.name}</option>
-                  <option value="B">Record B — {dup.recordB.name}</option>
-                </select>
-              </div>
-
-              <div className="space-y-3">
-                {diffFields.map(({ label, valA, valB }) => (
-                  <div key={label} className="bg-slate-50 rounded-lg p-3">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" checked={fieldChoices[label] === "A"} onChange={() => setFc(prev => ({ ...prev, [label]: "A" }))} className="accent-amber-500" />
-                        <span className="text-sm text-slate-700">Record A: <strong>{valA}</strong></span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" checked={fieldChoices[label] === "B"} onChange={() => setFc(prev => ({ ...prev, [label]: "B" }))} className="accent-amber-500" />
-                        <span className="text-sm text-slate-700">Record B: <strong>{valB}</strong></span>
-                      </label>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <p className="text-xs text-slate-500 italic">
-                Financial records from both records will be combined on the primary.
+      {step === 1 && (
+        <div className="grid grid-cols-2 gap-6">
+          {[
+            { label: "Record A", rec: dup.recordA, color: "border-l-blue-400" },
+            { label: "Record B", rec: dup.recordB, color: "border-l-amber-400" },
+          ].map(({ label, rec, color }) => (
+            <div key={label} className={cn("bg-white rounded-xl border border-slate-200 border-l-4 p-4 space-y-2", color)}>
+              <p className={cn("text-sm font-semibold", label === "Record A" ? "text-blue-700" : "text-amber-600")}>
+                {label}
               </p>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setStep(1)} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  ← Back
-                </button>
-                <button onClick={() => setStep(3)} className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-                  Review & Confirm →
-                </button>
-              </div>
+              {([
+                ["Full Name",  rec.name,      dup.recordA.name      !== dup.recordB.name],
+                ["Phone",      rec.phone,     dup.recordA.phone     !== dup.recordB.phone],
+                ["Email",      rec.email,     dup.recordA.email     !== dup.recordB.email],
+                ["Type",       rec.type,      dup.recordA.type      !== dup.recordB.type],
+                ["Created On", rec.createdOn, dup.recordA.createdOn !== dup.recordB.createdOn],
+              ] as [string, string, boolean][]).map(([k, v, differs]) => (
+                <div key={k} className={cn("rounded-lg px-3 py-2", differs ? "bg-amber-50 border border-amber-200" : "bg-slate-50")}>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{k}</p>
+                  <p className="text-sm font-medium text-slate-800">{v}</p>
+                </div>
+              ))}
             </div>
-          )}
+          ))}
+        </div>
+      )}
 
-          {/* Step 3 — Confirm */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-2">
-                <p className="text-sm font-semibold text-slate-700">
-                  Primary record: <span className="text-blue-700">Record {primary} — {primaryRec.name}</span>
-                </p>
-                {diffFields.map(({ label, valA, valB }) => (
-                  <div key={label} className="flex items-center gap-2 text-sm text-slate-600">
-                    <span className="font-medium text-slate-700">{label}:</span>
-                    <span>{fieldChoices[label] === "A" ? valA : valB}</span>
-                    <span className="text-xs text-slate-400">(from Record {fieldChoices[label]})</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                <span className="text-amber-600 text-lg leading-none mt-0.5">⚠</span>
-                <div>
-                  <p className="text-sm font-semibold text-amber-700">Financial Review Required</p>
-                  <p className="text-xs text-amber-600 mt-0.5">
-                    This merge involves records with invoice history. Review before confirming.
-                  </p>
+      {step === 2 && (
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            For each differing field, choose which value to keep.
+          </p>
+          <div className="space-y-3">
+            {diffFields.map(({ label, valA, valB }) => (
+              <div key={label} className="bg-slate-50 rounded-lg p-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{label}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer bg-white border border-slate-200 rounded-lg px-3 py-2">
+                    <input type="radio" checked={fieldChoices[label] === "A"} onChange={() => setFc(prev => ({ ...prev, [label]: "A" }))} className="accent-amber-500" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Record A</p>
+                      <p className="text-sm font-medium text-slate-700 truncate">{valA}</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white border border-slate-200 rounded-lg px-3 py-2">
+                    <input type="radio" checked={fieldChoices[label] === "B"} onChange={() => setFc(prev => ({ ...prev, [label]: "B" }))} className="accent-amber-500" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Record B</p>
+                      <p className="text-sm font-medium text-slate-700 truncate">{valB}</p>
+                    </div>
+                  </label>
                 </div>
               </div>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={e => setConfirmed(e.target.checked)}
-                  className="accent-amber-500"
-                />
-                <span className="text-sm text-slate-700">
-                  I have reviewed the financial records and confirm this merge.
-                </span>
-              </label>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setStep(2)} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  ← Back
-                </button>
-                <button
-                  disabled={!confirmed}
-                  onClick={onClose}
-                  className={cn(
-                    "px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer",
-                    confirmed
-                      ? "bg-amber-500 text-white hover:bg-amber-600"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  )}
-                >
-                  Confirm Merge
-                </button>
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
-      </div>
-    </>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-2">
+            <p className="text-sm font-semibold text-slate-700">
+              Merging <span className="text-blue-700">{dup.recordA.name}</span> into <span className="text-amber-600">{dup.recordB.name}</span>
+            </p>
+            <div className="space-y-1 pt-1">
+              {diffFields.map(({ label, valA, valB }) => (
+                <div key={label} className="flex items-center gap-2 text-sm text-slate-600">
+                  <span className="font-medium text-slate-700">{label}:</span>
+                  <span>{fieldChoices[label] === "A" ? valA : valB}</span>
+                  <span className="text-xs text-slate-400">(from Record {fieldChoices[label]})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <span className="text-red-600 text-lg leading-none mt-0.5">⚠</span>
+            <p className="text-sm font-semibold text-red-700">This cannot be undone</p>
+          </div>
+        </div>
+      )}
+        </div>
+        <div className="border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+          {footer}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -593,6 +571,12 @@ function DuplicatesTab() {
   const [tierFilter, setTier]     = useState<string[]>([]);
   const [statusFilter, setStatus] = useState<string[]>([]);
   const [reviewing, setReviewing] = useState<DuplicateDetection | null>(null);
+  const [toast, setToast]         = useState<string | null>(null);
+
+  function fireToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
 
   const filtered = useMemo(() => duplicateDetections.filter(d => {
     if (typeFilter.length > 0) {
@@ -704,7 +688,19 @@ function DuplicatesTab() {
         </div>
       </div>
 
-      {reviewing && <DuplicateReviewSlideover dup={reviewing} onClose={() => setReviewing(null)} />}
+      {reviewing && (
+        <DuplicateReviewSheet
+          dup={reviewing}
+          onClose={() => setReviewing(null)}
+          onMerged={() => fireToast("Records merged successfully")}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[100]">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -844,90 +840,108 @@ function NewSegmentSlideover({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ViewSegmentSlideover({ seg, onClose }: { seg: Segment; onClose: () => void }) {
+function ViewSegmentSheet({
+  seg,
+  onClose,
+  onAction,
+}: {
+  seg: Segment;
+  onClose: () => void;
+  onAction: (msg: string) => void;
+}) {
+  const router = useRouter();
   const previewMembers = [
-    { name: "Aisha Rahman",    type: "Student" as PersonType,  status: "Enrolled" },
-    { name: "Omar Al-Farsi",   type: "Student" as PersonType,  status: "Enrolled" },
-    { name: "Layla Hassan",    type: "Student" as PersonType,  status: "Enrolled" },
-    { name: "Faris Qasim",     type: "Student" as PersonType,  status: "Enrolled" },
-    { name: "Khalid Mansoor",  type: "Student" as PersonType,  status: "Enrolled" },
-    { name: "Sara Nasser",     type: "Student" as PersonType,  status: "Enrolled" },
+    { name: "Aisha Rahman",      type: "Student" as PersonType, status: "Enrolled" },
+    { name: "Omar Al-Farsi",     type: "Student" as PersonType, status: "Enrolled" },
+    { name: "Layla Hassan",      type: "Student" as PersonType, status: "Enrolled" },
+    { name: "Faris Qasim",       type: "Student" as PersonType, status: "Enrolled" },
+    { name: "Khalid Mansoor",    type: "Student" as PersonType, status: "Enrolled" },
+    { name: "Sara Nasser",       type: "Student" as PersonType, status: "Enrolled" },
     { name: "Hamdan Al-Maktoum", type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Dana Al-Zaabi",   type: "Student" as PersonType,  status: "Enrolled" },
+    { name: "Dana Al-Zaabi",     type: "Student" as PersonType, status: "Enrolled" },
   ];
+  const preview = previewMembers.slice(0, Math.min(10, seg.members));
+  const criteriaTags = seg.filterSummary.split(/\s+AND\s+|\s*,\s*/).filter(Boolean);
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <p className="font-semibold text-slate-800 text-base">{seg.name}</p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{seg.name}</DialogTitle>
+          <DialogDescription>{`${seg.scope} · ${seg.recordType} · ${seg.members.toLocaleString()} members`}</DialogDescription>
+        </DialogHeader>
+        <div className="p-6">
+      <div className="space-y-5">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Filter summary</p>
+          <div className="flex flex-wrap gap-2">
+            {criteriaTags.map((t, i) => (
+              <span key={i} className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                {t.trim()}
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn(
-              "px-2.5 py-1 rounded-full text-xs font-semibold",
-              seg.scope === "Org-Wide" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
-            )}>
-              {seg.scope}
-            </span>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-              {seg.recordType}
-            </span>
-          </div>
-
-          <div className="bg-slate-50 rounded-lg border border-slate-200 px-4 py-3">
-            <p className="text-xs text-slate-400 font-medium mb-1">Filter summary</p>
-            <p className="text-sm text-slate-700">{seg.filterSummary}</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-50 rounded-lg px-3 py-2">
-              <p className="text-xs text-slate-400">Members</p>
-              <p className="text-lg font-bold text-slate-800">{seg.members.toLocaleString()}</p>
-            </div>
-            <div className="bg-slate-50 rounded-lg px-3 py-2">
-              <p className="text-xs text-slate-400">Last Refreshed</p>
-              <p className="text-sm font-medium text-slate-700">{seg.lastRefreshed}</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Preview — first 10 members</p>
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    {["Name", "Type", "Status"].map(h => (
-                      <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-2">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewMembers.map(m => (
-                    <tr key={m.name} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-2 text-sm font-medium text-slate-800">{m.name}</td>
-                      <td className="px-3 py-2"><TypeBadge type={m.type} /></td>
-                      <td className="px-3 py-2"><StatusBadge status={m.status} /></td>
-                    </tr>
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            First {preview.length} of {seg.members.toLocaleString()} members
+          </p>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  {["Name", "Type", "Status"].map(h => (
+                    <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-2">{h}</th>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map(m => (
+                  <tr key={m.name} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 text-sm font-medium text-slate-800">{m.name}</td>
+                    <td className="px-3 py-2"><TypeBadge type={m.type} /></td>
+                    <td className="px-3 py-2"><StatusBadge status={m.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-slate-200 bg-white">
-          <button onClick={onClose} className="w-full py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Close
+          <button
+            onClick={() => { onClose(); router.push("/students"); }}
+            className="mt-2 text-sm text-amber-600 hover:text-amber-700 font-medium cursor-pointer"
+          >
+            View all {seg.members.toLocaleString()} in {seg.recordType} →
           </button>
         </div>
       </div>
-    </>
+        </div>
+        <div className="border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onAction("Segment deleted")}
+              className="px-4 py-2 border border-red-200 bg-white text-red-700 text-sm font-semibold rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              Delete Segment
+            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => onAction("Segment edit opened")}
+                className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Edit Segment
+              </button>
+              <button
+                onClick={() => onAction("Segment export queued")}
+                className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+              >
+                Export Segment
+              </button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -940,6 +954,12 @@ function SegmentsTab() {
   const [viewing, setViewing]           = useState<Segment | null>(null);
   const [sortField, setSortField]       = useState<string | null>(null);
   const [sortDir, setSortDir]           = useState<"asc" | "desc">("asc");
+  const [toast, setToast]               = useState<string | null>(null);
+
+  function fireToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
 
   function toggleSort(f: string) {
     if (sortField === f) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -1081,7 +1101,19 @@ function SegmentsTab() {
       </div>
 
       {newOpen  && <NewSegmentSlideover onClose={() => setNewOpen(false)} />}
-      {viewing  && <ViewSegmentSlideover seg={viewing} onClose={() => setViewing(null)} />}
+      {viewing  && (
+        <ViewSegmentSheet
+          seg={viewing}
+          onClose={() => setViewing(null)}
+          onAction={(msg) => { fireToast(msg); setViewing(null); }}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[100]">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -1156,53 +1188,86 @@ function NewBroadcastListSheet({ onClose }: { onClose: () => void }) {
 function ManageBroadcastListSheet({
   list,
   onClose,
+  onAction,
 }: {
   list: BroadcastList;
   onClose: () => void;
+  onAction: (msg: string) => void;
 }) {
+  const router = useRouter();
   const [memberSearch, setMemberSearch] = useState("");
+  const [addMember, setAddMember]       = useState("");
+  const [tplCopied, setTplCopied]       = useState(false);
   const exclusions = broadcastListExclusions[list.id] ?? [];
+  const listType = list.autoRule ? "Auto-managed" : "Manual";
+
+  async function copyTemplate() {
+    const template = `Hi {first_name}, this is a message for the ${list.name} list from IMI.`;
+    try {
+      await navigator.clipboard.writeText(template);
+      setTplCopied(true);
+      setTimeout(() => setTplCopied(false), 2000);
+    } catch {
+      onAction("Copy failed — please copy manually");
+    }
+  }
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[560px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-slate-800 text-base">{list.name}</p>
-            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full">
-              {list.members} members
-            </span>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-          {/* Members */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Members</p>
-            <div className="space-y-2">
-              {list.membersList.slice(0, 8).map((m, i) => {
-                const ini = m.name.split(" ").map(n => n[0]).join("").slice(0, 2);
-                return (
-                  <div key={i} className="flex items-center gap-3 py-1">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-slate-600">{ini}</span>
-                    </div>
-                    <p className="flex-1 text-sm font-medium text-slate-800 truncate">{m.name}</p>
-                    <TypeBadge type={m.type} />
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-xs font-semibold",
-                      m.addedBy === "Auto" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                    )}>
-                      {m.addedBy}
-                    </span>
-                    <button className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer">Remove</button>
-                  </div>
-                );
-              })}
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl w-full max-h-[85vh]">
+        <DialogHeader>
+          <DialogTitle>{list.name}</DialogTitle>
+          <DialogDescription>{`${list.members} members · ${listType}`}</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 flex-1 overflow-y-auto">
+      <div className="space-y-6">
+        {/* Members */}
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Members</p>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="w-10 px-3 py-2"></th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-2">Name</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-2">Type</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-2">How Added</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.membersList.slice(0, 8).map((m, i) => {
+                    const ini = m.name.split(" ").map(n => n[0]).join("").slice(0, 2);
+                    return (
+                      <tr key={i} className="border-b border-slate-100 last:border-0">
+                        <td className="px-3 py-2">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                            <span className="text-xs font-semibold text-slate-600">{ini}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-sm font-medium text-slate-800 truncate">{m.name}</td>
+                        <td className="px-3 py-2"><TypeBadge type={m.type} /></td>
+                        <td className="px-3 py-2">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-xs font-semibold",
+                            m.addedBy === "Auto" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                          )}>
+                            {m.addedBy}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            onClick={() => onAction(`${m.name} removed`)}
+                            className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
             <div className="flex items-center gap-2 mt-3">
               <div className="relative flex-1">
@@ -1214,7 +1279,18 @@ function ManageBroadcastListSheet({
                   className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
-              <button className="px-3 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                value={addMember}
+                onChange={e => setAddMember(e.target.value)}
+                placeholder="Add member by name or email…"
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <button
+                onClick={() => { if (addMember) { onAction(`${addMember} added`); setAddMember(""); } }}
+                className="px-3 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
                 Add
               </button>
             </div>
@@ -1227,11 +1303,14 @@ function ManageBroadcastListSheet({
               <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className="w-4 h-4 text-amber-500" />
-                  <p className="text-sm font-medium text-slate-800">Rule: {list.autoRuleName}</p>
+                  <p className="text-sm font-medium text-slate-800">{list.autoRuleName}</p>
                 </div>
-                <p className="text-xs text-amber-600 cursor-pointer hover:text-amber-700 transition-colors">
+                <button
+                  onClick={() => router.push("/automations")}
+                  className="text-xs text-amber-600 cursor-pointer hover:text-amber-700 transition-colors"
+                >
                   Edit this rule in Automations →
-                </p>
+                </button>
               </div>
             </div>
           )}
@@ -1239,15 +1318,17 @@ function ManageBroadcastListSheet({
           {/* Exclusions */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Exclusions</p>
-            <p className="text-xs text-slate-500 font-medium mb-2">Explicitly excluded</p>
             {exclusions.length === 0 ? (
               <p className="text-sm text-slate-400">No exclusions</p>
             ) : (
               <div className="space-y-2">
                 {exclusions.map((ex, i) => (
-                  <div key={i} className="flex items-center justify-between">
+                  <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
                     <p className="text-sm text-slate-700">{ex.name}</p>
-                    <button className="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer">
+                    <button
+                      onClick={() => onAction(`Exclusion removed for ${ex.name}`)}
+                      className="text-xs text-amber-600 hover:text-amber-700 transition-colors cursor-pointer"
+                    >
                       Remove exclusion
                     </button>
                   </div>
@@ -1255,21 +1336,27 @@ function ManageBroadcastListSheet({
               </div>
             )}
           </div>
-        </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
-          <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            <Clipboard className="w-4 h-4" />Copy message template
-          </button>
-          <button
-            onClick={onClose}
-            className="ml-auto px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-          >
-            Close
-          </button>
-        </div>
       </div>
-    </>
+        </div>
+        <div className="flex-shrink-0 border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+          <div className="flex justify-end items-center gap-2">
+            <button
+              onClick={copyTemplate}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <Clipboard className="w-4 h-4" />{tplCopied ? "Copied!" : "Copy message template"}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1279,6 +1366,12 @@ function BroadcastListsTab() {
   const [typeFilter, setTypeFilter] = useState<"All" | "Auto" | "Manual">("All");
   const [newOpen, setNewOpen]       = useState(false);
   const [managing, setManaging]     = useState<BroadcastList | null>(null);
+  const [toast, setToast]           = useState<string | null>(null);
+
+  function fireToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
 
   const autoCount       = broadcastLists.filter(l => l.autoRule).length;
   const totalRecipients = broadcastLists.reduce((s, l) => s + l.members, 0);
@@ -1378,7 +1471,19 @@ function BroadcastListsTab() {
       </div>
 
       {newOpen  && <NewBroadcastListSheet onClose={() => setNewOpen(false)} />}
-      {managing && <ManageBroadcastListSheet list={managing} onClose={() => setManaging(null)} />}
+      {managing && (
+        <ManageBroadcastListSheet
+          list={managing}
+          onClose={() => setManaging(null)}
+          onAction={fireToast}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[100]">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -1387,39 +1492,58 @@ function BroadcastListsTab() {
 
 function ShareFormSheet({ form, onClose }: { form: Form; onClose: () => void }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [toast, setToast]   = useState<string | null>(null);
 
-  function handleCopy(which: string) {
-    setCopied(which);
-    setTimeout(() => setCopied(null), 2000);
+  async function handleCopy(which: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(which);
+      setTimeout(() => setCopied(curr => (curr === which ? null : curr)), 2000);
+    } catch {
+      setToast("Copy failed — please copy manually");
+      setTimeout(() => setToast(null), 2500);
+    }
   }
 
   const slug = form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
   const url  = `https://forms.enrolla.app/imi/${slug}`;
+  const embed = `<iframe src="${url}" width="100%" height="600"></iframe>`;
+
+  const statusBadge = (
+    <span className={cn(
+      "px-2.5 py-1 rounded-full text-xs font-semibold",
+      form.status === "Active"   ? "bg-emerald-100 text-emerald-700" :
+      form.status === "Draft"    ? "bg-amber-100 text-amber-700"     :
+                                    "bg-slate-100 text-slate-600",
+    )}>
+      {form.status}
+    </span>
+  );
 
   return (
     <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-slate-800 text-base">{form.name}</p>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Active</span>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+      <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="max-w-lg w-full max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2 flex-wrap">
+              <DialogTitle>{form.name}</DialogTitle>
+              {statusBadge}
+            </div>
+          </DialogHeader>
+          <div className="p-6">
+        <div className="space-y-6">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Standalone URL</p>
-            <div className="bg-slate-100 rounded-lg px-3 py-2 mb-2">
-              <p className="text-sm text-slate-700 break-all">{url}</p>
-            </div>
-            <div className="flex justify-end">
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={url}
+                onFocus={e => e.currentTarget.select()}
+                className="flex-1 min-w-0 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
               <button
-                onClick={() => handleCopy("url")}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                onClick={() => handleCopy("url", url)}
+                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex-shrink-0"
               >
                 <Clipboard className="w-3.5 h-3.5" />{copied === "url" ? "Copied!" : "Copy link"}
               </button>
@@ -1428,166 +1552,273 @@ function ShareFormSheet({ form, onClose }: { form: Form; onClose: () => void }) 
 
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Embed Code</p>
-            <div className="bg-slate-900 rounded-lg px-3 py-3 mb-2 overflow-x-auto">
-              <code className="text-xs text-green-400 font-mono whitespace-pre">{`<iframe src="${url}" width="100%" height="600"></iframe>`}</code>
+            <div className="bg-slate-50 border border-slate-200 rounded p-3 mb-2 overflow-x-auto">
+              <code className="text-sm text-slate-700 font-mono whitespace-pre">{embed}</code>
             </div>
-            <button
-              onClick={() => handleCopy("code")}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              <Clipboard className="w-3.5 h-3.5" />{copied === "code" ? "Copied!" : "Copy code"}
-            </button>
+            <div className="flex justify-end">
+              <button
+                onClick={() => handleCopy("code", embed)}
+                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <Clipboard className="w-3.5 h-3.5" />{copied === "code" ? "Copied!" : "Copy code"}
+              </button>
+            </div>
           </div>
 
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">QR Code</p>
-            <div className="h-32 w-32 mx-auto bg-slate-100 rounded flex items-center justify-center">
-              <QrCode className="w-10 h-10 text-slate-400" />
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-36 w-36 bg-slate-50 border border-slate-200 rounded flex flex-col items-center justify-center gap-1">
+                <QrCode className="w-12 h-12 text-slate-400" />
+                <span className="text-xs font-semibold text-slate-400 tracking-wide">QR</span>
+              </div>
+              <button
+                onClick={() => setToast("QR download — Phase 2")}
+                className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />Download QR
+              </button>
             </div>
-            <p className="text-xs text-slate-400 text-center mt-2">QR download — Phase 2</p>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2">
-            <Zap className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700">v1: copy links manually and share via WhatsApp or email</p>
           </div>
         </div>
-
-        <div className="px-6 py-4 border-t border-slate-200 bg-white">
-          <button onClick={onClose} className="w-full py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Close
-          </button>
+          </div>
+          <div className="border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg fade-in">
+          {toast}
         </div>
-      </div>
+      )}
     </>
   );
 }
 
-function SubmissionsSheet({ form, onClose }: { form: Form; onClose: () => void }) {
-  const [statusFilter, setStatusFilter] = useState<"All" | "New" | "Reviewed">("All");
-  const [reviewingId, setReviewingId]   = useState<string | null>(null);
+function SubmissionReviewSheet({
+  form,
+  submissionId,
+  onClose,
+  onAction,
+}: {
+  form: Form;
+  submissionId: string;
+  onClose: () => void;
+  onAction: (msg: string, markReviewed?: boolean) => void;
+}) {
+  const sub = formSubmissions.find(s => s.id === submissionId);
+  const fields = formSubmissionFields[submissionId] ?? [];
+  if (!sub) return null;
+
+  return (
+    <Sheet open={true} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-[560px] sm:max-w-[560px] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Submission — {sub.submittedBy}</SheetTitle>
+          <SheetDescription>{form.name} · {sub.submittedAt}</SheetDescription>
+        </SheetHeader>
+
+        <div className="px-4 pb-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "px-2.5 py-1 rounded-full text-xs font-semibold",
+              sub.status === "New" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+            )}>
+              {sub.status}
+            </span>
+            <span className="bg-slate-100 rounded px-2 py-0.5 text-xs text-slate-700">{sub.linkedRecord}</span>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-3">
+              {fields.map(f => (
+                <div key={f.label} className="flex flex-col gap-0.5">
+                  <span className="text-xs text-slate-500 uppercase tracking-wide font-medium">{f.label}</span>
+                  <span className="text-sm font-medium text-slate-900">{f.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => { onAction("Marked as reviewed", true); onClose(); }}
+              className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              Mark as Reviewed
+            </button>
+            {form.type === "Lead Enquiry" && (
+              <button
+                onClick={() => onAction("Lead created from submission")}
+                className="px-4 py-2 border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
+              >
+                Create Lead from submission
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="ml-auto px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SubmissionsSheet({
+  form,
+  onClose,
+  onAction,
+}: {
+  form: Form;
+  onClose: () => void;
+  onAction: (msg: string) => void;
+}) {
+  const [statusFilter, setStatusFilter]     = useState<"All" | "New" | "Reviewed">("All");
+  const [reviewingId, setReviewingId]       = useState<string | null>(null);
+  const [reviewedIds, setReviewedIds]       = useState<Set<string>>(new Set());
 
   const subs = formSubmissions.filter(s => s.formId === form.id);
   const filtered = useMemo(() => subs.filter(s => {
+    const effectiveStatus = reviewedIds.has(s.id) ? "Reviewed" : s.status;
     if (statusFilter === "All") return true;
-    return s.status === statusFilter;
-  }), [statusFilter, subs]);
+    return effectiveStatus === statusFilter;
+  }), [statusFilter, subs, reviewedIds]);
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[640px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-slate-800 text-base">{form.name}</p>
-            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full">
-              {form.submissions} submissions
-            </span>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-3xl w-full max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{form.name}</DialogTitle>
+          <DialogDescription>{form.submissions} submissions · {form.status}</DialogDescription>
+        </DialogHeader>
 
-        <div className="px-6 py-3 border-b border-slate-100 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
-            {(["All", "New", "Reviewed"] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
-                  statusFilter === s ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                {s}
-              </button>
-            ))}
+        <div className="p-6 space-y-4">
+          {/* Filter bar */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden">
+              {(["All", "New", "Reviewed"] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                    statusFilter === s ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <input type="date" className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400" />
+              <span className="text-slate-400 text-xs">–</span>
+              <input type="date" className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400" />
+            </div>
           </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <input type="date" className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400" />
-            <span className="text-slate-400 text-xs">–</span>
-            <input type="date" className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400" />
-          </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <EmptyState icon={Filter} title="No submissions" description="No submissions match your current filters." />
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 sticky top-0">
-                  {["Submitted At", "Submitted By", "Status", "Linked Record", "Action"].map(h => (
-                    <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.flatMap(sub => {
-                  const isReviewing = reviewingId === sub.id;
-                  const fields      = formSubmissionFields[sub.id] ?? [];
-                  const rows = [
-                    <tr key={sub.id} className={cn("border-b border-slate-100 hover:bg-slate-50 transition-colors", isReviewing && "bg-amber-50")}>
-                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{sub.submittedAt}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{sub.submittedBy}</td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-full text-xs font-semibold",
-                          sub.status === "New" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                        )}>
-                          {sub.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="bg-slate-100 rounded px-2 py-0.5 text-xs text-slate-700">{sub.linkedRecord}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => setReviewingId(isReviewing ? null : sub.id)}
-                          className="px-3 py-1 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
-                        >
-                          {isReviewing ? "Collapse" : "Review"}
-                        </button>
-                      </td>
-                    </tr>,
-                  ];
-                  if (isReviewing) {
-                    rows.push(
-                      <tr key={sub.id + "-detail"} className="border-b border-slate-200 bg-amber-50/60">
-                        <td colSpan={5} className="px-6 py-4">
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-4">
-                            {fields.map(f => (
-                              <div key={f.label} className="flex flex-col gap-0.5">
-                                <span className="text-xs text-slate-500">{f.label}</span>
-                                <span className="text-sm font-medium text-slate-900">{f.value}</span>
-                              </div>
-                            ))}
-                          </div>
+          {/* Submissions table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {filtered.length === 0 ? (
+              <EmptyState icon={Filter} title="No submissions" description="No submissions match your current filters." />
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    {["Submitted At", "Submitted By", "Status", "Linked Record", "Action"].map(h => (
+                      <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(sub => {
+                    const effectiveStatus = reviewedIds.has(sub.id) ? "Reviewed" : sub.status;
+                    return (
+                      <tr key={sub.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="px-3 py-3 text-slate-500 whitespace-nowrap text-xs">{sub.submittedAt}</td>
+                        <td className="px-3 py-3 font-medium text-slate-800 whitespace-nowrap">{sub.submittedBy}</td>
+                        <td className="px-3 py-3">
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-xs font-semibold",
+                            effectiveStatus === "New" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                          )}>
+                            {effectiveStatus}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className="bg-slate-100 rounded px-2 py-0.5 text-xs text-slate-700">{sub.linkedRecord}</span>
+                        </td>
+                        <td className="px-3 py-3">
                           <button
-                            onClick={() => setReviewingId(null)}
-                            className="px-3 py-1.5 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+                            onClick={() => setReviewingId(sub.id)}
+                            className="px-3 py-1 text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
                           >
-                            Mark as Reviewed
+                            Review
                           </button>
                         </td>
                       </tr>
                     );
-                  }
-                  return rows;
-                })}
-              </tbody>
-            </table>
-          )}
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Form actions */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => onAction("Form editor opened")}
+              className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Edit Form
+            </button>
+            <button
+              onClick={() => onAction("Form duplicated")}
+              className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Duplicate
+            </button>
+            <button
+              onClick={() => onAction("Form archived")}
+              className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Archive
+            </button>
+            <button
+              onClick={() => onAction("Link copied")}
+              className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              <Clipboard className="w-4 h-4" />Copy form link
+            </button>
+          </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-200 bg-white">
-          <button onClick={onClose} className="w-full py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Close
-          </button>
-        </div>
-      </div>
-    </>
+        {reviewingId && (
+          <SubmissionReviewSheet
+            form={form}
+            submissionId={reviewingId}
+            onClose={() => setReviewingId(null)}
+            onAction={(msg, markReviewed) => {
+              if (markReviewed && reviewingId) {
+                setReviewedIds(prev => new Set(prev).add(reviewingId));
+              }
+              onAction(msg);
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1745,6 +1976,12 @@ function FormsTab() {
   const [newOpen, setNewOpen]         = useState(false);
   const [sharingForm, setSharingForm] = useState<Form | null>(null);
   const [viewingSubs, setViewingSubs] = useState<Form | null>(null);
+  const [toast, setToast]             = useState<string | null>(null);
+
+  function fireToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
 
   const activeCount = forms.filter(f => f.status === "Active").length;
   const draftCount  = forms.filter(f => f.status === "Draft").length;
@@ -1883,7 +2120,19 @@ function FormsTab() {
 
       {newOpen     && <NewFormSheet onClose={() => setNewOpen(false)} />}
       {sharingForm && <ShareFormSheet form={sharingForm} onClose={() => setSharingForm(null)} />}
-      {viewingSubs && <SubmissionsSheet form={viewingSubs} onClose={() => setViewingSubs(null)} />}
+      {viewingSubs && (
+        <SubmissionsSheet
+          form={viewingSubs}
+          onClose={() => setViewingSubs(null)}
+          onAction={fireToast}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[100]">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

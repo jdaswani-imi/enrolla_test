@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
+import { orgSettings } from "@/lib/mock-data";
 import {
   Tooltip,
   TooltipTrigger,
@@ -192,9 +193,20 @@ function AddButton({ label }: { label: string }) {
   );
 }
 
-function OutlineButton({ label, icon }: { label: string; icon?: React.ReactNode }) {
+function OutlineButton({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+}) {
   return (
-    <button className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-sm text-slate-600 font-medium rounded-md hover:bg-slate-50 transition-colors cursor-pointer">
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-sm text-slate-600 font-medium rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
+    >
       {icon}
       {label}
     </button>
@@ -350,6 +362,14 @@ function SegmentedToggle({
 // ─── Section 1: Organisation ───────────────────────────────────────────────────
 
 function OrganisationSection() {
+  const [toast, setToast] = useState("");
+
+  function handleUploadLogo() {
+    orgSettings.logoUrl = "/images/imi-logo-placeholder.png";
+    setToast("Logo updated — refresh to see changes");
+    setTimeout(() => setToast(""), 3000);
+  }
+
   return (
     <div>
       <SectionHeader
@@ -386,6 +406,7 @@ function OrganisationSection() {
           <OutlineButton
             label="Upload Logo"
             icon={<Upload className="w-3.5 h-3.5" />}
+            onClick={handleUploadLogo}
           />
         </div>
       </Card>
@@ -398,6 +419,12 @@ function OrganisationSection() {
           </a>
         </p>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-green-600 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

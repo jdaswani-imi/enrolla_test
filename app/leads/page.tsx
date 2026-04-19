@@ -16,6 +16,7 @@ import {
   Archive,
   Eye,
   Filter,
+  Download,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -24,6 +25,7 @@ import { useSavedSegments } from "@/hooks/use-saved-segments";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import { leads, type Lead, type LeadStage, type LeadSource } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -448,6 +450,7 @@ type ViewMode = "kanban" | "list" | "table";
 
 export default function LeadsPage() {
   const { can } = usePermission();
+  const [exportOpen, setExportOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) return "list";
     return "kanban";
@@ -559,13 +562,36 @@ export default function LeadsPage() {
         <p className="text-sm text-slate-500">
           28 active leads · 6 stages with pending action
         </p>
-        {can('leads.create') && (
-          <button className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm">
-            <Plus className="w-4 h-4" />
-            Add Lead
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {can('export') && (
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          )}
+          {can('leads.create') && (
+            <button className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm">
+              <Plus className="w-4 h-4" />
+              Add Lead
+            </button>
+          )}
+        </div>
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Leads"
+        recordCount={28}
+        formats={[
+          { id: 'csv-pipeline', label: 'Pipeline Export', description: 'One row per lead. Name, stage, source, assigned to, days in pipeline.', icon: 'rows', recommended: true },
+          { id: 'csv-full', label: 'Full Export', description: 'All fields including notes and activity history.', icon: 'items' },
+        ]}
+      />
 
       {/* ── Saved segments ──────────────────────────────────────────────────── */}
       {segments.length > 0 && (

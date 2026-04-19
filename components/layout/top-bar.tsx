@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
-import { Bell, ChevronDown, HelpCircle, Search, Shield } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, ChevronDown, HelpCircle, LogOut, Search, Settings as SettingsIcon, Shield, User } from "lucide-react";
 
 import { currentUser, notificationCount } from "@/lib/mock-data";
 import { useRole } from "@/lib/role-context";
@@ -27,6 +27,7 @@ const routeTitles: Record<string, string> = {
   "/analytics":  "Analytics",
   "/reports":    "Reports",
   "/settings":   "Settings",
+  "/profile":    "My Profile",
   "/automations":"Automations",
   "/feedback":   "Feedback",
   "/inventory":  "Inventory",
@@ -109,6 +110,125 @@ function RoleSwitcher() {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── User Menu ────────────────────────────────────────────────────────────────
+
+function UserMenu() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [toast, setToast] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  function go(path: string) {
+    setOpen(false);
+    router.push(path);
+  }
+
+  return (
+    <>
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-label={`${currentUser.name} — account menu`}
+          aria-expanded={open}
+          className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 transition-all overflow-hidden"
+        >
+          {currentUser.avatarUrl ? (
+            <img
+              src={currentUser.avatarUrl}
+              alt={currentUser.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-slate-900 font-bold text-[11px] leading-none">{initials}</span>
+          )}
+        </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl border border-slate-200 shadow-xl z-[200] overflow-hidden">
+            {/* Header */}
+            <div className="px-3 py-3 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-slate-900 font-bold text-xs leading-none">{initials}</span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-slate-800 truncate">{currentUser.name}</p>
+                <p className="text-[11px] text-amber-600 font-medium">{currentUser.role}</p>
+                <p className="text-[11px] text-slate-400 truncate">j.daswani@improvemeinstitute.com</p>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div className="py-1">
+              <button
+                onClick={() => go("/profile")}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-2.5"
+              >
+                <User className="w-4 h-4 text-slate-400" />
+                My Profile
+              </button>
+              <button
+                onClick={() => go("/settings")}
+                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-2.5"
+              >
+                <SettingsIcon className="w-4 h-4 text-slate-400" />
+                Settings
+              </button>
+            </div>
+
+            <div className="border-t border-slate-100 py-1">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  showToast("Sign out — coming soon");
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-2.5"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-slate-800 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[300]">
+          {toast}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -216,13 +336,8 @@ export function TopBar() {
         {/* Divider */}
         <div className="w-px h-5 bg-slate-200 mx-1" />
 
-        {/* User avatar */}
-        <button
-          aria-label={`${currentUser.name} — account menu`}
-          className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 transition-all"
-        >
-          <span className="text-slate-900 font-bold text-[11px] leading-none">{initials}</span>
-        </button>
+        {/* User avatar with dropdown menu */}
+        <UserMenu />
       </div>
     </header>
   );

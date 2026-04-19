@@ -30,7 +30,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { currentUser } from "@/lib/mock-data";
+import { currentUser, orgSettings } from "@/lib/mock-data";
 import { usePermission } from "@/lib/use-permission";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -443,9 +443,23 @@ export function AppSidebar() {
   return (
     <aside className="w-14 h-screen bg-[#0F172A] flex flex-col items-center py-4 flex-shrink-0 border-r border-slate-800">
       {/* Logo */}
-      <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center mb-6 flex-shrink-0">
-        <span className="text-white font-bold text-sm">E</span>
-      </div>
+      <Link
+        href="/dashboard"
+        aria-label="Go to dashboard"
+        className="mb-6 flex-shrink-0"
+      >
+        {orgSettings.logoUrl ? (
+          <img
+            src={orgSettings.logoUrl}
+            alt={`${currentUser.org} logo`}
+            className="w-8 h-8 object-contain rounded"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">E</span>
+          </div>
+        )}
+      </Link>
 
       {/* Nav */}
       <nav className="flex flex-col items-center gap-0.5 flex-1 w-full">
@@ -486,19 +500,34 @@ export function AppSidebar() {
         )}
       </nav>
 
-      {/* User avatar */}
-      <div className="mt-4 relative group cursor-pointer">
-        <div className="w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center">
-          <span className="text-white text-xs font-bold">{initials}</span>
+      {/* Profile avatar — links to /profile */}
+      <Link
+        href="/profile"
+        aria-label="My Profile"
+        className="mt-4 relative group cursor-pointer"
+      >
+        <div className={[
+          "w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center overflow-hidden transition-all",
+          pathname === "/profile" ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-[#0F172A]" : "",
+        ].join(" ")}>
+          {currentUser.avatarUrl ? (
+            <img
+              src={currentUser.avatarUrl}
+              alt={currentUser.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-white text-xs font-bold">{initials}</span>
+          )}
         </div>
         <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
-          {currentUser.name}
+          My Profile
           <div className="text-amber-400 font-normal text-[10px]">
-            {role}
+            {currentUser.name} · {role}
           </div>
           <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
         </div>
-      </div>
+      </Link>
     </aside>
   );
 }

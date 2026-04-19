@@ -25,6 +25,7 @@ import { PaginationBar } from "@/components/ui/pagination-bar";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ExportDialog } from "@/components/ui/export-dialog";
 import {
   invoices,
   payments,
@@ -344,6 +345,7 @@ function InvoiceSlideover({
 function InvoicesTab() {
   const { can } = usePermission();
   const router = useRouter();
+  const [exportOpen, setExportOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
@@ -468,6 +470,16 @@ function InvoicesTab() {
           <button className="px-3 py-1.5 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
             Bulk Generate
           </button>
+          {can('export') && (
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+          )}
           {can('finance.createInvoice') && (
             <button
               onClick={() => router.push('/finance/invoice/new')}
@@ -479,6 +491,17 @@ function InvoicesTab() {
           )}
         </div>
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Invoices"
+        recordCount={23}
+        formats={[
+          { id: 'csv-row', label: 'One invoice per row', description: 'Download each invoice as one row. Invoice items are comma-separated. Recommended for quick review.', icon: 'rows', recommended: true },
+          { id: 'csv-items', label: 'One item per row', description: 'Each invoice line-item appears in a separate row. Recommended for importing into accounting software.', icon: 'items' },
+        ]}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -581,6 +604,8 @@ function InvoicesTab() {
 // ─── Tab 2 — Payments ─────────────────────────────────────────────────────────
 
 function PaymentsTab() {
+  const { can } = usePermission();
+  const [exportOpen, setExportOpen] = useState(false);
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -588,6 +613,30 @@ function PaymentsTab() {
         <SummaryCard label="Cash"                      value="AED 12,400" />
         <SummaryCard label="Bank Transfer"             value="AED 71,800" />
       </div>
+
+      {can('export') && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        </div>
+      )}
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Payments"
+        recordCount={10}
+        formats={[
+          { id: 'csv-summary', label: 'Payment Summary', description: 'One row per payment. Date, student, invoice, amount, method, reference, recorded by.', icon: 'rows', recommended: true },
+          { id: 'csv-reconciliation', label: 'Reconciliation Export', description: 'Formatted for bank reconciliation. Includes transfer references and IBAN details.', icon: 'items' },
+        ]}
+      />
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -635,6 +684,7 @@ function PaymentsTab() {
 
 function CreditsTab() {
   const { can } = usePermission();
+  const [exportOpen, setExportOpen] = useState(false);
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
@@ -642,6 +692,16 @@ function CreditsTab() {
           <SummaryCard label="Total Credits Issued This Term" value="AED 4,800" accent="amber" />
           <SummaryCard label="Applied / Unused" value="AED 3,200 applied" sub="AED 1,600 unused" />
         </div>
+        {can('export') && (
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors whitespace-nowrap mt-1"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        )}
         {can('finance.issueCredit') && (
           <button className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:border-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap mt-1">
             <Plus className="w-4 h-4" />
@@ -649,6 +709,17 @@ function CreditsTab() {
           </button>
         )}
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        title="Export Credits"
+        recordCount={6}
+        formats={[
+          { id: 'csv-credits', label: 'Credit Ledger', description: 'One row per credit. Date, student, amount, reason, issued by, status.', icon: 'rows', recommended: true },
+          { id: 'csv-accounting', label: 'Accounting Export', description: 'Formatted for Zoho Books import. Includes credit note references.', icon: 'items' },
+        ]}
+      />
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">

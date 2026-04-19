@@ -1,11 +1,24 @@
-export const currentUser = {
+export const currentUser: {
+  name: string;
+  role: string;
+  avatar: null;
+  avatarUrl: string | null;
+  org: string;
+} = {
   name: "Jason Daswani",
   role: "Super Admin",
   avatar: null,
+  avatarUrl: null,
   org: "IMI",
 };
 
 export const notificationCount = 3;
+
+// ─── Organisation settings ────────────────────────────────────────────────────
+
+export const orgSettings: { logoUrl: string | null } = {
+  logoUrl: null,
+};
 
 // ─── Students ─────────────────────────────────────────────────────────────────
 
@@ -967,6 +980,8 @@ export interface TimetableSession {
   studentCount: number;
   type: SessionType;
   status: SessionStatus;
+  isTrial?: boolean;
+  attendanceMarked?: boolean;
 }
 
 export const rooms: Room[] = [
@@ -982,8 +997,8 @@ export const timetableSessions: TimetableSession[] = [
   { id: "s001", day: "Mon", date: "21 Apr", subject: "Y8 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Aisha Rahman", "Omar Al-Farsi", "Sara Nasser"], studentCount: 3, type: "Regular",        status: "Scheduled" },
   { id: "s002", day: "Mon", date: "21 Apr", subject: "Y4 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Nour Ibrahim", "Dana Al-Zaabi"],              studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s003", day: "Mon", date: "21 Apr", subject: "Y12 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Khalid Mansoor", "Mariam Al-Suwaidi"],       studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s004", day: "Mon", date: "21 Apr", subject: "Y6 Science",   department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],             studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s005", day: "Mon", date: "21 Apr", subject: "Y9 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Hamdan Al-Maktoum"],                         studentCount: 1, type: "Trial",          status: "Scheduled" },
+  { id: "s004", day: "Mon", date: "21 Apr", subject: "Y6 Science",   department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],             studentCount: 2, type: "Regular",        status: "Scheduled", attendanceMarked: true },
+  { id: "s005", day: "Mon", date: "21 Apr", subject: "Y9 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Hamdan Al-Maktoum"],                         studentCount: 1, type: "Trial",          status: "Scheduled", isTrial: true },
   { id: "s006", day: "Mon", date: "21 Apr", subject: "Y10 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Layla Hassan", "Faris Qasim"],               studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s007", day: "Mon", date: "21 Apr", subject: "Y3 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "16:30", endTime: "17:30", duration: 60, students: ["Ziad Khalil", "Raya Khouri"],                studentCount: 2, type: "Regular",        status: "Scheduled" },
   // Tuesday 22 Apr
@@ -991,14 +1006,14 @@ export const timetableSessions: TimetableSession[] = [
   { id: "s009", day: "Tue", date: "22 Apr", subject: "Y5 Maths",     department: "Primary",         teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Nadia Al-Ghaith", "Hessa Al-Blooshi"],       studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s010", day: "Tue", date: "22 Apr", subject: "Y11 Chemistry",department: "Senior",          teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Faris Qasim", "Talal Mansouri"],             studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s011", day: "Tue", date: "22 Apr", subject: "Y7 Maths",     department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Hamdan Al-Maktoum", "Majid Al-Romaithi"],    studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s012", day: "Tue", date: "22 Apr", subject: "Y2 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Dana Al-Zaabi"],                             studentCount: 1, type: "Makeup",         status: "Scheduled" },
+  { id: "s012", day: "Tue", date: "22 Apr", subject: "Y2 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Dana Al-Zaabi"],                             studentCount: 1, type: "Makeup",         status: "Scheduled", attendanceMarked: true },
   { id: "s013", day: "Tue", date: "22 Apr", subject: "Y13 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "15:30", endTime: "16:30", duration: 60, students: ["Mariam Al-Suwaidi"],                         studentCount: 1, type: "Regular",        status: "Scheduled" },
   // Wednesday 23 Apr
   { id: "s014", day: "Wed", date: "23 Apr", subject: "Y8 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Aisha Rahman", "Omar Al-Farsi", "Sara Nasser"], studentCount: 3, type: "Regular",       status: "Scheduled" },
   { id: "s015", day: "Wed", date: "23 Apr", subject: "Y4 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Nour Ibrahim", "Fatima Al-Shehhi"],          studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s016", day: "Wed", date: "23 Apr", subject: "Y10 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Layla Hassan"],                              studentCount: 1, type: "Regular",        status: "Scheduled" },
   { id: "s017", day: "Wed", date: "23 Apr", subject: "Y6 Maths",     department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali", "Raya Khouri"], studentCount: 3, type: "Regular",      status: "Scheduled" },
-  { id: "s018", day: "Wed", date: "23 Apr", subject: "CAT4 Assessment", department: "Primary",      teacher: "Mr Ahmed Khalil",    room: "Room 2B", startTime: "10:15", endTime: "11:15", duration: 60, students: ["Nour Ibrahim"],                              studentCount: 1, type: "Assessment",     status: "Scheduled" },
+  { id: "s018", day: "Wed", date: "23 Apr", subject: "CAT4 Assessment", department: "Primary",      teacher: "Mr Ahmed Khalil",    room: "Room 2B", startTime: "10:15", endTime: "11:15", duration: 60, students: ["Nour Ibrahim"],                              studentCount: 1, type: "Assessment",     status: "Scheduled", attendanceMarked: true },
   // Thursday 24 Apr
   { id: "s019", day: "Thu", date: "24 Apr", subject: "Y8 English",   department: "Lower Secondary", teacher: "Ms Sarah Mitchell",  room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Aisha Rahman", "Yousef Salim"],              studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s020", day: "Thu", date: "24 Apr", subject: "Y9 Maths",     department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Sara Nasser", "Yousef Salim"],               studentCount: 2, type: "Regular",        status: "Scheduled" },
@@ -1010,6 +1025,18 @@ export const timetableSessions: TimetableSession[] = [
   { id: "s025", day: "Fri", date: "25 Apr", subject: "Y11 Biology",  department: "Senior",          teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Faris Qasim", "Yousuf Al-Hammadi"],         studentCount: 2, type: "Regular",        status: "Scheduled" },
   { id: "s026", day: "Fri", date: "25 Apr", subject: "Y3 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Ziad Khalil"],                               studentCount: 1, type: "Regular",        status: "Scheduled" },
   { id: "s027", day: "Fri", date: "25 Apr", subject: "Y9 English",   department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Sara Nasser", "Hamdan Al-Maktoum"],          studentCount: 2, type: "Cover Required", status: "Scheduled" },
+  // Saturday 26 Apr
+  { id: "s028", day: "Sat", date: "26 Apr", subject: "Y7 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "10:00", endTime: "11:00", duration: 60, students: ["Bilal Mahmood"],                             studentCount: 1, type: "Trial",          status: "Scheduled", isTrial: true },
+  { id: "s029", day: "Sat", date: "26 Apr", subject: "Y4 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "11:00", endTime: "12:00", duration: 60, students: ["Hessa Al-Blooshi", "Fatima Al-Shehhi"],      studentCount: 2, type: "Regular",        status: "Scheduled" },
+  { id: "s030", day: "Sat", date: "26 Apr", subject: "Y10 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "12:00", endTime: "13:30", duration: 90, students: ["Layla Hassan"],                              studentCount: 1, type: "Makeup",         status: "Scheduled" },
+  { id: "s031", day: "Sat", date: "26 Apr", subject: "Y9 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Sara Nasser"],                               studentCount: 1, type: "Makeup",         status: "Scheduled" },
+  { id: "s032", day: "Sat", date: "26 Apr", subject: "Y6 Science",   department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],             studentCount: 2, type: "Regular",        status: "Scheduled" },
+  // Weekday fill-ins (morning + late evening) for a denser calendar
+  { id: "s033", day: "Mon", date: "21 Apr", subject: "Y2 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "09:30", endTime: "10:30", duration: 60, students: ["Dana Al-Zaabi", "Ziad Khalil"],              studentCount: 2, type: "Regular",        status: "Scheduled", attendanceMarked: true },
+  { id: "s034", day: "Tue", date: "22 Apr", subject: "Y9 Maths",     department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Ali Hassan"],                                studentCount: 1, type: "Regular",        status: "Scheduled", isTrial: true },
+  { id: "s035", day: "Wed", date: "23 Apr", subject: "Y7 English",   department: "Lower Secondary", teacher: "Ms Sarah Mitchell",  room: "Room 2B", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Yousef Salim"],                              studentCount: 1, type: "Regular",        status: "Scheduled" },
+  { id: "s036", day: "Thu", date: "24 Apr", subject: "Y11 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "18:30", endTime: "19:30", duration: 60, students: ["Faris Qasim", "Talal Mansouri"],            studentCount: 2, type: "Regular",        status: "Scheduled" },
+  { id: "s037", day: "Fri", date: "25 Apr", subject: "Y11 Biology",  department: "Senior",          teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Yousuf Al-Hammadi"],                         studentCount: 1, type: "Makeup",         status: "Scheduled" },
 ];
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
@@ -2723,3 +2750,169 @@ export const stockLedgerEntries: StockLedgerEntry[] = [
   { id: "sl-027", itemName: "First Aid Kit Refill",             category: "Health & Safety",     changeType: "manual_deduct",         quantityChange: -1,  stockBefore: 3,  stockAfter: 2,  actor: "Sarah Thompson",     timestamp: "8 Apr 2026, 11:15"  },
   { id: "sl-028", itemName: "IMI Branded Pens",                 category: "Branded Materials",   changeType: "stock_take_correction", quantityChange: -5,  stockBefore: 145,stockAfter: 140,actor: "Jason Daswani",      reference: "STKT-APR26",  timestamp: "7 Apr 2026, 15:30"  },
 ];
+
+// ─── Dashboard — role-scoped mock data ────────────────────────────────────────
+
+export interface DashboardSessionRow {
+  id: string;
+  time: string;
+  subject: string;
+  room: string;
+  studentCount: number;
+  students: string;
+}
+
+export const teacherTodaySessions: DashboardSessionRow[] = [
+  { id: "ts-001", time: "15:00", subject: "Y8 Maths",   room: "Room 3A", studentCount: 3, students: "Aisha, Omar, Sara" },
+  { id: "ts-002", time: "16:30", subject: "Y3 Maths",   room: "Room 1A", studentCount: 2, students: "Ziad, Raya" },
+  { id: "ts-003", time: "18:00", subject: "Y7 Maths",   room: "Room 2A", studentCount: 2, students: "Hamdan, Majid" },
+];
+
+export const taTodaySessions: DashboardSessionRow[] = [
+  { id: "tas-001", time: "14:00", subject: "Y4 Maths (Support)",    room: "Room 1A", studentCount: 2, students: "Nour, Dana" },
+  { id: "tas-002", time: "15:30", subject: "Y5 English (Support)",  room: "Room 1C", studentCount: 3, students: "Omar, Sara, Reem" },
+  { id: "tas-003", time: "17:00", subject: "Y3 Maths (Support)",    room: "Room 2B", studentCount: 2, students: "Ziad, Raya" },
+];
+
+export interface TeacherPendingAction {
+  id: string;
+  label: string;
+  count: number;
+  href: string;
+  severity: "critical" | "warning" | "ok";
+}
+
+export const teacherPendingActions: TeacherPendingAction[] = [
+  { id: "attendance", label: "Unmarked attendance",    count: 2, href: "/attendance",  severity: "critical" },
+  { id: "tracker",    label: "Tracker updates due",    count: 1, href: "/progress",    severity: "warning"  },
+  { id: "feedback",   label: "Feedback drafts",        count: 0, href: "/feedback",    severity: "ok"       },
+];
+
+export interface DashboardTaskRow {
+  id: string;
+  title: string;
+  priority: "High" | "Medium" | "Low";
+  dueLabel: string;
+  href: string;
+}
+
+export const teacherTopTasks: DashboardTaskRow[] = [
+  { id: "tk-t01", title: "Mark attendance — Y11 Chemistry Thu", priority: "High",   dueLabel: "Today",   href: "/tasks" },
+  { id: "tk-t02", title: "Submit Y8 Maths feedback — Aisha",    priority: "High",   dueLabel: "Today",   href: "/tasks" },
+  { id: "tk-t03", title: "Progress tracker update — Sara",      priority: "Medium", dueLabel: "Tomorrow", href: "/tasks" },
+  { id: "tk-t04", title: "CPD — Classroom Management webinar",  priority: "Low",    dueLabel: "Fri",     href: "/tasks" },
+  { id: "tk-t05", title: "Prep materials — Y7 Maths Sat trial", priority: "Medium", dueLabel: "Sat",     href: "/tasks" },
+];
+
+export const taTopTasks: DashboardTaskRow[] = [
+  { id: "ta-tk01", title: "Collect resources for Y5 English (Support)", priority: "Medium", dueLabel: "Today",    href: "/tasks" },
+  { id: "ta-tk02", title: "Photocopy Y4 worksheets",                    priority: "Low",    dueLabel: "Today",    href: "/tasks" },
+  { id: "ta-tk03", title: "CPD — Safeguarding refresher",               priority: "Low",    dueLabel: "This week", href: "/tasks" },
+];
+
+// HOD — Teacher workload (traffic light by department)
+export interface TeacherWorkloadRow {
+  id: string;
+  name: string;
+  sessionsThisWeek: number;
+  subjects: string;
+  level: "Low" | "Moderate" | "High";
+}
+
+export const hodTeacherWorkload: TeacherWorkloadRow[] = [
+  { id: "tw-001", name: "Sarah Mitchell",  sessionsThisWeek: 12, subjects: "Y3–Y5 English, Maths", level: "Moderate" },
+  { id: "tw-002", name: "Khalil Mansouri", sessionsThisWeek: 9,  subjects: "Y1–Y2 English, Maths", level: "Moderate" },
+  { id: "tw-003", name: "Hana Yusuf",      sessionsThisWeek: 14, subjects: "Y6 Maths, Science",    level: "High"     },
+  { id: "tw-004", name: "Noor Hadid",      sessionsThisWeek: 6,  subjects: "Y2 Phonics",           level: "Low"      },
+];
+
+// HOD — Department academic alerts
+export interface AcademicAlertRow {
+  id: string;
+  title: string;
+  student: string;
+  subject: string;
+  level: "L1" | "L2" | "L3";
+  opened: string;
+  href: string;
+}
+
+export const hodAcademicAlerts: AcademicAlertRow[] = [
+  { id: "al-001", title: "Attendance below 80%",        student: "Raya Khouri",   subject: "Y3 Maths",   level: "L1", opened: "5d ago", href: "/progress?tab=alerts" },
+  { id: "al-002", title: "Tracker breach — 3 sessions", student: "Dana Al-Zaabi", subject: "Y2 English", level: "L1", opened: "2d ago", href: "/progress?tab=alerts" },
+];
+
+// Academic Head — wider alerts list
+export const academicAlerts: AcademicAlertRow[] = [
+  { id: "ah-001", title: "Attendance below 80%",            student: "Aisha Rahman",    subject: "Y8 Maths",      level: "L1", opened: "7d ago", href: "/progress?tab=alerts" },
+  { id: "ah-002", title: "Assessment score ↓ 18%",          student: "Sara Nasser",     subject: "Y9 Maths",      level: "L2", opened: "3d ago", href: "/progress?tab=alerts" },
+  { id: "ah-003", title: "Tracker breach — 3 sessions",     student: "Dana Al-Zaabi",   subject: "Y2 English",    level: "L1", opened: "2d ago", href: "/progress?tab=alerts" },
+  { id: "ah-004", title: "Missed 2 consecutive sessions",   student: "Ziad Khalil",     subject: "Y3 English",    level: "L1", opened: "1d ago", href: "/progress?tab=alerts" },
+];
+
+// HOD — Upcoming sessions this week (dept)
+export interface UpcomingSessionRow {
+  id: string;
+  day: string;
+  time: string;
+  subject: string;
+  teacher: string;
+  room: string;
+  students: number;
+}
+
+export const hodUpcomingSessions: UpcomingSessionRow[] = [
+  { id: "us-001", day: "Mon", time: "14:00", subject: "Y6 Science",  teacher: "Hana Yusuf",      room: "Room 1C", students: 2 },
+  { id: "us-002", day: "Mon", time: "15:00", subject: "Y4 English",  teacher: "Sarah Mitchell",  room: "Room 1A", students: 2 },
+  { id: "us-003", day: "Tue", time: "14:00", subject: "Y2 English",  teacher: "Sarah Mitchell",  room: "Room 1A", students: 1 },
+  { id: "us-004", day: "Wed", time: "15:00", subject: "Y6 Maths",    teacher: "Hana Yusuf",      room: "Room 1C", students: 3 },
+  { id: "us-005", day: "Thu", time: "16:00", subject: "Y3 English",  teacher: "Sarah Mitchell",  room: "Room 1A", students: 2 },
+];
+
+// HOD — Pending approvals
+export interface PendingApprovalRow {
+  id: string;
+  label: string;
+  count: number;
+  href: string;
+}
+
+export const hodPendingApprovals: PendingApprovalRow[] = [
+  { id: "feedback-drafts", label: "Feedback drafts awaiting approval", count: 4, href: "/feedback" },
+  { id: "reports",         label: "Progress reports to approve",       count: 2, href: "/progress" },
+  { id: "concerns",        label: "L1 concerns to review",             count: 1, href: "/progress?tab=alerts" },
+];
+
+// HR/Finance — Invoice status breakdown
+export interface InvoiceStatusSlice {
+  label: string;
+  count: number;
+  amount: string;
+  color: string; // tailwind class
+}
+
+export const invoiceStatusBreakdown: InvoiceStatusSlice[] = [
+  { label: "Paid",     count: 184, amount: "AED 241,200", color: "bg-emerald-500" },
+  { label: "Part",     count: 22,  amount: "AED 18,700",  color: "bg-amber-400"   },
+  { label: "Issued",   count: 31,  amount: "AED 28,200",  color: "bg-blue-500"    },
+  { label: "Overdue",  count: 23,  amount: "AED 18,400",  color: "bg-red-500"     },
+];
+
+// HR/Finance — Staff CPD progress
+export interface StaffCpdRow {
+  id: string;
+  name: string;
+  role: string;
+  cpdHours: number;
+  cpdTarget: number;
+}
+
+export const staffCpdProgress: StaffCpdRow[] = [
+  { id: "cpd-001", name: "Hana Yusuf",      role: "Teacher",     cpdHours: 20, cpdTarget: 20 },
+  { id: "cpd-002", name: "Sarah Mitchell",  role: "Teacher",     cpdHours: 18, cpdTarget: 20 },
+  { id: "cpd-003", name: "Nadia Al-Hassan", role: "HOD",         cpdHours: 16, cpdTarget: 20 },
+  { id: "cpd-004", name: "Sarah Thompson",  role: "Admin Head",  cpdHours: 15, cpdTarget: 20 },
+  { id: "cpd-005", name: "Ahmed Khalil",    role: "Teacher",     cpdHours: 8,  cpdTarget: 20 },
+  { id: "cpd-006", name: "Tariq Al-Amin",   role: "Teacher",     cpdHours: 6,  cpdTarget: 20 },
+];
+
