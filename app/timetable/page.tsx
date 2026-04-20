@@ -38,6 +38,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { NewSessionDialog } from "@/components/timetable/new-session-dialog";
 
 // ─── Grid constants ───────────────────────────────────────────────────────────
 
@@ -777,36 +778,6 @@ function SessionSlideover({
   );
 }
 
-// ─── New Session Modal ────────────────────────────────────────────────────────
-
-function NewSessionModal({ onClose }: { onClose: () => void }) {
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 pointer-events-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-slate-800">New Session</h2>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4 text-slate-500" />
-            </button>
-          </div>
-          <p className="text-sm text-slate-500 mb-6">New Session form — coming soon</p>
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
 // ─── Timetable Page ───────────────────────────────────────────────────────────
 
 type ViewMode    = "Week" | "Day" | "List" | "Month";
@@ -827,6 +798,7 @@ export default function TimetablePage() {
   const [selectedSession, setSelectedSession] = useState<ExtendedSession | null>(null);
   const { assessments, markDone, cancel } = useAssessments();
   const [showNewSession,  setShowNewSession]  = useState(false);
+  const [sessionTick,     setSessionTick]     = useState(0);
   const [filterLocation,  setFilterLocation]  = useState("All");
   const [filterDept,      setFilterDept]      = useState("All");
   const [filterTeacher,   setFilterTeacher]   = useState("All");
@@ -845,7 +817,10 @@ export default function TimetablePage() {
   const allSessions = useMemo<ExtendedSession[]>(() => {
     const derived = assessments.flatMap(assessmentToSessions);
     return [...timetableSessions, ...derived];
-  }, [assessments]);
+    // sessionTick participates in the dep array to pick up new sessions pushed
+    // into the mock timetableSessions array after user creates one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assessments, sessionTick]);
 
   const teachers = useMemo(() => {
     const names = Array.from(new Set(allSessions.map((s) => s.teacher))).sort();
@@ -1540,9 +1515,11 @@ export default function TimetablePage() {
           onClose={() => setSelectedSession(null)}
         />
       ) : null}
-      {showNewSession && (
-        <NewSessionModal onClose={() => setShowNewSession(false)} />
-      )}
+      <NewSessionDialog
+        open={showNewSession}
+        onOpenChange={setShowNewSession}
+        onCreated={() => setSessionTick((n) => n + 1)}
+      />
     </div>
   );
 }

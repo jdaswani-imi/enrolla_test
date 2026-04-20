@@ -32,6 +32,10 @@ import { usePermission } from "@/lib/use-permission";
 import { studentDetail, guardians, students } from "@/lib/mock-data";
 import { useJourney, BILAL_STUDENT_ID } from "@/lib/journey-store";
 import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
+import {
+  NewEnrolmentDialog,
+  type StudentDepartment,
+} from "@/components/enrolment/new-enrolment-dialog";
 import { RecordPaymentDialog } from "@/components/journey/record-payment-dialog";
 import { ExportDialog, type ExportFormat } from "@/components/ui/export-dialog";
 import {
@@ -323,10 +327,13 @@ function ProfileHeader({
         </div>
       </div>
 
-      <AddEnrolmentDialog
+      <NewEnrolmentDialog
         open={openDialog === "addEnrolment"}
         onOpenChange={(o) => !o && setOpenDialog(null)}
-        fireToast={fireToast}
+        studentId={profile.studentId}
+        studentName={displayName}
+        yearGroup={profile.yearGroup}
+        department={department as StudentDepartment}
       />
       <RaiseConcernDialog
         open={openDialog === "raiseConcern"}
@@ -395,84 +402,6 @@ function DialogActions({
         {submitLabel}
       </button>
     </DialogFooter>
-  );
-}
-
-function AddEnrolmentDialog({
-  open,
-  onOpenChange,
-  fireToast,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  fireToast: FireToast;
-}) {
-  const [subject, setSubject] = useState("");
-  const [teacher, setTeacher] = useState("");
-  const [frequency, setFrequency] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const valid = subject && teacher && frequency && startDate;
-
-  function reset() {
-    setSubject("");
-    setTeacher("");
-    setFrequency("");
-    setStartDate("");
-  }
-  function submit() {
-    fireToast(`Enrolment added — ${subject || "new subject"}`);
-    reset();
-    onOpenChange(false);
-  }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md w-full">
-        <DialogHeader>
-          <DialogTitle>Add Enrolment</DialogTitle>
-          <DialogDescription>Enrol {STUDENT_NAME} in a new subject.</DialogDescription>
-        </DialogHeader>
-        <div className="p-6 space-y-4">
-          <div className="space-y-1.5">
-            <FieldLabel required>Subject</FieldLabel>
-            <select className={FIELD_INPUT} value={subject} onChange={(e) => setSubject(e.target.value)}>
-              <option value="">Select subject…</option>
-              <option>Y8 Maths</option>
-              <option>Y8 English</option>
-              <option>Y8 Science</option>
-              <option>Y8 History</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel required>Teacher</FieldLabel>
-            <select className={FIELD_INPUT} value={teacher} onChange={(e) => setTeacher(e.target.value)}>
-              <option value="">Select teacher…</option>
-              <option>Mr Ahmed Khalil</option>
-              <option>Ms Sarah Mitchell</option>
-              <option>Mr Tariq Al-Amin</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel required>Frequency</FieldLabel>
-            <select className={FIELD_INPUT} value={frequency} onChange={(e) => setFrequency(e.target.value)}>
-              <option value="">Select frequency…</option>
-              <option>1× per week</option>
-              <option>2× per week</option>
-              <option>3× per week</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <FieldLabel required>Start Date</FieldLabel>
-            <input type="date" className={FIELD_INPUT} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </div>
-        </div>
-        <DialogActions
-          onCancel={() => onOpenChange(false)}
-          onSubmit={submit}
-          submitLabel="Save"
-          submitDisabled={!valid}
-        />
-      </DialogContent>
-    </Dialog>
   );
 }
 

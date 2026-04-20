@@ -18,16 +18,31 @@ import {
   Download,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { students, type Student } from "@/lib/mock-data";
+import { AddStudentDialog, type NewStudentData } from "@/components/add-student-dialog";
+import { students as studentsStore, type Student } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
+
+function getNextStudentId(): string {
+  const max = studentsStore.reduce((acc, s) => {
+    const n = parseInt(s.id.replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) ? Math.max(acc, n) : acc;
+  }, 0);
+  return `IMI-${String(max + 1).padStart(4, "0")}`;
+}
+
+function formatCreatedOn(d: Date): string {
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -248,6 +263,8 @@ export default function StudentsPage() {
   const { can } = usePermission();
   const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [studentsVersion, setStudentsVersion] = useState(0);
 
   // Filters
   const [statusFilter,     setStatusFilter]     = useState<string[]>([]);
@@ -308,7 +325,7 @@ export default function StudentsPage() {
   }
 
   const filtered = useMemo(() => {
-    let data = students.filter((s) => {
+    let data = studentsStore.filter((s) => {
       if (statusFilter.length > 0 && !statusFilter.includes(s.status)) return false;
       if (yearFilter.length > 0 && !yearFilter.includes(s.yearGroup)) return false;
       if (deptFilter.length > 0 && !deptFilter.includes(s.department)) return false;
@@ -337,7 +354,7 @@ export default function StudentsPage() {
     }
 
     return data;
-  }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, searchQuery, sortField, sortDir]);
+  }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, searchQuery, sortField, sortDir, studentsVersion]);
 
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -400,6 +417,7 @@ export default function StudentsPage() {
         {can('students.create') && (
           <button
             type="button"
+            onClick={() => setAddStudentOpen(true)}
             className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold shadow-sm"
           >
             <UserPlus className="w-3.5 h-3.5" />
@@ -407,6 +425,37 @@ export default function StudentsPage() {
           </button>
         )}
       </div>
+
+      <AddStudentDialog
+        open={addStudentOpen}
+        onOpenChange={setAddStudentOpen}
+        existingStudents={studentsStore}
+        onCreated={(data: NewStudentData) => {
+          const fullName = `${data.firstName} ${data.lastName}`.trim();
+          const guardianName = data.primaryGuardian
+            ? `${data.primaryGuardian.firstName} ${data.primaryGuardian.lastName}`.trim()
+            : "";
+          const newStudent: Student = {
+            id: getNextStudentId(),
+            name: fullName,
+            yearGroup: data.yearGroup,
+            department: data.department,
+            school: data.school,
+            guardian: guardianName,
+            guardianPhone: data.primaryGuardian
+              ? `${data.primaryGuardian.dialCode || "+971"} ${data.primaryGuardian.phone}`.trim()
+              : "",
+            enrolments: 0,
+            churnScore: null,
+            status: "Active",
+            lastContact: "Today",
+            createdOn: formatCreatedOn(new Date()),
+          };
+          studentsStore.unshift(newStudent);
+          setStudentsVersion((v) => v + 1);
+          toast.success(`${fullName} added`, { description: `Student ID ${newStudent.id}` });
+        }}
+      />
 
       <ExportDialog
         open={exportOpen}
