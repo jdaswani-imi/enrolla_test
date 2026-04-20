@@ -10,11 +10,12 @@ import {
   ChevronRight,
   MoreHorizontal,
   Check,
-  X,
   ArrowUpRight,
   AlertCircle,
   CheckCircle,
+  UserPlus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -22,6 +23,13 @@ import { tasks as allTasks, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -168,16 +176,17 @@ function ActionsMenu({ onEdit }: { onEdit: () => void }) {
   );
 }
 
-// ─── Task Slide-Over ──────────────────────────────────────────────────────────
+// ─── Task Detail Modal ────────────────────────────────────────────────────────
 
-interface TaskSlideOverProps {
+interface TaskDetailDialogProps {
   task: Task;
   isDone: boolean;
   onClose: () => void;
   onComplete: (id: string) => void;
+  onOpenLead?: (leadId: string) => void;
 }
 
-function TaskSlideOver({ task, isDone, onClose, onComplete }: TaskSlideOverProps) {
+function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: TaskDetailDialogProps) {
   const [subtasksDone, setSubtasksDone] = useState<boolean[]>(
     task.subtasks.map(() => isDone)
   );
@@ -190,61 +199,44 @@ function TaskSlideOver({ task, isDone, onClose, onComplete }: TaskSlideOverProps
     });
   }
 
+  const assigneePalette = getAvatarPalette(task.assignee);
+
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200 shrink-0">
-          <div className="flex-1 pr-4">
-            <h2 className={cn("text-base font-semibold text-slate-800 leading-snug", isDone && "line-through text-slate-400")}>
-              {task.title}
-            </h2>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getTypeClass(task.type))}>
-                {task.type}
-              </span>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getPriorityClass(task.priority))}>
-                {task.priority}
-              </span>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getStatusClass(task.status))}>
-                {task.status}
-              </span>
-            </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className={cn("text-lg leading-snug", isDone && "line-through text-slate-400")}>
+            {task.title}
+          </DialogTitle>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getStatusClass(task.status))}>
+              {task.status}
+            </span>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getPriorityClass(task.priority))}>
+              {task.priority}
+            </span>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getTypeClass(task.type))}>
+              {task.type}
+            </span>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        </DialogHeader>
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
           {/* Description */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Description</p>
             <p className="text-sm text-slate-700 leading-relaxed">{task.description}</p>
           </div>
 
-          {/* Meta */}
+          {/* Assignee + Due Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Assignee</p>
               <div className="flex items-center gap-2">
-                {(() => {
-                  const p = getAvatarPalette(task.assignee);
-                  return (
-                    <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", p.bg, p.text)}>
-                      {getInitials(task.assignee)}
-                    </div>
-                  );
-                })()}
-                <span className="text-sm text-slate-700">{task.assignee}</span>
+                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", assigneePalette.bg, assigneePalette.text)}>
+                  {getInitials(task.assignee)}
+                </div>
+                <span className="text-sm text-slate-700 truncate">{task.assignee}</span>
               </div>
             </div>
             <div>
@@ -267,32 +259,60 @@ function TaskSlideOver({ task, isDone, onClose, onComplete }: TaskSlideOverProps
             </div>
           )}
 
-          {/* Subtasks */}
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Sub-tasks</p>
-            <div className="space-y-2">
-              {task.subtasks.map((sub, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleSubtask(i)}
-                    className={cn(
-                      "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors cursor-pointer",
-                      subtasksDone[i]
-                        ? "bg-amber-500 border-amber-500"
-                        : "border-slate-300 hover:border-amber-400"
-                    )}
-                    aria-label={subtasksDone[i] ? "Mark incomplete" : "Mark complete"}
-                  >
-                    {subtasksDone[i] && <Check className="w-2.5 h-2.5 text-white" />}
-                  </button>
-                  <span className={cn("text-sm text-slate-700", subtasksDone[i] && "line-through text-slate-400")}>
-                    {sub}
+          {/* Created from lead */}
+          {task.sourceLeadId && task.sourceLeadName && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Created from</p>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 shrink-0">
+                    <UserPlus className="w-3.5 h-3.5" />
                   </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{task.sourceLeadName}</p>
+                    <p className="text-[11px] font-mono text-slate-500">IMI-{task.sourceLeadId}</p>
+                  </div>
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => onOpenLead?.(task.sourceLeadId!)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer"
+                >
+                  View lead
+                  <ArrowUpRight className="w-3 h-3" />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Subtasks */}
+          {task.subtasks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Sub-tasks</p>
+              <div className="space-y-2">
+                {task.subtasks.map((sub, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleSubtask(i)}
+                      className={cn(
+                        "w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors cursor-pointer",
+                        subtasksDone[i]
+                          ? "bg-amber-500 border-amber-500"
+                          : "border-slate-300 hover:border-amber-400"
+                      )}
+                      aria-label={subtasksDone[i] ? "Mark incomplete" : "Mark complete"}
+                    >
+                      {subtasksDone[i] && <Check className="w-2.5 h-2.5 text-white" />}
+                    </button>
+                    <span className={cn("text-sm text-slate-700", subtasksDone[i] && "line-through text-slate-400")}>
+                      {sub}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Activity log */}
           <div>
@@ -311,8 +331,7 @@ function TaskSlideOver({ task, isDone, onClose, onComplete }: TaskSlideOverProps
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 flex gap-3 shrink-0">
+        <DialogFooter className="flex items-center gap-3">
           {!isDone && (
             <button
               type="button"
@@ -327,15 +346,15 @@ function TaskSlideOver({ task, isDone, onClose, onComplete }: TaskSlideOverProps
             type="button"
             onClick={onClose}
             className={cn(
-              "py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer",
+              "py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer",
               isDone ? "flex-1" : "px-5"
             )}
           >
             Close
           </button>
-        </div>
-      </div>
-    </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -348,9 +367,11 @@ interface ListSectionProps {
   labelClass: string;
   tasks: Task[];
   doneTasks: Set<string>;
+  highlightTaskId?: string | null;
   defaultCollapsed?: boolean;
   onToggleDone: (id: string) => void;
   onSelectTask: (task: Task) => void;
+  onOpenLead: (leadId: string) => void;
 }
 
 function ListSection({
@@ -360,9 +381,11 @@ function ListSection({
   labelClass,
   tasks,
   doneTasks,
+  highlightTaskId,
   defaultCollapsed = false,
   onToggleDone,
   onSelectTask,
+  onOpenLead,
 }: ListSectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
@@ -387,15 +410,18 @@ function ListSection({
           {tasks.map((task) => {
             const isDone = doneTasks.has(task.id);
             const palette = getAvatarPalette(task.assignee);
+            const isHighlighted = highlightTaskId === task.id;
             return (
               <div
                 key={task.id}
+                id={`task-${task.id}`}
                 onClick={() => onSelectTask(task)}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer",
                   task.overdue && !isDone && "bg-red-50 border-l-[3px] border-l-red-400",
                   task.dueDate === TODAY_DATE && !task.overdue && !isDone && "bg-amber-50",
-                  isDone && "opacity-60"
+                  isDone && "opacity-60",
+                  isHighlighted && "ring-2 ring-inset ring-amber-400 bg-amber-50/80"
                 )}
               >
                 {/* Checkbox */}
@@ -418,17 +444,38 @@ function ListSection({
                   {task.priority}
                 </span>
 
-                {/* Title + linked record */}
+                {/* Title + linked record + source lead */}
                 <div className="flex-1 min-w-0">
-                  <p className={cn("text-sm font-medium text-slate-800 truncate", isDone && "line-through text-slate-400")}>
-                    {task.title}
-                  </p>
-                  {task.linkedRecord && (
-                    <span className="inline-flex items-center gap-1 text-xs text-blue-600 mt-0.5">
-                      <ArrowUpRight className="w-3 h-3" />
-                      {task.linkedRecord.name} — {task.linkedRecord.id}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className={cn("text-sm font-medium text-slate-800 truncate", isDone && "line-through text-slate-400")}>
+                      {task.title}
+                    </p>
+                    {task.sourceLeadId && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                        Lead
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    {task.linkedRecord && (
+                      <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+                        <ArrowUpRight className="w-3 h-3" />
+                        {task.linkedRecord.name} — {task.linkedRecord.id}
+                      </span>
+                    )}
+                    {task.sourceLeadId && task.sourceLeadName && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenLead(task.sourceLeadId!); }}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+                        title={`View ${task.sourceLeadName} in Leads`}
+                      >
+                        <ArrowUpRight className="w-3 h-3" />
+                        {task.sourceLeadName}
+                        <span className="font-mono opacity-70">· IMI-{task.sourceLeadId}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Type */}
@@ -617,12 +664,15 @@ type ViewMode = "list" | "kanban" | "calendar";
 
 export default function TasksPage() {
   const { can } = usePermission();
+  const router = useRouter();
   const [view, setView] = useState<ViewMode>("list");
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
   const [typeFilter,     setTypeFilter]     = useState<string[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
   const [statusFilter,   setStatusFilter]   = useState<string[]>([]);
   const [myTasksOnly, setMyTasksOnly] = useState(true);
+  const [fromLeadsOnly, setFromLeadsOnly] = useState(false);
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
 
   const { segments, saveSegment, deleteSegment } = useSavedSegments("tasks");
   const [savePopoverOpen, setSavePopoverOpen]    = useState(false);
@@ -640,6 +690,28 @@ export default function TasksPage() {
   );
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const taskId = params.get("taskId");
+    if (!taskId) return;
+    const task = allTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    setMyTasksOnly(false);
+    setSelectedTask(task);
+    setHighlightTaskId(taskId);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`task-${taskId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    const timer = window.setTimeout(() => setHighlightTaskId(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function openLead(leadId: string) {
+    router.push(`/leads?leadId=${leadId}&panel=chat`);
+  }
+
   function toggleDone(id: string) {
     setDoneTasks((prev) => {
       const next = new Set(prev);
@@ -652,6 +724,7 @@ export default function TasksPage() {
   const filtered = useMemo(() => {
     return allTasks.filter((t) => {
       if (myTasksOnly && t.assignee !== "Jason Daswani") return false;
+      if (fromLeadsOnly && !t.sourceLeadId) return false;
       if (assigneeFilter.length > 0 && !assigneeFilter.includes(t.assignee)) return false;
       if (typeFilter.length > 0 && !typeFilter.includes(t.type)) return false;
       if (priorityFilter.length > 0 && !priorityFilter.includes(t.priority)) return false;
@@ -666,7 +739,7 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, search, doneTasks]);
+  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks]);
 
   // List view groups
   const overdue  = filtered.filter((t) => t.overdue && !doneTasks.has(t.id));
@@ -788,6 +861,22 @@ export default function TasksPage() {
           My Tasks
         </button>
 
+        {/* From leads toggle */}
+        <button
+          type="button"
+          onClick={() => setFromLeadsOnly((v) => !v)}
+          aria-pressed={fromLeadsOnly}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer",
+            fromLeadsOnly
+              ? "bg-amber-500 text-white border-amber-500"
+              : "bg-white text-slate-600 border-slate-200 hover:border-amber-300"
+          )}
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          From leads
+        </button>
+
         {/* Save segment */}
         {(assigneeFilter.length > 0 || typeFilter.length > 0 || priorityFilter.length > 0 || statusFilter.length > 0) && (
           <div className="relative">
@@ -864,8 +953,10 @@ export default function TasksPage() {
                   labelClass="text-red-600"
                   tasks={overdue}
                   doneTasks={doneTasks}
+                  highlightTaskId={highlightTaskId}
                   onToggleDone={toggleDone}
                   onSelectTask={setSelectedTask}
+                  onOpenLead={openLead}
                 />
                 <ListSection
                   label="Today"
@@ -874,8 +965,10 @@ export default function TasksPage() {
                   labelClass="text-amber-600"
                   tasks={today}
                   doneTasks={doneTasks}
+                  highlightTaskId={highlightTaskId}
                   onToggleDone={toggleDone}
                   onSelectTask={setSelectedTask}
+                  onOpenLead={openLead}
                 />
                 <ListSection
                   label="Upcoming"
@@ -884,8 +977,10 @@ export default function TasksPage() {
                   labelClass="text-slate-700"
                   tasks={upcoming}
                   doneTasks={doneTasks}
+                  highlightTaskId={highlightTaskId}
                   onToggleDone={toggleDone}
                   onSelectTask={setSelectedTask}
+                  onOpenLead={openLead}
                 />
                 <ListSection
                   label="Done"
@@ -894,9 +989,11 @@ export default function TasksPage() {
                   labelClass="text-slate-400"
                   tasks={done}
                   doneTasks={doneTasks}
+                  highlightTaskId={highlightTaskId}
                   defaultCollapsed
                   onToggleDone={toggleDone}
                   onSelectTask={setSelectedTask}
+                  onOpenLead={openLead}
                 />
               </>
             )}
@@ -978,13 +1075,14 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* ── Slide-Over ──────────────────────────────────────────────────────── */}
+      {/* ── Detail Modal ───────────────────────────────────────────────────── */}
       {selectedTask && (
-        <TaskSlideOver
+        <TaskDetailDialog
           task={selectedTask}
           isDone={doneTasks.has(selectedTask.id)}
           onClose={() => setSelectedTask(null)}
           onComplete={toggleDone}
+          onOpenLead={openLead}
         />
       )}
     </div>

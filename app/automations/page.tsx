@@ -36,13 +36,6 @@ import {
   type ExecutionLog,
 } from '@/lib/mock-data';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from '@/components/ui/sheet';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -1846,18 +1839,18 @@ function MarketingTab() {
         </div>
       </div>
 
-      {/* Moment Detail Sheet */}
-      <Sheet open={!!selectedMoment} onOpenChange={o => { if (!o) setSelectedMoment(null); }}>
-        <SheetContent side="right" style={{ maxWidth: 480 }} className="flex flex-col gap-0 p-0 overflow-y-auto">
+      {/* Moment Detail Dialog */}
+      <Dialog open={!!selectedMoment} onOpenChange={o => { if (!o) setSelectedMoment(null); }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
           {selectedMoment && (
             <>
-              <SheetHeader className="px-6 py-5 border-b border-slate-100">
+              <DialogHeader>
                 <div className="flex items-center gap-2">
-                  <SheetTitle className="text-slate-900 text-base font-semibold mr-auto">{selectedMoment.name}</SheetTitle>
+                  <DialogTitle className="text-slate-900 text-base font-semibold mr-auto">{selectedMoment.name}</DialogTitle>
                   <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', statusBadgeMap[selectedMoment.status])}>{selectedMoment.status}</span>
                 </div>
-              </SheetHeader>
-              <div className="flex-1 px-6 py-5 space-y-4">
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
                 <div><p className="text-xs text-slate-400 mb-0.5">Audience</p><p className="text-sm text-slate-800">{selectedMoment.audience}</p></div>
                 <div><p className="text-xs text-slate-400 mb-0.5">Template</p><p className="text-sm text-slate-800">{selectedMoment.template}</p></div>
                 <div><p className="text-xs text-slate-400 mb-0.5">Scheduled For</p><p className="text-sm text-slate-800">{selectedMoment.scheduledFor}</p></div>
@@ -1871,22 +1864,22 @@ function MarketingTab() {
                   </div>
                 </div>
               </div>
-              <SheetFooter className="px-6 py-4 border-t border-slate-100 flex-row gap-2">
-                <button onClick={() => setSelectedMoment(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer">Edit</button>
+              <DialogFooter className="flex items-center gap-2">
+                <button onClick={() => setSelectedMoment(null)} className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">Edit</button>
                 <button onClick={() => setSelectedMoment(null)} className="px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium rounded-lg transition-colors cursor-pointer">Cancel Moment</button>
-              </SheetFooter>
+              </DialogFooter>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
-      {/* New Moment Sheet */}
-      <Sheet open={newMomentOpen} onOpenChange={o => { if (!o) setNewMomentOpen(false); }}>
-        <SheetContent side="right" style={{ maxWidth: 560 }} className="flex flex-col gap-0 p-0 overflow-y-auto">
-          <SheetHeader className="px-6 py-5 border-b border-slate-100">
-            <SheetTitle className="text-slate-900 text-base font-semibold">New Marketing Moment</SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 px-6 py-5 space-y-4">
+      {/* New Moment Dialog */}
+      <Dialog open={newMomentOpen} onOpenChange={o => { if (!o) setNewMomentOpen(false); }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="text-slate-900 text-base font-semibold">New Marketing Moment</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">Name</label>
               <input type="text" value={nmName} onChange={e => setNmName(e.target.value)} placeholder="Moment name"
@@ -1948,12 +1941,12 @@ function MarketingTab() {
               )}
             </div>
           </div>
-          <SheetFooter className="px-6 py-4 border-t border-slate-100 flex-row gap-2">
-            <button onClick={() => setNewMomentOpen(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer">Save as Draft</button>
-            <button onClick={() => setNewMomentOpen(false)} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer">Schedule</button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          <DialogFooter className="flex items-center gap-2">
+            <button onClick={() => setNewMomentOpen(false)} className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">Schedule</button>
+            <button onClick={() => setNewMomentOpen(false)} className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer">Save as Draft</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2050,18 +2043,18 @@ function ExecutionLogTab() {
         )}
       </div>
 
-      <Sheet open={!!selectedLog} onOpenChange={o => { if (!o) { setSelectedLog(null); setRoutingOpen(false); } }}>
-        <SheetContent side="right" style={{ maxWidth: 640 }} className="flex flex-col gap-0 p-0 overflow-y-auto">
+      <Dialog open={!!selectedLog} onOpenChange={o => { if (!o) { setSelectedLog(null); setRoutingOpen(false); } }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
           {selectedLog && (
             <>
-              <SheetHeader className="px-6 py-5 border-b border-slate-100">
+              <DialogHeader>
                 <div className="flex items-center gap-2">
-                  <SheetTitle className="text-slate-900 text-base font-semibold mr-auto">{selectedLog.rule}</SheetTitle>
+                  <DialogTitle className="text-slate-900 text-base font-semibold mr-auto">{selectedLog.rule}</DialogTitle>
                   <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', statusColors[selectedLog.status])}>{selectedLog.status}</span>
                 </div>
-              </SheetHeader>
+              </DialogHeader>
 
-              <div className="flex-1 px-6 py-5 space-y-6">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
                 {/* Execution Summary */}
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Execution Summary</p>
@@ -2174,16 +2167,20 @@ function ExecutionLogTab() {
                 </div>
               </div>
 
-              <SheetFooter className="px-6 py-4 border-t border-slate-100">
+              <DialogFooter className="flex items-center gap-3">
                 <button onClick={() => { setSelectedLog(null); setRoutingOpen(false); }}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer">
+                  className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
+                  Re-run
+                </button>
+                <button onClick={() => { setSelectedLog(null); setRoutingOpen(false); }}
+                  className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer">
                   Close
                 </button>
-              </SheetFooter>
+              </DialogFooter>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -2200,19 +2197,19 @@ function TemplatePreviewSheet({
   onEdit: (t: AutomationTemplate) => void;
 }) {
   return (
-    <Sheet open={!!template} onOpenChange={open => { if (!open) onClose(); }}>
-      <SheetContent side="right" style={{ maxWidth: 560 }} className="overflow-y-auto flex flex-col gap-0 p-0">
+    <Dialog open={!!template} onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
         {template && (
           <>
-            <SheetHeader className="px-6 py-5 border-b border-slate-100">
+            <DialogHeader>
               <div className="flex items-center gap-2 flex-wrap">
-                <SheetTitle className="text-slate-900 text-base font-semibold mr-auto">{template.name}</SheetTitle>
+                <DialogTitle className="text-slate-900 text-base font-semibold mr-auto">{template.name}</DialogTitle>
                 {typeBadge(template.type)}
                 {templateStatusBadge(template.status)}
               </div>
-            </SheetHeader>
+            </DialogHeader>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
               {/* Body */}
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Template Body</p>
@@ -2249,12 +2246,12 @@ function TemplatePreviewSheet({
               </div>
             </div>
 
-            <SheetFooter className="px-6 py-4 border-t border-slate-100 flex-row gap-2">
+            <DialogFooter className="flex items-center gap-3">
               <button
                 onClick={() => { onClose(); onEdit(template); }}
                 disabled={template.locked}
                 className={cn(
-                  'px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer',
+                  'flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer',
                   template.locked && 'opacity-40 cursor-not-allowed'
                 )}
               >
@@ -2262,15 +2259,15 @@ function TemplatePreviewSheet({
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+                className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer"
               >
                 Close
               </button>
-            </SheetFooter>
+            </DialogFooter>
           </>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2314,15 +2311,15 @@ function TemplateEditSheet({
   const ownerOptions: AutomationTemplateOwner[] = ['Personal', 'Org-Wide'];
 
   return (
-    <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <SheetContent side="right" style={{ maxWidth: 640 }} className="overflow-y-auto flex flex-col gap-0 p-0">
-        <SheetHeader className="px-6 py-5 border-b border-slate-100">
-          <SheetTitle className="text-slate-900 text-base font-semibold">
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-slate-900 text-base font-semibold">
             {isNew ? 'New Template' : 'Edit Template'}
-          </SheetTitle>
-        </SheetHeader>
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           {/* Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">Name</label>
@@ -2434,22 +2431,22 @@ function TemplateEditSheet({
           </div>
         </div>
 
-        <SheetFooter className="px-6 py-4 border-t border-slate-100 flex-row gap-2">
+        <DialogFooter className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+            className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+          >
+            Save &amp; Publish
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer"
           >
             Save as Draft
           </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
-          >
-            Save & Publish
-          </button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2507,13 +2504,13 @@ function RuleBuilderSheet({
   );
 
   return (
-    <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <SheetContent side="right" style={{ maxWidth: 720 }} className="overflow-y-auto flex flex-col gap-0 p-0">
-        <SheetHeader className="px-6 py-5 border-b border-slate-100">
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
+        <DialogHeader>
           <div className="flex items-center gap-2 flex-wrap">
-            <SheetTitle className="text-slate-900 text-base font-semibold mr-auto">
+            <DialogTitle className="text-slate-900 text-base font-semibold mr-auto">
               {isNew ? 'New Rule' : rule.name}
-            </SheetTitle>
+            </DialogTitle>
             {rule && ruleStatusBadge(rule.status)}
           </div>
           {isLocked && (
@@ -2522,9 +2519,9 @@ function RuleBuilderSheet({
               <span className="text-xs text-amber-700 font-medium">System-locked — read only</span>
             </div>
           )}
-        </SheetHeader>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
           {/* ① Name & Description */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -2807,11 +2804,11 @@ function RuleBuilderSheet({
           </div>
         </div>
 
-        <SheetFooter className="px-6 py-4 border-t border-slate-100 flex-row gap-2">
+        <DialogFooter className="flex items-center gap-3">
           {isLocked ? (
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+              className="flex-1 px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer"
             >
               Close
             </button>
@@ -2819,21 +2816,21 @@ function RuleBuilderSheet({
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+                className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
               >
                 Save Rule
               </button>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
             </>
           )}
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

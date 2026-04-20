@@ -18,6 +18,13 @@ import {
   Download,
 } from "lucide-react";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   LineChart,
   Line,
   Tooltip,
@@ -220,12 +227,6 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
   const [tab, setTab] = useState<"overview" | "cpd" | "performance">("overview");
   const pal = getAvatarPalette(staff.name);
 
-  useEffect(() => {
-    function h(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", h);
-    return () => document.removeEventListener("keydown", h);
-  }, [onClose]);
-
   const workloadLabel: Record<string, string> = {
     "Low":      "Low load",
     "Moderate": `Moderate load — ${staff.sessionsThisWeek} sessions/week`,
@@ -245,45 +246,30 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
   ] as const;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-
-      {/* Panel */}
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-
-        {/* Sticky header */}
-        <div className="px-6 pt-5 pb-0 border-b border-slate-200 bg-white shrink-0">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
+        {/* Header */}
+        <DialogHeader className="flex-shrink-0 px-6 pt-5 pb-0 border-b border-slate-200 flex flex-col gap-0">
           {/* Staff identity row */}
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div className="flex items-start gap-4">
-              <div className={cn("w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0", pal.bg, pal.text)}>
-                {getInitials(staff.name)}
-              </div>
-              <div className="pt-0.5">
-                <h2 className="text-lg font-bold text-slate-900 leading-tight">{staff.name}</h2>
-                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", ROLE_BADGE[staff.role] ?? "bg-slate-100 text-slate-600")}>
-                    {staff.role}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                    {staff.department}
-                  </span>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", STATUS_BADGE[staff.status])}>
-                    {staff.status}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-1.5">Joined {staff.hireDate}</p>
-              </div>
+          <div className="flex items-start gap-4 mb-4 pr-8">
+            <div className={cn("w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0", pal.bg, pal.text)}>
+              {getInitials(staff.name)}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close panel"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer shrink-0 mt-0.5"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="pt-0.5 min-w-0">
+              <DialogTitle className="text-lg font-bold text-slate-900 leading-tight">{staff.name}</DialogTitle>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", ROLE_BADGE[staff.role] ?? "bg-slate-100 text-slate-600")}>
+                  {staff.role}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                  {staff.department}
+                </span>
+                <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", STATUS_BADGE[staff.status])}>
+                  {staff.status}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">Joined {staff.hireDate}</p>
+            </div>
           </div>
 
           {/* Inner tab bar */}
@@ -304,10 +290,10 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
               </button>
             ))}
           </div>
-        </div>
+        </DialogHeader>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
 
           {/* ── Overview tab ── */}
           {tab === "overview" && (
@@ -507,8 +493,26 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
             </div>
           )}
         </div>
-      </div>
-    </>
+
+        <DialogFooter className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            <Edit2 className="w-4 h-4" />
+            Edit Staff
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="py-2 px-5 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

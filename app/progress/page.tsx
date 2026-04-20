@@ -24,6 +24,13 @@ import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -346,35 +353,25 @@ function TrackerSlideOver({ tracker, onClose }: { tracker: Tracker; onClose: () 
   const initials = getInitials(tracker.student);
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[560px] bg-white z-50 flex flex-col shadow-2xl">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200">
-          <div className="flex items-start gap-3">
-            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", palette.bg, palette.text)}>
-              {initials}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base font-semibold text-slate-800">{tracker.student}</h2>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">{tracker.year}</span>
-                <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getTierClass(tracker.tier))}>{tracker.tier}</span>
-              </div>
-              <p className="text-sm text-slate-500 mt-0.5">{tracker.subject}</p>
-            </div>
+        <DialogHeader className="flex-shrink-0 px-6 py-5 pr-12 border-b border-slate-200 flex-row items-start gap-3">
+          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", palette.bg, palette.text)}>
+            {initials}
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors cursor-pointer text-slate-400"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <DialogTitle className="text-base font-semibold text-slate-800">{tracker.student}</DialogTitle>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">{tracker.year}</span>
+              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getTierClass(tracker.tier))}>{tracker.tier}</span>
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">{tracker.subject}</p>
+          </div>
+        </DialogHeader>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
           {/* Summary cards */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-100">
@@ -425,27 +422,37 @@ function TrackerSlideOver({ tracker, onClose }: { tracker: Tracker; onClose: () 
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-200 px-6 py-4">
-          <div className="flex items-end justify-between mb-4">
-            <div className="flex items-center gap-8">
-              <div>
-                <p className="text-xs text-slate-400 mb-0.5">Predicted Grade</p>
-                <p className="text-2xl font-bold text-amber-500">{tracker.predictedGrade}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 mb-0.5">Target Grade</p>
-                <p className="text-2xl font-bold text-slate-400">{tracker.targetGrade}</p>
-              </div>
+        <DialogFooter className="flex flex-col gap-3">
+          <div className="flex items-center gap-8 w-full">
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Predicted Grade</p>
+              <p className="text-2xl font-bold text-amber-500">{tracker.predictedGrade}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Target Grade</p>
+              <p className="text-2xl font-bold text-slate-400">{tracker.targetGrade}</p>
             </div>
           </div>
-          {can('progress.generateReport') && (
-          <button className="w-full py-2.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
-            Generate Report
-          </button>
-          )}
-        </div>
-      </div>
-    </>
+          <div className="flex items-center gap-3 w-full">
+            {can('progress.generateReport') && (
+              <button className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
+                Generate Report
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className={cn(
+                "py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer",
+                can('progress.generateReport') ? "px-5" : "flex-1"
+              )}
+            >
+              Close
+            </button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

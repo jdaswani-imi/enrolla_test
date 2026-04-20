@@ -26,6 +26,7 @@ import {
   Paperclip,
   AtSign,
   Link2,
+  Check,
   CheckSquare,
   Smile,
   SendHorizontal,
@@ -41,7 +42,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { leads, type Lead, type LeadStage, type LeadSource } from "@/lib/mock-data";
+import { leads, tasks as taskStore, type Lead, type LeadStage, type LeadSource, type Task } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -484,6 +485,8 @@ type ChatChip = {
   label: string;
   ref: string;
   targetId?: string;
+  linkedTaskId?: string;
+  linkedToTask?: boolean;
 };
 
 type ChatReactionMap = Record<string, string[]>;
@@ -626,7 +629,7 @@ function chipColours(kind: ChatChipKind): string {
 function chipHref(chip: ChatChip): string {
   if (chip.kind === "student") return `/students/${chip.targetId ?? chip.ref}`;
   if (chip.kind === "invoice") return "/finance";
-  return "/tasks";
+  return chip.linkedTaskId ? `/tasks?taskId=${chip.linkedTaskId}` : "/tasks";
 }
 
 function LinkRecordDialog({
@@ -723,19 +726,19 @@ function LinkRecordDialog({
 function CreateTaskDialog({
   open,
   onOpenChange,
-  leadName,
+  lead,
   onCreate,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  leadName: string;
+  lead: Lead;
   onCreate: (chip: ChatChip) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {open ? (
         <CreateTaskDialogBody
-          leadName={leadName}
+          lead={lead}
           onCancel={() => onOpenChange(false)}
           onCreate={(chip) => {
             onCreate(chip);
@@ -749,18 +752,31 @@ function CreateTaskDialog({
   );
 }
 
-let taskRefCounter = 200;
-function nextTaskRef(): string {
-  taskRefCounter += 1;
-  return `T-${String(taskRefCounter).padStart(4, "0")}`;
+let nextLeadTaskSeq = 100;
+function nextLeadTaskId(): string {
+  nextLeadTaskSeq += 1;
+  return `TK-${String(nextLeadTaskSeq).padStart(3, "0")}`;
 }
 
+function formatDueDateLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+const STAFF_GROUPS: { label: string; members: string[] }[] = [
+  { label: "All Admins", members: ["Jason Daswani", "Sarah Thompson"] },
+  { label: "Academic Team", members: ["Ahmed Khalil", "Tariq Al Nasser", "Hana Malik"] },
+  { label: "All Staff", members: [...CHAT_STAFF] },
+];
+
 function CreateTaskDialogBody({
-  leadName,
+  lead,
   onCancel,
   onCreate,
 }: {
-  leadName: string;
+  lead: Lead;
   onCancel: () => void;
   onCreate: (chip: ChatChip) => void;
 }) {
@@ -769,29 +785,85 @@ function CreateTaskDialogBody({
     d.setDate(d.getDate() + 2);
     return d.toISOString().slice(0, 10);
   }, []);
-  const [title, setTitle] = useState(`Follow up with ${leadName}`);
+  const [title, setTitle] = useState(`Follow up with ${lead.childName}`);
   const [priority, setPriority] = useState<"Low" | "Medium" | "High">("Medium");
-  const [assignee, setAssignee] = useState(CHAT_CURRENT_USER);
+  const [assignees, setAssignees] = useState<string[]>([CHAT_CURRENT_USER]);
+  const [assigneeQuery, setAssigneeQuery] = useState("");
+  const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
+  const assigneeBoxRef = useRef<HTMLDivElement>(null);
   const [dueDate, setDueDate] = useState(defaultDue);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (assigneeBoxRef.current && !assigneeBoxRef.current.contains(e.target as Node)) {
+        setAssigneeDropdownOpen(false);
+      }
+    }
+    if (assigneeDropdownOpen) document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [assigneeDropdownOpen]);
+
+  const filteredStaff = useMemo(() => {
+    const q = assigneeQuery.trim().toLowerCase();
+    return CHAT_STAFF.filter((name) => !q || name.toLowerCase().includes(q));
+  }, [assigneeQuery]);
+
+  function addAssignee(name: string) {
+    setAssignees((cur) => (cur.includes(name) ? cur : [...cur, name]));
+  }
+
+  function addGroup(members: string[]) {
+    setAssignees((cur) => {
+      const next = [...cur];
+      for (const m of members) if (!next.includes(m)) next.push(m);
+      return next;
+    });
+    setAssigneeQuery("");
+  }
+
+  function removeAssignee(name: string) {
+    setAssignees((cur) => cur.filter((n) => n !== name));
+  }
 
   function submit() {
     const trimmed = title.trim();
-    if (!trimmed) return;
-    const ref = nextTaskRef();
+    if (!trimmed || assignees.length === 0) return;
+    const taskId = nextLeadTaskId();
+    const primary = assignees[0];
+    const othersNote = assignees.length > 1 ? ` Also assigned to ${assignees.slice(1).join(", ")}.` : "";
+    const newTask: Task = {
+      id: taskId,
+      title: trimmed,
+      type: "Student Follow-up",
+      priority,
+      status: "Open",
+      assignee: primary,
+      dueDate: formatDueDateLabel(dueDate),
+      linkedRecord: null,
+      description: `Created from ${lead.childName} (${lead.ref}) lead chat.${othersNote}`,
+      subtasks: [],
+      overdue: false,
+      sourceLeadId: lead.id,
+      sourceLeadName: lead.childName,
+    };
+    taskStore.push(newTask);
     onCreate({
       id: nextChatId("chip"),
       kind: "task",
       label: trimmed,
-      ref,
+      ref: taskId,
+      linkedTaskId: taskId,
+      linkedToTask: true,
     });
-    toast.success(`Task created · ${ref} · ${priority} priority · ${assignee} · due ${dueDate}`);
+    const who = assignees.length === 1 ? primary : `${primary} +${assignees.length - 1}`;
+    toast.success(`Task ${taskId} created in M16 · ${priority} · ${who} · due ${dueDate}`);
   }
 
   return (
     <DialogContent className="max-w-md w-full">
       <DialogHeader>
         <DialogTitle>Create & link task</DialogTitle>
-        <DialogDescription>Spins up a task and drops it into the chat.</DialogDescription>
+        <DialogDescription>Creates a task in M16 and links it back to this lead.</DialogDescription>
       </DialogHeader>
       <div className="px-6 py-4 space-y-3">
         <div>
@@ -825,17 +897,141 @@ function CreateTaskDialogBody({
             />
           </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">Assignee</label>
-          <select
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer bg-white"
+        <div ref={assigneeBoxRef} className="relative">
+          <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-1">
+            Assignees
+            <span className="ml-1 font-normal lowercase tracking-normal text-slate-400">· at least 1 required</span>
+          </label>
+          <div
+            className={cn(
+              "flex flex-wrap gap-1.5 px-2 py-1.5 min-h-[40px] border rounded-lg bg-white transition-all cursor-text",
+              assigneeDropdownOpen
+                ? "border-amber-400 ring-2 ring-amber-200"
+                : "border-slate-200 hover:border-slate-300",
+            )}
+            onClick={() => {
+              setAssigneeDropdownOpen(true);
+              const el = assigneeBoxRef.current?.querySelector("input");
+              (el as HTMLInputElement | null)?.focus();
+            }}
           >
-            {CHAT_STAFF.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
+            {assignees.map((name) => {
+              const palette = getAvatarPalette(name);
+              return (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1 pl-1 pr-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-xs"
+                >
+                  <span
+                    className={cn(
+                      "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold",
+                      palette.bg,
+                      palette.text,
+                    )}
+                  >
+                    {getInitials(name)}
+                  </span>
+                  <span className="text-slate-700">{name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeAssignee(name);
+                    }}
+                    className="ml-0.5 p-0.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+            <input
+              value={assigneeQuery}
+              placeholder={assignees.length === 0 ? "Search staff..." : ""}
+              onChange={(e) => {
+                setAssigneeQuery(e.target.value);
+                setAssigneeDropdownOpen(true);
+              }}
+              onFocus={() => setAssigneeDropdownOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && filteredStaff.length > 0) {
+                  const candidate = filteredStaff.find((n) => !assignees.includes(n));
+                  if (candidate) {
+                    e.preventDefault();
+                    addAssignee(candidate);
+                    setAssigneeQuery("");
+                  }
+                }
+                if (e.key === "Backspace" && assigneeQuery === "" && assignees.length > 0) {
+                  removeAssignee(assignees[assignees.length - 1]);
+                }
+                if (e.key === "Escape") setAssigneeDropdownOpen(false);
+              }}
+              className="flex-1 min-w-[120px] px-1 py-0.5 text-sm bg-transparent border-0 focus:outline-none placeholder-slate-400"
+            />
+          </div>
+
+          {assigneeDropdownOpen && (
+            <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+              <div className="border-b border-slate-100 bg-slate-50/50">
+                <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Quick groups</p>
+                <div className="px-2 pb-2 flex flex-wrap gap-1">
+                  {STAFF_GROUPS.map((g) => (
+                    <button
+                      key={g.label}
+                      type="button"
+                      onClick={() => addGroup(g.members)}
+                      className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-3 h-3" />
+                      {g.label}
+                      <span className="font-mono text-[10px] text-slate-400">· {g.members.length}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="max-h-56 overflow-y-auto py-1">
+                {filteredStaff.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-slate-400">No staff match "{assigneeQuery}"</p>
+                ) : (
+                  filteredStaff.map((name) => {
+                    const palette = getAvatarPalette(name);
+                    const already = assignees.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        disabled={already}
+                        onClick={() => {
+                          addAssignee(name);
+                          setAssigneeQuery("");
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors",
+                          already
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:bg-slate-50 cursor-pointer",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
+                            palette.bg,
+                            palette.text,
+                          )}
+                        >
+                          {getInitials(name)}
+                        </span>
+                        <span className="flex-1 text-sm text-slate-700">{name}</span>
+                        {already && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <DialogFooter className="flex justify-end gap-2">
@@ -849,7 +1045,13 @@ function CreateTaskDialogBody({
         <button
           type="button"
           onClick={submit}
-          className="px-3 py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 cursor-pointer shadow-sm transition-colors"
+          disabled={assignees.length === 0 || !title.trim()}
+          className={cn(
+            "px-3 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors",
+            assignees.length === 0 || !title.trim()
+              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+              : "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer",
+          )}
         >
           Create & Link
         </button>
@@ -890,6 +1092,9 @@ function ChatChipPill({
       <ChatChipIcon kind={chip.kind} className="w-3 h-3" />
       <span className="truncate max-w-[160px]">{chip.label}</span>
       <span className="font-mono opacity-60">· {chip.ref}</span>
+      {chip.linkedToTask && (
+        <span className="opacity-60 italic font-normal">· linked to M16</span>
+      )}
       {onRemove && (
         <button
           type="button"
@@ -1225,7 +1430,7 @@ function EmbeddedTeamChat({ lead }: { lead: Lead }) {
 
   return (
     <>
-      <div className="px-6 pt-4 pb-5 border-t border-slate-100">
+      <div id="team-chat-panel" className="px-6 pt-4 pb-5 border-t border-slate-100 scroll-mt-4">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5">
             <MessageSquare className="w-3.5 h-3.5" /> Team Chat
@@ -1369,7 +1574,7 @@ function EmbeddedTeamChat({ lead }: { lead: Lead }) {
       <CreateTaskDialog
         open={taskDialogOpen}
         onOpenChange={setTaskDialogOpen}
-        leadName={lead.childName}
+        lead={lead}
         onCreate={handleTaskCreated}
       />
     </>
@@ -2131,6 +2336,24 @@ export default function LeadsPage() {
 
   // Reset page when filters/view change
   useEffect(() => { setPage(1); }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view]);
+
+  // Deep-link: open detail dialog if ?leadId= present (e.g. navigating from Tasks)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("leadId");
+    if (!id) return;
+    const lead = leads.find((l) => l.id === id || l.ref === id);
+    if (!lead) return;
+    setDetailLead(lead);
+    setDetailOpen(true);
+    if (params.get("panel") === "chat") {
+      window.setTimeout(() => {
+        const el = document.getElementById("team-chat-panel");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+    }
+  }, []);
 
   function toggleSort(field: string) {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");

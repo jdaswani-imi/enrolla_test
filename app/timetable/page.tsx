@@ -25,6 +25,13 @@ import {
   rooms,
   type TimetableSession,
 } from "@/lib/mock-data";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Grid constants ───────────────────────────────────────────────────────────
 
@@ -449,50 +456,41 @@ function SessionSlideover({
   }
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-screen w-[480px] bg-white z-50 shadow-2xl flex flex-col">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
 
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-white flex-shrink-0">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-bold text-slate-800">{session.subject}</h2>
+        <DialogHeader>
+          <div className="flex items-center gap-2 flex-wrap">
+            <DialogTitle className="text-base font-bold text-slate-800">{session.subject}</DialogTitle>
+            <span className={cn(
+              "px-2 py-0.5 rounded-full text-xs font-medium",
+              DEPT_BADGE[session.department] ?? "bg-slate-100 text-slate-600"
+            )}>
+              {session.department}
+            </span>
+            {session.type !== "Regular" && (
               <span className={cn(
                 "px-2 py-0.5 rounded-full text-xs font-medium",
-                DEPT_BADGE[session.department] ?? "bg-slate-100 text-slate-600"
+                TYPE_BADGE[session.type] ?? "bg-slate-100 text-slate-600"
               )}>
-                {session.department}
+                {session.type}
               </span>
-              {session.type !== "Regular" && (
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-xs font-medium",
-                  TYPE_BADGE[session.type] ?? "bg-slate-100 text-slate-600"
-                )}>
-                  {session.type}
-                </span>
-              )}
-              {session.isTrial && session.type !== "Trial" && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400 text-white">
-                  Trial
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {session.day} {session.date} · {session.startTime}–{session.endTime}
-            </p>
+            )}
+            {session.isTrial && session.type !== "Trial" && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400 text-white">
+                Trial
+              </span>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer mt-0.5 flex-shrink-0"
-          >
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {session.day} {session.date} · {session.startTime}–{session.endTime}
+          </p>
+        </DialogHeader>
 
         {/* ── Attendance register mode ─────────────────────────────────────── */}
         {attendanceMode ? (
-          <div className="flex-1 px-6 py-5 overflow-y-auto">
+          <div className="flex-1 px-6 py-5 overflow-y-auto min-h-0">
             <button
               onClick={() => setAttendanceMode(false)}
               className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4 cursor-pointer transition-colors"
@@ -559,7 +557,7 @@ function SessionSlideover({
         ) : (
           /* ── Session detail mode ─────────────────────────────────────────── */
           <>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
 
               {session.type === "Cover Required" && (
                 <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -659,10 +657,10 @@ function SessionSlideover({
             </div>
 
             {/* Actions footer */}
-            <div className="flex-shrink-0 border-t border-slate-200 bg-white p-4 flex items-center gap-2 flex-wrap">
+            <DialogFooter className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setAttendanceMode(true)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer min-w-[120px]"
+                className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
               >
                 Mark Attendance
               </button>
@@ -676,14 +674,18 @@ function SessionSlideover({
                   Cancel Session
                 </button>
               )}
-              <button className="p-2 border border-slate-200 text-slate-500 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                <MoreHorizontal className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Close
               </button>
-            </div>
+            </DialogFooter>
           </>
         )}
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -13,8 +13,8 @@ import {
   type ReorderAlert, type StockLedgerEntry, type InventorySupplier,
 } from '@/lib/mock-data';
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
-} from '@/components/ui/sheet';
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
@@ -213,14 +213,14 @@ function AdjustStockSheet({
   ];
 
   return (
-    <Sheet open onOpenChange={open => !open && onClose()}>
-      <SheetContent side="right" className="sm:max-w-[480px] overflow-y-auto flex flex-col gap-0 p-0">
-        <SheetHeader className="border-b border-slate-200 px-6 py-4">
-          <SheetTitle className="font-semibold text-base">Adjust Stock</SheetTitle>
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="font-semibold text-base">Adjust Stock</DialogTitle>
           <p className="text-sm text-slate-500">{item.name}</p>
-        </SheetHeader>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           {/* Current stock */}
           <div className="text-center py-4">
             <div className={cn('text-5xl font-bold', healthStockColor(item.health))}>{item.currentStock}</div>
@@ -299,16 +299,16 @@ function AdjustStockSheet({
           </div>
         </div>
 
-        <SheetFooter className="border-t border-slate-200 px-6 py-4 flex-row gap-2">
+        <DialogFooter className="flex items-center gap-2">
           <button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-4 py-2.5 transition-colors cursor-pointer">
             Apply Adjustment
           </button>
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer">
             Cancel
           </button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -333,16 +333,16 @@ function ItemDetailSheet({
   const supplierNames = inventorySuppliers.map(s => s.name);
 
   return (
-    <Sheet open onOpenChange={open => !open && onClose()}>
-      <SheetContent side="right" className="sm:max-w-[560px] overflow-y-auto flex flex-col gap-0 p-0">
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
         {/* Header */}
-        <SheetHeader className="border-b border-slate-200 px-6 py-4">
-          <SheetTitle className="font-semibold text-lg leading-tight">{item.name}</SheetTitle>
+        <DialogHeader>
+          <DialogTitle className="font-semibold text-lg leading-tight">{item.name}</DialogTitle>
           <div className="flex items-center gap-2 mt-1">
             <HealthBadge health={item.health} />
             <AutoDeductBadge active={item.autoDeduct} />
           </div>
-        </SheetHeader>
+        </DialogHeader>
 
         {/* Inner tabs */}
         <div className="flex border-b border-slate-200 px-6 bg-white flex-shrink-0">
@@ -360,7 +360,7 @@ function ItemDetailSheet({
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 min-h-0">
           {/* ── Details tab ── */}
           {sheetTab === 'Details' && (
             <div className="space-y-4">
@@ -574,19 +574,19 @@ function ItemDetailSheet({
           )}
         </div>
 
-        <SheetFooter className="border-t border-slate-200 px-6 py-4 flex-row gap-2">
-          <button className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-colors cursor-pointer">
+        <DialogFooter className="flex items-center gap-2 flex-wrap">
+          <button className="flex-1 min-w-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-colors cursor-pointer">
             Save Changes
           </button>
           <button className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors cursor-pointer">
             <Trash2 className="w-4 h-4" />Deactivate
           </button>
-          <button onClick={onClose} className="ml-auto px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer">
             Close
           </button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -836,14 +836,14 @@ function ReorderAlertsTab() {
         </div>
       )}
 
-      {/* Mark Received Sheet */}
+      {/* Mark Received Dialog */}
       {receivedAlert && (
-        <Sheet open onOpenChange={open => !open && setReceivedAlert(null)}>
-          <SheetContent side="right" className="sm:max-w-[400px] flex flex-col gap-0 p-0">
-            <SheetHeader className="border-b border-slate-200 px-6 py-4">
-              <SheetTitle className="font-semibold text-base">Stock Received — {receivedAlert.itemName}</SheetTitle>
-            </SheetHeader>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <Dialog open onOpenChange={open => !open && setReceivedAlert(null)}>
+          <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="font-semibold text-base">Stock Received — {receivedAlert.itemName}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
               <div>
                 <label className="text-xs font-medium text-slate-600 mb-1.5 block">Quantity received:</label>
                 <input
@@ -867,10 +867,10 @@ function ReorderAlertsTab() {
                 />
               </div>
             </div>
-            <SheetFooter className="border-t border-slate-200 px-6 py-4 flex-row gap-2">
+            <DialogFooter className="flex items-center gap-2">
               <button
                 onClick={confirmReceived}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl px-4 py-2.5 transition-colors cursor-pointer"
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors cursor-pointer"
               >
                 Update Stock
               </button>
@@ -880,9 +880,9 @@ function ReorderAlertsTab() {
               >
                 Cancel
               </button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {toast && (
@@ -1269,16 +1269,16 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
         </div>
       )}
 
-      {/* Add / Edit Sheet */}
+      {/* Add / Edit Dialog */}
       {supplierSheet !== null && (
-        <Sheet open onOpenChange={open => !open && setSupplierSheet(null)}>
-          <SheetContent side="right" className="sm:max-w-[480px] flex flex-col gap-0 p-0">
-            <SheetHeader className="border-b border-slate-200 px-6 py-4">
-              <SheetTitle className="font-semibold text-base">
+        <Dialog open onOpenChange={open => !open && setSupplierSheet(null)}>
+          <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="font-semibold text-base">
                 {isEdit ? 'Edit Supplier' : 'Add Supplier'}
-              </SheetTitle>
-            </SheetHeader>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
               {[
                 { field: 'name',        label: 'Name',         required: true,  type: 'text' },
                 { field: 'contactName', label: 'Contact Name', required: false, type: 'text' },
@@ -1323,8 +1323,8 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
                 </div>
               )}
             </div>
-            <SheetFooter className="border-t border-slate-200 px-6 py-4 flex-row gap-2">
-              <button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-4 py-2.5 transition-colors cursor-pointer">
+            <DialogFooter className="flex items-center gap-2 flex-wrap">
+              <button className="flex-1 min-w-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors cursor-pointer">
                 Save
               </button>
               {isEdit && editedItems.length === 0 && (
@@ -1338,9 +1338,9 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
               >
                 Cancel
               </button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {toast && (

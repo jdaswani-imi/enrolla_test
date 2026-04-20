@@ -1318,6 +1318,8 @@ export interface Task {
   description: string;
   subtasks: string[];
   overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
 }
 
 export const tasks: Task[] = [
@@ -1341,6 +1343,8 @@ export const tasks: Task[] = [
   { id: "TK-018", title: "Assign Y9 Science group to Tariq Al-Amin", type: "Academic", priority: "Medium", status: "Done", assignee: "Sarah Thompson", dueDate: "8 Apr 2025", linkedRecord: null, description: "New group assignment complete.", subtasks: ["Update timetable", "Notify teacher"], overdue: false },
   { id: "TK-019", title: "Send Term 2 parent satisfaction survey", type: "Admin", priority: "Low", status: "Done", assignee: "Sarah Thompson", dueDate: "5 Apr 2025", linkedRecord: null, description: "NPS survey dispatched to all active guardians.", subtasks: ["Prepare survey link", "Send batch", "Mark as sent"], overdue: false },
   { id: "TK-020", title: "Archive inactive leads — Q1 batch", type: "Admin", priority: "Low", status: "Done", assignee: "Jason Daswani", dueDate: "1 Apr 2025", linkedRecord: null, description: "Archived 14 leads inactive for 90+ days.", subtasks: ["Generate list", "Archive with reason"], overdue: false },
+  { id: "TK-021", title: "Send Y7 Maths starter pack to Bilal's guardian", type: "Student Follow-up", priority: "Medium", status: "Open", assignee: "Jason Daswani", dueDate: "18 Apr 2025", linkedRecord: null, description: "Created from lead chat. Guardian asked for a Y7 Maths starter pack with sample exercises before Saturday's assessment.", subtasks: ["Compile starter pack", "Email guardian"], overdue: false, sourceLeadId: "L-0041", sourceLeadName: "Bilal Mahmood" },
+  { id: "TK-022", title: "Confirm Tues 17:00 trial slot for Saif", type: "Student Follow-up", priority: "High", status: "In Progress", assignee: "Jason Daswani", dueDate: "17 Apr 2025", linkedRecord: null, description: "Created from lead chat. Confirm Tariq Al Nasser's Tues 17:00 availability for Saif's Y9 Science trial.", subtasks: ["Check Tariq's diary", "Message guardian"], overdue: false, sourceLeadId: "L-0045", sourceLeadName: "Saif Al-Nuaimi" },
 ];
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────

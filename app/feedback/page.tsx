@@ -44,6 +44,13 @@ import {
   type ClassGroup,
   type PostType,
 } from "@/lib/mock-data";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -153,22 +160,16 @@ function ReviewSlideover({ item, onClose }: { item: FeedbackItem; onClose: () =>
   const { can } = usePermission();
   const [editedSummary, setEditedSummary] = useState(item.aiSummary ?? "");
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[640px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <div>
-            <p className="font-semibold text-slate-800 text-base">{item.studentName}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{item.subject} · {item.sessionDate}</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">{item.studentName}</DialogTitle>
+          <p className="text-xs text-slate-400 mt-0.5">{item.subject} · {item.sessionDate}</p>
+        </DialogHeader>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           {/* Selectors */}
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Feedback Selectors</p>
@@ -212,20 +213,24 @@ function ReviewSlideover({ item, onClose }: { item: FeedbackItem; onClose: () =>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
-          {can('feedback.approve') && (
-          <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-            Approve & Mark Ready to Send
-          </button>
+        <DialogFooter className="flex items-center gap-3">
+          {can('feedback.approve') ? (
+            <>
+              <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
+                Approve & Mark Ready to Send
+              </button>
+              <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                Return to Teacher
+              </button>
+            </>
+          ) : (
+            <button onClick={onClose} className="flex-1 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+              Close
+            </button>
           )}
-          {can('feedback.approve') && (
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Return to Teacher
-          </button>
-          )}
-        </div>
-      </div>
-    </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -367,17 +372,13 @@ function NewAnnouncementSlideover({ onClose }: { onClose: () => void }) {
   const [sendNow, setSendNow]   = useState(false);
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[560px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <p className="font-semibold text-slate-800 text-base">New Announcement</p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">New Announcement</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
           <div>
             <label className="text-xs text-slate-500 font-medium mb-1 block" htmlFor="ann-title">Title</label>
             <input
@@ -459,16 +460,16 @@ function NewAnnouncementSlideover({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
+        <DialogFooter className="flex items-center gap-3">
           <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
             Submit for Approval
           </button>
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
             Cancel
           </button>
-        </div>
-      </div>
-    </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -574,12 +575,11 @@ function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose
   const isResolved  = signedCount === 2;
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[640px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 flex-wrap">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2.5 flex-wrap">
             <span className="font-mono font-bold text-slate-800 text-base">{ticket.id}</span>
             <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", COMPLAINT_STATUS_CONFIG[ticket.status])}>
               {ticket.status}
@@ -592,13 +592,10 @@ function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose
             )}>
               {ticket.severity}
             </span>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           {/* Meta */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
@@ -703,31 +700,31 @@ function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 px-6 py-4 border-t border-slate-200 bg-white flex-wrap">
+        <DialogFooter className="flex items-center gap-2 flex-wrap">
           {can('feedback.resolveComplaint') && (
-          <button
-            disabled={signedCount >= 2}
-            className={cn(
-              "px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer",
-              signedCount < 2
-                ? "bg-amber-500 text-white hover:bg-amber-600"
-                : "bg-slate-100 text-slate-400 cursor-not-allowed"
-            )}
-          >
-            Add Sign-off
-          </button>
+            <button
+              disabled={signedCount >= 2}
+              className={cn(
+                "flex-1 min-w-0 px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer",
+                signedCount < 2
+                  ? "bg-amber-500 text-white hover:bg-amber-600"
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              )}
+            >
+              Add Sign-off
+            </button>
           )}
           {can('feedback.resolveComplaint') && (
-          <button className="px-4 py-2 border border-orange-200 text-orange-700 bg-orange-50 text-sm font-medium rounded-lg hover:bg-orange-100 transition-colors cursor-pointer">
-            Escalate
-          </button>
+            <button className="px-4 py-2 border border-orange-200 text-orange-700 bg-orange-50 text-sm font-medium rounded-lg hover:bg-orange-100 transition-colors cursor-pointer">
+              Escalate
+            </button>
           )}
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer ml-auto">
-            Close Ticket
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+            Close
           </button>
-        </div>
-      </div>
-    </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -878,19 +875,13 @@ function ComplaintsTab() {
 
 function SurveyDetailSlideover({ survey, onClose }: { survey: SurveyResponse; onClose: () => void }) {
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <div>
-            <p className="font-semibold text-slate-800 text-base">{survey.student}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{survey.surveyType} · {survey.sentDate}</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">{survey.student}</DialogTitle>
+          <p className="text-xs text-slate-400 mt-0.5">{survey.surveyType} · {survey.sentDate}</p>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-slate-400 font-medium mb-1">Guardian</p>
@@ -928,8 +919,24 @@ function SurveyDetailSlideover({ survey, onClose }: { survey: SurveyResponse; on
             </div>
           </div>
         </div>
-      </div>
-    </>
+        <DialogFooter className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Follow Up
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

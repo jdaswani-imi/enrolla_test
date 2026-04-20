@@ -30,18 +30,12 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   peopleAll,
@@ -477,13 +471,13 @@ function DuplicateReviewSheet({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl w-full max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>{`Duplicate Review — ${dup.matchScore}% match`}</DialogTitle>
           <DialogDescription>{`${dup.recordA.name} · ${dup.recordB.name}`}</DialogDescription>
         </DialogHeader>
         {stepper}
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
 
       {step === 1 && (
         <div className="grid grid-cols-2 gap-6">
@@ -567,9 +561,9 @@ function DuplicateReviewSheet({
         </div>
       )}
         </div>
-        <div className="border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+        <DialogFooter>
           {footer}
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -735,17 +729,13 @@ function NewSegmentSlideover({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[560px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <p className="font-semibold text-slate-800 text-base">New Segment</p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">New Segment</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
           <div>
             <label className="text-xs text-slate-500 font-medium mb-1 block" htmlFor="seg-name">Name</label>
             <input
@@ -838,16 +828,16 @@ function NewSegmentSlideover({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
+        <DialogFooter className="flex items-center gap-3">
           <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
             Save Segment
           </button>
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
             Cancel
           </button>
-        </div>
-      </div>
-    </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1136,17 +1126,13 @@ function NewBroadcastListSheet({ onClose }: { onClose: () => void }) {
   const [listType, setListType] = useState<"Manual" | "Auto">("Manual");
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[480px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <p className="font-semibold text-slate-800 text-base">New List</p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">New List</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           <div>
             <label className="text-xs text-slate-500 font-medium mb-1 block" htmlFor="bl-name">Name</label>
             <input
@@ -1183,16 +1169,16 @@ function NewBroadcastListSheet({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Cancel
-          </button>
+        <DialogFooter className="flex items-center gap-3">
           <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
             Create List
           </button>
-        </div>
-      </div>
-    </>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+            Cancel
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1630,14 +1616,14 @@ function SubmissionReviewSheet({
   if (!sub) return null;
 
   return (
-    <Sheet open={true} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent side="right" className="w-[560px] sm:max-w-[560px] overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Submission — {sub.submittedBy}</SheetTitle>
-          <SheetDescription>{form.name} · {sub.submittedAt}</SheetDescription>
-        </SheetHeader>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle>Submission — {sub.submittedBy}</DialogTitle>
+          <DialogDescription>{form.name} · {sub.submittedAt}</DialogDescription>
+        </DialogHeader>
 
-        <div className="px-4 pb-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
           <div className="flex items-center gap-2">
             <span className={cn(
               "px-2.5 py-1 rounded-full text-xs font-semibold",
@@ -1658,32 +1644,32 @@ function SubmissionReviewSheet({
               ))}
             </div>
           </div>
-
-          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => { onAction("Marked as reviewed", true); onClose(); }}
-              className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-            >
-              Mark as Reviewed
-            </button>
-            {form.type === "Lead Enquiry" && (
-              <button
-                onClick={() => onAction("Lead created from submission")}
-                className="px-4 py-2 border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
-              >
-                Create Lead from submission
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="ml-auto px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <DialogFooter className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => { onAction("Marked as reviewed", true); onClose(); }}
+            className="flex-1 min-w-0 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Mark as Reviewed
+          </button>
+          {form.type === "Lead Enquiry" && (
+            <button
+              onClick={() => onAction("Lead created from submission")}
+              className="px-4 py-2 border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
+            >
+              Create Lead from submission
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1854,17 +1840,13 @@ function NewFormSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <>
-      <div className="fade-in fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      <div className="slide-in-right fixed right-0 top-0 h-full w-[640px] bg-white z-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white">
-          <p className="font-semibold text-slate-800 text-base">New Form</p>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer">
-            <X className="w-4 h-4 text-slate-500" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">New Form</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
           <div>
             <label className="text-xs text-slate-500 font-medium mb-1 block" htmlFor="nf-name">Name</label>
             <input
@@ -1967,16 +1949,16 @@ function NewFormSheet({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 bg-white">
-          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-            Save as Draft
-          </button>
+        <DialogFooter className="flex items-center gap-3">
           <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
             Save &amp; Activate
           </button>
-        </div>
-      </div>
-    </>
+          <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+            Save as Draft
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

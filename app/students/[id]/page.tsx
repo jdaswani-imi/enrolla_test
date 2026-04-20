@@ -23,10 +23,13 @@ import {
   Upload,
   Download,
   Trash2,
+  Pencil,
+  Lock,
+  X as XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
-import { studentDetail } from "@/lib/mock-data";
+import { studentDetail, guardians, students } from "@/lib/mock-data";
 import { ExportDialog, type ExportFormat } from "@/components/ui/export-dialog";
 import {
   Dialog,
@@ -41,6 +44,124 @@ type FireToast = (msg: string, tone?: "default" | "warning") => void;
 
 const STUDENT_NAME = "Aisha Rahman";
 const STUDENT_ID = "IMI-0001";
+
+// ─── Student Profile (editable) ───────────────────────────────────────────────
+
+type Gender = "Male" | "Female" | "Prefer not to say";
+type Relationship =
+  | "Mother" | "Father" | "Grandparent" | "Uncle" | "Aunt" | "Legal Guardian" | "Other";
+
+interface StudentProfile {
+  firstName: string;
+  lastName: string;
+  preferredName: string;
+  dob: string; // YYYY-MM-DD
+  gender: Gender;
+  nationality: string;
+  phone: string;
+  whatsappSame: boolean;
+  whatsapp: string;
+  email: string;
+  studentId: string;
+  dateEnrolled: string;
+  yearGroup: string;
+  school: string;
+  targetGrades: { subject: string; grade: string }[];
+  enrolledCoursesCount: number;
+  attendanceThisTerm: string;
+  sessionsRemaining: string;
+  primaryGuardianId: string;
+  primaryGuardianRelationship: Relationship;
+  secondaryGuardianId: string | null;
+  secondaryGuardianRelationship: Relationship;
+  siblingIds: string[];
+}
+
+const INITIAL_PROFILE: StudentProfile = {
+  firstName: "Aisha",
+  lastName: "Rahman",
+  preferredName: "",
+  dob: "2011-03-12",
+  gender: "Female",
+  nationality: "Emirati",
+  phone: "+971 50 123 4567",
+  whatsappSame: true,
+  whatsapp: "+971 50 123 4567",
+  email: "fatima.rahman@gmail.com",
+  studentId: STUDENT_ID,
+  dateEnrolled: "12 Sep 2022",
+  yearGroup: "Y8",
+  school: "GEMS Wellington Academy",
+  targetGrades: [
+    { subject: "Maths",   grade: "A*" },
+    { subject: "English", grade: "A"  },
+    { subject: "Science", grade: "B+" },
+  ],
+  enrolledCoursesCount: 3,
+  attendanceThisTerm: "87%",
+  sessionsRemaining: "34",
+  primaryGuardianId: "G-001",
+  primaryGuardianRelationship: "Mother",
+  secondaryGuardianId: null,
+  secondaryGuardianRelationship: "Father",
+  siblingIds: [],
+};
+
+const YEAR_GROUPS = [
+  "KG1", "KG2",
+  "Y1", "Y2", "Y3", "Y4", "Y5", "Y6",
+  "Y7", "Y8", "Y9",
+  "Y10", "Y11", "Y12", "Y13",
+] as const;
+
+const RELATIONSHIPS: Relationship[] = [
+  "Mother", "Father", "Grandparent", "Uncle", "Aunt", "Legal Guardian", "Other",
+];
+
+function yearGroupToDepartment(yg: string): string {
+  if (yg.startsWith("KG")) return "Primary";
+  const n = Number(yg.replace("Y", ""));
+  if (n <= 6) return "Primary";
+  if (n <= 9) return "Lower Secondary";
+  return "Senior";
+}
+
+function computeAge(dob: string): number {
+  if (!dob) return 0;
+  const parts = dob.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return 0;
+  const [y, m, d] = parts;
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const monthDiff = today.getMonth() + 1 - m;
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) age--;
+  return age;
+}
+
+function formatDob(dob: string): string {
+  if (!dob) return "—";
+  const parts = dob.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return dob;
+  const [y, m, d] = parts;
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d} ${months[m - 1]} ${y} (Age ${computeAge(dob)})`;
+}
+
+function getInitials(first: string, last: string): string {
+  return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
+}
+
+function guardianName(id: string | null): string {
+  if (!id) return "—";
+  return guardians.find((g) => g.id === id)?.name ?? "Unknown";
+}
+
+function studentInitials(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,9 +220,12 @@ type HeaderAction =
   | "sendMessage"
   | "newTask";
 
-function ProfileHeader({ fireToast }: { fireToast: FireToast }) {
+function ProfileHeader({ profile, fireToast }: { profile: StudentProfile; fireToast: FireToast }) {
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
+  const displayName = `${profile.firstName} ${profile.lastName}`.trim();
+  const yearLabel = profile.yearGroup.startsWith("KG") ? profile.yearGroup : `Year ${profile.yearGroup.replace("Y", "")}`;
+  const department = yearGroupToDepartment(profile.yearGroup);
 
   const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void }[] = [
     { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${STUDENT_ID}`) },
@@ -118,19 +242,21 @@ function ProfileHeader({ fireToast }: { fireToast: FireToast }) {
         {/* Left — Avatar + Name + Badges */}
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-lg leading-none">AR</span>
+            <span className="text-white font-bold text-lg leading-none">
+              {getInitials(profile.firstName, profile.lastName)}
+            </span>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 leading-tight">{STUDENT_NAME}</h1>
-            <p className="text-xs text-slate-400 font-medium mt-0.5 leading-none">{STUDENT_ID}</p>
+            <h1 className="text-xl font-bold text-slate-900 leading-tight">{displayName}</h1>
+            <p className="text-xs text-slate-400 font-medium mt-0.5 leading-none">{profile.studentId}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-slate-300 text-slate-600">
-                Year 8
+                {yearLabel}
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-600 text-white">
-                Lower Secondary
+                {department}
               </span>
-              <span className="text-xs text-slate-500">GEMS Wellington Academy</span>
+              <span className="text-xs text-slate-500">{profile.school}</span>
             </div>
           </div>
         </div>
@@ -609,9 +735,634 @@ function NewTaskDialog({
   );
 }
 
+// ─── Sidebar Section Edit Dialogs ────────────────────────────────────────────
+
+function LockedField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1.5">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        <span className="text-sm text-slate-600">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function FieldError({ msg }: { msg: string | null }) {
+  if (!msg) return null;
+  return <p className="text-xs text-red-600">{msg}</p>;
+}
+
+function EditPersonalDetailsDialog({
+  open,
+  onOpenChange,
+  profile,
+  setProfile,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  profile: StudentProfile;
+  setProfile: (p: StudentProfile) => void;
+  fireToast: FireToast;
+}) {
+  const [firstName, setFirstName] = useState(profile.firstName);
+  const [lastName, setLastName] = useState(profile.lastName);
+  const [preferredName, setPreferredName] = useState(profile.preferredName);
+  const [dob, setDob] = useState(profile.dob);
+  const [gender, setGender] = useState<Gender>(profile.gender);
+  const [nationality, setNationality] = useState(profile.nationality);
+  const [phone, setPhone] = useState(profile.phone);
+  const [whatsappSame, setWhatsappSame] = useState(profile.whatsappSame);
+  const [whatsapp, setWhatsapp] = useState(profile.whatsapp);
+  const [email, setEmail] = useState(profile.email);
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
+
+  useEffect(() => {
+    if (open) {
+      setFirstName(profile.firstName);
+      setLastName(profile.lastName);
+      setPreferredName(profile.preferredName);
+      setDob(profile.dob);
+      setGender(profile.gender);
+      setNationality(profile.nationality);
+      setPhone(profile.phone);
+      setWhatsappSame(profile.whatsappSame);
+      setWhatsapp(profile.whatsapp);
+      setEmail(profile.email);
+      setErrors({});
+    }
+  }, [open, profile]);
+
+  function submit() {
+    const nextErrors: Record<string, string | null> = {};
+    if (!firstName.trim()) nextErrors.firstName = "First name is required";
+    if (!lastName.trim()) nextErrors.lastName = "Last name is required";
+    if (!dob) nextErrors.dob = "Date of birth is required";
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      return;
+    }
+    setProfile({
+      ...profile,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      preferredName: preferredName.trim(),
+      dob,
+      gender,
+      nationality: nationality.trim(),
+      phone: phone.trim(),
+      whatsappSame,
+      whatsapp: whatsappSame ? phone.trim() : whatsapp.trim(),
+      email: email.trim(),
+    });
+    fireToast("Saved");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)]">
+        <DialogHeader>
+          <DialogTitle>Edit Personal Details</DialogTitle>
+          <DialogDescription>Update {profile.firstName}&apos;s personal information.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <FieldLabel required>First name</FieldLabel>
+              <input type="text" className={FIELD_INPUT} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              <FieldError msg={errors.firstName ?? null} />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel required>Last name</FieldLabel>
+              <input type="text" className={FIELD_INPUT} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              <FieldError msg={errors.lastName ?? null} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>Preferred name</FieldLabel>
+            <input type="text" className={FIELD_INPUT} value={preferredName} onChange={(e) => setPreferredName(e.target.value)} placeholder="Optional" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <FieldLabel required>Date of birth</FieldLabel>
+              <input type="date" className={FIELD_INPUT} value={dob} onChange={(e) => setDob(e.target.value)} />
+              <FieldError msg={errors.dob ?? null} />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel>Gender</FieldLabel>
+              <select className={FIELD_INPUT} value={gender} onChange={(e) => setGender(e.target.value as Gender)}>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>Nationality</FieldLabel>
+            <input type="text" className={FIELD_INPUT} value={nationality} onChange={(e) => setNationality(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>Phone</FieldLabel>
+            <input type="text" className={FIELD_INPUT} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                checked={whatsappSame}
+                onChange={(e) => setWhatsappSame(e.target.checked)}
+              />
+              WhatsApp same as phone
+            </label>
+            <FieldLabel>WhatsApp</FieldLabel>
+            <input
+              type="text"
+              className={cn(FIELD_INPUT, whatsappSame && "bg-slate-50 text-slate-500 cursor-not-allowed")}
+              value={whatsappSame ? phone : whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              disabled={whatsappSame}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>Email</FieldLabel>
+            <input type="email" className={FIELD_INPUT} value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+            <LockedField label="Student ID" value={profile.studentId} />
+            <LockedField label="Date enrolled" value={profile.dateEnrolled} />
+          </div>
+        </div>
+        <DialogFooter className="flex-shrink-0 border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+          <button
+            type="button"
+            onClick={submit}
+            className="w-full rounded-lg bg-amber-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Save
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditAcademicDialog({
+  open,
+  onOpenChange,
+  profile,
+  setProfile,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  profile: StudentProfile;
+  setProfile: (p: StudentProfile) => void;
+  fireToast: FireToast;
+}) {
+  const [yearGroup, setYearGroup] = useState(profile.yearGroup);
+  const [school, setSchool] = useState(profile.school);
+  const [targets, setTargets] = useState(profile.targetGrades);
+
+  useEffect(() => {
+    if (open) {
+      setYearGroup(profile.yearGroup);
+      setSchool(profile.school);
+      setTargets(profile.targetGrades);
+    }
+  }, [open, profile]);
+
+  const department = yearGroupToDepartment(yearGroup);
+
+  function updateTarget(subject: string, grade: string) {
+    setTargets((prev) => prev.map((t) => (t.subject === subject ? { ...t, grade } : t)));
+  }
+
+  function submit() {
+    setProfile({
+      ...profile,
+      yearGroup,
+      school: school.trim(),
+      targetGrades: targets,
+    });
+    fireToast("Saved");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)]">
+        <DialogHeader>
+          <DialogTitle>Edit Academic Details</DialogTitle>
+          <DialogDescription>Update year group, school, and target grades.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <FieldLabel>Year group</FieldLabel>
+              <select className={FIELD_INPUT} value={yearGroup} onChange={(e) => setYearGroup(e.target.value)}>
+                {YEAR_GROUPS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel>Department</FieldLabel>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="text-sm text-slate-600">{department}</span>
+                <span className="text-[10px] text-slate-400 ml-auto">Auto</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>School</FieldLabel>
+            <input type="text" className={FIELD_INPUT} value={school} onChange={(e) => setSchool(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <FieldLabel>Target grades</FieldLabel>
+            <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+              {targets.map((t) => (
+                <div key={t.subject} className="flex items-center gap-3 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-700 flex-1">{t.subject}</span>
+                  <input
+                    type="text"
+                    className={cn(FIELD_INPUT, "w-24 py-1.5")}
+                    value={t.grade}
+                    onChange={(e) => updateTarget(t.subject, e.target.value)}
+                    placeholder="e.g. A*"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div className="space-y-1.5">
+              <FieldLabel>Enrolled courses</FieldLabel>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="text-sm text-slate-600">{profile.enrolledCoursesCount}</span>
+                <span className="text-[10px] text-slate-400 ml-auto">Managed via Add Enrolment</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <LockedField label="Attendance this term" value={profile.attendanceThisTerm} />
+              <LockedField label="Sessions remaining" value={profile.sessionsRemaining} />
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="flex-shrink-0 border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+          <button
+            type="button"
+            onClick={submit}
+            className="w-full rounded-lg bg-amber-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Save
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function GuardianSelector({
+  label,
+  selectedId,
+  onChange,
+  excludeId,
+}: {
+  label: string;
+  selectedId: string | null;
+  onChange: (id: string | null) => void;
+  excludeId?: string | null;
+}) {
+  const [query, setQuery] = useState("");
+  const selected = guardians.find((g) => g.id === selectedId);
+  const matches = query.trim()
+    ? guardians.filter(
+        (g) =>
+          g.id !== excludeId &&
+          g.name.toLowerCase().includes(query.trim().toLowerCase()),
+      ).slice(0, 6)
+    : [];
+
+  if (selected) {
+    return (
+      <div className="space-y-1.5">
+        <FieldLabel>{label}</FieldLabel>
+        <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5">
+          <span className="text-sm font-medium text-amber-800">{selected.name}</span>
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              setQuery("");
+            }}
+            aria-label={`Remove ${selected.name}`}
+            className="p-0.5 rounded-full hover:bg-amber-100 cursor-pointer"
+          >
+            <XIcon className="w-3.5 h-3.5 text-amber-700" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        type="text"
+        className={FIELD_INPUT}
+        placeholder="Search guardians by name…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {matches.length > 0 && (
+        <ul className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-100 max-h-44 overflow-y-auto">
+          {matches.map((g) => (
+            <li key={g.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(g.id);
+                  setQuery("");
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <span className="text-sm font-medium text-slate-700">{g.name}</span>
+                <span className="text-xs text-slate-400">{g.phone}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SiblingSelector({
+  siblingIds,
+  onChange,
+  currentStudentId,
+}: {
+  siblingIds: string[];
+  onChange: (ids: string[]) => void;
+  currentStudentId: string;
+}) {
+  const [query, setQuery] = useState("");
+  const matches = query.trim()
+    ? students
+        .filter(
+          (s) =>
+            s.id !== currentStudentId &&
+            !siblingIds.includes(s.id) &&
+            s.name.toLowerCase().includes(query.trim().toLowerCase()),
+        )
+        .slice(0, 6)
+    : [];
+
+  return (
+    <div className="space-y-2">
+      <FieldLabel>Siblings</FieldLabel>
+      {siblingIds.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {siblingIds.map((sid) => {
+            const s = students.find((st) => st.id === sid);
+            if (!s) return null;
+            return (
+              <div
+                key={sid}
+                className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 pl-1 pr-2 py-0.5"
+              >
+                <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                  <span className="text-[9px] font-bold text-white leading-none">
+                    {studentInitials(s.name)}
+                  </span>
+                </span>
+                <span className="text-xs font-medium text-amber-800">{s.name}</span>
+                <span className="text-[10px] text-amber-700/70">{s.yearGroup}</span>
+                <button
+                  type="button"
+                  onClick={() => onChange(siblingIds.filter((id) => id !== sid))}
+                  aria-label={`Remove ${s.name}`}
+                  className="p-0.5 rounded-full hover:bg-amber-100 cursor-pointer"
+                >
+                  <XIcon className="w-3 h-3 text-amber-700" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <input
+        type="text"
+        className={FIELD_INPUT}
+        placeholder="Search students by name…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {matches.length > 0 && (
+        <ul className="rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-100 max-h-44 overflow-y-auto">
+          {matches.map((s) => (
+            <li key={s.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange([...siblingIds, s.id]);
+                  setQuery("");
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <span className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-bold text-slate-600 leading-none">
+                    {studentInitials(s.name)}
+                  </span>
+                </span>
+                <span className="text-sm font-medium text-slate-700 flex-1">{s.name}</span>
+                <span className="text-xs text-slate-400">{s.yearGroup}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function EditFamilyDialog({
+  open,
+  onOpenChange,
+  profile,
+  setProfile,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  profile: StudentProfile;
+  setProfile: (p: StudentProfile) => void;
+  fireToast: FireToast;
+}) {
+  const [primaryId, setPrimaryId] = useState<string | null>(profile.primaryGuardianId);
+  const [primaryRel, setPrimaryRel] = useState<Relationship>(profile.primaryGuardianRelationship);
+  const [secondaryId, setSecondaryId] = useState<string | null>(profile.secondaryGuardianId);
+  const [secondaryRel, setSecondaryRel] = useState<Relationship>(profile.secondaryGuardianRelationship);
+  const [siblingIds, setSiblingIds] = useState<string[]>(profile.siblingIds);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setPrimaryId(profile.primaryGuardianId);
+      setPrimaryRel(profile.primaryGuardianRelationship);
+      setSecondaryId(profile.secondaryGuardianId);
+      setSecondaryRel(profile.secondaryGuardianRelationship);
+      setSiblingIds(profile.siblingIds);
+      setError(null);
+    }
+  }, [open, profile]);
+
+  function submit() {
+    if (!primaryId && !secondaryId) {
+      setError("At least one guardian is required");
+      return;
+    }
+    setProfile({
+      ...profile,
+      primaryGuardianId: primaryId ?? secondaryId ?? "",
+      primaryGuardianRelationship: primaryId ? primaryRel : secondaryRel,
+      secondaryGuardianId: primaryId ? secondaryId : null,
+      secondaryGuardianRelationship: secondaryRel,
+      siblingIds,
+    });
+    fireToast("Saved");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)]">
+        <DialogHeader>
+          <DialogTitle>Edit Family &amp; Guardians</DialogTitle>
+          <DialogDescription>Link guardians to this student.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-5 overflow-y-auto">
+          <div className="space-y-3 pb-4 border-b border-slate-100">
+            <GuardianSelector
+              label="Primary guardian"
+              selectedId={primaryId}
+              onChange={setPrimaryId}
+              excludeId={secondaryId}
+            />
+            {primaryId && (
+              <div className="space-y-1.5">
+                <FieldLabel>Relationship</FieldLabel>
+                <select className={FIELD_INPUT} value={primaryRel} onChange={(e) => setPrimaryRel(e.target.value as Relationship)}>
+                  {RELATIONSHIPS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 pb-4 border-b border-slate-100">
+            <GuardianSelector
+              label="Secondary guardian (optional)"
+              selectedId={secondaryId}
+              onChange={setSecondaryId}
+              excludeId={primaryId}
+            />
+            {secondaryId && (
+              <div className="space-y-1.5">
+                <FieldLabel>Relationship</FieldLabel>
+                <select className={FIELD_INPUT} value={secondaryRel} onChange={(e) => setSecondaryRel(e.target.value as Relationship)}>
+                  {RELATIONSHIPS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <SiblingSelector
+            siblingIds={siblingIds}
+            onChange={setSiblingIds}
+            currentStudentId={profile.studentId}
+          />
+
+          <FieldError msg={error} />
+        </div>
+        <DialogFooter className="flex-shrink-0 border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl">
+          <button
+            type="button"
+            onClick={submit}
+            className="w-full rounded-lg bg-amber-500 px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Save
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Zone 2 — Left Sidebar ────────────────────────────────────────────────────
 
-function LeftSidebar({ onTabChange }: { onTabChange: (tab: string) => void }) {
+type EditSection = "personal" | "academic" | "family";
+
+function EditableSectionHeader({
+  label,
+  onEdit,
+}: {
+  label: string;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+        {label}
+      </p>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Edit ${label}`}
+        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 -m-1 rounded hover:bg-slate-100 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      >
+        <Pencil className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+    </div>
+  );
+}
+
+function LeftSidebar({
+  profile,
+  onTabChange,
+  onEdit,
+}: {
+  profile: StudentProfile;
+  onTabChange: (tab: string) => void;
+  onEdit: (section: EditSection) => void;
+}) {
+  const primaryGuardian = guardians.find((g) => g.id === profile.primaryGuardianId);
+  const secondaryGuardian = guardians.find((g) => g.id === profile.secondaryGuardianId);
+  const department = yearGroupToDepartment(profile.yearGroup);
+  const targetGradeText = profile.targetGrades
+    .filter((t) => t.grade.trim())
+    .map((t) => `${t.subject} ${t.grade}`)
+    .join(", ") || "—";
+
   return (
     <div className="px-4 py-4 space-y-5">
 
@@ -667,16 +1418,16 @@ function LeftSidebar({ onTabChange }: { onTabChange: (tab: string) => void }) {
       <div className="border-t border-slate-100" />
 
       {/* Personal Details */}
-      <section>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Personal Details</p>
+      <section className="group">
+        <EditableSectionHeader label="Personal Details" onEdit={() => onEdit("personal")} />
         <dl className="space-y-1.5">
           {[
-            { label: "Date of Birth", value: "12 Mar 2011 (Age 14)" },
-            { label: "Gender",        value: "Female"               },
-            { label: "Nationality",   value: "Emirati"              },
-            { label: "Phone",         value: "+971 50 123 4567"     },
-            { label: "WhatsApp",      value: "✓ Same number"        },
-            { label: "Email",         value: "fatima.rahman@gmail.com" },
+            { label: "Date of Birth", value: formatDob(profile.dob) },
+            { label: "Gender",        value: profile.gender },
+            { label: "Nationality",   value: profile.nationality || "—" },
+            { label: "Phone",         value: profile.phone || "—" },
+            { label: "WhatsApp",      value: profile.whatsappSame ? "✓ Same number" : (profile.whatsapp || "—") },
+            { label: "Email",         value: profile.email || "—" },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col">
               <dt className="text-[10px] text-slate-400 leading-none">{label}</dt>
@@ -689,20 +1440,28 @@ function LeftSidebar({ onTabChange }: { onTabChange: (tab: string) => void }) {
       <div className="border-t border-slate-100" />
 
       {/* Academic Context */}
-      <section>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Academic</p>
+      <section className="group">
+        <EditableSectionHeader label="Academic" onEdit={() => onEdit("academic")} />
         <dl className="space-y-1.5">
           <div>
+            <dt className="text-[10px] text-slate-400">Year Group</dt>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{profile.yearGroup}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] text-slate-400">School</dt>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{profile.school || "—"}</dd>
+          </div>
+          <div>
             <dt className="text-[10px] text-slate-400">Enrolled Courses</dt>
-            <dd className="text-xs text-slate-700 font-medium mt-0.5">3</dd>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{profile.enrolledCoursesCount}</dd>
           </div>
           <div>
             <dt className="text-[10px] text-slate-400">Target Grades</dt>
-            <dd className="text-xs text-slate-700 font-medium mt-0.5">Maths A*, English A, Science B+</dd>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{targetGradeText}</dd>
           </div>
           <div>
             <dt className="text-[10px] text-slate-400">Department</dt>
-            <dd className="text-xs text-slate-700 font-medium mt-0.5">Lower Secondary</dd>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{department}</dd>
           </div>
         </dl>
       </section>
@@ -710,17 +1469,62 @@ function LeftSidebar({ onTabChange }: { onTabChange: (tab: string) => void }) {
       <div className="border-t border-slate-100" />
 
       {/* Family */}
-      <section>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Family</p>
-        <div className="space-y-1">
-          <p className="text-[10px] text-slate-400">Primary Guardian</p>
-          <Link
-            href="/students"
-            className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
-          >
-            Fatima Rahman →
-          </Link>
-          <p className="text-[10px] text-slate-400 mt-1.5">No co-parent linked</p>
+      <section className="group">
+        <EditableSectionHeader label="Family" onEdit={() => onEdit("family")} />
+        <div className="space-y-2">
+          <div>
+            <p className="text-[10px] text-slate-400">
+              Primary Guardian{primaryGuardian ? ` · ${profile.primaryGuardianRelationship}` : ""}
+            </p>
+            {primaryGuardian ? (
+              <Link
+                href="/students"
+                className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+              >
+                {primaryGuardian.name} →
+              </Link>
+            ) : (
+              <p className="text-xs text-slate-500 italic">None linked</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400">
+              Secondary Guardian{secondaryGuardian ? ` · ${profile.secondaryGuardianRelationship}` : ""}
+            </p>
+            {secondaryGuardian ? (
+              <Link
+                href="/students"
+                className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+              >
+                {secondaryGuardian.name} →
+              </Link>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No co-parent linked</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400">Siblings</p>
+            {profile.siblingIds.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">None linked</p>
+            ) : (
+              <ul className="space-y-0.5">
+                {profile.siblingIds.map((sid) => {
+                  const s = students.find((st) => st.id === sid);
+                  if (!s) return null;
+                  return (
+                    <li key={sid}>
+                      <Link
+                        href={`/students/${sid}`}
+                        className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+                      >
+                        {s.name} →
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
       </section>
 
@@ -2103,10 +2907,12 @@ export default function StudentProfilePage() {
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [toast, setToast] = useState<{ msg: string; tone: "default" | "warning" } | null>(null);
+  const [profile, setProfile] = useState<StudentProfile>(INITIAL_PROFILE);
+  const [editSection, setEditSection] = useState<EditSection | null>(null);
 
   function fireToast(msg: string, tone: "default" | "warning" = "default") {
     setToast({ msg, tone });
-    window.setTimeout(() => setToast(null), 2800);
+    window.setTimeout(() => setToast(null), 2000);
   }
 
   // Deep-link: read ?tab= query param on mount
@@ -2132,14 +2938,18 @@ export default function StudentProfilePage() {
       style={{ height: "calc(100dvh - 56px)" }}
     >
       {/* ── Zone 1: Profile Header ──────────────────────────────────────────── */}
-      <ProfileHeader fireToast={fireToast} />
+      <ProfileHeader profile={profile} fireToast={fireToast} />
 
       {/* ── Zones 2 + 3: Sidebar + Main Panel ──────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
 
         {/* ── Zone 2: Left Sidebar ──────────────────────────────────────────── */}
         <aside className="w-[260px] shrink-0 border-r border-slate-200 overflow-y-auto bg-white">
-          <LeftSidebar onTabChange={handleTabChange} />
+          <LeftSidebar
+            profile={profile}
+            onTabChange={handleTabChange}
+            onEdit={setEditSection}
+          />
         </aside>
 
         {/* ── Zone 3: Main Panel ────────────────────────────────────────────── */}
@@ -2165,14 +2975,47 @@ export default function StudentProfilePage() {
         </div>
       </div>
 
+      <EditPersonalDetailsDialog
+        open={editSection === "personal"}
+        onOpenChange={(o) => !o && setEditSection(null)}
+        profile={profile}
+        setProfile={setProfile}
+        fireToast={fireToast}
+      />
+      <EditAcademicDialog
+        open={editSection === "academic"}
+        onOpenChange={(o) => !o && setEditSection(null)}
+        profile={profile}
+        setProfile={setProfile}
+        fireToast={fireToast}
+      />
+      <EditFamilyDialog
+        open={editSection === "family"}
+        onOpenChange={(o) => !o && setEditSection(null)}
+        profile={profile}
+        setProfile={setProfile}
+        fireToast={fireToast}
+      />
+
       {toast && (
         <div
           className={cn(
             "fixed bottom-6 right-6 z-[100] rounded-xl px-4 py-3 text-sm shadow-lg",
-            toast.tone === "warning" ? "bg-red-600 text-white" : "bg-slate-900 text-white",
+            toast.tone === "warning"
+              ? "bg-red-600 text-white"
+              : toast.msg === "Saved"
+                ? "bg-emerald-600 text-white"
+                : "bg-slate-900 text-white",
           )}
         >
-          {toast.msg}
+          {toast.msg === "Saved" ? (
+            <span className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              Saved
+            </span>
+          ) : (
+            toast.msg
+          )}
         </div>
       )}
     </div>
