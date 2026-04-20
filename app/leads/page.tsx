@@ -27,6 +27,7 @@ import {
   AtSign,
   Link2,
   Check,
+  CheckCircle2,
   CheckSquare,
   Smile,
   SendHorizontal,
@@ -42,7 +43,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { leads, tasks as taskStore, type Lead, type LeadStage, type LeadSource, type Task } from "@/lib/mock-data";
+import { leads as leadsData, tasks as taskStore, students as studentsStore, type Lead, type LeadStage, type LeadSource, type PreferredWindow, type Task, type Student } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -52,6 +53,22 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useJourney, BILAL_LEAD_ID, formatDate, type ActivityEntry } from "@/lib/journey-store";
+import { useAssessments } from "@/lib/assessment-store";
+import { BookAssessmentDialog } from "@/components/journey/book-assessment-dialog";
+import { LogAssessmentOutcomeDialog } from "@/components/journey/log-assessment-outcome-dialog";
+import { BookTrialDialog } from "@/components/journey/book-trial-dialog";
+import { LogTrialOutcomeDialog } from "@/components/journey/log-trial-outcome-dialog";
+import { ConvertToStudentDialog } from "@/components/journey/convert-to-student-dialog";
+import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
+import { ScheduleOfferDialog } from "@/components/journey/schedule-offer-dialog";
+import { ScheduleConfirmDialog } from "@/components/journey/schedule-confirm-dialog";
+import { InvoiceBuilderDialog } from "@/components/journey/invoice-builder-dialog";
+import { RecordPaymentDialog } from "@/components/journey/record-payment-dialog";
+import { SkipWarningDialog, shouldWarnSkip } from "@/components/journey/skip-warning-dialog";
+import { TrialSkipPromptDialog } from "@/components/journey/trial-skip-prompt-dialog";
+import { NeedsMoreTimeDialog } from "@/components/journey/needs-more-time-dialog";
+import { SkipAssessmentDialog } from "@/components/journey/skip-assessment-dialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -61,8 +78,11 @@ const STAGES: LeadStage[] = [
   "Assessment Booked",
   "Assessment Done",
   "Trial Booked",
+  "Trial Done",
   "Schedule Offered",
+  "Schedule Confirmed",
   "Invoice Sent",
+  "Paid",
   "Won",
 ];
 
@@ -100,17 +120,35 @@ const STAGE_CONFIG: Record<
     colBg: "bg-amber-50/40",
     headerText: "text-amber-700",
   },
+  "Trial Done": {
+    color: "border-l-emerald-400",
+    badge: "bg-emerald-100 text-emerald-700",
+    colBg: "bg-emerald-50/40",
+    headerText: "text-emerald-700",
+  },
   "Schedule Offered": {
     color: "border-l-orange-400",
     badge: "bg-orange-100 text-orange-700",
     colBg: "bg-orange-50/40",
     headerText: "text-orange-700",
   },
+  "Schedule Confirmed": {
+    color: "border-l-cyan-400",
+    badge: "bg-cyan-100 text-cyan-700",
+    colBg: "bg-cyan-50/40",
+    headerText: "text-cyan-700",
+  },
   "Invoice Sent": {
     color: "border-l-teal-400",
     badge: "bg-teal-100 text-teal-700",
     colBg: "bg-teal-50/40",
     headerText: "text-teal-700",
+  },
+  Paid: {
+    color: "border-l-lime-500",
+    badge: "bg-lime-100 text-lime-700",
+    colBg: "bg-lime-50/40",
+    headerText: "text-lime-700",
   },
   Won: {
     color: "border-l-green-400",
@@ -209,6 +247,7 @@ type LeadActions = {
   onEdit: () => void;
   onMoveStage: () => void;
   onBookAssessment: () => void;
+  onBookTrial: () => void;
   onConvertToStudent: () => void;
   onMarkLost: () => void;
   onArchive: () => void;
@@ -235,13 +274,14 @@ function LeadActionMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const canConvert = lead.stage === "Trial Booked" || lead.stage === "Assessment Done";
+  const canConvert = lead.stage === "Paid";
 
   const items: { icon: React.ElementType; label: string; onClick: () => void; hidden?: boolean; danger?: boolean }[] = [
     { icon: Eye, label: "View", onClick: actions.onView },
     { icon: Edit3, label: "Edit Lead", onClick: actions.onEdit },
     { icon: MoveRight, label: "Move Stage", onClick: actions.onMoveStage },
     { icon: BookOpen, label: "Book Assessment", onClick: actions.onBookAssessment },
+    { icon: BookOpen, label: "Book Trial Session", onClick: actions.onBookTrial },
     { icon: UserPlus, label: "Convert to Student", onClick: actions.onConvertToStudent, hidden: !canConvert },
     { icon: XCircle, label: "Mark as Lost", onClick: actions.onMarkLost, hidden: !can("delete.records"), danger: true },
     { icon: Archive, label: "Archive", onClick: actions.onArchive, hidden: !can("delete.records"), danger: true },
@@ -1608,30 +1648,447 @@ function ChatToolbarButton({
   );
 }
 
+function JourneyStatusPill({
+  status,
+  label,
+}: {
+  status: "pending" | "booked" | "done" | "skipped";
+  label: string;
+}) {
+  const map: Record<typeof status, string> = {
+    pending: "bg-slate-100 text-slate-600",
+    booked: "bg-amber-100 text-amber-700",
+    done: "bg-emerald-100 text-emerald-700",
+    skipped: "bg-slate-200 text-slate-600 line-through decoration-slate-400 decoration-1",
+  };
+  return (
+    <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", map[status])}>
+      {label}
+    </span>
+  );
+}
+
+function StageFooterActions({
+  lead,
+  isJourneyLead,
+  journey,
+  canConvert,
+  onMarkAsContacted,
+  onBookAssessment,
+  onBookTrialFirst,
+  onNeedsMoreTime,
+  onSkipAssessment,
+  onLogAssessmentOutcome,
+  onLogTrialOutcome,
+  onOfferSchedule,
+  onConfirmSchedule,
+  onSendInvoice,
+  onRecordPayment,
+  onConvert,
+}: {
+  lead: Lead;
+  isJourneyLead: boolean;
+  journey: ReturnType<typeof useJourney>;
+  canConvert: boolean;
+  onMarkAsContacted: (lead: Lead) => void;
+  onBookAssessment: (lead: Lead) => void;
+  onBookTrialFirst: (lead: Lead) => void;
+  onNeedsMoreTime: (lead: Lead, stageLabel: string) => void;
+  onSkipAssessment: (lead: Lead) => void;
+  onLogAssessmentOutcome: (lead: Lead) => void;
+  onLogTrialOutcome: (lead: Lead) => void;
+  onOfferSchedule: (lead: Lead) => void;
+  onConfirmSchedule: (lead: Lead) => void;
+  onSendInvoice: (lead: Lead) => void;
+  onRecordPayment: (lead: Lead) => void;
+  onConvert: (lead: Lead) => void;
+}) {
+  const primaryClass =
+    "w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-white shadow-sm hover:bg-amber-600 cursor-pointer transition-colors";
+  const outlineClass =
+    "flex-1 px-3 py-2 text-sm font-medium border border-slate-300 bg-white rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors";
+  const linkClass =
+    "text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer underline-offset-2 hover:underline";
+
+  const stage = lead.stage;
+
+  if (stage === "New") {
+    return (
+      <div className="w-full">
+        <button type="button" onClick={() => onMarkAsContacted(lead)} className={primaryClass}>
+          Mark as Contacted →
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "Contacted") {
+    return (
+      <div className="w-full flex flex-col gap-2">
+        <button type="button" onClick={() => onBookAssessment(lead)} className={primaryClass}>
+          Book Assessment →
+        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => onBookTrialFirst(lead)} className={outlineClass}>
+            Book Trial First
+          </button>
+          <button
+            type="button"
+            onClick={() => onNeedsMoreTime(lead, "Contacted")}
+            className={outlineClass}
+          >
+            Needs more time
+          </button>
+        </div>
+        <div className="flex justify-end">
+          <button type="button" onClick={() => onSkipAssessment(lead)} className={linkClass}>
+            Skip Assessment →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === "Assessment Booked") {
+    return (
+      <div className="w-full">
+        <button type="button" onClick={() => onLogAssessmentOutcome(lead)} className={primaryClass}>
+          Log Outcome →
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "Assessment Done") {
+    return (
+      <div className="w-full flex flex-col gap-2">
+        <button type="button" onClick={() => onOfferSchedule(lead)} className={primaryClass}>
+          Propose Schedule →
+        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => onBookTrialFirst(lead)} className={outlineClass}>
+            Book Trial First
+          </button>
+          <button
+            type="button"
+            onClick={() => onNeedsMoreTime(lead, "Assessment Done")}
+            className={outlineClass}
+          >
+            Needs more time
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === "Trial Booked") {
+    return (
+      <div className="w-full">
+        <button type="button" onClick={() => onLogTrialOutcome(lead)} className={primaryClass}>
+          Log Trial Outcome →
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "Trial Done") {
+    return (
+      <div className="w-full">
+        <button type="button" onClick={() => onOfferSchedule(lead)} className={primaryClass}>
+          Propose Schedule →
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "Schedule Offered") {
+    return (
+      <div className="w-full">
+        <button type="button" onClick={() => onConfirmSchedule(lead)} className={primaryClass}>
+          Confirm Schedule →
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "Schedule Confirmed") {
+    return (
+      <div className="w-full flex flex-col gap-2">
+        <button type="button" onClick={() => onSendInvoice(lead)} className={primaryClass}>
+          Send Invoice →
+        </button>
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => onNeedsMoreTime(lead, "Schedule Confirmed")}
+            className={outlineClass}
+          >
+            Needs more time
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === "Invoice Sent") {
+    return (
+      <div className="w-full flex flex-col gap-2">
+        <button type="button" onClick={() => onRecordPayment(lead)} className={primaryClass}>
+          Mark as Paid →
+        </button>
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => onNeedsMoreTime(lead, "Invoice Sent")}
+            className={outlineClass}
+          >
+            Needs more time
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === "Paid") {
+    if (canConvert && !isJourneyLead) {
+      return (
+        <div className="w-full">
+          <button
+            type="button"
+            onClick={() => onConvert(lead)}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 cursor-pointer transition-colors"
+          >
+            Convert to Student
+          </button>
+        </div>
+      );
+    }
+    if (isJourneyLead && !journey.student) {
+      return (
+        <div className="w-full">
+          <button type="button" onClick={() => onConvert(lead)} className={primaryClass}>
+            Convert to Student
+          </button>
+        </div>
+      );
+    }
+    if (isJourneyLead && journey.student) {
+      return (
+        <span className="inline-flex px-3 py-2 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
+          Student record created — {journey.student.id}
+        </span>
+      );
+    }
+    return null;
+  }
+
+  // "Won" — terminal
+  return null;
+}
+
+const DAYS_OF_WEEK: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAY_SHORT: Record<string, string> = {
+  Monday: "Mon",
+  Tuesday: "Tue",
+  Wednesday: "Wed",
+  Thursday: "Thu",
+  Friday: "Fri",
+  Saturday: "Sat",
+  Sunday: "Sun",
+};
+const PREFERRED_WINDOW_LABELS: Record<PreferredWindow, string> = {
+  Morning: "Morning (08:00–12:00)",
+  Afternoon: "Afternoon (12:00–17:00)",
+  Evening: "Evening (17:00–20:00)",
+  Any: "Any time",
+};
+
+function LeadPreferencesSection({
+  lead,
+  onUpdatePrefs,
+}: {
+  lead: Lead;
+  onUpdatePrefs: (leadId: string, prefs: { preferredDays: string[]; preferredWindow: PreferredWindow }) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [days, setDays] = useState<string[]>(lead.preferredDays ?? []);
+  const [window, setWindow] = useState<PreferredWindow>(lead.preferredWindow ?? "Any");
+
+  useEffect(() => {
+    setDays(lead.preferredDays ?? []);
+    setWindow(lead.preferredWindow ?? "Any");
+  }, [lead.id, lead.preferredDays, lead.preferredWindow]);
+
+  function toggleDay(d: string) {
+    setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
+  }
+
+  function save() {
+    onUpdatePrefs(lead.id, { preferredDays: days, preferredWindow: window });
+    setEditing(false);
+    toast.success("Preferences updated");
+  }
+
+  const daysLabel =
+    (lead.preferredDays?.length ?? 0) === 0
+      ? "Not set"
+      : lead.preferredDays!.join(", ");
+  const windowLabel = lead.preferredWindow
+    ? PREFERRED_WINDOW_LABELS[lead.preferredWindow]
+    : "Not set";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Preferences</p>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit preferences"
+            className="p-1 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 cursor-pointer"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        <div className="space-y-1">
+          <div className="flex gap-2 text-sm">
+            <span className="text-slate-500 w-28 shrink-0">Preferred days:</span>
+            <span className="text-slate-800 font-medium">{daysLabel}</span>
+          </div>
+          <div className="flex gap-2 text-sm">
+            <span className="text-slate-500 w-28 shrink-0">Preferred time:</span>
+            <span className="text-slate-800 font-medium">{windowLabel}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs text-slate-500 font-medium mb-1.5">Preferred days</p>
+            <div className="flex flex-wrap gap-1.5">
+              {DAYS_OF_WEEK.map((d) => {
+                const on = days.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleDay(d)}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer",
+                      on
+                        ? "bg-amber-100 border-amber-400 text-amber-800"
+                        : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "w-3 h-3 rounded-sm border flex items-center justify-center",
+                        on ? "bg-amber-500 border-amber-500" : "bg-white border-slate-300",
+                      )}
+                    >
+                      {on && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                    </span>
+                    {DAY_SHORT[d]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label htmlFor="pref-window" className="block text-xs text-slate-500 font-medium mb-1.5">
+              Preferred window
+            </label>
+            <select
+              id="pref-window"
+              value={window}
+              onChange={(e) => setWindow(e.target.value as PreferredWindow)}
+              className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <option value="Morning">Morning (08:00–12:00)</option>
+              <option value="Afternoon">Afternoon (12:00–17:00)</option>
+              <option value="Evening">Evening (17:00–20:00)</option>
+              <option value="Any">Any</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setDays(lead.preferredDays ?? []);
+                setWindow(lead.preferredWindow ?? "Any");
+                setEditing(false);
+              }}
+              className="px-2.5 py-1 text-xs font-medium border border-slate-300 bg-white rounded-md hover:bg-slate-50 text-slate-700 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeadDetailDialog({
   lead,
   open,
   onOpenChange,
+  onMarkAsContacted,
   onBookAssessment,
+  onBookTrialFirst,
+  onNeedsMoreTime,
+  onSkipAssessment,
   onConvert,
   onArchive,
+  onLogAssessmentOutcome,
+  onLogTrialOutcome,
+  onSendInvoice,
+  onOfferSchedule,
+  onConfirmSchedule,
+  onRecordPayment,
+  onStageChange,
+  onUpdatePrefs,
+  leadActivity,
+  followUpBanner,
+  onDismissFollowUpBanner,
 }: {
   lead: Lead | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  onMarkAsContacted: (lead: Lead) => void;
   onBookAssessment: (lead: Lead) => void;
+  onBookTrialFirst: (lead: Lead) => void;
+  onNeedsMoreTime: (lead: Lead, stageLabel: string) => void;
+  onSkipAssessment: (lead: Lead) => void;
   onConvert: (lead: Lead) => void;
   onArchive: (lead: Lead) => void;
+  onLogAssessmentOutcome: (lead: Lead) => void;
+  onLogTrialOutcome: (lead: Lead) => void;
+  onSendInvoice: (lead: Lead) => void;
+  onOfferSchedule: (lead: Lead) => void;
+  onConfirmSchedule: (lead: Lead) => void;
+  onRecordPayment: (lead: Lead) => void;
+  onStageChange: (lead: Lead, stage: LeadStage) => void;
+  onUpdatePrefs: (leadId: string, prefs: { preferredDays: string[]; preferredWindow: PreferredWindow }) => void;
+  leadActivity: ActivityEntry[];
+  followUpBanner: { taskTitle: string } | null;
+  onDismissFollowUpBanner: () => void;
 }) {
-  const [currentStage, setCurrentStage] = useState<LeadStage | null>(null);
+  const journey = useJourney();
+  const isJourneyLead = lead?.id === BILAL_LEAD_ID;
+  const stageFooterRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (lead) {
-      setCurrentStage(lead.stage);
-    }
-  }, [lead]);
-
-  if (!lead || !currentStage) {
+  if (!lead) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-3xl w-full" />
@@ -1639,10 +2096,12 @@ function LeadDetailDialog({
     );
   }
 
+  const currentStage = lead.stage;
   const cfg = STAGE_CONFIG[currentStage];
   const palette = getAvatarPalette(lead.assignedTo);
   const next = nextStageOf(currentStage);
-  const canConvert = currentStage === "Trial Booked" || currentStage === "Assessment Done";
+  const isTerminal = currentStage === "Won";
+  const canConvert = currentStage === "Paid";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1653,6 +2112,38 @@ function LeadDetailDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto">
+
+        {followUpBanner && (
+          <div className="px-6 pt-4">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-900 truncate">
+                  <span className="font-semibold">Follow-up task completed.</span> Ready to continue?
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDismissFollowUpBanner();
+                    stageFooterRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
+                  className="px-2.5 py-1 rounded-md bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                >
+                  Continue journey →
+                </button>
+                <button
+                  type="button"
+                  onClick={onDismissFollowUpBanner}
+                  className="text-xs font-medium text-amber-700 hover:text-amber-900 cursor-pointer px-1"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* LEFT COLUMN */}
@@ -1704,6 +2195,8 @@ function LeadDetailDialog({
               </span>
             </div>
 
+            <LeadPreferencesSection lead={lead} onUpdatePrefs={onUpdatePrefs} />
+
             <div>
               <p className="text-xs text-slate-400 mb-1.5">Assigned to</p>
               <div className="flex items-center gap-2">
@@ -1739,8 +2232,7 @@ function LeadDetailDialog({
                 value={currentStage}
                 onChange={(e) => {
                   const newStage = e.target.value as LeadStage;
-                  setCurrentStage(newStage);
-                  toast.success(`Stage changed to ${newStage}`);
+                  if (newStage !== currentStage) onStageChange(lead, newStage);
                 }}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer bg-white"
               >
@@ -1752,21 +2244,26 @@ function LeadDetailDialog({
 
             <button
               type="button"
-              disabled={!next}
+              disabled={isTerminal || !next}
               onClick={() => {
                 if (!next) return;
-                setCurrentStage(next);
-                toast.success(`Lead moved to ${next}`);
+                onStageChange(lead, next);
               }}
               className={cn(
                 "w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
-                next
+                !isTerminal && next
                   ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
                   : "bg-slate-100 text-slate-400 cursor-not-allowed",
               )}
             >
-              Move to next stage
-              <ArrowRight className="w-4 h-4" />
+              {isTerminal ? (
+                "Converted"
+              ) : (
+                <>
+                  Move to next stage
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1775,11 +2272,14 @@ function LeadDetailDialog({
         <div className="px-6 pb-2">
           <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide">Activity Timeline</p>
           <div className="space-y-3">
-            {DETAIL_TIMELINE.map((entry, i) => (
+            {(isJourneyLead
+              ? [...journey.activity, ...DETAIL_TIMELINE]
+              : [...leadActivity, ...DETAIL_TIMELINE]
+            ).map((entry, i, arr) => (
               <div key={i} className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <div className={cn("w-2.5 h-2.5 rounded-full mt-1 shrink-0", entry.dot)} />
-                  {i < DETAIL_TIMELINE.length - 1 && (
+                  {i < arr.length - 1 && (
                     <div className="w-px flex-1 bg-slate-200 mt-1" />
                   )}
                 </div>
@@ -1792,41 +2292,146 @@ function LeadDetailDialog({
           </div>
         </div>
 
+        {isJourneyLead && (
+          <div className="px-6 pb-4">
+            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Assessment & Trial</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+              {/* Assessment row */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap min-w-0">
+                  <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Assessment</span>
+                  <JourneyStatusPill
+                    status={
+                      !journey.assessment
+                        ? "pending"
+                        : journey.assessment.status === "Done"
+                          ? "done"
+                          : "booked"
+                    }
+                    label={
+                      !journey.assessment
+                        ? "Not yet booked"
+                        : journey.assessment.status === "Done"
+                          ? "Done ✓"
+                          : "Booked"
+                    }
+                  />
+                  {journey.assessment && (
+                    <span className="text-sm text-slate-700">
+                      {journey.assessment.yearGroup} {journey.assessment.subject} · {formatDate(journey.assessment.date)} · {journey.assessment.teacher}
+                    </span>
+                  )}
+                </div>
+                {journey.assessment?.status === "Booked" && (
+                  <button
+                    type="button"
+                    onClick={() => onLogAssessmentOutcome(lead)}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                  >
+                    Log Outcome
+                  </button>
+                )}
+              </div>
+
+              {/* Trial row (always visible once assessment exists) */}
+              {journey.assessment && (
+                <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-3 flex-wrap min-w-0">
+                    <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Trial</span>
+                    <JourneyStatusPill
+                      status={
+                        !journey.trial
+                          ? "pending"
+                          : journey.trial.status === "Skipped"
+                            ? "skipped"
+                            : journey.trial.status === "Done"
+                              ? "done"
+                              : "booked"
+                      }
+                      label={
+                        !journey.trial
+                          ? "Awaiting decision"
+                          : journey.trial.status === "Skipped"
+                            ? "Skipped"
+                            : journey.trial.status === "Done"
+                              ? "Done ✓"
+                              : "Booked"
+                      }
+                    />
+                    {journey.trial && journey.trial.status !== "Skipped" && (
+                      <span className="text-sm text-slate-700">
+                        {journey.trial.yearGroup} {journey.trial.subject} · {formatDate(journey.trial.date)} · AED {journey.trial.total.toFixed(0)}
+                      </span>
+                    )}
+                    {journey.trial?.status === "Skipped" && (
+                      <span className="text-sm text-slate-500">Proceeded directly to enrolment</span>
+                    )}
+                  </div>
+                  {journey.trial?.status === "Booked" && (
+                    <button
+                      type="button"
+                      onClick={() => onLogTrialOutcome(lead)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                    >
+                      Log Trial Outcome
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Student row once converted */}
+              {journey.student && (
+                <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100">
+                  <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Student</span>
+                  <JourneyStatusPill status="done" label={`Created — ${journey.student.id}`} />
+                  <span className="text-sm text-slate-700">{journey.student.name} · {journey.student.status}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <EmbeddedTeamChat key={lead.id} lead={lead} />
 
         </div>
 
-        <DialogFooter className="flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => onBookAssessment(lead)}
-            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
-          >
-            Book Assessment
-          </button>
-          {canConvert && (
+        <DialogFooter className="flex flex-col items-stretch gap-3">
+          <div ref={stageFooterRef}>
+          <StageFooterActions
+            lead={lead}
+            isJourneyLead={isJourneyLead}
+            journey={journey}
+            canConvert={canConvert}
+            onMarkAsContacted={onMarkAsContacted}
+            onBookAssessment={onBookAssessment}
+            onBookTrialFirst={onBookTrialFirst}
+            onNeedsMoreTime={onNeedsMoreTime}
+            onSkipAssessment={onSkipAssessment}
+            onLogAssessmentOutcome={onLogAssessmentOutcome}
+            onLogTrialOutcome={onLogTrialOutcome}
+            onOfferSchedule={onOfferSchedule}
+            onConfirmSchedule={onConfirmSchedule}
+            onSendInvoice={onSendInvoice}
+            onRecordPayment={onRecordPayment}
+            onConvert={onConvert}
+          />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => onConvert(lead)}
-              className="px-3 py-2 text-sm font-medium border border-amber-300 bg-amber-50 rounded-lg hover:bg-amber-100 text-amber-700 cursor-pointer transition-colors"
+              onClick={() => onArchive(lead)}
+              className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
             >
-              Convert to Student
+              Archive Lead
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onArchive(lead)}
-            className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
-          >
-            Archive Lead
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
-          >
-            Close
-          </button>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+            >
+              Close
+            </button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2221,10 +2826,12 @@ function MoveStageDialog({
   lead,
   open,
   onOpenChange,
+  onConfirm,
 }: {
   lead: Lead | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  onConfirm: (lead: Lead, stage: LeadStage) => void;
 }) {
   const [stage, setStage] = useState<LeadStage | null>(null);
 
@@ -2268,9 +2875,9 @@ function MoveStageDialog({
             type="button"
             disabled={!stage || stage === lead?.stage}
             onClick={() => {
-              if (!stage) return;
-              toast.success(`Lead moved to ${stage}`);
+              if (!stage || !lead) return;
               onOpenChange(false);
+              onConfirm(lead, stage);
             }}
             className={cn(
               "px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
@@ -2334,8 +2941,250 @@ export default function LeadsPage() {
     stageFilter.length > 0 || sourceFilter.length > 0 ||
     deptFilter.length > 0 || assignedFilter.length > 0 || myLeads || searchQuery !== "";
 
+  // Journey store — used to override Bilal's stage & power the journey dialogs
+  const journey = useJourney();
+  const { assessments, cancel: cancelAssessment } = useAssessments();
+
+  // Active undo toast: only one can be live at a time. Holds the sonner toast
+  // id + a timer used to clean up the refs on auto-dismiss.
+  const undoToastIdRef = useRef<string | number | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Per-lead stage overrides + activity (for every non-Bilal lead)
+  const [leadStageOverrides, setLeadStageOverrides] = useState<Record<string, LeadStage>>({});
+  const [leadActivity, setLeadActivity] = useState<Record<string, ActivityEntry[]>>({});
+  // Per-lead "follow-up task completed" banner, shown once the linked task is Done.
+  const [followUpBanners, setFollowUpBanners] = useState<Record<string, { taskTitle: string }>>({});
+  const [leadPrefs, setLeadPrefs] = useState<
+    Record<string, { preferredDays: string[]; preferredWindow: PreferredWindow }>
+  >({});
+
+  // Compute the effective leads list with journey + per-lead overrides applied
+  const leads = useMemo<Lead[]>(() => {
+    return leadsData.map((l) => {
+      const prefs = leadPrefs[l.id];
+      const base: Lead = prefs
+        ? { ...l, preferredDays: prefs.preferredDays, preferredWindow: prefs.preferredWindow }
+        : l;
+      if (l.id === BILAL_LEAD_ID) {
+        return { ...base, stage: journey.leadStage, lastActivity: "Today" };
+      }
+      const override = leadStageOverrides[l.id];
+      return override ? { ...base, stage: override, lastActivity: "Today" } : base;
+    });
+  }, [journey.leadStage, leadStageOverrides, leadPrefs]);
+
+  const updateLeadPrefs = (
+    leadId: string,
+    prefs: { preferredDays: string[]; preferredWindow: PreferredWindow },
+  ) => {
+    setLeadPrefs((prev) => ({ ...prev, [leadId]: prefs }));
+  };
+
+  // Journey dialog state
+  const [bookAssessmentOpen, setBookAssessmentOpen] = useState(false);
+  const [logAssessmentOpen, setLogAssessmentOpen] = useState(false);
+  const [bookTrialOpen, setBookTrialOpen] = useState(false);
+  const [logTrialOpen, setLogTrialOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [createEnrolmentOpen, setCreateEnrolmentOpen] = useState(false);
+  const [scheduleOfferOpen, setScheduleOfferOpen] = useState(false);
+  const [scheduleConfirmOpen, setScheduleConfirmOpen] = useState(false);
+  const [invoiceBuilderOpen, setInvoiceBuilderOpen] = useState(false);
+  const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
+
+  // Pending stage-change context (the lead + target) used by gated dialogs + skip warning
+  const [pendingGate, setPendingGate] = useState<{ lead: Lead; target: LeadStage } | null>(null);
+  const [skipWarningOpen, setSkipWarningOpen] = useState(false);
+
+  // Soft prompt: offer trial-first path when moving to Schedule Offered with no trial record
+  const [trialPromptOpen, setTrialPromptOpen] = useState(false);
+  const [trialPromptSuppressed, setTrialPromptSuppressed] = useState<Set<string>>(() => new Set());
+  // Ref-driven flag so the BookTrialDialog's commit can chain into ScheduleOfferDialog
+  // without the close handler clobbering the newly-set pendingGate.
+  const chainAfterTrialRef = useRef(false);
+  // When true, the next BookTrialDialog commit also logs an "assessment skipped" activity entry.
+  const bookTrialFromContactedRef = useRef(false);
+
+  // Needs more time / Skip assessment dialog state
+  const [needsMoreTimeOpen, setNeedsMoreTimeOpen] = useState(false);
+  const [needsMoreTimeLead, setNeedsMoreTimeLead] = useState<Lead | null>(null);
+  const [needsMoreTimeStage, setNeedsMoreTimeStage] = useState<string>("");
+  const [skipAssessmentOpen, setSkipAssessmentOpen] = useState(false);
+  const [skipAssessmentLead, setSkipAssessmentLead] = useState<Lead | null>(null);
+
+  // Dismiss any live undo toast and clear its cleanup timer.
+  function dismissUndoToast() {
+    if (undoToastIdRef.current != null) {
+      toast.dismiss(undoToastIdRef.current);
+      undoToastIdRef.current = null;
+    }
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+  }
+
+  // Revert a stage change. `assessmentIdToCancel` is set when the committed
+  // change was a gated stage (Assessment/Trial Booked) that wrote a record
+  // to the assessment store — we remove that record as part of the undo.
+  function performUndo(
+    lead: Lead,
+    previousStage: LeadStage,
+    assessmentIdToCancel: string | undefined,
+  ) {
+    dismissUndoToast();
+    if (lead.id === BILAL_LEAD_ID) {
+      journey.setStage(previousStage, "Jason Daswani");
+    } else {
+      setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: previousStage }));
+      setLeadActivity((prev) => ({
+        ...prev,
+        [lead.id]: [
+          {
+            label: "Just now",
+            text: `Stage change undone — reverted to ${previousStage} by Jason Daswani`,
+            dot: "bg-slate-400",
+          },
+          ...(prev[lead.id] ?? []),
+        ],
+      }));
+    }
+    if (assessmentIdToCancel) cancelAssessment(assessmentIdToCancel);
+    toast.custom(
+      () => (
+        <div className="bg-slate-800 text-white text-sm font-medium rounded-lg shadow-lg px-4 py-2.5 min-w-[220px]">
+          Stage change undone
+        </div>
+      ),
+      { duration: 2000 },
+    );
+  }
+
+  function showUndoToast(
+    lead: Lead,
+    newStage: LeadStage,
+    previousStage: LeadStage,
+    assessmentIdToCancel: string | undefined,
+  ) {
+    dismissUndoToast();
+    const id = toast.custom(
+      () => (
+        <div className="bg-white border border-slate-200 rounded-lg shadow-lg flex items-center gap-3 pl-3 pr-1.5 py-2.5 min-w-[320px] relative overflow-hidden">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+          <span className="text-sm font-medium text-slate-900 flex-1">
+            Lead moved to {newStage}
+          </span>
+          <button
+            type="button"
+            onClick={() => performUndo(lead, previousStage, assessmentIdToCancel)}
+            className="text-sm font-semibold text-amber-600 hover:text-amber-700 px-2.5 py-1 rounded cursor-pointer"
+          >
+            Undo
+          </button>
+          <div className="absolute bottom-0 left-0 h-0.5 bg-emerald-500 undo-toast-progress" />
+        </div>
+      ),
+      { duration: 5000 },
+    );
+    undoToastIdRef.current = id;
+    undoTimerRef.current = setTimeout(() => {
+      undoToastIdRef.current = null;
+      undoTimerRef.current = null;
+    }, 5000);
+  }
+
+  // Commit the stage change without any gating — writes to journey store (Bilal) or overrides
+  function applyStageChange(lead: Lead, newStage: LeadStage) {
+    if (newStage === lead.stage) return;
+    const previousStage = lead.stage;
+    // For gated stages, the Book-Assessment dialog has already pushed a new
+    // record into the assessment store right before this commit. Capture the
+    // most recent record for this lead so we can cancel it on undo.
+    let assessmentIdToCancel: string | undefined;
+    if (newStage === "Assessment Booked" || newStage === "Trial Booked") {
+      for (let i = assessments.length - 1; i >= 0; i--) {
+        if (assessments[i].leadId === lead.id) {
+          assessmentIdToCancel = assessments[i].id;
+          break;
+        }
+      }
+    }
+
+    if (lead.id === BILAL_LEAD_ID) {
+      journey.setStage(newStage, "Jason Daswani");
+    } else {
+      setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: newStage }));
+      setLeadActivity((prev) => ({
+        ...prev,
+        [lead.id]: [
+          {
+            label: "Just now",
+            text: `Stage changed to ${newStage} by Jason Daswani`,
+            dot: "bg-slate-400",
+          },
+          ...(prev[lead.id] ?? []),
+        ],
+      }));
+    }
+    showUndoToast(lead, newStage, previousStage, assessmentIdToCancel);
+  }
+
+  // Route a stage-change intent to a gated dialog or commit directly
+  function routeStageChange(lead: Lead, target: LeadStage) {
+    setPendingGate({ lead, target });
+    if (target === "Assessment Booked") {
+      setBookAssessmentOpen(true);
+    } else if (target === "Trial Booked") {
+      setBookTrialOpen(true);
+    } else if (target === "Schedule Offered") {
+      setScheduleOfferOpen(true);
+    } else if (target === "Schedule Confirmed") {
+      setScheduleConfirmOpen(true);
+    } else if (target === "Invoice Sent") {
+      setInvoiceBuilderOpen(true);
+    } else if (target === "Paid") {
+      setRecordPaymentOpen(true);
+    } else {
+      applyStageChange(lead, target);
+      setPendingGate(null);
+    }
+  }
+
+  // Entry point for ALL stage-change intents (dropdown, Move-to-next button,
+  // journey footer actions). Applies the skip-warning rule before routing.
+  function commitStageChange(lead: Lead, newStage: LeadStage) {
+    if (newStage === lead.stage) return;
+    if (newStage === "Schedule Offered") {
+      const hasTrialRecord =
+        lead.stage === "Trial Booked" ||
+        lead.stage === "Trial Done" ||
+        (lead.id === BILAL_LEAD_ID && journey.trial != null);
+      if (!hasTrialRecord && !trialPromptSuppressed.has(lead.id)) {
+        setPendingGate({ lead, target: newStage });
+        setTrialPromptOpen(true);
+        return;
+      }
+    }
+    if (shouldWarnSkip(lead.stage, newStage)) {
+      setPendingGate({ lead, target: newStage });
+      setSkipWarningOpen(true);
+      return;
+    }
+    routeStageChange(lead, newStage);
+  }
+
   // Reset page when filters/view change
   useEffect(() => { setPage(1); }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view]);
+
+  // Keep the open detail lead in sync with journey overrides (Bilal's stage)
+  useEffect(() => {
+    setDetailLead((prev) => {
+      if (!prev) return prev;
+      const fresh = leads.find((l) => l.id === prev.id);
+      return fresh && fresh.stage !== prev.stage ? fresh : prev;
+    });
+  }, [leads]);
 
   // Deep-link: open detail dialog if ?leadId= present (e.g. navigating from Tasks)
   useEffect(() => {
@@ -2353,6 +3202,7 @@ export default function LeadsPage() {
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 120);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleSort(field: string) {
@@ -2388,7 +3238,7 @@ export default function LeadsPage() {
       });
     }
     return data;
-  }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, sortField, sortDir]);
+  }, [leads, stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, searchQuery, sortField, sortDir]);
 
   const paginatedLeads = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -2442,13 +3292,246 @@ export default function LeadsPage() {
     setAddLeadOpen(true);
   }
 
+  function handleBookAssessment(lead: Lead) {
+    commitStageChange(lead, "Assessment Booked");
+  }
+
+  function handleBookTrial(lead: Lead) {
+    commitStageChange(lead, "Trial Booked");
+  }
+
+  function handleSendInvoice(lead: Lead) {
+    commitStageChange(lead, "Invoice Sent");
+  }
+
+  function handleOfferSchedule(lead: Lead) {
+    commitStageChange(lead, "Schedule Offered");
+  }
+
+  function handleConfirmSchedule(lead: Lead) {
+    commitStageChange(lead, "Schedule Confirmed");
+  }
+
+  function handleRecordPayment(lead: Lead) {
+    commitStageChange(lead, "Paid");
+  }
+
+  // Record an activity entry against any lead — routes to the journey store
+  // (Bilal) or the per-lead override activity log.
+  function recordLeadActivity(lead: Lead, entry: ActivityEntry) {
+    if (lead.id === BILAL_LEAD_ID) {
+      journey.pushActivity(entry);
+    } else {
+      setLeadActivity((prev) => ({
+        ...prev,
+        [lead.id]: [entry, ...(prev[lead.id] ?? [])],
+      }));
+    }
+  }
+
+  function handleMarkAsContacted(lead: Lead) {
+    commitStageChange(lead, "Contacted");
+  }
+
+  function handleOpenNeedsMoreTime(lead: Lead, stageLabel: string) {
+    setNeedsMoreTimeLead(lead);
+    setNeedsMoreTimeStage(stageLabel);
+    setNeedsMoreTimeOpen(true);
+  }
+
+  function handleOpenSkipAssessment(lead: Lead) {
+    setSkipAssessmentLead(lead);
+    setSkipAssessmentOpen(true);
+  }
+
+  function handleConfirmSkipAssessment() {
+    const lead = skipAssessmentLead;
+    setSkipAssessmentOpen(false);
+    if (!lead) return;
+    recordLeadActivity(lead, {
+      label: "Just now",
+      text: "Assessment skipped — moved to Schedule Offered",
+      dot: "bg-slate-400",
+    });
+    commitStageChange(lead, "Schedule Offered");
+  }
+
+  function handleBookTrialFirst(lead: Lead) {
+    bookTrialFromContactedRef.current = true;
+    setPendingGate({ lead, target: "Trial Booked" });
+    setBookTrialOpen(true);
+  }
+
+  function handleLogAssessmentOutcomeForLead(lead: Lead) {
+    if (lead.id === BILAL_LEAD_ID) {
+      setLogAssessmentOpen(true);
+    } else {
+      recordLeadActivity(lead, {
+        label: "Just now",
+        text: "Assessment outcome logged",
+        dot: "bg-indigo-400",
+      });
+      commitStageChange(lead, "Assessment Done");
+    }
+  }
+
+  function handleLogTrialOutcomeForLead(lead: Lead) {
+    if (lead.id === BILAL_LEAD_ID) {
+      setLogTrialOpen(true);
+    } else {
+      recordLeadActivity(lead, {
+        label: "Just now",
+        text: "Trial outcome logged",
+        dot: "bg-emerald-400",
+      });
+      commitStageChange(lead, "Trial Done");
+    }
+  }
+
+  // Track ad-hoc student records created for non-Bilal leads (so we can undo).
+  const createdStudentsRef = useRef<Record<string, Student>>({});
+
+  function nextStudentIdForNonBilal(): string {
+    const existing = [...studentsStore, ...Object.values(createdStudentsRef.current)];
+    let max = 0;
+    for (const s of existing) {
+      const n = Number(s.id.replace("IMI-", ""));
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `IMI-${String(max + 1).padStart(4, "0")}`;
+  }
+
+  function handlePaidAutoConvert(
+    lead: Lead,
+    payment: { amount: number; method: string },
+  ): { studentId: string; studentName: string; previousStage: LeadStage } | null {
+    const previousStage: LeadStage = "Invoice Sent";
+
+    if (lead.id === BILAL_LEAD_ID) {
+      const parts = lead.childName.trim().split(" ");
+      const created = journey.convertToStudent({
+        firstName: parts[0] ?? "Bilal",
+        lastName: parts.slice(1).join(" ") || "Mahmood",
+        yearGroup: lead.yearGroup,
+        guardianName: lead.guardian,
+        guardianPhone: lead.guardianPhone,
+        school: "IMI Dubai",
+      });
+      return { studentId: created.id, studentName: created.name, previousStage };
+    }
+
+    const paymentLine: ActivityEntry = {
+      label: "Just now",
+      text: `Payment recorded — AED ${payment.amount.toFixed(0)} via ${payment.method}`,
+      dot: "bg-lime-500",
+    };
+    const studentId = nextStudentIdForNonBilal();
+    const newStudent: Student = {
+      id: studentId,
+      name: lead.childName,
+      yearGroup: lead.yearGroup,
+      department: lead.department,
+      school: "—",
+      guardian: lead.guardian,
+      guardianPhone: lead.guardianPhone,
+      enrolments: 1,
+      churnScore: null,
+      status: "Active",
+      lastContact: "Today",
+      createdOn: new Date().toISOString().slice(0, 10),
+    };
+    studentsStore.push(newStudent);
+    createdStudentsRef.current[lead.id] = newStudent;
+
+    setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Won" }));
+    setLeadActivity((prev) => ({
+      ...prev,
+      [lead.id]: [
+        {
+          label: "Just now",
+          text: `Lead converted to student — ${studentId} · Won`,
+          dot: "bg-emerald-500",
+        },
+        paymentLine,
+        ...(prev[lead.id] ?? []),
+      ],
+    }));
+    return { studentId, studentName: lead.childName, previousStage };
+  }
+
+  // Listen for undo events raised from RecordPaymentDialog's toast (non-Bilal).
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<{ leadId: string; studentId: string; previousStage: LeadStage }>).detail;
+      if (!detail) return;
+      const { leadId, studentId, previousStage } = detail;
+      // Remove created student
+      const idx = studentsStore.findIndex((s) => s.id === studentId);
+      if (idx >= 0) studentsStore.splice(idx, 1);
+      delete createdStudentsRef.current[leadId];
+      // Revert stage
+      setLeadStageOverrides((prev) => ({ ...prev, [leadId]: previousStage }));
+      setLeadActivity((prev) => ({
+        ...prev,
+        [leadId]: [
+          {
+            label: "Just now",
+            text: "Conversion undone — student record removed",
+            dot: "bg-slate-400",
+          },
+          ...(prev[leadId] ?? []),
+        ],
+      }));
+    }
+    window.addEventListener("enrolla:undo-paid-conversion", handler);
+    return () => window.removeEventListener("enrolla:undo-paid-conversion", handler);
+  }, []);
+
+  // Listen for follow-up task completions dispatched from the Tasks page.
+  // Adds an activity entry to the source lead and, when the task was a
+  // "Follow up —" task, queues an amber banner on the lead ticket.
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<{ leadId: string; taskId: string; taskTitle: string; completedBy: string }>).detail;
+      if (!detail) return;
+      const { leadId, taskTitle, completedBy } = detail;
+      const entry: ActivityEntry = {
+        label: "Just now",
+        text: `Follow-up task completed — ${taskTitle} · marked done by ${completedBy}`,
+        dot: "bg-emerald-400",
+      };
+      if (leadId === BILAL_LEAD_ID) {
+        journey.pushActivity(entry);
+      } else {
+        setLeadActivity((prev) => ({
+          ...prev,
+          [leadId]: [entry, ...(prev[leadId] ?? [])],
+        }));
+      }
+      if (taskTitle.startsWith("Follow up —")) {
+        setFollowUpBanners((prev) => ({ ...prev, [leadId]: { taskTitle } }));
+      }
+    }
+    window.addEventListener("enrolla:lead-followup-completed", handler);
+    return () => window.removeEventListener("enrolla:lead-followup-completed", handler);
+  }, [journey]);
+
+  function handleConvert(lead: Lead) {
+    if (lead.id === BILAL_LEAD_ID) {
+      setConvertOpen(true);
+    } else {
+      toast("Converting lead to student — coming soon");
+    }
+  }
+
   function makeActions(lead: Lead): LeadActions {
     return {
       onView: () => openDetail(lead),
       onEdit: () => toast("Edit lead — coming soon"),
       onMoveStage: () => openMoveStage(lead),
-      onBookAssessment: () => toast("Opening assessment booking..."),
-      onConvertToStudent: () => toast("Converting lead to student — coming soon"),
+      onBookAssessment: () => handleBookAssessment(lead),
+      onBookTrial: () => handleBookTrial(lead),
+      onConvertToStudent: () => handleConvert(lead),
       onMarkLost: () => toast.success("Lead marked as Lost"),
       onArchive: () => openArchive(lead),
     };
@@ -2835,10 +3918,241 @@ export default function LeadsPage() {
         lead={detailLead}
         open={detailOpen}
         onOpenChange={setDetailOpen}
-        onBookAssessment={() => toast("Opening assessment booking...")}
-        onConvert={() => toast("Converting lead to student — coming soon")}
+        onMarkAsContacted={handleMarkAsContacted}
+        onBookAssessment={handleBookAssessment}
+        onBookTrialFirst={handleBookTrialFirst}
+        onNeedsMoreTime={handleOpenNeedsMoreTime}
+        onSkipAssessment={handleOpenSkipAssessment}
+        onConvert={handleConvert}
         onArchive={(l) => openArchive(l)}
+        onLogAssessmentOutcome={handleLogAssessmentOutcomeForLead}
+        onLogTrialOutcome={handleLogTrialOutcomeForLead}
+        onSendInvoice={handleSendInvoice}
+        onOfferSchedule={handleOfferSchedule}
+        onConfirmSchedule={handleConfirmSchedule}
+        onRecordPayment={handleRecordPayment}
+        onStageChange={commitStageChange}
+        onUpdatePrefs={updateLeadPrefs}
+        leadActivity={detailLead ? leadActivity[detailLead.id] ?? [] : []}
+        followUpBanner={detailLead ? followUpBanners[detailLead.id] ?? null : null}
+        onDismissFollowUpBanner={() => {
+          if (!detailLead) return;
+          const leadId = detailLead.id;
+          setFollowUpBanners((prev) => {
+            if (!prev[leadId]) return prev;
+            const next = { ...prev };
+            delete next[leadId];
+            return next;
+          });
+        }}
       />
+      <NeedsMoreTimeDialog
+        open={needsMoreTimeOpen}
+        onOpenChange={setNeedsMoreTimeOpen}
+        lead={needsMoreTimeLead}
+        currentStage={needsMoreTimeStage}
+        onCreated={({ assignee, dueLabel }) => {
+          if (needsMoreTimeLead) {
+            recordLeadActivity(needsMoreTimeLead, {
+              label: "Just now",
+              text: `Follow-up task created — ${assignee} · due ${dueLabel}`,
+              dot: "bg-slate-400",
+            });
+          }
+        }}
+      />
+      <SkipAssessmentDialog
+        open={skipAssessmentOpen}
+        onOpenChange={setSkipAssessmentOpen}
+        onConfirm={handleConfirmSkipAssessment}
+      />
+      <BookAssessmentDialog
+        open={bookAssessmentOpen}
+        onOpenChange={(o) => {
+          setBookAssessmentOpen(o);
+          if (!o) setPendingGate(null);
+        }}
+        lead={pendingGate?.lead ?? null}
+        onCommit={() => {
+          if (pendingGate) applyStageChange(pendingGate.lead, pendingGate.target);
+          setPendingGate(null);
+        }}
+        onUpdatePrefs={updateLeadPrefs}
+        onRecordActivity={(leadId, entry) =>
+          setLeadActivity((prev) => ({
+            ...prev,
+            [leadId]: [entry, ...(prev[leadId] ?? [])],
+          }))
+        }
+      />
+      <LogAssessmentOutcomeDialog
+        open={logAssessmentOpen}
+        onOpenChange={setLogAssessmentOpen}
+        lead={detailLead}
+      />
+      <BookTrialDialog
+        open={bookTrialOpen}
+        onOpenChange={(o) => {
+          setBookTrialOpen(o);
+          if (!o) {
+            // Preserve pendingGate when the soft prompt is chaining into a
+            // schedule-offer step; otherwise clear it on close.
+            if (chainAfterTrialRef.current) {
+              chainAfterTrialRef.current = false;
+            } else {
+              setPendingGate(null);
+            }
+            if (bookTrialFromContactedRef.current) {
+              bookTrialFromContactedRef.current = false;
+            }
+          }
+        }}
+        lead={pendingGate?.lead ?? null}
+        onCommit={() => {
+          if (!pendingGate) return;
+          const { lead, target } = pendingGate;
+          const skippedAssessment = bookTrialFromContactedRef.current;
+          applyStageChange(lead, target);
+          if (skippedAssessment) {
+            recordLeadActivity(lead, {
+              label: "Just now",
+              text: "Trial booked directly — assessment skipped",
+              dot: "bg-amber-400",
+            });
+            bookTrialFromContactedRef.current = false;
+          }
+          if (chainAfterTrialRef.current) {
+            setPendingGate({ lead, target: "Schedule Offered" });
+            setScheduleOfferOpen(true);
+          } else {
+            setPendingGate(null);
+          }
+        }}
+        onRecordActivity={(leadId, entry) =>
+          setLeadActivity((prev) => ({
+            ...prev,
+            [leadId]: [entry, ...(prev[leadId] ?? [])],
+          }))
+        }
+      />
+      <LogTrialOutcomeDialog open={logTrialOpen} onOpenChange={setLogTrialOpen} />
+      <ScheduleOfferDialog
+        open={scheduleOfferOpen}
+        onOpenChange={(o) => {
+          setScheduleOfferOpen(o);
+          if (!o) setPendingGate(null);
+        }}
+        lead={pendingGate?.lead ?? null}
+        onCommit={() => {
+          if (pendingGate) applyStageChange(pendingGate.lead, pendingGate.target);
+          setPendingGate(null);
+        }}
+      />
+      <ScheduleConfirmDialog
+        open={scheduleConfirmOpen}
+        onOpenChange={(o) => {
+          setScheduleConfirmOpen(o);
+          if (!o) setPendingGate(null);
+        }}
+        lead={pendingGate?.lead ?? null}
+        onCommit={() => {
+          if (pendingGate) applyStageChange(pendingGate.lead, pendingGate.target);
+          setPendingGate(null);
+        }}
+      />
+      <InvoiceBuilderDialog
+        open={invoiceBuilderOpen}
+        onOpenChange={(o) => {
+          setInvoiceBuilderOpen(o);
+          if (!o) setPendingGate(null);
+        }}
+        lead={pendingGate?.lead ?? null}
+        onCommit={() => {
+          if (pendingGate) applyStageChange(pendingGate.lead, pendingGate.target);
+          setPendingGate(null);
+        }}
+      />
+      <RecordPaymentDialog
+        open={recordPaymentOpen}
+        onOpenChange={(o) => {
+          setRecordPaymentOpen(o);
+          if (!o) setPendingGate(null);
+        }}
+        lead={pendingGate?.lead ?? null}
+        onCommit={() => {
+          if (pendingGate) applyStageChange(pendingGate.lead, pendingGate.target);
+          setPendingGate(null);
+        }}
+        onAutoConvert={(lead, payment) => {
+          const result = handlePaidAutoConvert(lead, payment);
+          setPendingGate(null);
+          return result;
+        }}
+      />
+      <SkipWarningDialog
+        open={skipWarningOpen}
+        onOpenChange={(o) => {
+          setSkipWarningOpen(o);
+          if (!o) setPendingGate(null);
+        }}
+        currentStage={pendingGate?.lead.stage ?? null}
+        targetStage={pendingGate?.target ?? null}
+        onContinue={() => {
+          setSkipWarningOpen(false);
+          if (pendingGate) {
+            const { lead, target } = pendingGate;
+            routeStageChange(lead, target);
+          }
+        }}
+      />
+      <TrialSkipPromptDialog
+        open={trialPromptOpen}
+        onOpenChange={(o) => {
+          setTrialPromptOpen(o);
+          if (!o && !chainAfterTrialRef.current) setPendingGate(null);
+        }}
+        onBookTrialFirst={(suppress) => {
+          if (!pendingGate) {
+            setTrialPromptOpen(false);
+            return;
+          }
+          const { lead } = pendingGate;
+          if (suppress) {
+            setTrialPromptSuppressed((prev) => {
+              const next = new Set(prev);
+              next.add(lead.id);
+              return next;
+            });
+          }
+          chainAfterTrialRef.current = true;
+          setPendingGate({ lead, target: "Trial Booked" });
+          setTrialPromptOpen(false);
+          setBookTrialOpen(true);
+        }}
+        onSkipToScheduling={(suppress) => {
+          if (!pendingGate) {
+            setTrialPromptOpen(false);
+            return;
+          }
+          const { lead, target } = pendingGate;
+          if (suppress) {
+            setTrialPromptSuppressed((prev) => {
+              const next = new Set(prev);
+              next.add(lead.id);
+              return next;
+            });
+          }
+          setTrialPromptOpen(false);
+          routeStageChange(lead, target);
+        }}
+      />
+      <ConvertToStudentDialog
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        lead={detailLead}
+        onOpenCreateEnrolment={() => setCreateEnrolmentOpen(true)}
+      />
+      <CreateEnrolmentDialog open={createEnrolmentOpen} onOpenChange={setCreateEnrolmentOpen} />
       <ReminderDialog
         lead={reminderLead}
         open={reminderOpen}
@@ -2858,6 +4172,7 @@ export default function LeadsPage() {
         lead={moveStageLead}
         open={moveStageOpen}
         onOpenChange={setMoveStageOpen}
+        onConfirm={(l, s) => commitStageChange(l, s)}
       />
     </div>
   );

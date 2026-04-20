@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { tasks as allTasks, type Task, type TaskStatus } from "@/lib/mock-data";
+import { tasks as allTasks, currentUser, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
@@ -335,7 +335,22 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
           {!isDone && (
             <button
               type="button"
-              onClick={() => { onComplete(task.id); onClose(); }}
+              onClick={() => {
+                if (task.sourceLeadId && typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("enrolla:lead-followup-completed", {
+                      detail: {
+                        leadId: task.sourceLeadId,
+                        taskId: task.id,
+                        taskTitle: task.title,
+                        completedBy: currentUser.name,
+                      },
+                    }),
+                  );
+                }
+                onComplete(task.id);
+                onClose();
+              }}
               className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors cursor-pointer"
             >
               <Check className="w-4 h-4" />

@@ -7,6 +7,8 @@ import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
 import { RoleProvider } from "@/lib/role-context";
+import { JourneyProvider } from "@/lib/journey-store";
+import { AssessmentProvider } from "@/lib/assessment-store";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -29,10 +31,14 @@ export default function RootLayout({
       <body className="h-full">
         <TooltipProvider delay={300}>
           <RoleProvider>
-            <div className="flex h-full w-full">
-              <AppShell>{children}</AppShell>
-            </div>
-            <Toaster position="bottom-right" richColors />
+            <JourneyProvider>
+              <AssessmentProvider>
+                <div className="flex h-full w-full">
+                  <AppShell>{children}</AppShell>
+                </div>
+                <Toaster position="bottom-right" richColors />
+              </AssessmentProvider>
+            </JourneyProvider>
           </RoleProvider>
         </TooltipProvider>
       </body>

@@ -26,6 +26,12 @@ import {
   type TimetableSession,
 } from "@/lib/mock-data";
 import {
+  useAssessments,
+  isoToDayKey,
+  isoToDateLabel,
+  type AssessmentRecord,
+} from "@/lib/assessment-store";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -43,23 +49,66 @@ const GRID_HEIGHT = TOTAL_SLOTS * SLOT_HEIGHT;
 
 // ─── Days ─────────────────────────────────────────────────────────────────────
 
-const DAYS = [
-  { key: "Mon", label: "Mon 21", long: "Monday",    date: 21 },
-  { key: "Tue", label: "Tue 22", long: "Tuesday",   date: 22 },
-  { key: "Wed", label: "Wed 23", long: "Wednesday", date: 23 },
-  { key: "Thu", label: "Thu 24", long: "Thursday",  date: 24 },
-  { key: "Fri", label: "Fri 25", long: "Friday",    date: 25 },
-  { key: "Sat", label: "Sat 26", long: "Saturday",  date: 26 },
-];
+const ALL_DAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+const DAY_LONG: Record<string, string> = {
+  Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday",
+  Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday",
+};
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_LONG  = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-// Full 7-day list used by the Week Overview layout.
-const WEEK_DAYS = [
-  ...DAYS,
-  { key: "Sun", label: "Sun 27", long: "Sunday", date: 27 },
-];
+type DayInfo = { key: string; label: string; long: string; date: number; fullDate: Date };
 
-const TODAY_KEY    = "Mon";
-const CURRENT_TIME = "15:30";
+// Monday of the week containing `date` (Mon-Sat are operating days; Sun rolls into prev week).
+function getMondayOfWeek(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay(); // 0 = Sun, 1 = Mon … 6 = Sat
+  const offset = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + offset);
+  return d;
+}
+
+function addDays(date: Date, n: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function buildWeekDays(weekStart: Date, count: number): DayInfo[] {
+  return Array.from({ length: count }, (_, i) => {
+    const d = addDays(weekStart, i);
+    const key = ALL_DAY_KEYS[i];
+    return {
+      key,
+      label: `${key} ${d.getDate()}`,
+      long: DAY_LONG[key],
+      date: d.getDate(),
+      fullDate: d,
+    };
+  });
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
+}
+
+function todayDayKey(now: Date): string | null {
+  const dow = now.getDay();
+  return dow === 0 ? null : ALL_DAY_KEYS[dow - 1];
+}
+
+function formatWeekHeader(weekStart: Date): string {
+  const end = addDays(weekStart, 5); // Saturday (Mon-Sat operating week)
+  const sd = weekStart.getDate(), ed = end.getDate();
+  const sm = MONTH_SHORT[weekStart.getMonth()], em = MONTH_SHORT[end.getMonth()];
+  const sy = weekStart.getFullYear(), ey = end.getFullYear();
+  if (sy !== ey) return `${sd} ${sm} ${sy} – ${ed} ${em} ${ey}`;
+  if (sm !== em) return `${sd} ${sm} – ${ed} ${em} ${ey}`;
+  return `${sd}–${ed} ${em} ${ey}`;
+}
 
 // ─── Time labels (08:00 … 20:00, every 30 min) ────────────────────────────────
 
@@ -159,11 +208,45 @@ const DEPT_BADGE: Record<string, string> = {
   Senior:            "bg-[#ffedd5] text-orange-800",
 };
 
+// ─── Assessment-store → session adapter ───────────────────────────────────────
+
+type NewAssessmentFields = {
+  isNewAssessment?: boolean;
+  assessmentId?: string;
+  assessmentStudentName?: string;
+};
+
+export type ExtendedSession = TimetableSession & NewAssessmentFields;
+
+function assessmentToSessions(a: AssessmentRecord): ExtendedSession[] {
+  const day = isoToDayKey(a.date);
+  const dateLabel = isoToDateLabel(a.date);
+  return a.teachers.map((teacher, i) => ({
+    id: `${a.id}-${i}`,
+    day,
+    date: dateLabel,
+    subject: `${a.yearGroup} ${a.subject}`,
+    department: a.department,
+    teacher,
+    room: a.room,
+    startTime: a.time,
+    endTime: a.endTime,
+    duration: 15,
+    students: [a.studentName],
+    studentCount: 1,
+    type: "Assessment",
+    status: a.status === "Done" ? "Completed" : "Scheduled",
+    isNewAssessment: true,
+    assessmentId: a.id,
+    assessmentStudentName: a.studentName,
+  }));
+}
+
 // ─── Overlap layout ───────────────────────────────────────────────────────────
 
-type LayoutSession = TimetableSession & { colIndex: number; colCount: number };
+type LayoutSession = ExtendedSession & { colIndex: number; colCount: number };
 
-function layoutSessions(sessions: TimetableSession[]): LayoutSession[] {
+function layoutSessions(sessions: ExtendedSession[]): LayoutSession[] {
   const sorted = [...sessions].sort(
     (a, b) => timeToMins(a.startTime) - timeToMins(b.startTime)
   );
@@ -213,8 +296,9 @@ function SessionChip({
   const isBlocked    = session.type === "Blocked";
   const isMeeting    = session.type === "Meeting";
   const isAssessment = session.type === "Assessment";
+  const isNewAssessment = Boolean(session.isNewAssessment);
   const chipHeight   = typeof style.height === "number" ? style.height : 0;
-  const showBadge    = session.type !== "Regular" && chipHeight > 64 && !compact;
+  const showBadge    = session.type !== "Regular" && chipHeight > 64 && !compact && !isNewAssessment;
   const showStudents = !compact && chipHeight > 56;
   const showCountSuffix = compact && session.studentCount > 0;
 
@@ -223,9 +307,9 @@ function SessionChip({
       onClick={onClick}
       className={cn(
         "absolute rounded-lg border overflow-hidden cursor-pointer transition-all hover:shadow-md hover:brightness-95 z-[6]",
-        deptColor.bg,
-        deptColor.border,
-        deptColor.text,
+        isNewAssessment
+          ? "bg-amber-500/20 border-amber-300 text-amber-900 border-l-4 border-l-amber-500"
+          : cn(deptColor.bg, deptColor.border, deptColor.text),
         isDashed && "border-dashed",
         dimmed && "opacity-60"
       )}
@@ -267,14 +351,18 @@ function SessionChip({
             compact ? "text-[10px]" : "text-[11px]",
             isMeeting && "italic"
           )}>
-            {session.subject}{showCountSuffix && ` (${session.studentCount})`}
+            {isNewAssessment
+              ? `Assessment — ${session.assessmentStudentName ?? session.students[0] ?? ""} · ${session.subject}`
+              : `${session.subject}${showCountSuffix ? ` (${session.studentCount})` : ""}`}
           </p>
         </div>
         <p className={cn(
           "opacity-70 leading-tight truncate mt-0.5",
           compact ? "text-[9px]" : "text-[10px]"
         )}>
-          {surname(session.teacher)}
+          {isNewAssessment
+            ? `${cleanName(session.teacher)} · ${session.room}`
+            : surname(session.teacher)}
         </p>
         {showStudents && (
           <p className="opacity-60 mt-0.5 text-[10px]">
@@ -726,10 +814,18 @@ type WeekSubMode = "Room" | "Overview";
 
 export default function TimetablePage() {
   const { can, role } = usePermission();
-  const [activeDay,       setActiveDay]       = useState("Mon");
+  const [now, setNow] = useState<Date>(() => new Date());
+  const weekStart   = useMemo(() => getMondayOfWeek(now), [now]);
+  const days        = useMemo(() => buildWeekDays(weekStart, 6), [weekStart]);
+  const weekDays    = useMemo(() => buildWeekDays(weekStart, 7), [weekStart]);
+  const todayKey    = useMemo(() => todayDayKey(now), [now]);
+  const weekHeader  = useMemo(() => formatWeekHeader(weekStart), [weekStart]);
+  const monthHeader = useMemo(() => `${MONTH_LONG[now.getMonth()]} ${now.getFullYear()}`, [now]);
+  const [activeDay,       setActiveDay]       = useState<string>(() => todayDayKey(new Date()) ?? "Mon");
   const [activeView,      setActiveView]      = useState<ViewMode>("Week");
   const [weekSubMode,     setWeekSubMode]     = useState<WeekSubMode>("Room");
-  const [selectedSession, setSelectedSession] = useState<TimetableSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<ExtendedSession | null>(null);
+  const { assessments, markDone, cancel } = useAssessments();
   const [showNewSession,  setShowNewSession]  = useState(false);
   const [filterLocation,  setFilterLocation]  = useState("All");
   const [filterDept,      setFilterDept]      = useState("All");
@@ -746,23 +842,28 @@ export default function TimetablePage() {
 
   const gridScrollRef = useRef<HTMLDivElement>(null);
 
+  const allSessions = useMemo<ExtendedSession[]>(() => {
+    const derived = assessments.flatMap(assessmentToSessions);
+    return [...timetableSessions, ...derived];
+  }, [assessments]);
+
   const teachers = useMemo(() => {
-    const names = Array.from(new Set(timetableSessions.map((s) => s.teacher))).sort();
+    const names = Array.from(new Set(allSessions.map((s) => s.teacher))).sort();
     return ["All", ...names];
-  }, []);
+  }, [allSessions]);
 
   const roomOptions = useMemo(() => ["All", ...rooms.map((r) => r.name)], []);
 
   // Filters shared by all views (everything except the active-day filter).
   const weekSessions = useMemo(() =>
-    timetableSessions.filter((s) => {
+    allSessions.filter((s) => {
       if (filterDept    !== "All" && s.department !== filterDept)    return false;
       if (filterTeacher !== "All" && s.teacher    !== filterTeacher) return false;
       if (filterRoom    !== "All" && s.room       !== filterRoom)    return false;
       if (filterType    !== "All" && s.type       !== filterType)    return false;
       return true;
     }),
-    [filterDept, filterTeacher, filterRoom, filterType]
+    [allSessions, filterDept, filterTeacher, filterRoom, filterType]
   );
 
   const daySessions = useMemo(
@@ -797,13 +898,17 @@ export default function TimetablePage() {
   // Week-Overview: per-day layout for the whole week
   const sessionsByDay = useMemo(() => {
     const map: Record<string, LayoutSession[]> = {};
-    for (const d of WEEK_DAYS) {
+    for (const d of weekDays) {
       map[d.key] = layoutSessions(weekSessions.filter((s) => s.day === d.key));
     }
     return map;
-  }, [weekSessions]);
+  }, [weekSessions, weekDays]);
 
-  const CURRENT_TIME_PX = timeToPx(CURRENT_TIME);
+  // Current-time indicator position — derived from `now` so the red line tracks live time.
+  const currentTimeStr = useMemo(() => {
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  }, [now]);
+  const CURRENT_TIME_PX = timeToPx(currentTimeStr);
 
   // Auto-scroll the grid to the first session on initial load / tab change.
   useEffect(() => {
@@ -860,12 +965,19 @@ export default function TimetablePage() {
             <ChevronLeft className="w-4 h-4 text-slate-500" />
           </button>
           <span className="text-sm font-semibold text-slate-700 px-1 select-none">
-            {activeView === "Month" ? "April 2025" : "21 Apr – 26 Apr 2025"}
+            {activeView === "Month" ? monthHeader : weekHeader}
           </span>
           <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
             <ChevronRight className="w-4 h-4 text-slate-500" />
           </button>
-          <button className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+          <button
+            onClick={() => {
+              const fresh = new Date();
+              setNow(fresh);
+              setActiveDay(todayDayKey(fresh) ?? "Mon");
+            }}
+            className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+          >
             Today
           </button>
         </div>
@@ -979,7 +1091,7 @@ export default function TimetablePage() {
       {/* ── Day tabs (Week-Room + Day only) ───────────────────────────────── */}
       {showDayTabs && (
         <div className="flex items-center bg-white border-b border-slate-200 flex-shrink-0 px-6">
-          {DAYS.map((d) => (
+          {days.map((d) => (
             <button
               key={d.key}
               onClick={() => setActiveDay(d.key)}
@@ -991,7 +1103,7 @@ export default function TimetablePage() {
               )}
             >
               {d.label}
-              {d.key === TODAY_KEY && (
+              {d.key === todayKey && (
                 <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-amber-500 align-middle mb-0.5" />
               )}
               {activeDay === d.key && (
@@ -1018,7 +1130,7 @@ export default function TimetablePage() {
             </div>
           </div>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">
-            {DAYS.find((d) => d.key === activeDay)?.label} — {daySessions.length} session{daySessions.length !== 1 ? "s" : ""}
+            {days.find((d) => d.key === activeDay)?.label} — {daySessions.length} session{daySessions.length !== 1 ? "s" : ""}
           </p>
           <div className="flex flex-col gap-2">
             {daySessions.length === 0 ? (
@@ -1076,7 +1188,7 @@ export default function TimetablePage() {
 
             <div className="flex relative" style={{ height: GRID_HEIGHT }}>
               <TimeColumn />
-              {activeDay === TODAY_KEY && (
+              {activeDay === todayKey && (
                 <div
                   className="absolute pointer-events-none z-[15]"
                   style={{ top: CURRENT_TIME_PX, left: 60, right: 0, height: 0 }}
@@ -1148,7 +1260,7 @@ export default function TimetablePage() {
           <div className="min-w-max w-full">
             <div className="sticky top-0 z-20 flex bg-white border-b border-slate-200 shadow-sm">
               <div className="w-[60px] flex-shrink-0 border-r border-slate-200" />
-              {WEEK_DAYS.map((d) => {
+              {weekDays.map((d) => {
                 const count = sessionsByDay[d.key]?.length ?? 0;
                 const isSunday = d.key === "Sun";
                 return (
@@ -1156,21 +1268,21 @@ export default function TimetablePage() {
                     key={d.key}
                     className={cn(
                       "flex-1 min-w-[140px] px-2 py-2.5 border-l border-slate-200 text-center",
-                      d.key === TODAY_KEY && "bg-amber-50/50",
+                      d.key === todayKey && "bg-amber-50/50",
                       isSunday && "bg-slate-50"
                     )}
                   >
                     <p className={cn(
                       "text-[11px] font-semibold uppercase tracking-wide",
                       isSunday ? "text-slate-400"
-                        : d.key === TODAY_KEY ? "text-amber-700" : "text-slate-400"
+                        : d.key === todayKey ? "text-amber-700" : "text-slate-400"
                     )}>
                       {d.long.slice(0, 3)}
                     </p>
                     <p className={cn(
                       "text-sm font-bold",
                       isSunday ? "text-slate-400"
-                        : d.key === TODAY_KEY ? "text-amber-700" : "text-slate-700"
+                        : d.key === todayKey ? "text-amber-700" : "text-slate-700"
                     )}>
                       {d.date}
                     </p>
@@ -1184,7 +1296,7 @@ export default function TimetablePage() {
 
             <div className="flex" style={{ height: GRID_HEIGHT }}>
               <TimeColumn />
-              {WEEK_DAYS.map((d) => {
+              {weekDays.map((d) => {
                 const dSessions = sessionsByDay[d.key] ?? [];
                 const isSunday = d.key === "Sun";
                 return (
@@ -1192,7 +1304,7 @@ export default function TimetablePage() {
                     key={d.key}
                     className={cn(
                       "flex-1 min-w-[140px] relative border-l border-slate-200 bg-white",
-                      d.key === TODAY_KEY && "bg-amber-50/20",
+                      d.key === todayKey && "bg-amber-50/20",
                       isSunday && "bg-slate-50"
                     )}
                     style={{
@@ -1213,7 +1325,7 @@ export default function TimetablePage() {
                       />
                     ))}
 
-                    {d.key === TODAY_KEY && (
+                    {d.key === todayKey && (
                       <div
                         className="absolute left-0 right-0 z-[15] pointer-events-none"
                         style={{ top: CURRENT_TIME_PX, height: 0 }}
@@ -1296,7 +1408,7 @@ export default function TimetablePage() {
 
             <div className="flex relative" style={{ height: GRID_HEIGHT }}>
               <TimeColumn />
-              {activeDay === TODAY_KEY && dayTeachers.length > 0 && (
+              {activeDay === todayKey && dayTeachers.length > 0 && (
                 <div
                   className="absolute pointer-events-none z-[15]"
                   style={{ top: CURRENT_TIME_PX, left: 60, right: 0, height: 0 }}
@@ -1373,6 +1485,8 @@ export default function TimetablePage() {
         {activeView === "List" && (
           <ListView
             sessions={weekSessions}
+            days={days}
+            todayKey={todayKey}
             onOpen={(s) => setSelectedSession(s)}
           />
         )}
@@ -1381,6 +1495,8 @@ export default function TimetablePage() {
         {activeView === "Month" && (
           <MonthView
             sessions={weekSessions}
+            now={now}
+            weekStart={weekStart}
             onDayClick={(dayKey) => {
               if (dayKey) {
                 setActiveDay(dayKey);
@@ -1399,12 +1515,31 @@ export default function TimetablePage() {
       )}
 
       {/* ── Overlays ──────────────────────────────────────────────────────── */}
-      {selectedSession && (
+      {selectedSession && selectedSession.isNewAssessment && selectedSession.assessmentId ? (
+        <AssessmentDetailModal
+          session={selectedSession}
+          assessment={assessments.find((a) => a.id === selectedSession.assessmentId) ?? null}
+          onClose={() => setSelectedSession(null)}
+          onMarkDone={() => {
+            if (selectedSession.assessmentId) {
+              markDone(selectedSession.assessmentId);
+              setToast("Assessment marked as Done");
+            }
+          }}
+          onCancel={() => {
+            if (selectedSession.assessmentId) {
+              cancel(selectedSession.assessmentId);
+              setSelectedSession(null);
+              setToast("Assessment removed from timetable");
+            }
+          }}
+        />
+      ) : selectedSession ? (
         <SessionSlideover
           session={selectedSession}
           onClose={() => setSelectedSession(null)}
         />
-      )}
+      ) : null}
       {showNewSession && (
         <NewSessionModal onClose={() => setShowNewSession(false)} />
       )}
@@ -1416,14 +1551,18 @@ export default function TimetablePage() {
 
 function ListView({
   sessions,
+  days,
+  todayKey,
   onOpen,
 }: {
-  sessions: TimetableSession[];
-  onOpen: (s: TimetableSession) => void;
+  sessions: ExtendedSession[];
+  days: DayInfo[];
+  todayKey: string | null;
+  onOpen: (s: ExtendedSession) => void;
 }) {
   const grouped = useMemo(() => {
-    const map: Record<string, TimetableSession[]> = {};
-    for (const d of DAYS) map[d.key] = [];
+    const map: Record<string, ExtendedSession[]> = {};
+    for (const d of days) map[d.key] = [];
     for (const s of sessions) {
       if (map[s.day]) map[s.day].push(s);
     }
@@ -1431,20 +1570,20 @@ function ListView({
       map[k].sort((a, b) => timeToMins(a.startTime) - timeToMins(b.startTime));
     }
     return map;
-  }, [sessions]);
+  }, [sessions, days]);
 
   return (
     <div className="flex-1 overflow-auto bg-white">
       <div className="max-w-4xl mx-auto px-6 py-6">
-        {DAYS.map((d) => {
+        {days.map((d) => {
           const rows = grouped[d.key] ?? [];
           if (rows.length === 0) return null;
-          const isToday = d.key === TODAY_KEY;
+          const isToday = d.key === todayKey;
           return (
             <div key={d.key} className="mb-6">
               <div className="sticky top-0 bg-white z-10 py-2 flex items-center gap-2 border-b border-slate-100">
                 <h3 className="text-sm font-bold text-slate-800">{d.long}</h3>
-                <span className="text-xs text-slate-400">· {d.label.split(" ")[1]} Apr</span>
+                <span className="text-xs text-slate-400">· {d.date} {MONTH_SHORT[d.fullDate.getMonth()]}</span>
                 {isToday && (
                   <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">Today</span>
                 )}
@@ -1473,19 +1612,28 @@ function ListView({
                               <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
                             </div>
                           )}
-                          <p className="text-sm font-semibold text-slate-800">{s.subject}</p>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {s.isNewAssessment
+                              ? `Assessment — ${s.assessmentStudentName ?? s.students[0] ?? ""} · ${s.subject}`
+                              : s.subject}
+                          </p>
                           <span className={cn(
                             "px-2 py-0.5 rounded-full text-[10px] font-medium",
                             DEPT_BADGE[s.department] ?? "bg-slate-100 text-slate-600"
                           )}>
                             {s.department}
                           </span>
+                          {s.isNewAssessment && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-800 border border-amber-300">
+                              Assessment
+                            </span>
+                          )}
                           {s.isTrial && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400 text-white">
                               Trial
                             </span>
                           )}
-                          {s.type !== "Regular" && s.type !== "Trial" && (
+                          {s.type !== "Regular" && s.type !== "Trial" && !s.isNewAssessment && (
                             <span className={cn(
                               "px-2 py-0.5 rounded-full text-[10px] font-medium",
                               TYPE_BADGE[s.type] ?? "bg-slate-100 text-slate-600"
@@ -1529,43 +1677,60 @@ function ListView({
 
 function MonthView({
   sessions,
+  now,
+  weekStart,
   onDayClick,
 }: {
-  sessions: TimetableSession[];
+  sessions: ExtendedSession[];
+  now: Date;
+  weekStart: Date;
   onDayClick: (dayKey: string | null) => void;
 }) {
-  // Fixed to April 2025 — 1 Apr is a Tuesday, so the Mon-start grid begins on 31 Mar.
+  // Build a Mon-start month grid for the current month, mapping the current week's
+  // Mon-Sat dates to day keys so that day-keyed sessions render in the correct cells.
   const monthGrid = useMemo(() => {
     type Cell = {
       dateNum: number;
       inMonth: boolean;
-      key: string | null;    // Day key if a session-day (Mon-Sat 21-26)
+      key: string | null;
+      isToday: boolean;
       monthLabel?: "prev" | "next";
     };
 
-    const cells: Cell[] = [];
-    // Week 1: 31 Mar, 1-6 Apr
-    cells.push({ dateNum: 31, inMonth: false, key: null, monthLabel: "prev" });
-    for (let d = 1; d <= 6; d++) cells.push({ dateNum: d, inMonth: true, key: null });
-    // Week 2-4: 7-27
-    for (let d = 7; d <= 27; d++) {
-      let key: string | null = null;
-      if (d === 21) key = "Mon";
-      else if (d === 22) key = "Tue";
-      else if (d === 23) key = "Wed";
-      else if (d === 24) key = "Thu";
-      else if (d === 25) key = "Fri";
-      else if (d === 26) key = "Sat";
-      cells.push({ dateNum: d, inMonth: true, key });
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    const lastOfMonth  = new Date(year, month + 1, 0);
+    const gridStart    = getMondayOfWeek(firstOfMonth);
+    const offset       = (firstOfMonth.getDay() + 6) % 7; // Mon=0 … Sun=6
+    const totalCells   = Math.ceil((offset + lastOfMonth.getDate()) / 7) * 7;
+
+    // Map each date in the current week (Mon-Sat) to its day key.
+    const weekKeyByTime = new Map<number, string>();
+    for (let i = 0; i < 6; i++) {
+      const d = addDays(weekStart, i);
+      weekKeyByTime.set(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), ALL_DAY_KEYS[i]);
     }
-    // Week 5: 28-30 Apr + 1-4 May
-    for (let d = 28; d <= 30; d++) cells.push({ dateNum: d, inMonth: true, key: null });
-    for (let d = 1; d <= 4; d++) cells.push({ dateNum: d, inMonth: false, key: null, monthLabel: "next" });
+
+    const cells: Cell[] = [];
+    for (let i = 0; i < totalCells; i++) {
+      const d = addDays(gridStart, i);
+      const inMonth = d.getMonth() === month && d.getFullYear() === year;
+      const monthLabel = !inMonth ? (d < firstOfMonth ? "prev" : "next") : undefined;
+      const t = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      cells.push({
+        dateNum: d.getDate(),
+        inMonth,
+        key: weekKeyByTime.get(t) ?? null,
+        isToday: isSameDay(d, now),
+        monthLabel,
+      });
+    }
     return cells;
-  }, []);
+  }, [now, weekStart]);
 
   const sessionsByDayKey = useMemo(() => {
-    const map: Record<string, TimetableSession[]> = {};
+    const map: Record<string, ExtendedSession[]> = {};
     for (const s of sessions) {
       if (!map[s.day]) map[s.day] = [];
       map[s.day].push(s);
@@ -1577,7 +1742,6 @@ function MonthView({
   }, [sessions]);
 
   const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const TODAY_DATE = 21;
 
   return (
     <div className="flex-1 overflow-auto bg-white">
@@ -1592,7 +1756,7 @@ function MonthView({
         <div className="grid grid-cols-7 gap-px bg-slate-200 rounded-xl overflow-hidden border border-slate-200">
           {monthGrid.map((cell, idx) => {
             const rowSessions = cell.key ? sessionsByDayKey[cell.key] ?? [] : [];
-            const isToday = cell.inMonth && cell.dateNum === TODAY_DATE;
+            const isToday = cell.isToday;
             const clickable = !!cell.key && rowSessions.length > 0;
             return (
               <div
@@ -1648,6 +1812,111 @@ function MonthView({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Assessment Detail Modal ──────────────────────────────────────────────────
+
+function AssessmentDetailModal({
+  session,
+  assessment,
+  onClose,
+  onMarkDone,
+  onCancel,
+}: {
+  session: ExtendedSession;
+  assessment: AssessmentRecord | null;
+  onClose: () => void;
+  onMarkDone: () => void;
+  onCancel: () => void;
+}) {
+  const studentName = assessment?.studentName ?? session.assessmentStudentName ?? session.students[0] ?? "";
+  const subject = assessment?.subject ?? session.subject;
+  const yearGroup = assessment?.yearGroup ?? "";
+  const date = assessment?.date ?? session.date;
+  const room = assessment?.room ?? session.room;
+  const teacherList = assessment?.teachers ?? [session.teacher];
+  const notes = assessment?.notes;
+  const status: "Booked" | "Done" = assessment?.status ?? (session.status === "Completed" ? "Done" : "Booked");
+  const statusBadge =
+    status === "Done"
+      ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+      : "bg-amber-100 text-amber-800 border-amber-200";
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[560px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Assessment — {studentName}</DialogTitle>
+        </DialogHeader>
+
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border", statusBadge)}>
+              {status}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">Read-only</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <DetailRow label="Student" value={studentName} />
+            <DetailRow label="Subject" value={subject} />
+            <DetailRow label="Year group" value={yearGroup || "—"} />
+            <DetailRow label="Date" value={date} />
+            <DetailRow label="Time" value={`${session.startTime} – ${session.endTime}`} />
+            <DetailRow label="Room" value={room} />
+            <div className="col-span-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Assessors</p>
+              <div className="flex flex-wrap gap-1.5">
+                {teacherList.map((t) => (
+                  <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {notes && (
+              <div className="col-span-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Notes</p>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{notes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => { onCancel(); }}
+            className="px-3 py-1.5 text-sm font-medium border border-red-200 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+          >
+            Cancel Assessment
+          </button>
+          <button
+            type="button"
+            onClick={() => { onMarkDone(); onClose(); }}
+            disabled={status === "Done"}
+            className={cn(
+              "px-3 py-1.5 text-sm font-semibold rounded-lg shadow-sm transition-colors",
+              status === "Done"
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                : "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer",
+            )}
+          >
+            Mark as Done
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">{label}</p>
+      <p className="text-sm text-slate-800 font-medium">{value}</p>
     </div>
   );
 }

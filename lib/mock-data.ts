@@ -806,11 +806,16 @@ export type LeadStage =
   | "Assessment Booked"
   | "Assessment Done"
   | "Trial Booked"
+  | "Trial Done"
   | "Schedule Offered"
+  | "Schedule Confirmed"
   | "Invoice Sent"
+  | "Paid"
   | "Won";
 
 export type LeadSource = "Website" | "Phone" | "Walk-in" | "Referral" | "Event";
+
+export type PreferredWindow = "Morning" | "Afternoon" | "Evening" | "Any";
 
 export interface Lead {
   id: string;
@@ -830,10 +835,12 @@ export interface Lead {
   dnc: boolean;
   sibling: boolean;
   stageMessagePending: boolean;
+  preferredDays?: string[];
+  preferredWindow?: PreferredWindow;
 }
 
 export const leads: Lead[] = [
-  { id: "L-0041", ref: "IMI-L-0041", childName: "Bilal Mahmood", yearGroup: "Y7", department: "Lower Secondary", subjects: ["Maths"], guardian: "Tariq Mahmood", guardianPhone: "+971 50 111 2222", source: "Website", stage: "New", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 1, dnc: false, sibling: false, stageMessagePending: true },
+  { id: "L-0041", ref: "IMI-L-0041", childName: "Bilal Mahmood", yearGroup: "Y7", department: "Lower Secondary", subjects: ["Maths"], guardian: "Tariq Mahmood", guardianPhone: "+971 50 111 2222", source: "Website", stage: "New", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 1, dnc: false, sibling: false, stageMessagePending: true, preferredDays: ["Saturday"], preferredWindow: "Morning" },
   { id: "L-0042", ref: "IMI-L-0042", childName: "Hessa Al-Blooshi", yearGroup: "Y4", department: "Primary", subjects: ["English", "Maths"], guardian: "Noura Al-Blooshi", guardianPhone: "+971 55 222 3333", source: "Referral", stage: "New", assignedTo: "Sarah Admin", lastActivity: "Today", daysInStage: 1, daysInPipeline: 1, dnc: false, sibling: true, stageMessagePending: false },
   { id: "L-0043", ref: "IMI-L-0043", childName: "Ahmed Saleh", yearGroup: "Y10", department: "Senior", subjects: ["Physics", "Maths"], guardian: "Omar Saleh", guardianPhone: "+971 52 333 4444", source: "Phone", stage: "New", assignedTo: "Jason Daswani", lastActivity: "Yesterday", daysInStage: 2, daysInPipeline: 2, dnc: false, sibling: false, stageMessagePending: false },
   { id: "L-0044", ref: "IMI-L-0044", childName: "Rana Farouk", yearGroup: "Y2", department: "Primary", subjects: ["English"], guardian: "Dina Farouk", guardianPhone: "+971 50 444 5555", source: "Walk-in", stage: "New", assignedTo: "Sarah Admin", lastActivity: "2 days ago", daysInStage: 2, daysInPipeline: 2, dnc: false, sibling: false, stageMessagePending: true },
@@ -851,7 +858,9 @@ export const leads: Lead[] = [
   { id: "L-0056", ref: "IMI-L-0056", childName: "Rawan Al-Zarooni", yearGroup: "Y4", department: "Primary", subjects: ["Maths"], guardian: "Khalid Al-Zarooni", guardianPhone: "+971 50 700 8000", source: "Website", stage: "Trial Booked", assignedTo: "Sarah Admin", lastActivity: "Today", daysInStage: 1, daysInPipeline: 16, dnc: false, sibling: true, stageMessagePending: true },
   { id: "L-0057", ref: "IMI-L-0057", childName: "Majid Al-Romaithi", yearGroup: "Y8", department: "Lower Secondary", subjects: ["Maths", "English"], guardian: "Fatima Al-Romaithi", guardianPhone: "+971 55 800 9000", source: "Referral", stage: "Trial Booked", assignedTo: "Jason Daswani", lastActivity: "Yesterday", daysInStage: 2, daysInPipeline: 17, dnc: false, sibling: false, stageMessagePending: false },
   { id: "L-0058", ref: "IMI-L-0058", childName: "Sara Al-Shamsi", yearGroup: "Y6", department: "Primary", subjects: ["Science", "Maths", "English"], guardian: "Eisa Al-Shamsi", guardianPhone: "+971 52 900 0100", source: "Website", stage: "Schedule Offered", assignedTo: "Sarah Admin", lastActivity: "2 days ago", daysInStage: 3, daysInPipeline: 18, dnc: false, sibling: false, stageMessagePending: false },
+  { id: "L-0058b", ref: "IMI-L-0058b", childName: "Zayed Al-Muhairi", yearGroup: "Y5", department: "Primary", subjects: ["Maths", "English"], guardian: "Salama Al-Muhairi", guardianPhone: "+971 50 123 4567", source: "Referral", stage: "Schedule Confirmed", assignedTo: "Sarah Admin", lastActivity: "Today", daysInStage: 1, daysInPipeline: 19, dnc: false, sibling: false, stageMessagePending: false },
   { id: "L-0059", ref: "IMI-L-0059", childName: "Hamdan Al-Mazrouei", yearGroup: "Y10", department: "Senior", subjects: ["Physics"], guardian: "Hessa Al-Mazrouei", guardianPhone: "+971 50 010 0200", source: "Event", stage: "Invoice Sent", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 20, dnc: false, sibling: false, stageMessagePending: false },
+  { id: "L-0059b", ref: "IMI-L-0059b", childName: "Layla Al-Dhaheri", yearGroup: "Y8", department: "Lower Secondary", subjects: ["Science"], guardian: "Ahmed Al-Dhaheri", guardianPhone: "+971 55 321 7654", source: "Website", stage: "Paid", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 21, dnc: false, sibling: false, stageMessagePending: false },
   { id: "L-0060", ref: "IMI-L-0060", childName: "Amna Al-Qubaisi", yearGroup: "Y3", department: "Primary", subjects: ["English", "Maths"], guardian: "Saeed Al-Qubaisi", guardianPhone: "+971 55 020 0300", source: "Referral", stage: "Won", assignedTo: "Sarah Admin", lastActivity: "Yesterday", daysInStage: 0, daysInPipeline: 22, dnc: false, sibling: false, stageMessagePending: false },
 ];
 

@@ -4,11 +4,14 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ChevronLeft, Search, Plus, X, Send, Save,
-  Building2, AlertCircle,
+  Building2, AlertCircle, CreditCard,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { students, staffMembers, invoices, type Student } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
+import { useJourney, BILAL_STUDENT_ID, enrolmentRateFor } from '@/lib/journey-store';
+import { RecordPaymentDialog } from '@/components/journey/record-payment-dialog';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -383,6 +386,9 @@ export default function NewInvoicePage() {
   const today = todayStr();
   const invoiceNo = useMemo(() => nextInvoiceNumber(), []);
   const [status, setStatus] = useState<'Draft' | 'Issued'>('Draft');
+  const journey = useJourney();
+  const [isJourneyInvoice, setIsJourneyInvoice] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -417,6 +423,46 @@ export default function NewInvoicePage() {
       if (topbar) (topbar as HTMLElement).style.display = ''
     }
   }, [])
+
+  // Journey pre-fill: if routed here from the Bilal flow, pre-populate student + line items
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const studentParam = params.get('student');
+    const isJourney = params.get('source') === 'journey' && studentParam === BILAL_STUDENT_ID;
+    if (!isJourney || !journey.student || !journey.enrolment) return;
+
+    setIsJourneyInvoice(true);
+    const virtual: Student = {
+      id: journey.student.id,
+      name: journey.student.name,
+      yearGroup: journey.student.yearGroup,
+      department: journey.student.department,
+      school: journey.student.school || '—',
+      guardian: journey.student.guardianName,
+      guardianPhone: journey.student.guardianPhone,
+      enrolments: 0,
+      churnScore: null,
+      status: 'Active',
+      lastContact: 'Today',
+      createdOn: journey.student.createdOn,
+    } as Student;
+    setSelectedStudent(virtual);
+
+    const subjectOnly = journey.enrolment.subject.replace(/^Y\d+\s+/, '');
+    setLineItems([
+      {
+        id: crypto.randomUUID(),
+        subject: subjectOnly,
+        yearGroup: journey.student.yearGroup,
+        sessions: journey.enrolment.sessionsThisTerm,
+        rate: journey.enrolment.ratePerSession || enrolmentRateFor(journey.student.yearGroup),
+        validTill: addDays(today, 90),
+      },
+    ]);
+    setEnrolmentFee(journey.enrolment.enrolmentFee > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -550,7 +596,13 @@ export default function NewInvoicePage() {
           <button
             type="button"
             disabled={status === 'Issued'}
-            onClick={() => setStatus('Issued')}
+            onClick={() => {
+              setStatus('Issued');
+              if (isJourneyInvoice) {
+                journey.setInvoiceIssued(invoiceNo, totals.totalDue);
+                toast.success(`Invoice ${invoiceNo} issued — AED ${totals.totalDue.toFixed(0)}`);
+              }
+            }}
             className={cn(
               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors cursor-pointer',
               status === 'Issued'
@@ -561,8 +613,30 @@ export default function NewInvoicePage() {
             <Send className="w-3.5 h-3.5" />
             {status === 'Issued' ? 'Issued' : 'Issue Invoice'}
           </button>
+          {isJourneyInvoice && status === 'Issued' && journey.invoice?.status !== 'Paid' && (
+            <button
+              type="button"
+              onClick={() => setPaymentOpen(true)}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors cursor-pointer shadow-sm"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Record Payment
+            </button>
+          )}
+          {isJourneyInvoice && journey.invoice?.status === 'Paid' && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CreditCard className="w-3.5 h-3.5" />
+              Paid
+            </span>
+          )}
         </div>
       </div>
+
+      <RecordPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        defaultAmount={journey.invoice?.amount ?? totals.totalDue}
+      />
 
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden">

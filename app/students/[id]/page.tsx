@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -30,6 +30,9 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { studentDetail, guardians, students } from "@/lib/mock-data";
+import { useJourney, BILAL_STUDENT_ID } from "@/lib/journey-store";
+import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
+import { RecordPaymentDialog } from "@/components/journey/record-payment-dialog";
 import { ExportDialog, type ExportFormat } from "@/components/ui/export-dialog";
 import {
   Dialog,
@@ -220,7 +223,19 @@ type HeaderAction =
   | "sendMessage"
   | "newTask";
 
-function ProfileHeader({ profile, fireToast }: { profile: StudentProfile; fireToast: FireToast }) {
+function ProfileHeader({
+  profile,
+  fireToast,
+  isJourneyStudent,
+  onJourneyAddEnrolment,
+  journeyStatusBadge,
+}: {
+  profile: StudentProfile;
+  fireToast: FireToast;
+  isJourneyStudent?: boolean;
+  onJourneyAddEnrolment?: () => void;
+  journeyStatusBadge?: { label: string; className: string } | null;
+}) {
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
   const displayName = `${profile.firstName} ${profile.lastName}`.trim();
@@ -228,8 +243,12 @@ function ProfileHeader({ profile, fireToast }: { profile: StudentProfile; fireTo
   const department = yearGroupToDepartment(profile.yearGroup);
 
   const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void }[] = [
-    { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${STUDENT_ID}`) },
-    { label: "Add Enrolment",  Icon: Plus, onClick: () => setOpenDialog("addEnrolment") },
+    { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${profile.studentId}`) },
+    {
+      label: "Add Enrolment",
+      Icon: Plus,
+      onClick: () => (isJourneyStudent && onJourneyAddEnrolment ? onJourneyAddEnrolment() : setOpenDialog("addEnrolment")),
+    },
     { label: "Raise Concern",  Icon: AlertTriangle, onClick: () => setOpenDialog("raiseConcern") },
     { label: "Log Note",       Icon: PenLine, onClick: () => setOpenDialog("logNote") },
     { label: "Send Message",   Icon: Send, onClick: () => setOpenDialog("sendMessage") },
@@ -264,12 +283,20 @@ function ProfileHeader({ profile, fireToast }: { profile: StudentProfile; fireTo
         {/* Right — Status Badges + Quick Actions */}
         <div className="flex flex-col items-end gap-2.5 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white">
-              Active
-            </span>
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-500 text-white">
-              84 — Critical
-            </span>
+            {journeyStatusBadge ? (
+              <span className={cn("px-3 py-1 rounded-full text-xs font-semibold", journeyStatusBadge.className)}>
+                {journeyStatusBadge.label}
+              </span>
+            ) : (
+              <>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white">
+                  Active
+                </span>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-500 text-white">
+                  84 — Critical
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {buttonActions.map(({ label, Icon, onClick }) => (
@@ -2899,16 +2926,141 @@ function FilesTab({
   );
 }
 
+// ─── Journey Student Banner ───────────────────────────────────────────────────
+
+function JourneyStudentBanner({
+  journey,
+  onCreateEnrolment,
+  onRecordPayment,
+}: {
+  journey: ReturnType<typeof useJourney>;
+  onCreateEnrolment: () => void;
+  onRecordPayment: () => void;
+}) {
+  const router = useRouter();
+  const hasEnrolment = Boolean(journey.enrolment);
+  const hasInvoice = Boolean(journey.invoice);
+  const isPaid = journey.invoice?.status === "Paid";
+
+  let title = "";
+  let sub = "";
+  let actionLabel = "";
+  let onAction: () => void = onCreateEnrolment;
+
+  if (!hasEnrolment) {
+    title = "Next step — create the first enrolment";
+    sub = "Choose a subject, term, and teacher to generate the opening invoice.";
+    actionLabel = "Create Enrolment";
+    onAction = onCreateEnrolment;
+  } else if (!hasInvoice) {
+    title = "Enrolment pending — issue the invoice";
+    sub = `${journey.enrolment!.subject} · ${journey.enrolment!.sessionsThisTerm} sessions · AED ${journey.enrolment!.total.toLocaleString()}`;
+    actionLabel = "Open invoice builder";
+    onAction = () =>
+      router.push(`/finance/invoice/new?student=${journey.student?.id ?? ""}&source=journey`);
+  } else if (!isPaid) {
+    title = `Invoice ${journey.invoice!.id} awaiting payment`;
+    sub = `AED ${journey.invoice!.amount.toLocaleString()} outstanding · record payment to activate this enrolment.`;
+    actionLabel = "Record Payment";
+    onAction = onRecordPayment;
+  } else {
+    title = "Enrolment active";
+    sub = `Payment recorded · ${journey.enrolment?.sessionsThisTerm ?? 0} sessions ready to schedule.`;
+    actionLabel = "View Timetable";
+    onAction = () => router.push("/timetable");
+  }
+
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <p className="text-sm font-semibold text-amber-900">{title}</p>
+        <p className="text-xs text-amber-700 mt-0.5">{sub}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onAction}
+        className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-semibold shadow-sm hover:bg-amber-600 cursor-pointer transition-colors"
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentProfilePage() {
   const { can } = usePermission();
-  useParams(); // ensures the [id] route is matched
+  const params = useParams<{ id: string }>();
+  const routeId = (params?.id as string) ?? "";
+  const isJourneyStudent = routeId === BILAL_STUDENT_ID;
+  const journey = useJourney();
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [toast, setToast] = useState<{ msg: string; tone: "default" | "warning" } | null>(null);
-  const [profile, setProfile] = useState<StudentProfile>(INITIAL_PROFILE);
+  const [profile, setProfile] = useState<StudentProfile>(() => {
+    if (routeId === BILAL_STUDENT_ID) {
+      return {
+        ...INITIAL_PROFILE,
+        firstName: "Bilal",
+        lastName: "Mahmood",
+        preferredName: "",
+        dob: "2013-06-15",
+        gender: "Male",
+        nationality: "Pakistani",
+        phone: "+971 50 111 2222",
+        whatsappSame: true,
+        whatsapp: "+971 50 111 2222",
+        email: "fatima.mahmood@gmail.com",
+        studentId: BILAL_STUDENT_ID,
+        dateEnrolled: new Date().toISOString().slice(0, 10),
+        yearGroup: "Y7",
+        school: "",
+        targetGrades: [{ subject: "Maths", grade: "A" }],
+        enrolledCoursesCount: 0,
+        attendanceThisTerm: "—",
+        sessionsRemaining: "0",
+        primaryGuardianId: "G-001",
+        primaryGuardianRelationship: "Mother",
+      };
+    }
+    return INITIAL_PROFILE;
+  });
   const [editSection, setEditSection] = useState<EditSection | null>(null);
+  const [journeyEnrolmentOpen, setJourneyEnrolmentOpen] = useState(false);
+  const [journeyPaymentOpen, setJourneyPaymentOpen] = useState(false);
+
+  // Keep the journey student profile in sync with journey state
+  useEffect(() => {
+    if (!isJourneyStudent) return;
+    if (!journey.student) return;
+    setProfile((prev) => ({
+      ...prev,
+      firstName: journey.student!.firstName,
+      lastName: journey.student!.lastName,
+      studentId: journey.student!.id,
+      yearGroup: journey.student!.yearGroup,
+      school: journey.student!.school,
+      enrolledCoursesCount: journey.enrolment ? 1 : 0,
+      sessionsRemaining: journey.invoice?.status === "Paid" && journey.enrolment
+        ? String(journey.enrolment.sessionsThisTerm)
+        : "0",
+    }));
+  }, [isJourneyStudent, journey.student, journey.enrolment, journey.invoice]);
+
+  const journeyStatusBadge = useMemo(() => {
+    if (!isJourneyStudent || !journey.student) return null;
+    if (journey.student.status === "Active") {
+      return { label: "Active", className: "bg-emerald-500 text-white" };
+    }
+    if (journey.invoice?.status === "Issued") {
+      return { label: "Awaiting payment", className: "bg-amber-500 text-white" };
+    }
+    if (journey.enrolment) {
+      return { label: "Enrolment pending", className: "bg-blue-500 text-white" };
+    }
+    return { label: "Pending enrolment", className: "bg-slate-400 text-white" };
+  }, [isJourneyStudent, journey.student, journey.invoice, journey.enrolment]);
 
   function fireToast(msg: string, tone: "default" | "warning" = "default") {
     setToast({ msg, tone });
@@ -2938,7 +3090,21 @@ export default function StudentProfilePage() {
       style={{ height: "calc(100dvh - 56px)" }}
     >
       {/* ── Zone 1: Profile Header ──────────────────────────────────────────── */}
-      <ProfileHeader profile={profile} fireToast={fireToast} />
+      <ProfileHeader
+        profile={profile}
+        fireToast={fireToast}
+        isJourneyStudent={isJourneyStudent}
+        onJourneyAddEnrolment={() => setJourneyEnrolmentOpen(true)}
+        journeyStatusBadge={journeyStatusBadge}
+      />
+
+      {isJourneyStudent && (
+        <JourneyStudentBanner
+          journey={journey}
+          onCreateEnrolment={() => setJourneyEnrolmentOpen(true)}
+          onRecordPayment={() => setJourneyPaymentOpen(true)}
+        />
+      )}
 
       {/* ── Zones 2 + 3: Sidebar + Main Panel ──────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
@@ -2996,6 +3162,17 @@ export default function StudentProfilePage() {
         setProfile={setProfile}
         fireToast={fireToast}
       />
+
+      {isJourneyStudent && (
+        <>
+          <CreateEnrolmentDialog open={journeyEnrolmentOpen} onOpenChange={setJourneyEnrolmentOpen} />
+          <RecordPaymentDialog
+            open={journeyPaymentOpen}
+            onOpenChange={setJourneyPaymentOpen}
+            defaultAmount={journey.invoice?.amount ?? journey.enrolment?.total ?? 0}
+          />
+        </>
+      )}
 
       {toast && (
         <div

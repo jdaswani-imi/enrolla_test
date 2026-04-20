@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, ChevronDown, HelpCircle, LogOut, Search, Settings as SettingsIcon, Shield, User } from "lucide-react";
+import { toast } from "sonner";
 
 import { currentUser, notificationCount } from "@/lib/mock-data";
 import { useRole } from "@/lib/role-context";
@@ -118,7 +119,7 @@ function RoleSwitcher() {
 function UserMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [toast, setToast] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -137,14 +138,19 @@ function UserMenu() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  }
-
   function go(path: string) {
     setOpen(false);
     router.push(path);
+  }
+
+  function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setOpen(false);
+    toast.success("Signed out successfully", { duration: 1500 });
+    setTimeout(() => {
+      router.push("/login");
+    }, 1500);
   }
 
   return (
@@ -209,25 +215,17 @@ function UserMenu() {
 
             <div className="border-t border-slate-100 py-1">
               <button
-                onClick={() => {
-                  setOpen(false);
-                  showToast("Sign out — coming soon");
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-2.5"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                {signingOut ? "Signing out…" : "Sign out"}
               </button>
             </div>
           </div>
         )}
       </div>
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-800 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[300]">
-          {toast}
-        </div>
-      )}
     </>
   );
 }

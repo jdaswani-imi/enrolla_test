@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   UserPlus,
@@ -13,14 +14,24 @@ import {
   Archive,
   Download,
   Trash2,
+  AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { guardians, type Guardian } from "@/lib/mock-data";
+import { guardians as seedGuardians, type Guardian } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Avatar palette ───────────────────────────────────────────────────────────
 
@@ -89,12 +100,22 @@ function RowActions({
   onOpen,
   onClose,
   openUpward,
+  onView,
+  onAddStudent,
+  onSendMessage,
+  onArchive,
+  onDelete,
 }: {
   guardian: Guardian;
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
   openUpward: boolean;
+  onView: () => void;
+  onAddStudent: () => void;
+  onSendMessage: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
 }) {
   const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
@@ -108,12 +129,14 @@ function RowActions({
   }, [isOpen, onClose]);
 
   const actions = [
-    { icon: Eye,          label: "View Profile",  onClick: () => {}, danger: false, show: true },
-    { icon: UserPlus2,    label: "Add Student",   onClick: () => {}, danger: false, show: can('students.create') },
-    { icon: MessageSquare,label: "Send Message",  onClick: () => {}, danger: false, show: true },
-    { icon: Archive,      label: "Archive",       onClick: () => {}, danger: true,  show: can('guardians.edit') },
-    { icon: Trash2,       label: "Delete",        onClick: () => {}, danger: true,  show: can('delete.records') },
+    { icon: Eye,          label: "View Profile",  onClick: onView,         danger: false, show: true },
+    { icon: UserPlus2,    label: "Add Student",   onClick: onAddStudent,   danger: false, show: can('students.create') },
+    { icon: MessageSquare,label: "Send Message",  onClick: onSendMessage,  danger: false, show: true },
+    { icon: Archive,      label: "Archive",       onClick: onArchive,      danger: true,  show: can('guardians.edit') },
+    { icon: Trash2,       label: "Delete",        onClick: onDelete,       danger: true,  show: can('delete.records') },
   ].filter(a => a.show);
+
+  void guardian;
 
   return (
     <div ref={ref} className="relative">
@@ -162,6 +185,7 @@ function RowActions({
 
 export default function GuardiansPage() {
   const { can } = usePermission();
+  const router = useRouter();
   const [exportOpen,     setExportOpen]     = useState(false);
   const [searchQuery,    setSearchQuery]    = useState("");
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -170,8 +194,23 @@ export default function GuardiansPage() {
   const [openMenuId,     setOpenMenuId]     = useState<string | null>(null);
   const [currentPage,    setCurrentPage]    = useState(1);
   const [rowsPerPage,    setRowsPerPage]    = useState(20);
+  const [removedIds,     setRemovedIds]     = useState<Set<string>>(new Set());
+  const [toast,          setToast]          = useState<{ msg: string; tone: "default" | "success" | "warning" } | null>(null);
+  const [archiveTarget,  setArchiveTarget]  = useState<Guardian | null>(null);
+  const [deleteTarget,   setDeleteTarget]   = useState<Guardian | null>(null);
+  const [addStudentTarget, setAddStudentTarget] = useState<Guardian | null>(null);
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery]);
+
+  function fireToast(msg: string, tone: "default" | "success" | "warning" = "default") {
+    setToast({ msg, tone });
+    window.setTimeout(() => setToast(null), 2000);
+  }
+
+  const visibleGuardians = useMemo(
+    () => seedGuardians.filter((g) => !removedIds.has(g.id)),
+    [removedIds],
+  );
 
   function clearSearch() {
     setSearchQuery("");
@@ -179,15 +218,15 @@ export default function GuardiansPage() {
   }
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return guardians;
+    if (!searchQuery.trim()) return visibleGuardians;
     const q = searchQuery.toLowerCase();
-    return guardians.filter((g) =>
+    return visibleGuardians.filter((g) =>
       g.name.toLowerCase().includes(q) ||
       g.email.toLowerCase().includes(q) ||
       g.phone.includes(q) ||
       g.students.some((s) => s.name.toLowerCase().includes(q))
     );
-  }, [searchQuery]);
+  }, [searchQuery, visibleGuardians]);
 
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -382,6 +421,7 @@ export default function GuardiansPage() {
                   return (
                     <tr
                       key={guardian.id}
+                      onClick={() => router.push(`/guardians/${guardian.id}`)}
                       className={cn(
                         "border-b border-slate-100 last:border-0 transition-colors cursor-pointer",
                         isSelected ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-slate-50"
@@ -455,6 +495,11 @@ export default function GuardiansPage() {
                           onOpen={() => setOpenMenuId(guardian.id)}
                           onClose={() => setOpenMenuId(null)}
                           openUpward={openUpward}
+                          onView={() => router.push(`/guardians/${guardian.id}`)}
+                          onAddStudent={() => setAddStudentTarget(guardian)}
+                          onSendMessage={() => fireToast("Message sent", "success")}
+                          onArchive={() => setArchiveTarget(guardian)}
+                          onDelete={() => setDeleteTarget(guardian)}
                         />
                       </td>
                     </tr>
@@ -473,6 +518,233 @@ export default function GuardiansPage() {
           onPageSizeChange={(size) => { setRowsPerPage(size); setCurrentPage(1); }}
         />
       </div>
+
+      <ArchiveGuardianDialog
+        guardian={archiveTarget}
+        open={archiveTarget !== null}
+        onOpenChange={(o) => !o && setArchiveTarget(null)}
+        onConfirm={() => {
+          if (!archiveTarget) return;
+          setRemovedIds((prev) => new Set(prev).add(archiveTarget.id));
+          fireToast("Guardian archived", "success");
+          setArchiveTarget(null);
+        }}
+      />
+      <DeleteGuardianDialog
+        guardian={deleteTarget}
+        open={deleteTarget !== null}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          setRemovedIds((prev) => new Set(prev).add(deleteTarget.id));
+          fireToast("Guardian deleted", "warning");
+          setDeleteTarget(null);
+        }}
+      />
+      <AddStudentDialog
+        guardian={addStudentTarget}
+        open={addStudentTarget !== null}
+        onOpenChange={(o) => !o && setAddStudentTarget(null)}
+        onSave={() => {
+          fireToast("Saved", "success");
+          setAddStudentTarget(null);
+        }}
+      />
+
+      {toast && (
+        <div
+          className={cn(
+            "fixed bottom-6 right-6 z-[100] rounded-xl px-4 py-3 text-sm shadow-lg",
+            toast.tone === "warning"
+              ? "bg-red-600 text-white"
+              : toast.tone === "success"
+                ? "bg-emerald-600 text-white"
+                : "bg-slate-900 text-white",
+          )}
+        >
+          {toast.tone === "success" ? (
+            <span className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4" />
+              {toast.msg}
+            </span>
+          ) : (
+            toast.msg
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─── Action Dialogs ───────────────────────────────────────────────────────────
+
+function ArchiveGuardianDialog({
+  guardian,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  guardian: Guardian | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  if (!guardian) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Archive Guardian</DialogTitle>
+          <DialogDescription>Archive {guardian.name} from the active list?</DialogDescription>
+        </DialogHeader>
+        <div className="p-6">
+          <p className="text-sm text-slate-600">
+            Archived guardians no longer appear in the directory but records are preserved.
+            Linked students will remain intact.
+          </p>
+        </div>
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            Archive
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteGuardianDialog({
+  guardian,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  guardian: Guardian | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  if (!guardian) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Delete Guardian</DialogTitle>
+          <DialogDescription>Permanently delete {guardian.name}?</DialogDescription>
+        </DialogHeader>
+        <div className="p-6">
+          <div className="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5">
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700">
+              This cannot be undone. All contact history and referral credit will be lost.
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors cursor-pointer"
+          >
+            Delete permanently
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddStudentDialog({
+  guardian,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  guardian: Guardian | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: () => void;
+}) {
+  const [studentQuery, setStudentQuery] = useState("");
+  const [relationship, setRelationship] = useState("Mother");
+
+  useEffect(() => {
+    if (open) {
+      setStudentQuery("");
+      setRelationship("Mother");
+    }
+  }, [open]);
+
+  if (!guardian) return null;
+  const valid = studentQuery.trim().length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Link Student to {guardian.name}</DialogTitle>
+          <DialogDescription>Search and link an additional student.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Student name</label>
+            <input
+              type="text"
+              value={studentQuery}
+              onChange={(e) => setStudentQuery(e.target.value)}
+              placeholder="e.g. Aisha Rahman"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Relationship</label>
+            <select
+              value={relationship}
+              onChange={(e) => setRelationship(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+            >
+              {["Mother", "Father", "Grandparent", "Uncle", "Aunt", "Legal Guardian", "Other"].map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={!valid}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
