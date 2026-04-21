@@ -53,6 +53,7 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
+import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
 import { SkeletonKpi, SkeletonTable, SkeletonCard } from "@/components/ui/skeleton-loader";
 import {
   churnRiskStudents,
@@ -131,21 +132,6 @@ const KPI_LINKS: Record<string, string> = {
   "cpd-completion": "/staff",
 };
 
-// ─── Activity destination map ─────────────────────────────────────────────────
-
-const ACTIVITY_HREFS: Record<string, string> = {
-  enrolment:      "/enrolment",
-  payment:        "/finance",
-  concern:        "/progress?tab=alerts",
-  invoice:        "/finance",
-  trial:          "/enrolment",
-  assessment:     "/assessments",
-  lead:           "/leads",
-  staff:          "/staff",
-  task:           "/tasks",
-  report:         "/reports",
-  "re-enrolment": "/enrolment",
-};
 
 const ACTIVITY_ICON_MAP: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   enrolment:      { icon: UserPlus,       color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -341,55 +327,69 @@ function KpiCardItem({ card }: { card: KpiCard }) {
 // ─── Churn Risk Table ─────────────────────────────────────────────────────────
 
 function ChurnRiskTable({ simple = false }: { simple?: boolean }) {
+  const [selectedChurnStudent, setSelectedChurnStudent] = useState<ChurnRiskStudent | null>(null);
+
   return (
-    <Card className="flex flex-col">
-      <SectionLabel>Churn Risk</SectionLabel>
-      <div className="overflow-x-auto -mx-1">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-100">
-              <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Student</th>
-              <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Yr / Dept</th>
-              <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Score</th>
-              {!simple && (
-                <>
-                  <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Signal</th>
-                  <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Last Contact</th>
-                </>
-              )}
-              <th className="py-2 px-1" />
-            </tr>
-          </thead>
-          <tbody>
-            {churnRiskStudents.map((s) => (
-              <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer">
-                <td className="py-2.5 px-1 font-medium text-slate-800">{s.name}</td>
-                <td className="py-2.5 px-1 text-slate-500">
-                  <span className="font-medium">{s.yearGroup}</span>{" "}
-                  <span className="text-slate-400 text-xs">{s.department}</span>
-                </td>
-                <td className="py-2.5 px-1">
-                  <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold", getChurnBadge(s.churnLevel))}>
-                    {s.churnScore} {s.churnLevel}
-                  </span>
-                </td>
+    <>
+      <Card className="flex flex-col">
+        <SectionLabel>Churn Risk</SectionLabel>
+        <div className="overflow-x-auto -mx-1">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Student</th>
+                <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Yr / Dept</th>
+                <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Score</th>
                 {!simple && (
                   <>
-                    <td className="py-2.5 px-1 text-slate-500 text-xs hidden md:table-cell">{s.topSignal}</td>
-                    <td className="py-2.5 px-1 text-slate-400 text-xs hidden lg:table-cell">{s.daysSinceContact}d ago</td>
+                    <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Signal</th>
+                    <th className="text-left py-2 px-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">Last Contact</th>
                   </>
                 )}
-                <td className="py-2.5 px-1">
-                  <Link href={`/students/${s.studentId}`} className="text-xs text-amber-600 hover:text-amber-700 font-medium whitespace-nowrap transition-colors">
-                    View Profile
-                  </Link>
-                </td>
+                <th className="py-2 px-1" />
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+            </thead>
+            <tbody>
+              {churnRiskStudents.map((s) => (
+                <tr
+                  key={s.id}
+                  className="border-b border-slate-50 hover:bg-amber-50/40 transition-colors cursor-pointer"
+                  onClick={() => setSelectedChurnStudent(s)}
+                >
+                  <td className="py-2.5 px-1 font-medium text-slate-800">{s.name}</td>
+                  <td className="py-2.5 px-1 text-slate-500">
+                    <span className="font-medium">{s.yearGroup}</span>{" "}
+                    <span className="text-slate-400 text-xs">{s.department}</span>
+                  </td>
+                  <td className="py-2.5 px-1">
+                    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold", getChurnBadge(s.churnLevel))}>
+                      {s.churnScore} {s.churnLevel}
+                    </span>
+                  </td>
+                  {!simple && (
+                    <>
+                      <td className="py-2.5 px-1 text-slate-500 text-xs hidden md:table-cell">{s.topSignal}</td>
+                      <td className="py-2.5 px-1 text-slate-400 text-xs hidden lg:table-cell">{s.daysSinceContact}d ago</td>
+                    </>
+                  )}
+                  <td className="py-2.5 px-1" onClick={(e) => e.stopPropagation()}>
+                    <Link href={`/students/${s.studentId}`} className="text-xs text-amber-600 hover:text-amber-700 font-medium whitespace-nowrap transition-colors">
+                      View Profile
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <ChurnDetailModal
+        student={selectedChurnStudent}
+        open={selectedChurnStudent !== null}
+        onClose={() => setSelectedChurnStudent(null)}
+      />
+    </>
   );
 }
 
@@ -514,16 +514,19 @@ function ActivityFeedPanel({ filter }: { filter?: "academic" }) {
       <SectionLabel>{filter === "academic" ? "Academic Activity" : "Live Activity"}</SectionLabel>
       <div className="flex flex-col divide-y divide-slate-50">
         {events.map((event: ActivityEvent) => {
-          const meta  = ACTIVITY_ICON_MAP[event.type] ?? ACTIVITY_ICON_MAP["report"];
+          const meta   = ACTIVITY_ICON_MAP[event.type] ?? ACTIVITY_ICON_MAP["report"];
           const IconEl = meta.icon;
-          const href  = ACTIVITY_HREFS[event.type] ?? "/dashboard";
+          const byLine = event.actionedBy === "system"
+            ? "by System · Automated"
+            : `by ${event.actionedBy.name} · ${event.actionedBy.role}`;
           return (
-            <Link key={event.id} href={href} className="flex items-start gap-3 py-2.5 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
+            <Link key={event.id} href={event.link} className="flex items-start gap-3 py-2.5 hover:bg-slate-50 -mx-1 px-1 rounded transition-colors cursor-pointer">
               <div className={cn("mt-0.5 rounded-md p-1.5 shrink-0", meta.bg)}>
                 <IconEl className={cn("w-3.5 h-3.5", meta.color)} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-slate-700 leading-snug">{event.description}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{byLine}</p>
               </div>
               <span className="shrink-0 text-xs text-slate-400 whitespace-nowrap mt-0.5">{event.timeAgo}</span>
             </Link>

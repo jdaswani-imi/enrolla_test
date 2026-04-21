@@ -207,6 +207,17 @@ export const kpiCards: KpiCard[] = [
 
 export type ChurnLevel = "Critical" | "High" | "Medium" | "Low";
 
+export interface ChurnReason {
+  label: string;
+  weight: number;
+  detail: string;
+}
+
+export interface RetentionFactor {
+  label: string;
+  weight: number;
+}
+
 export interface ChurnRiskStudent {
   id: string;
   studentId: string;
@@ -217,6 +228,10 @@ export interface ChurnRiskStudent {
   churnLevel: ChurnLevel;
   topSignal: string;
   daysSinceContact: number;
+  trend: "rising" | "stable" | "falling";
+  reasons: ChurnReason[];
+  retentionConfidence: number;
+  retentionFactors: RetentionFactor[];
 }
 
 export const churnRiskStudents: ChurnRiskStudent[] = [
@@ -230,6 +245,20 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "Critical",
     topSignal: "Missed 3+ sessions",
     daysSinceContact: 12,
+    trend: "rising",
+    reasons: [
+      { label: "Teaching Quality Concern", weight: 25, detail: "Parent raised concern about teacher consistency in last feedback form." },
+      { label: "Missed 3+ Sessions (45-day window)", weight: 15, detail: "4 absences recorded in the last 45 days across all enrolments." },
+      { label: "Overdue Invoice", weight: 15, detail: "Invoice INV-2024-041 overdue by 18 days — AED 1,200 outstanding." },
+      { label: "Unresolved Concern", weight: 10, detail: "Open concern logged 14 days ago with no resolution recorded." },
+      { label: "App Inactive 14d", weight: 10, detail: "Parent app last opened 19 days ago; no engagement with reports." },
+    ],
+    retentionConfidence: 28,
+    retentionFactors: [
+      { label: "Concern Reviewed", weight: 25 },
+      { label: "Credit Issued", weight: 20 },
+      { label: "Email Opened", weight: 5 },
+    ],
   },
   {
     id: "2",
@@ -241,6 +270,19 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "High",
     topSignal: "Overdue invoice",
     daysSinceContact: 7,
+    trend: "rising",
+    reasons: [
+      { label: "Overdue Invoice", weight: 15, detail: "Two invoices totalling AED 2,400 are overdue by 25+ days." },
+      { label: "Missed 3+ Sessions (45-day window)", weight: 15, detail: "3 absences across Maths and Science in the last 45 days." },
+      { label: "NPS Score Low", weight: 10, detail: "NPS survey submitted last month with a score of 4/10." },
+      { label: "Inconsistency", weight: 10, detail: "Session rescheduled 3 times in the last 6 weeks by the student side." },
+      { label: "Unsubscribed", weight: 5, detail: "Parent unsubscribed from newsletter and session reminder emails." },
+    ],
+    retentionConfidence: 35,
+    retentionFactors: [
+      { label: "Re-Enrolled", weight: 30 },
+      { label: "App Active", weight: 10 },
+    ],
   },
   {
     id: "3",
@@ -252,6 +294,18 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "High",
     topSignal: "Teaching concern",
     daysSinceContact: 3,
+    trend: "stable",
+    reasons: [
+      { label: "Teaching Quality Concern", weight: 25, detail: "Concern submitted regarding different teacher covering sessions without notice." },
+      { label: "Inconsistency", weight: 10, detail: "4 teacher substitutions in the last term with no parent communication." },
+      { label: "NPS Score Low", weight: 10, detail: "Rated 5/10 on last NPS — commented 'not seeing progress'." },
+      { label: "App Inactive 14d", weight: 10, detail: "Last opened 16 days ago; no session reports reviewed." },
+    ],
+    retentionConfidence: 42,
+    retentionFactors: [
+      { label: "Re-Enrolled", weight: 30 },
+      { label: "Concern Reviewed", weight: 25 },
+    ],
   },
   {
     id: "4",
@@ -263,6 +317,19 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "Medium",
     topSignal: "Inconsistency",
     daysSinceContact: 18,
+    trend: "rising",
+    reasons: [
+      { label: "Inconsistency", weight: 10, detail: "5 reschedules initiated in the last 8 weeks — pattern of last-minute changes." },
+      { label: "Missed 3+ Sessions (45-day window)", weight: 15, detail: "3 absences in 45 days; one was a no-show with no prior notice." },
+      { label: "Overdue Invoice", weight: 15, detail: "AED 800 outstanding on INV-2024-058 — 12 days overdue." },
+      { label: "App Inactive 14d", weight: 10, detail: "Parent app login last recorded 22 days ago." },
+    ],
+    retentionConfidence: 38,
+    retentionFactors: [
+      { label: "Credit Issued", weight: 20 },
+      { label: "Email Opened", weight: 5 },
+      { label: "No Missed Sessions", weight: 10 },
+    ],
   },
   {
     id: "5",
@@ -274,6 +341,18 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "Medium",
     topSignal: "Unresolved concern",
     daysSinceContact: 5,
+    trend: "stable",
+    reasons: [
+      { label: "Unresolved Concern", weight: 10, detail: "Concern about exam preparation support open for 21 days with no staff response." },
+      { label: "Teaching Quality Concern", weight: 25, detail: "Requested a teacher change twice in the current term." },
+      { label: "NPS Score Low", weight: 10, detail: "Scored 6/10 on last survey — noted 'sessions feel rushed'." },
+    ],
+    retentionConfidence: 55,
+    retentionFactors: [
+      { label: "Re-Enrolled", weight: 30 },
+      { label: "App Active", weight: 10 },
+      { label: "Email Opened", weight: 5 },
+    ],
   },
   {
     id: "6",
@@ -285,6 +364,18 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "Medium",
     topSignal: "Missed 3+ sessions",
     daysSinceContact: 21,
+    trend: "falling",
+    reasons: [
+      { label: "Missed 3+ Sessions (45-day window)", weight: 15, detail: "3 absences in 45 days; guardian cited scheduling conflicts." },
+      { label: "Inconsistency", weight: 10, detail: "Session timing changed twice at guardian's request this term." },
+      { label: "Unsubscribed", weight: 5, detail: "Unsubscribed from weekly progress digest 3 weeks ago." },
+    ],
+    retentionConfidence: 62,
+    retentionFactors: [
+      { label: "Re-Enrolled", weight: 30 },
+      { label: "Concern Reviewed", weight: 25 },
+      { label: "No Missed Sessions", weight: 10 },
+    ],
   },
   {
     id: "7",
@@ -296,6 +387,17 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "Medium",
     topSignal: "NPS low",
     daysSinceContact: 9,
+    trend: "stable",
+    reasons: [
+      { label: "NPS Score Low", weight: 10, detail: "Rated 5/10 — parent noted concerns about lack of structured exam practice." },
+      { label: "Teaching Quality Concern", weight: 25, detail: "Two feedback submissions flagging that session plans feel ad-hoc." },
+      { label: "App Inactive 14d", weight: 10, detail: "App not opened in 17 days; session reports going unread." },
+    ],
+    retentionConfidence: 48,
+    retentionFactors: [
+      { label: "Re-Enrolled", weight: 30 },
+      { label: "Email Opened", weight: 5 },
+    ],
   },
   {
     id: "8",
@@ -307,6 +409,19 @@ export const churnRiskStudents: ChurnRiskStudent[] = [
     churnLevel: "Medium",
     topSignal: "Overdue invoice",
     daysSinceContact: 14,
+    trend: "falling",
+    reasons: [
+      { label: "Overdue Invoice", weight: 15, detail: "INV-2024-067 overdue by 9 days — AED 600 outstanding." },
+      { label: "Missed 3+ Sessions (45-day window)", weight: 15, detail: "3 absences; one session missed due to school trip without notice." },
+      { label: "Unresolved Concern", weight: 10, detail: "Parent query about homework support logged 10 days ago — no response yet." },
+    ],
+    retentionConfidence: 58,
+    retentionFactors: [
+      { label: "Credit Issued", weight: 20 },
+      { label: "App Active", weight: 10 },
+      { label: "No Missed Sessions", weight: 10 },
+      { label: "Email Opened", weight: 5 },
+    ],
   },
 ];
 
@@ -462,6 +577,8 @@ export interface ActivityEvent {
   type: ActivityType;
   description: string;
   timeAgo: string;
+  link: string;
+  actionedBy: { name: string; role: string } | "system";
 }
 
 export const activityFeed: ActivityEvent[] = [
@@ -470,72 +587,96 @@ export const activityFeed: ActivityEvent[] = [
     type: "enrolment",
     description: "Hamdan Al-Maktoum enrolled in Y7 Maths",
     timeAgo: "2 min ago",
+    link: "/enrolment",
+    actionedBy: { name: "Omar Farhat", role: "Admin" },
   },
   {
     id: "2",
     type: "payment",
     description: "AED 3,200 received — Sara Nasser (Y9)",
     timeAgo: "8 min ago",
+    link: "/finance?tab=invoices",
+    actionedBy: { name: "Rania Aziz", role: "HR/Finance" },
   },
   {
     id: "3",
     type: "concern",
     description: "Teaching quality concern — Omar Al-Farsi (Y5 English)",
     timeAgo: "14 min ago",
+    link: "/students/IMI-0002?tab=concerns",
+    actionedBy: { name: "Sarah Mitchell", role: "Teacher" },
   },
   {
     id: "4",
     type: "invoice",
     description: "Invoice #1042 overdue — Layla Hassan (Y10)",
     timeAgo: "22 min ago",
+    link: "/finance?tab=invoices",
+    actionedBy: "system",
   },
   {
     id: "5",
     type: "trial",
     description: "Fatima Al-Shehhi completed trial — Y4 Maths",
     timeAgo: "35 min ago",
+    link: "/enrolment",
+    actionedBy: { name: "Sarah Mitchell", role: "Teacher" },
   },
   {
     id: "6",
     type: "payment",
     description: "AED 1,800 received — Ziad Khalil (Y3)",
     timeAgo: "51 min ago",
+    link: "/finance?tab=invoices",
+    actionedBy: { name: "Rania Aziz", role: "HR/Finance" },
   },
   {
     id: "7",
     type: "assessment",
     description: "CAT4 assessment booked — Nour Ibrahim (Y4)",
     timeAgo: "1 hr ago",
+    link: "/assessments?tab=upcoming",
+    actionedBy: { name: "Omar Farhat", role: "Admin" },
   },
   {
     id: "8",
     type: "lead",
     description: "New enquiry via WhatsApp — Y6 Science",
     timeAgo: "1.5 hr ago",
+    link: "/leads",
+    actionedBy: "system",
   },
   {
     id: "9",
     type: "staff",
     description: "Immediate Access Revocation — Mariam Saleh (TA)",
     timeAgo: "2 hr ago",
+    link: "/staff",
+    actionedBy: { name: "Jason Daswani", role: "Super Admin" },
   },
   {
     id: "10",
     type: "task",
     description: "Invoice reconciliation task closed — Admin",
     timeAgo: "2.5 hr ago",
+    link: "/tasks",
+    actionedBy: { name: "Omar Farhat", role: "Admin" },
   },
   {
     id: "11",
     type: "re-enrolment",
     description: "Reem Al-Dosari re-enrolled for Term 3",
     timeAgo: "3 hr ago",
+    link: "/enrolment",
+    actionedBy: { name: "Sarah Thompson", role: "Admin Head" },
   },
   {
     id: "12",
     type: "report",
     description: "Weekly digest dispatched to Admin Head",
     timeAgo: "4 hr ago",
+    link: "/reports",
+    actionedBy: "system",
   },
 ];
 

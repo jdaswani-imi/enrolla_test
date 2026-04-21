@@ -38,10 +38,12 @@ import {
   staffMembers,
   trials,
   assessments,
+  churnRiskStudents,
   type StudentInvoice,
   type Trial,
   type Assessment,
 } from "@/lib/mock-data";
+import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
 import { subjectsForYearGroup } from "@/components/journey/subjects";
 import { useJourney, BILAL_STUDENT_ID } from "@/lib/journey-store";
 import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
@@ -2107,6 +2109,9 @@ const ACTIVITY_ICON: Record<string, { Icon: React.ElementType; color: string; bg
 };
 
 function OverviewTab({ onTabChange }: { onTabChange: (tab: string) => void }) {
+  const [churnModalOpen, setChurnModalOpen] = useState(false);
+  const churnStudent = churnRiskStudents.find((s) => s.studentId === STUDENT_ID) ?? null;
+
   return (
     <div className="space-y-5">
       {/* Flags Strip */}
@@ -2139,27 +2144,49 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: string) => void }) {
 
       {/* Churn + Retention Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+        <button
+          type="button"
+          onClick={() => churnStudent && setChurnModalOpen(true)}
+          className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
+        >
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Churn Risk</p>
           <div className="flex items-end gap-3">
-            <span className="text-4xl font-black text-red-500">84</span>
+            <span className="text-4xl font-black text-red-500 group-hover:text-red-600 transition-colors">
+              {churnStudent?.churnScore ?? 84}
+            </span>
             <div className="mb-1">
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">Critical</span>
-              <p className="text-xs text-slate-500 mt-1">Missed 3+ sessions</p>
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                {churnStudent?.churnLevel ?? "Critical"}
+              </span>
+              <p className="text-xs text-slate-500 mt-1">{churnStudent?.topSignal ?? "Missed 3+ sessions"}</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+          <p className="text-[10px] text-amber-600 font-medium mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to see full breakdown →</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => churnStudent && setChurnModalOpen(true)}
+          className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
+        >
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Retention Confidence</p>
           <div className="flex items-end gap-3">
-            <span className="text-4xl font-black text-red-500">32</span>
+            <span className="text-4xl font-black text-red-500 group-hover:text-red-600 transition-colors">
+              {churnStudent?.retentionConfidence ?? 32}
+            </span>
             <div className="mb-1">
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">Low</span>
               <p className="text-xs text-slate-500 mt-1">No re-enrolment confirmed</p>
             </div>
           </div>
-        </div>
+          <p className="text-[10px] text-amber-600 font-medium mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to see full breakdown →</p>
+        </button>
       </div>
+
+      <ChurnDetailModal
+        student={churnStudent}
+        open={churnModalOpen}
+        onClose={() => setChurnModalOpen(false)}
+      />
 
       {/* Enrolment Cards */}
       <div>
