@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
@@ -1344,19 +1345,27 @@ function ClassDiscussionTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = "queue" | "announcements" | "complaints" | "surveys" | "discussion";
+type Tab = "queue" | "announcements" | "complaints" | "surveys" | "class-discussion";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "queue",         label: "Feedback Queue"       },
-  { key: "announcements", label: "Announcements"         },
-  { key: "complaints",    label: "Complaints & Tickets"  },
-  { key: "surveys",       label: "Surveys"               },
-  { key: "discussion",    label: "Class Discussion"      },
+  { key: "queue",             label: "Feedback Queue"       },
+  { key: "announcements",     label: "Announcements"         },
+  { key: "complaints",        label: "Complaints & Tickets"  },
+  { key: "surveys",           label: "Surveys"               },
+  { key: "class-discussion",  label: "Class Discussion"      },
 ];
 
-export default function FeedbackPage() {
+function FeedbackPageContent() {
   const { can, role } = usePermission();
-  const [tab, setTab] = useState<Tab>("queue");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const raw = searchParams.get('tab');
+  const tab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : 'queue';
+
+  function handleTabChange(key: Tab) {
+    router.replace(`?tab=${key}`, { scroll: false });
+  }
 
   if (!can('feedback.view')) return <AccessDenied />;
 
@@ -1370,7 +1379,7 @@ export default function FeedbackPage() {
         {TABS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => handleTabChange(key)}
             className={cn(
               "px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px whitespace-nowrap",
               tab === key
@@ -1389,9 +1398,17 @@ export default function FeedbackPage() {
           {tab === "announcements" && <AnnouncementsTab  />}
           {tab === "complaints"    && <ComplaintsTab     />}
           {tab === "surveys"       && <SurveysTab        />}
-          {tab === "discussion"    && <ClassDiscussionTab />}
+          {tab === "class-discussion" && <ClassDiscussionTab />}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function FeedbackPage() {
+  return (
+    <Suspense>
+      <FeedbackPageContent />
+    </Suspense>
   );
 }

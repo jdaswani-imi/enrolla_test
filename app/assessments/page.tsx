@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   Search,
@@ -678,9 +679,17 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "slots",    label: "Slot Management" },
 ];
 
-export default function AssessmentsPage() {
+function AssessmentsPageContent() {
   const { can } = usePermission();
-  const [tab, setTab] = useState<Tab>("upcoming");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const raw = searchParams.get('tab');
+  const tab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : 'upcoming';
+
+  function handleTabChange(key: Tab) {
+    router.replace(`?tab=${key}`, { scroll: false });
+  }
 
   if (!can('assessments.view')) return <AccessDenied />;
 
@@ -698,7 +707,7 @@ export default function AssessmentsPage() {
           return (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => handleTabChange(key)}
             className={cn(
               "px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px",
               tab === key
@@ -717,5 +726,13 @@ export default function AssessmentsPage() {
       {tab === "outcomes" && <OutcomesTab />}
       {tab === "slots"    && <SlotManagementTab />}
     </div>
+  );
+}
+
+export default function AssessmentsPage() {
+  return (
+    <Suspense>
+      <AssessmentsPageContent />
+    </Suspense>
   );
 }

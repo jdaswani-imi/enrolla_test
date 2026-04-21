@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Plus, Search, ClipboardList, Package, ChevronDown, ChevronRight,
@@ -26,8 +27,13 @@ import { PaginationBar } from '@/components/ui/pagination-bar';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const TABS = ['Catalogue', 'Reorder Alerts', 'Stock Ledger', 'Suppliers'] as const;
-type Tab = typeof TABS[number];
+const TABS = [
+  { key: 'catalogue',      label: 'Catalogue'      },
+  { key: 'reorder-alerts', label: 'Reorder Alerts' },
+  { key: 'stock-ledger',   label: 'Stock Ledger'   },
+  { key: 'suppliers',      label: 'Suppliers'       },
+] as const;
+type Tab = typeof TABS[number]['key'];
 
 const ALL_CATEGORIES = [
   'Folders & Files', 'Plastic Folders', 'Stickers & Labels', 'Lanyards',
@@ -1827,12 +1833,20 @@ function CatalogueTab({
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default function InventoryPage() {
+function InventoryPageContent() {
   const { can } = usePermission();
-  const [activeTab, setActiveTab] = useState<Tab>('Catalogue');
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [stockTakeOpen, setStockTakeOpen] = useState(false);
+
+  const raw = searchParams.get('tab');
+  const activeTab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : 'catalogue';
+
+  function handleTabChange(key: Tab) {
+    router.replace(`?tab=${key}`, { scroll: false });
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -1867,36 +1881,36 @@ export default function InventoryPage() {
 
       {/* Tab strip */}
       <div className="flex border-b border-slate-200">
-        {TABS.map(tab => (
+        {TABS.map(({ key, label }) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+            key={key}
+            onClick={() => handleTabChange(key)}
             className={cn(
               'text-sm py-3 px-1 mr-6 border-b-2 transition-colors cursor-pointer font-medium whitespace-nowrap',
-              activeTab === tab
+              activeTab === key
                 ? 'border-amber-500 text-amber-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700',
             )}
           >
-            {tab}
+            {label}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
-      {activeTab === 'Catalogue' && (
+      {activeTab === 'catalogue' && (
         <CatalogueTab
           onEdit={item => setSelectedItem(item)}
           onAdjust={item => setAdjustItem(item)}
         />
       )}
 
-      {activeTab === 'Reorder Alerts' && <ReorderAlertsTab />}
+      {activeTab === 'reorder-alerts' && <ReorderAlertsTab />}
 
-      {activeTab === 'Stock Ledger' && <StockLedgerTab />}
+      {activeTab === 'stock-ledger' && <StockLedgerTab />}
 
-      {activeTab === 'Suppliers' && (
-        <SuppliersTab onSwitchToCatalogue={() => setActiveTab('Catalogue')} />
+      {activeTab === 'suppliers' && (
+        <SuppliersTab onSwitchToCatalogue={() => handleTabChange('catalogue')} />
       )}
 
       {/* Item detail sheet */}
@@ -1914,5 +1928,13 @@ export default function InventoryPage() {
         <StockTakeDialog onClose={() => setStockTakeOpen(false)} />
       )}
     </div>
+  );
+}
+
+export default function InventoryPage() {
+  return (
+    <Suspense>
+      <InventoryPageContent />
+    </Suspense>
   );
 }

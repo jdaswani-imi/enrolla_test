@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
@@ -1602,9 +1602,17 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "reports",  label: "Reports"   },
 ];
 
-export default function FinancePage() {
+function FinancePageContent() {
   const { can, role } = usePermission();
-  const [tab, setTab] = useState<Tab>("invoices");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const raw = searchParams.get('tab');
+  const tab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : 'invoices';
+
+  function handleTabChange(key: Tab) {
+    router.replace(`?tab=${key}`, { scroll: false });
+  }
 
   if (!can('finance.view')) return <AccessDenied />;
 
@@ -1618,7 +1626,7 @@ export default function FinancePage() {
         {TABS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => handleTabChange(key)}
             className={cn(
               "px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px",
               tab === key
@@ -1640,5 +1648,13 @@ export default function FinancePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function FinancePage() {
+  return (
+    <Suspense>
+      <FinancePageContent />
+    </Suspense>
   );
 }

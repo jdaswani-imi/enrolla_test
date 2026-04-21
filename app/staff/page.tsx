@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
   MoreHorizontal,
@@ -622,10 +623,11 @@ const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
   { id: "LR-04", staffId: "ST-004", name: "Sarah Mitchell", type: "Annual leave",   range: "12–14 May",days: 3, submitted: "16 Apr 2026", status: "Pending" },
 ];
 
-export default function StaffPage() {
+function StaffPageContent() {
   const { can, role } = usePermission();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [exportOpen,    setExportOpen]    = useState(false);
-  const [outerTab,      setOuterTab]      = useState<"directory" | "hr">("directory");
   const [statusFilter,  setStatusFilter]  = useState<string[]>([]);
   const [deptFilter,    setDeptFilter]    = useState<string[]>([]);
   const [roleFilter,    setRoleFilter]    = useState<string[]>([]);
@@ -785,9 +787,17 @@ export default function StaffPage() {
   );
 
   const outerTabs = [
-    { id: "directory", label: "Staff Directory" },
-    { id: "hr",        label: "HR Dashboard"    },
+    { id: "directory",    label: "Staff Directory" },
+    { id: "hr-dashboard", label: "HR Dashboard"    },
   ] as const;
+
+  type OuterTab = "directory" | "hr-dashboard";
+  const raw = searchParams.get('tab');
+  const outerTab: OuterTab = raw === 'hr-dashboard' ? 'hr-dashboard' : 'directory';
+
+  function handleOuterTabChange(id: OuterTab) {
+    router.replace(`?tab=${id}`, { scroll: false });
+  }
 
   if (!can('staff.view')) return <AccessDenied />;
 
@@ -808,7 +818,7 @@ export default function StaffPage() {
           <button
             key={id}
             type="button"
-            onClick={() => setOuterTab(id)}
+            onClick={() => handleOuterTabChange(id)}
             className={cn(
               "px-5 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer",
               outerTab === id
@@ -1008,8 +1018,8 @@ export default function StaffPage() {
       )}
 
       {/* ═══════════ HR DASHBOARD ═══════════ */}
-      {outerTab === "hr" && (
-        <div key="hr" className="page-enter space-y-6">
+      {outerTab === "hr-dashboard" && (
+        <div key="hr-dashboard" className="page-enter space-y-6">
 
           {/* 2×2 panel grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1408,5 +1418,13 @@ export default function StaffPage() {
         onSubmit={handleRequestLeaveSubmit}
       />
     </div>
+  );
+}
+
+export default function StaffPage() {
+  return (
+    <Suspense>
+      <StaffPageContent />
+    </Suspense>
   );
 }

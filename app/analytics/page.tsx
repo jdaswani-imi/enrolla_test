@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   BarChart,
@@ -31,7 +32,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = "Revenue" | "Occupancy" | "Churn" | "Staff";
+type Tab = "revenue" | "occupancy" | "churn" | "staff";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -711,27 +712,23 @@ function StaffTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "Revenue", label: "Revenue" },
-  { id: "Occupancy", label: "Occupancy" },
-  { id: "Churn", label: "Churn" },
-  { id: "Staff", label: "Staff Performance" },
+  { id: "revenue",   label: "Revenue"           },
+  { id: "occupancy", label: "Occupancy"          },
+  { id: "churn",     label: "Churn"              },
+  { id: "staff",     label: "Staff Performance"  },
 ];
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const { can } = usePermission();
-  const [activeTab, setActiveTab] = useState<Tab>("Revenue");
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab");
-    const tabMap: Record<string, Tab> = {
-      revenue:   "Revenue",
-      occupancy: "Occupancy",
-      churn:     "Churn",
-      staff:     "Staff",
-    };
-    if (tab && tabMap[tab]) setActiveTab(tabMap[tab]);
-  }, []);
+  const raw = searchParams.get('tab');
+  const activeTab: Tab = (raw && TABS.some(t => t.id === raw)) ? (raw as Tab) : 'revenue';
+
+  function handleTabChange(id: Tab) {
+    router.replace(`?tab=${id}`, { scroll: false });
+  }
 
   if (!can('analytics.view')) return <AccessDenied />;
 
@@ -748,7 +745,7 @@ export default function AnalyticsPage() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={cn(
               "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer",
               activeTab === tab.id
@@ -763,11 +760,19 @@ export default function AnalyticsPage() {
 
       {/* Tab content */}
       <div>
-        {activeTab === "Revenue"   && <RevenueTab />}
-        {activeTab === "Occupancy" && <OccupancyTab />}
-        {activeTab === "Churn"     && <ChurnTab />}
-        {activeTab === "Staff"     && <StaffTab />}
+        {activeTab === "revenue"   && <RevenueTab />}
+        {activeTab === "occupancy" && <OccupancyTab />}
+        {activeTab === "churn"     && <ChurnTab />}
+        {activeTab === "staff"     && <StaffTab />}
       </div>
     </div>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <Suspense>
+      <AnalyticsPageContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
@@ -3446,14 +3446,17 @@ function JourneyStudentBanner({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function StudentProfilePage() {
+function StudentProfilePageContent() {
   const { can } = usePermission();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const routeId = (params?.id as string) ?? "";
   const isJourneyStudent = routeId === BILAL_STUDENT_ID;
   const journey = useJourney();
+  const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const rawTab = searchParams.get('tab');
+  const activeTab: TabId = (rawTab && TABS.some(t => t.id === rawTab)) ? (rawTab as TabId) : 'overview';
   const [toast, setToast] = useState<{ msg: string; tone: "default" | "warning" } | null>(null);
   const [profile, setProfile] = useState<StudentProfile>(() => {
     if (routeId === BILAL_STUDENT_ID) {
@@ -3535,17 +3538,8 @@ export default function StudentProfilePage() {
     window.setTimeout(() => setToast(null), 2000);
   }
 
-  // Deep-link: read ?tab= query param on mount
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const tab = searchParams.get("tab") as TabId | null;
-    if (tab && TABS.some((t) => t.id === tab)) {
-      setActiveTab(tab);
-    }
-  }, []);
-
   function handleTabChange(tab: string) {
-    setActiveTab(tab as TabId);
+    router.replace(`?tab=${tab}`, { scroll: false });
   }
 
   const canExport = can("export");
@@ -3592,7 +3586,7 @@ export default function StudentProfilePage() {
         <div className="flex-1 flex flex-col min-h-0">
 
           {/* Tab Bar */}
-          <TabBar activeTab={activeTab} setActiveTab={setActiveTab} can={can} />
+          <TabBar activeTab={activeTab} setActiveTab={handleTabChange} can={can} />
 
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6">
@@ -3666,5 +3660,13 @@ export default function StudentProfilePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function StudentProfilePage() {
+  return (
+    <Suspense>
+      <StudentProfilePageContent />
+    </Suspense>
   );
 }

@@ -55,6 +55,19 @@ import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
 const TABS = ['Templates', 'Rules', 'Trigger Library', 'Dispatch Queue', 'Internal Messages', 'Marketing', 'Execution Log'] as const;
 type Tab = typeof TABS[number];
 
+const TAB_SLUG: Record<Tab, string> = {
+  'Templates':         'templates',
+  'Rules':             'rules',
+  'Trigger Library':   'trigger-library',
+  'Dispatch Queue':    'dispatch-queue',
+  'Internal Messages': 'internal-messages',
+  'Marketing':         'marketing',
+  'Execution Log':     'execution-log',
+};
+const SLUG_TO_TAB: Record<string, Tab> = Object.fromEntries(
+  Object.entries(TAB_SLUG).map(([k, v]) => [v, k as Tab])
+);
+
 const MERGE_FIELDS = ['[child_name]', '[parent_name]', '[subject]', '[session_date]', '[session_time]', '[teacher_name]', '[amount]', '[due_date]', '[tenant_name]'];
 
 const TRIGGER_TYPES: { key: AutomationRuleTrigger; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -3299,13 +3312,14 @@ function RulesTab() {
 function AutomationsPageContent() {
   const { can } = usePermission();
   const searchParams = useSearchParams();
-  const initialTab = useMemo<Tab>(() => {
-    const raw = searchParams.get('tab');
-    return (raw && (TABS as readonly string[]).includes(raw)) ? (raw as Tab) : 'Templates';
-  }, [searchParams]);
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const router = useRouter();
 
-  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+  const raw = searchParams.get('tab');
+  const activeTab: Tab = (raw && SLUG_TO_TAB[raw]) ? SLUG_TO_TAB[raw] : 'Templates';
+
+  function handleTabChange(tab: Tab) {
+    router.replace(`?tab=${TAB_SLUG[tab]}`, { scroll: false });
+  }
 
   if (!can('automations.view')) return <AccessDenied />;
 
@@ -3339,7 +3353,7 @@ function AutomationsPageContent() {
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => handleTabChange(tab)}
             className={cn(
               'px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer -mb-px',
               activeTab === tab

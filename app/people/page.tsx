@@ -170,7 +170,7 @@ function ChurnBadge({ score }: { score: number | null }) {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ActiveTab = "Overview" | "Duplicates" | "Segments" | "Broadcast" | "Forms" | "Exports";
+type ActiveTab = "overview" | "duplicates" | "segments" | "broadcast-lists" | "forms" | "exports";
 
 // ─── Tab 1 — Directory ────────────────────────────────────────────────────────
 
@@ -279,7 +279,7 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
               title: "Segments",
               subtitle: "14 active segments",
               description: "Build dynamic contact groups for targeting and automation",
-              tab: "Segments" as ActiveTab,
+              tab: "segments" as ActiveTab,
             },
             {
               icon: FileText,
@@ -288,7 +288,7 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
               title: "Forms",
               subtitle: "5 active forms · 341 submissions",
               description: "Manage lead enquiry, profile update, and custom forms",
-              tab: "Forms" as ActiveTab,
+              tab: "forms" as ActiveTab,
             },
             {
               icon: Download,
@@ -297,7 +297,7 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
               title: "Exports",
               subtitle: "12 exports this month",
               description: "Export contact lists as Standard CSV or Google Contacts",
-              tab: "Exports" as ActiveTab,
+              tab: "exports" as ActiveTab,
             },
           ] as const).map(({ icon: Icon, iconBg, iconColor, title, subtitle, description, tab }) => (
             <div
@@ -2354,12 +2354,12 @@ function ComingSoonTab({ label }: { label: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const TABS: { key: ActiveTab; label: string }[] = [
-  { key: "Overview",   label: "Overview"        },
-  { key: "Duplicates", label: "Duplicates"      },
-  { key: "Segments",   label: "Segments"        },
-  { key: "Broadcast",  label: "Broadcast Lists" },
-  { key: "Forms",      label: "Forms"           },
-  { key: "Exports",    label: "Exports"         },
+  { key: "overview",         label: "Overview"        },
+  { key: "duplicates",       label: "Duplicates"      },
+  { key: "segments",         label: "Segments"        },
+  { key: "broadcast-lists",  label: "Broadcast Lists" },
+  { key: "forms",            label: "Forms"           },
+  { key: "exports",          label: "Exports"         },
 ];
 
 function PeoplePageContent() {
@@ -2371,16 +2371,10 @@ function PeoplePageContent() {
   const activeTab: ActiveTab =
     rawTab && TABS.some((t) => t.key === rawTab)
       ? (rawTab as ActiveTab)
-      : "Overview";
+      : "overview";
 
   function setActiveTab(key: ActiveTab) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (key === "Overview") {
-      params.delete("tab");
-    } else {
-      params.set("tab", key);
-    }
-    router.push(`/people${params.size > 0 ? `?${params.toString()}` : ""}`);
+    router.replace(`?tab=${key}`, { scroll: false });
   }
 
   if (!can('people.view')) return <AccessDenied />;
@@ -2404,7 +2398,7 @@ function PeoplePageContent() {
       {/* Tab strip */}
       <div className="flex items-center gap-0 border-b border-slate-200 -mt-1 overflow-x-auto">
         {TABS.map(({ key, label }) => {
-          if (key === "Exports" && !can('people.export')) return null;
+          if (key === "exports" && !can('people.export')) return null;
           return (
           <button
             key={key}
@@ -2425,12 +2419,12 @@ function PeoplePageContent() {
       {/* Tab content */}
       <div className="flex-1 min-h-0 pb-4">
         <div key={activeTab} className="page-enter">
-          {activeTab === "Overview"   && <DirectoryTab setActiveTab={setActiveTab} />}
-          {activeTab === "Duplicates" && <DuplicatesTab />}
-          {activeTab === "Segments"   && <SegmentsTab />}
-          {activeTab === "Broadcast"  && <BroadcastListsTab />}
-          {activeTab === "Forms"      && <FormsTab />}
-          {activeTab === "Exports"    && <ExportsTab />}
+          {activeTab === "overview"         && <DirectoryTab setActiveTab={setActiveTab} />}
+          {activeTab === "duplicates"       && <DuplicatesTab />}
+          {activeTab === "segments"         && <SegmentsTab />}
+          {activeTab === "broadcast-lists"  && <BroadcastListsTab />}
+          {activeTab === "forms"            && <FormsTab />}
+          {activeTab === "exports"          && <ExportsTab />}
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, Fragment, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import {
@@ -129,17 +130,33 @@ const TODAY_HEADER_LABEL = (() => {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AttendancePage() {
+function AttendancePageContent() {
   const { can, role } = usePermission();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
-  const [mainTab, setMainTab]       = useState<MainTab>("register");
   const [selectedId, setSelectedId] = useState("s001");
   const [completed, setCompleted]   = useState<Set<string>>(new Set());
   const [attendance, setAttState]   = useState<Record<string, Record<string, AttendanceStatus>>>({});
   const [notes, setNotes]           = useState<Record<string, string>>({});
   const [openNote, setOpenNote]     = useState<string | null>(null);
   const [openMenu, setOpenMenu]     = useState<string | null>(null);
-  const [overviewTab, setOverviewTab] = useState<OverviewTab>("unmarked");
+
+  const tabParam = searchParams.get('tab') ?? 'register';
+  const mainTab: MainTab = tabParam === 'register' ? 'register' : 'overview';
+  const overviewTab: OverviewTab =
+    tabParam === 'makeup-log' ? 'makeup' :
+    tabParam === 'absence'    ? 'absence' :
+    'unmarked';
+
+  function handleMainTabChange(key: MainTab) {
+    router.replace(`?tab=${key}`, { scroll: false });
+  }
+  function handleOverviewTabChange(key: OverviewTab) {
+    if (key === 'makeup') router.replace('?tab=makeup-log', { scroll: false });
+    else if (key === 'absence') router.replace('?tab=absence', { scroll: false });
+    else router.replace('?tab=overview', { scroll: false });
+  }
   const [absenceDeptFilter, setAbsenceDeptFilter] = useState<string[]>([]);
   const [absenceDateRange, setAbsenceDateRange]   = useState<DateRange>({ from: null, to: null });
 
@@ -247,7 +264,7 @@ export default function AttendancePage() {
           ).map(tab => (
             <button
               key={tab.key}
-              onClick={() => setMainTab(tab.key)}
+              onClick={() => handleMainTabChange(tab.key)}
               className={cn(
                 "pb-3 text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer",
                 mainTab === tab.key
@@ -553,7 +570,7 @@ export default function AttendancePage() {
             ).map(tab => (
               <button
                 key={tab.key}
-                onClick={() => setOverviewTab(tab.key)}
+                onClick={() => handleOverviewTabChange(tab.key)}
                 className={cn(
                   "pb-3 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer",
                   overviewTab === tab.key
@@ -828,5 +845,13 @@ export default function AttendancePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AttendancePage() {
+  return (
+    <Suspense>
+      <AttendancePageContent />
+    </Suspense>
   );
 }

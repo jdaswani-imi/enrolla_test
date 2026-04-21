@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Search,
@@ -1588,17 +1588,18 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-export default function ProgressPage() {
+function ProgressPageContent() {
   const { can, role } = usePermission();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>("trackers");
+  const searchParams = useSearchParams();
   const [exportOpen, setExportOpen] = useState(false);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab") as TabId | null;
-    if (tab && TABS.some((t) => t.id === tab)) setActiveTab(tab);
-  }, []);
+  const raw = searchParams.get('tab');
+  const activeTab: TabId = (raw && TABS.some(t => t.id === raw)) ? (raw as TabId) : 'trackers';
+
+  function handleTabChange(id: TabId) {
+    router.replace(`?tab=${id}`, { scroll: false });
+  }
 
   if (!can('progress.view')) return <AccessDenied />;
 
@@ -1641,7 +1642,7 @@ export default function ProgressPage() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={cn(
               "px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer relative",
               activeTab === tab.id
@@ -1663,12 +1664,19 @@ export default function ProgressPage() {
       {activeTab === "alerts"      && (
         <AlertsTab
           onNavigateToTrackers={() => {
-            router.push("/progress?tab=trackers");
-            setActiveTab("trackers");
+            router.replace('?tab=trackers', { scroll: false });
           }}
         />
       )}
       {activeTab === "assignments" && <AssignmentsTab />}
     </div>
+  );
+}
+
+export default function ProgressPage() {
+  return (
+    <Suspense>
+      <ProgressPageContent />
+    </Suspense>
   );
 }
