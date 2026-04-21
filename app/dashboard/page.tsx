@@ -54,6 +54,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
+import { OccupancyDetailModal } from "@/components/dashboard/occupancy-detail-modal";
 import { SkeletonKpi, SkeletonTable, SkeletonCard } from "@/components/ui/skeleton-loader";
 import {
   churnRiskStudents,
@@ -450,6 +451,7 @@ const DAYS  = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const TIMES = ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "20:30"];
 
 function OccupancyHeatmap() {
+  const [selected, setSelected] = useState<{ day: string; time: string } | null>(null);
   const lookup = new Map(occupancyHeatmap.map((c) => [`${c.day}|${c.time}`, c.occupancy]));
 
   return (
@@ -471,8 +473,18 @@ function OccupancyHeatmap() {
                 return (
                   <div
                     key={day}
-                    title={`${day} ${time}: ${pct}%`}
-                    className={cn("rounded h-8 flex items-center justify-center text-[10px] font-semibold transition-opacity cursor-default", getOccupancyColor(pct))}
+                    role="button"
+                    tabIndex={0}
+                    title={`${day} ${time}: ${pct}% — click for room detail`}
+                    onClick={() => setSelected({ day, time })}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelected({ day, time }); }}
+                    className={cn(
+                      "rounded h-8 flex items-center justify-center text-[10px] font-semibold",
+                      "cursor-pointer transition-all duration-150",
+                      "hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 hover:brightness-95",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
+                      getOccupancyColor(pct),
+                    )}
                   >
                     {pct}%
                   </div>
@@ -496,6 +508,13 @@ function OccupancyHeatmap() {
           </div>
         </div>
       </div>
+
+      <OccupancyDetailModal
+        day={selected?.day ?? null}
+        time={selected?.time ?? null}
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+      />
     </Card>
   );
 }
@@ -812,6 +831,9 @@ function ReportsInboxPanel() {
                     {report.title}
                   </p>
                 </div>
+                {report.periodLabel && (
+                  <p className="text-xs text-slate-400 mt-0.5">{report.periodLabel}</p>
+                )}
                 <p className="text-xs text-slate-400 mt-0.5">{report.date}</p>
               </div>
               <button

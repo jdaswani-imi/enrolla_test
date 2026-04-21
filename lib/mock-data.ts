@@ -557,6 +557,110 @@ export const occupancyHeatmap: OccupancyCell[] = [
   { day: "Fri", time: "20:30", occupancy: 15 },
 ];
 
+// ─── Room Occupancy Detail (drill-in) ─────────────────────────────────────────
+
+export interface RoomDetail {
+  name: string;
+  type: 'classroom' | 'office' | 'open-space';
+  totalSeats: number;
+  occupiedSeats: number;
+  sessions: { subject: string; teacher: string; students: number }[];
+}
+
+export interface RoomSlotDetail {
+  day: string;
+  timeSlot: string;
+  rooms: RoomDetail[];
+}
+
+const IMI_SESSIONS = [
+  { subject: "IELTS Prep",           teacher: "Ms. Sarah K."  },
+  { subject: "SAT Math",             teacher: "Mr. Ahmed R."  },
+  { subject: "English Writing",      teacher: "Ms. Priya N."  },
+  { subject: "Arabic Language",      teacher: "Mr. Khalid M." },
+  { subject: "Math Foundations",     teacher: "Ms. Fatima A." },
+  { subject: "Science Concepts",     teacher: "Mr. Omar H."   },
+  { subject: "Creative Writing",     teacher: "Ms. Leila S."  },
+  { subject: "Reading Comprehension",teacher: "Mr. Ali T."    },
+];
+
+const DAY_FULL: Record<string, string> = {
+  Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday",
+  Thu: "Thursday", Fri: "Friday", Sat: "Saturday",
+};
+
+function buildRoomDetails(day: string, time: string, pct: number): RoomDetail[] {
+  const totalSeats = 29; // 8 + 6 + 12 + 3
+  const occupied   = Math.round(pct / 100 * totalSeats);
+  const h          = (day.charCodeAt(0) + parseInt(time.replace(":", ""), 10)) % 8;
+
+  const officeOcc    = pct < 20 ? 0 : Math.min(2, Math.max(1, Math.round(occupied * 0.08)));
+  const roomAOcc     = Math.min(8, Math.max(0, Math.round(occupied * 0.32)));
+  const roomBOcc     = Math.min(6, Math.max(0, Math.round((occupied - officeOcc - roomAOcc) * 0.55)));
+  const openSpaceOcc = Math.min(12, Math.max(0, occupied - officeOcc - roomAOcc - roomBOcc));
+
+  const s = (idx: number) => IMI_SESSIONS[(h + idx) % 8];
+
+  const openSessions =
+    openSpaceOcc > 3
+      ? [
+          { subject: s(4).subject, teacher: s(4).teacher, students: Math.ceil(openSpaceOcc / 2) },
+          { subject: s(5).subject, teacher: s(5).teacher, students: Math.floor(openSpaceOcc / 2) },
+        ]
+      : openSpaceOcc > 0
+        ? [{ subject: s(4).subject, teacher: s(4).teacher, students: openSpaceOcc }]
+        : [];
+
+  return [
+    {
+      name: "Room A",
+      type: "classroom",
+      totalSeats: 8,
+      occupiedSeats: roomAOcc,
+      sessions: roomAOcc > 0
+        ? [{ subject: s(0).subject, teacher: s(0).teacher, students: roomAOcc }]
+        : [],
+    },
+    {
+      name: "Room B",
+      type: "classroom",
+      totalSeats: 6,
+      occupiedSeats: roomBOcc,
+      sessions: roomBOcc > 0
+        ? [{ subject: s(2).subject, teacher: s(2).teacher, students: roomBOcc }]
+        : [],
+    },
+    {
+      name: "Open Space",
+      type: "open-space",
+      totalSeats: 12,
+      occupiedSeats: openSpaceOcc,
+      sessions: openSessions,
+    },
+    {
+      name: "Office",
+      type: "office",
+      totalSeats: 3,
+      occupiedSeats: officeOcc,
+      sessions: officeOcc > 0
+        ? [{ subject: "Admin / Prep", teacher: "Staff", students: officeOcc }]
+        : [],
+    },
+  ];
+}
+
+export const roomOccupancyDetail = new Map<string, RoomSlotDetail>(
+  occupancyHeatmap.map(({ day, time, occupancy }) => {
+    const [h] = time.split(":");
+    const nextH = String(parseInt(h, 10) + 1).padStart(2, "0");
+    const timeSlot = `${time}–${nextH}:00`;
+    return [
+      `${day}|${time}`,
+      { day: DAY_FULL[day] ?? day, timeSlot, rooms: buildRoomDetails(day, time, occupancy) },
+    ];
+  })
+);
+
 // ─── Activity Feed ────────────────────────────────────────────────────────────
 
 export type ActivityType =
@@ -1398,6 +1502,7 @@ export interface ReportItem {
   title: string;
   date: string;
   read: boolean;
+  periodLabel?: string;
 }
 
 export const reportsInbox: ReportItem[] = [
@@ -1407,6 +1512,7 @@ export const reportsInbox: ReportItem[] = [
     title: "Weekly Digest",
     date: "Today, 08:00",
     read: false,
+    periodLabel: "Week of 14 Apr 2026",
   },
   {
     id: "2",
@@ -1421,6 +1527,7 @@ export const reportsInbox: ReportItem[] = [
     title: "Term Revenue Summary",
     date: "2 days ago",
     read: true,
+    periodLabel: "Term 2 · Jan–Apr 2026",
   },
   {
     id: "4",
@@ -1428,6 +1535,7 @@ export const reportsInbox: ReportItem[] = [
     title: "Academic Alerts Summary",
     date: "3 days ago",
     read: true,
+    periodLabel: "Week of 7 Apr 2026",
   },
   {
     id: "5",
@@ -1435,6 +1543,7 @@ export const reportsInbox: ReportItem[] = [
     title: "Staff Attendance Report",
     date: "5 days ago",
     read: true,
+    periodLabel: "Apr 2026",
   },
 ];
 
