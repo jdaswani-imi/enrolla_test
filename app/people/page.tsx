@@ -28,6 +28,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
+import { toast as sonnerToast } from "sonner";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
   Dialog,
@@ -351,7 +352,10 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
                     <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                     <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap hidden md:table-cell">{p.createdOn}</td>
                     <td className="px-4 py-3">
-                      <button className="px-3 py-1 text-xs font-medium text-slate-600 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => router.push(p.link)}
+                        className="px-3 py-1 text-xs font-medium text-slate-600 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
                         View
                       </button>
                     </td>
@@ -376,11 +380,13 @@ type ReviewStep = 1 | 2 | 3;
 function DuplicateReviewSheet({
   dup,
   onClose,
+  onKeepSeparate,
   onMerged,
   onRequestMerge,
 }: {
   dup: DuplicateDetection;
   onClose: () => void;
+  onKeepSeparate: () => void;
   onMerged: () => void;
   onRequestMerge: () => void;
 }) {
@@ -433,7 +439,7 @@ function DuplicateReviewSheet({
   const footer =
     step === 1 ? (
       <div className="flex justify-end gap-3">
-        <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+        <button onClick={onKeepSeparate} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
           Keep Separate
         </button>
         {canMerge ? (
@@ -575,12 +581,6 @@ function DuplicatesTab() {
   const [tierFilter, setTier]     = useState<string[]>([]);
   const [statusFilter, setStatus] = useState<string[]>([]);
   const [reviewing, setReviewing] = useState<DuplicateDetection | null>(null);
-  const [toast, setToast]         = useState<string | null>(null);
-
-  function fireToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  }
 
   const filtered = useMemo(() => duplicateDetections.filter(d => {
     if (typeFilter.length > 0) {
@@ -671,7 +671,7 @@ function DuplicatesTab() {
                   <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{d.detected}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => d.status === "Pending" && can('students.merge') ? setReviewing(d) : (d.status !== "Pending" ? undefined : undefined)}
+                      onClick={() => setReviewing(d)}
                       className={cn(
                         "px-3 py-1 text-xs font-medium rounded-lg border transition-colors cursor-pointer whitespace-nowrap",
                         d.status === "Pending" && can('students.merge')
@@ -696,15 +696,10 @@ function DuplicatesTab() {
         <DuplicateReviewSheet
           dup={reviewing}
           onClose={() => setReviewing(null)}
-          onMerged={() => fireToast("Records merged successfully")}
-          onRequestMerge={() => fireToast("Merge request sent to Admin Head for approval")}
+          onKeepSeparate={() => { setReviewing(null); sonnerToast.success("Records kept separate"); }}
+          onMerged={() => { setReviewing(null); sonnerToast.success("Records merged successfully"); }}
+          onRequestMerge={() => { setReviewing(null); sonnerToast.success("Merge request sent to Admin Head for approval"); }}
         />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-[100]">
-          {toast}
-        </div>
       )}
     </div>
   );

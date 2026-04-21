@@ -1801,29 +1801,30 @@ export interface PersonRecord {
   status: string;
   departmentOrStage: string;
   createdOn: string;
+  link: string;
 }
 
 export const peopleAll: PersonRecord[] = [
-  { id: "P-001", name: "Aisha Rahman",       type: "Student",  contact: "+971 50 123 4567", status: "Enrolled",     departmentOrStage: "Lower Secondary", createdOn: "12/09/2022 08:00" },
-  { id: "P-002", name: "Omar Al-Farsi",      type: "Student",  contact: "+971 55 234 5678", status: "Enrolled",     departmentOrStage: "Primary",         createdOn: "03/03/2023 09:15" },
-  { id: "P-003", name: "Layla Hassan",       type: "Student",  contact: "+971 52 345 6789", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "01/09/2021 10:00" },
-  { id: "P-004", name: "Faris Qasim",        type: "Student",  contact: "+971 50 789 0123", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "05/09/2022 08:30" },
-  { id: "P-005", name: "Hind Al-Rashidi",    type: "Student",  contact: "+971 50 666 7788", status: "Withdrawn",    departmentOrStage: "Lower Secondary", createdOn: "15/03/2023 11:00" },
-  { id: "P-006", name: "Khalid Mansoor",     type: "Student",  contact: "+971 55 111 2233", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "01/09/2020 09:00" },
-  { id: "P-007", name: "Fatima Rahman",      type: "Guardian", contact: "+971 50 123 4567", status: "Active",       departmentOrStage: "—",               createdOn: "12/09/2022 08:00" },
-  { id: "P-008", name: "Khalid Al-Farsi",    type: "Guardian", contact: "+971 55 234 5678", status: "Active",       departmentOrStage: "—",               createdOn: "03/03/2023 09:15" },
-  { id: "P-009", name: "Nadia Hassan",       type: "Guardian", contact: "+971 52 345 6789", status: "Active",       departmentOrStage: "—",               createdOn: "01/09/2021 10:00" },
-  { id: "P-010", name: "Shaikha Al-Maktoum", type: "Guardian", contact: "+971 52 901 2345", status: "Inactive",     departmentOrStage: "—",               createdOn: "01/09/2023 09:00" },
-  { id: "P-011", name: "Bilal Mahmood",      type: "Lead",     contact: "+971 50 111 2222", status: "New",          departmentOrStage: "New",             createdOn: "17/04/2026 10:00" },
-  { id: "P-012", name: "Hessa Al-Blooshi",   type: "Lead",     contact: "+971 55 222 3333", status: "Trial Booked", departmentOrStage: "Trial Booked",    createdOn: "16/04/2026 14:00" },
-  { id: "P-013", name: "Majid Al-Romaithi",  type: "Lead",     contact: "+971 55 800 9000", status: "Trial Booked", departmentOrStage: "Trial Booked",    createdOn: "01/04/2026 14:00" },
-  { id: "P-014", name: "Nadia Al-Ghaith",    type: "Lead",     contact: "+971 50 100 2000", status: "Contacted",    departmentOrStage: "Contacted",       createdOn: "08/04/2026 11:00" },
-  { id: "P-015", name: "Jason Daswani",      type: "Staff",    contact: "+971 50 000 0001", status: "Active",       departmentOrStage: "Admin",           createdOn: "01/09/2021 08:00" },
-  { id: "P-016", name: "Sarah Thompson",     type: "Staff",    contact: "+971 50 000 0002", status: "Active",       departmentOrStage: "Admin",           createdOn: "15/01/2022 09:00" },
-  { id: "P-017", name: "Ahmed Khalil",       type: "Staff",    contact: "+971 50 000 0003", status: "Active",       departmentOrStage: "Lower Secondary", createdOn: "12/09/2022 08:00" },
-  { id: "P-018", name: "Faris Al-Amin",      type: "Staff",    contact: "+971 50 000 0004", status: "Active",       departmentOrStage: "Senior",          createdOn: "01/09/2021 08:00" },
-  { id: "P-019", name: "Tariq Al-Amin",      type: "Staff",    contact: "+971 50 000 0005", status: "Active",       departmentOrStage: "Lower Secondary", createdOn: "01/09/2020 08:00" },
-  { id: "P-020", name: "Sarah Mitchell",     type: "Staff",    contact: "+971 50 000 0006", status: "Active",       departmentOrStage: "Primary",         createdOn: "05/09/2022 08:00" },
+  { id: "P-001", name: "Aisha Rahman",       type: "Student",  contact: "+971 50 123 4567", status: "Enrolled",     departmentOrStage: "Lower Secondary", createdOn: "12/09/2022 08:00", link: "/students/IMI-0001" },
+  { id: "P-002", name: "Omar Al-Farsi",      type: "Student",  contact: "+971 55 234 5678", status: "Enrolled",     departmentOrStage: "Primary",         createdOn: "03/03/2023 09:15", link: "/students/IMI-0002" },
+  { id: "P-003", name: "Layla Hassan",       type: "Student",  contact: "+971 52 345 6789", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "01/09/2021 10:00", link: "/students/IMI-0003" },
+  { id: "P-004", name: "Faris Qasim",        type: "Student",  contact: "+971 50 789 0123", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "05/09/2022 08:30", link: "/students/IMI-0007" },
+  { id: "P-005", name: "Hind Al-Rashidi",    type: "Student",  contact: "+971 50 666 7788", status: "Withdrawn",    departmentOrStage: "Lower Secondary", createdOn: "15/03/2023 11:00", link: "/students/IMI-0016" },
+  { id: "P-006", name: "Khalid Mansoor",     type: "Student",  contact: "+971 55 111 2233", status: "Enrolled",     departmentOrStage: "Senior",          createdOn: "01/09/2020 09:00", link: "/students/IMI-0011" },
+  { id: "P-007", name: "Fatima Rahman",      type: "Guardian", contact: "+971 50 123 4567", status: "Active",       departmentOrStage: "—",               createdOn: "12/09/2022 08:00", link: "/guardians" },
+  { id: "P-008", name: "Khalid Al-Farsi",    type: "Guardian", contact: "+971 55 234 5678", status: "Active",       departmentOrStage: "—",               createdOn: "03/03/2023 09:15", link: "/guardians" },
+  { id: "P-009", name: "Nadia Hassan",       type: "Guardian", contact: "+971 52 345 6789", status: "Active",       departmentOrStage: "—",               createdOn: "01/09/2021 10:00", link: "/guardians" },
+  { id: "P-010", name: "Shaikha Al-Maktoum", type: "Guardian", contact: "+971 52 901 2345", status: "Inactive",     departmentOrStage: "—",               createdOn: "01/09/2023 09:00", link: "/guardians" },
+  { id: "P-011", name: "Bilal Mahmood",      type: "Lead",     contact: "+971 50 111 2222", status: "New",          departmentOrStage: "New",             createdOn: "17/04/2026 10:00", link: "/leads" },
+  { id: "P-012", name: "Hessa Al-Blooshi",   type: "Lead",     contact: "+971 55 222 3333", status: "Trial Booked", departmentOrStage: "Trial Booked",    createdOn: "16/04/2026 14:00", link: "/leads" },
+  { id: "P-013", name: "Majid Al-Romaithi",  type: "Lead",     contact: "+971 55 800 9000", status: "Trial Booked", departmentOrStage: "Trial Booked",    createdOn: "01/04/2026 14:00", link: "/leads" },
+  { id: "P-014", name: "Nadia Al-Ghaith",    type: "Lead",     contact: "+971 50 100 2000", status: "Contacted",    departmentOrStage: "Contacted",       createdOn: "08/04/2026 11:00", link: "/leads" },
+  { id: "P-015", name: "Jason Daswani",      type: "Staff",    contact: "+971 50 000 0001", status: "Active",       departmentOrStage: "Admin",           createdOn: "01/09/2021 08:00", link: "/staff" },
+  { id: "P-016", name: "Sarah Thompson",     type: "Staff",    contact: "+971 50 000 0002", status: "Active",       departmentOrStage: "Admin",           createdOn: "15/01/2022 09:00", link: "/staff" },
+  { id: "P-017", name: "Ahmed Khalil",       type: "Staff",    contact: "+971 50 000 0003", status: "Active",       departmentOrStage: "Lower Secondary", createdOn: "12/09/2022 08:00", link: "/staff" },
+  { id: "P-018", name: "Faris Al-Amin",      type: "Staff",    contact: "+971 50 000 0004", status: "Active",       departmentOrStage: "Senior",          createdOn: "01/09/2021 08:00", link: "/staff" },
+  { id: "P-019", name: "Tariq Al-Amin",      type: "Staff",    contact: "+971 50 000 0005", status: "Active",       departmentOrStage: "Lower Secondary", createdOn: "01/09/2020 08:00", link: "/staff" },
+  { id: "P-020", name: "Sarah Mitchell",     type: "Staff",    contact: "+971 50 000 0006", status: "Active",       departmentOrStage: "Primary",         createdOn: "05/09/2022 08:00", link: "/staff" },
 ];
 
 // ─── Extended Guardians ───────────────────────────────────────────────────────
