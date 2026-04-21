@@ -1371,9 +1371,25 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className={cn("grid gap-4", config.kpiGridClass)}>
-        {config.kpis.map((card) => (
-          <KpiCardItem key={card.id} card={card} />
-        ))}
+        {config.kpis
+          .filter((card) => {
+            if (role !== "Teacher" && role !== "TA") return true;
+            // Teacher/TA: hide all financial and management KPIs.
+            // Only Today's Sessions, Attendance Rate, Open Concerns, Active Students.
+            return (
+              card.id === "my-sessions-week" ||
+              card.id === "ta-assigned-sessions" ||
+              card.id === "my-attendance-rate" ||
+              card.id === "ta-attendance-rate" ||
+              card.id === "attendance-rate" ||
+              card.id === "concerns" ||
+              card.id === "active-students" ||
+              card.id === "my-students"
+            );
+          })
+          .map((card) => (
+            <KpiCardItem key={card.id} card={card} />
+          ))}
       </div>
 
       {/* Sections */}

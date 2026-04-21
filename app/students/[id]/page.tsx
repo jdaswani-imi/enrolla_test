@@ -25,11 +25,24 @@ import {
   Trash2,
   Pencil,
   Lock,
+  Zap,
+  ClipboardCheck,
   X as XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
-import { studentDetail, guardians, students } from "@/lib/mock-data";
+import {
+  studentDetail,
+  guardians,
+  students,
+  staffMembers,
+  trials,
+  assessments,
+  type StudentInvoice,
+  type Trial,
+  type Assessment,
+} from "@/lib/mock-data";
+import { subjectsForYearGroup } from "@/components/journey/subjects";
 import { useJourney, BILAL_STUDENT_ID } from "@/lib/journey-store";
 import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
 import {
@@ -170,6 +183,42 @@ function studentInitials(name: string): string {
   return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
 }
 
+// ─── Time slots (30-min, 08:00–19:30) ────────────────────────────────────────
+
+const TIME_SLOTS: string[] = (() => {
+  const slots: string[] = [];
+  for (let h = 8; h <= 19; h++) {
+    for (const m of [0, 30]) {
+      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return slots;
+})();
+
+function parseAedAmount(amount: string): number {
+  const cleaned = amount.replace(/AED/i, "").replace(/,/g, "").trim();
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatAed(n: number): string {
+  return `AED ${n.toLocaleString()}`;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateShort(iso: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const date = new Date(y, m - 1, d);
+  return `${days[date.getDay()]} ${d} ${months[m - 1]}`;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const SUBJECT_COLOR: Record<string, { chip: string; dot: string }> = {
@@ -222,6 +271,9 @@ function SessionDots({
 
 type HeaderAction =
   | "addEnrolment"
+  | "bookTrial"
+  | "bookAssessment"
+  | "recordPayment"
   | "raiseConcern"
   | "logNote"
   | "sendMessage"
@@ -233,12 +285,16 @@ function ProfileHeader({
   isJourneyStudent,
   onJourneyAddEnrolment,
   journeyStatusBadge,
+  invoices,
+  onPaymentRecorded,
 }: {
   profile: StudentProfile;
   fireToast: FireToast;
   isJourneyStudent?: boolean;
   onJourneyAddEnrolment?: () => void;
   journeyStatusBadge?: { label: string; className: string } | null;
+  invoices: StudentInvoice[];
+  onPaymentRecorded: (invoiceId: string, paidAmount: number, fullyPaid: boolean) => void;
 }) {
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
@@ -253,10 +309,13 @@ function ProfileHeader({
       Icon: Plus,
       onClick: () => (isJourneyStudent && onJourneyAddEnrolment ? onJourneyAddEnrolment() : setOpenDialog("addEnrolment")),
     },
-    { label: "Raise Concern",  Icon: AlertTriangle, onClick: () => setOpenDialog("raiseConcern") },
-    { label: "Log Note",       Icon: PenLine, onClick: () => setOpenDialog("logNote") },
-    { label: "Send Message",   Icon: Send, onClick: () => setOpenDialog("sendMessage") },
-    { label: "New Task",       Icon: ListPlus, onClick: () => setOpenDialog("newTask") },
+    { label: "Book Trial",       Icon: Zap, onClick: () => setOpenDialog("bookTrial") },
+    { label: "Book Assessment",  Icon: ClipboardCheck, onClick: () => setOpenDialog("bookAssessment") },
+    { label: "Record Payment",   Icon: CreditCard, onClick: () => setOpenDialog("recordPayment") },
+    { label: "Raise Concern",    Icon: AlertTriangle, onClick: () => setOpenDialog("raiseConcern") },
+    { label: "Log Note",         Icon: PenLine, onClick: () => setOpenDialog("logNote") },
+    { label: "Send Message",     Icon: Send, onClick: () => setOpenDialog("sendMessage") },
+    { label: "New Task",         Icon: ListPlus, onClick: () => setOpenDialog("newTask") },
   ];
 
   return (
@@ -334,6 +393,30 @@ function ProfileHeader({
         studentName={displayName}
         yearGroup={profile.yearGroup}
         department={department as StudentDepartment}
+      />
+      <BookTrialStudentDialog
+        open={openDialog === "bookTrial"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        studentName={displayName}
+        studentId={profile.studentId}
+        yearGroup={profile.yearGroup}
+        department={department}
+        fireToast={fireToast}
+      />
+      <BookAssessmentStudentDialog
+        open={openDialog === "bookAssessment"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        studentName={displayName}
+        yearGroup={profile.yearGroup}
+        department={department}
+        fireToast={fireToast}
+      />
+      <RecordPaymentStudentDialog
+        open={openDialog === "recordPayment"}
+        onOpenChange={(o) => !o && setOpenDialog(null)}
+        invoices={invoices}
+        fireToast={fireToast}
+        onPaymentRecorded={onPaymentRecorded}
       />
       <RaiseConcernDialog
         open={openDialog === "raiseConcern"}
@@ -684,6 +767,432 @@ function NewTaskDialog({
           onCancel={() => onOpenChange(false)}
           onSubmit={submit}
           submitLabel="Save Task"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Book Trial (Student) ────────────────────────────────────────────────────
+
+function teachersForStudent(department: string, subject: string): string[] {
+  const pool = staffMembers.filter(
+    (s) =>
+      s.status === "Active" &&
+      (s.role === "Teacher" || s.role === "HOD") &&
+      s.department === department,
+  );
+  if (!subject) return pool.map((s) => s.name);
+  const lower = subject.toLowerCase();
+  const matched = pool.filter((s) => s.subjects.some((x) => x.toLowerCase().includes(lower)));
+  return (matched.length > 0 ? matched : pool).map((s) => s.name);
+}
+
+let _trialSeq = trials.length;
+function nextTrialId(): string {
+  _trialSeq += 1;
+  return `T-${String(_trialSeq).padStart(3, "0")}`;
+}
+
+let _assessmentSeq = assessments.length;
+function nextAssessmentId(): string {
+  _assessmentSeq += 1;
+  return `A-${String(_assessmentSeq).padStart(3, "0")}`;
+}
+
+function BookTrialStudentDialog({
+  open,
+  onOpenChange,
+  studentName,
+  studentId,
+  yearGroup,
+  department,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  studentName: string;
+  studentId: string;
+  yearGroup: string;
+  department: string;
+  fireToast: FireToast;
+}) {
+  const subjectOptions = useMemo(() => subjectsForYearGroup(yearGroup), [yearGroup]);
+  const [subject, setSubject] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("10:00");
+  const [teacher, setTeacher] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const teacherOptions = useMemo(() => teachersForStudent(department, subject), [department, subject]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSubject("");
+    setDate("");
+    setTime("10:00");
+    setTeacher("");
+    setNotes("");
+  }, [open]);
+
+  const valid = Boolean(subject && date);
+
+  function submit() {
+    const trialId = nextTrialId();
+    const selectedTeacher = teacher || teacherOptions[0] || "Unassigned";
+    const trialDateLabel = formatDateShort(date) || date;
+    trials.push({
+      id: trialId,
+      student: studentName,
+      yearGroup,
+      subject,
+      teacher: selectedTeacher,
+      trialDate: `${trialDateLabel} · ${time}`,
+      invoiceStatus: "Pending",
+      outcome: "Pending",
+      notes: notes.trim() || undefined,
+    } as Trial);
+    void studentId;
+    fireToast("Trial booked — check timetable to confirm slot");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Book Trial Session</DialogTitle>
+          <DialogDescription>Schedule a trial for {studentName} · {department}.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Subject</FieldLabel>
+            <select className={FIELD_INPUT} value={subject} onChange={(e) => setSubject(e.target.value)}>
+              <option value="">Select subject…</option>
+              {subjectOptions.map((s) => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <FieldLabel required>Preferred date</FieldLabel>
+              <input
+                type="date"
+                className={FIELD_INPUT}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                min={todayIso()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel required>Preferred time</FieldLabel>
+              <select className={FIELD_INPUT} value={time} onChange={(e) => setTime(e.target.value)}>
+                {TIME_SLOTS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Teacher preference</FieldLabel>
+            <select className={FIELD_INPUT} value={teacher} onChange={(e) => setTeacher(e.target.value)}>
+              <option value="">No preference</option>
+              {teacherOptions.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Notes</FieldLabel>
+            <textarea
+              className={cn(FIELD_INPUT, "min-h-[72px] resize-y")}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any context for the teacher…"
+            />
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Book Trial"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Book Assessment (Student) ───────────────────────────────────────────────
+
+function BookAssessmentStudentDialog({
+  open,
+  onOpenChange,
+  studentName,
+  yearGroup,
+  department,
+  fireToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  studentName: string;
+  yearGroup: string;
+  department: string;
+  fireToast: FireToast;
+}) {
+  const subjectOptions = useMemo(() => subjectsForYearGroup(yearGroup), [yearGroup]);
+  const [assessmentType, setAssessmentType] = useState<"CAT4" | "Subject Assessment">("Subject Assessment");
+  const [subject, setSubject] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("10:00");
+
+  useEffect(() => {
+    if (!open) return;
+    setAssessmentType("Subject Assessment");
+    setSubject("");
+    setDate("");
+    setTime("10:00");
+  }, [open]);
+
+  const isCat4 = assessmentType === "CAT4";
+  const valid = Boolean(date && (isCat4 || subject));
+
+  function submit() {
+    const id = nextAssessmentId();
+    const dateLabel = formatDateShort(date) || date;
+    const subjectLabel = isCat4 ? "CAT4" : subject;
+    assessments.push({
+      id,
+      name: studentName,
+      type: "Student",
+      yearGroup,
+      subjects: [subjectLabel],
+      assessor: null,
+      date: dateLabel,
+      time,
+      room: null,
+      status: "Booked",
+      outcome: null,
+    } as Assessment);
+    void department;
+    fireToast("Assessment booked");
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Book Assessment</DialogTitle>
+          <DialogDescription>Schedule an assessment for {studentName}.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Type</FieldLabel>
+            <div className="grid grid-cols-2 gap-2">
+              {(["CAT4", "Subject Assessment"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setAssessmentType(t)}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
+                    assessmentType === t
+                      ? "border-amber-400 bg-amber-50 text-amber-700"
+                      : "border-slate-200 text-slate-600 hover:border-amber-300",
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          {!isCat4 && (
+            <div className="space-y-1.5">
+              <FieldLabel required>Subject</FieldLabel>
+              <select className={FIELD_INPUT} value={subject} onChange={(e) => setSubject(e.target.value)}>
+                <option value="">Select subject…</option>
+                {subjectOptions.map((s) => (
+                  <option key={s.name} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <FieldLabel required>Preferred date</FieldLabel>
+              <input
+                type="date"
+                className={FIELD_INPUT}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                min={todayIso()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <FieldLabel required>Preferred time</FieldLabel>
+              <select className={FIELD_INPUT} value={time} onChange={(e) => setTime(e.target.value)}>
+                {TIME_SLOTS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Book Assessment"
+          submitDisabled={!valid}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Record Payment (Student) ────────────────────────────────────────────────
+
+type PaymentPillMethod = "Cash" | "Card" | "Bank Transfer";
+
+function RecordPaymentStudentDialog({
+  open,
+  onOpenChange,
+  invoices,
+  fireToast,
+  onPaymentRecorded,
+  initialInvoiceId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  invoices: StudentInvoice[];
+  fireToast: FireToast;
+  onPaymentRecorded: (invoiceId: string, paidAmount: number, fullyPaid: boolean) => void;
+  initialInvoiceId?: string;
+}) {
+  const outstanding = useMemo(
+    () => invoices.filter((i) => i.status !== "Paid"),
+    [invoices],
+  );
+
+  const [invoiceId, setInvoiceId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<PaymentPillMethod>("Bank Transfer");
+  const [reference, setReference] = useState("");
+  const [date, setDate] = useState(todayIso());
+
+  const selected = invoices.find((i) => i.id === invoiceId) ?? null;
+  const selectedAmount = selected ? parseAedAmount(selected.amount) : 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const preferred =
+      (initialInvoiceId && invoices.find((i) => i.id === initialInvoiceId)) ||
+      outstanding[0] ||
+      null;
+    setInvoiceId(preferred?.id ?? "");
+    setAmount(preferred ? String(parseAedAmount(preferred.amount)) : "");
+    setMethod("Bank Transfer");
+    setReference("");
+    setDate(todayIso());
+  }, [open, initialInvoiceId, invoices, outstanding]);
+
+  useEffect(() => {
+    if (!selected) return;
+    setAmount(String(parseAedAmount(selected.amount)));
+  }, [selected]);
+
+  const amountNum = Number(amount);
+  const valid = Boolean(selected) && Number.isFinite(amountNum) && amountNum > 0 && date;
+
+  function submit() {
+    if (!selected) return;
+    const fullyPaid = amountNum >= selectedAmount;
+    onPaymentRecorded(selected.id, amountNum, fullyPaid);
+    fireToast(`Payment of AED ${amountNum.toLocaleString()} recorded`);
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm w-full">
+        <DialogHeader>
+          <DialogTitle>Record Payment</DialogTitle>
+          <DialogDescription>Log a payment against an outstanding invoice.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <FieldLabel required>Invoice</FieldLabel>
+            {outstanding.length === 0 ? (
+              <p className="text-xs text-slate-500 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                No outstanding invoices.
+              </p>
+            ) : (
+              <select className={FIELD_INPUT} value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)}>
+                {outstanding.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.id} · {inv.amount}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Amount (AED)</FieldLabel>
+            <input
+              type="number"
+              className={FIELD_INPUT}
+              value={amount}
+              min={0}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+            />
+            {selected && (
+              <p className="text-[11px] text-slate-500">
+                Outstanding {formatAed(selectedAmount)}
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Method</FieldLabel>
+            <div className="grid grid-cols-3 gap-2">
+              {(["Cash", "Card", "Bank Transfer"] as PaymentPillMethod[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={cn(
+                    "rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                    method === m
+                      ? "border-amber-400 bg-amber-50 text-amber-700"
+                      : "border-slate-200 text-slate-600 hover:border-amber-300",
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel>Reference #</FieldLabel>
+            <input
+              type="text"
+              className={FIELD_INPUT}
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder={method === "Cash" ? "Optional" : "e.g. TRF-88421"}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <FieldLabel required>Date</FieldLabel>
+            <input type="date" className={FIELD_INPUT} value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        </div>
+        <DialogActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={submit}
+          submitLabel="Record Payment"
           submitDisabled={!valid}
         />
       </DialogContent>
@@ -1996,10 +2505,10 @@ const INVOICE_LINE_ITEMS: Record<string, { subject: string; sessions: number; ra
 };
 
 const INVOICE_DUE_DATES: Record<string, string> = {
-  "INV-1042": "20 Apr 2025",
-  "INV-0998": "29 Mar 2025",
-  "INV-0967": "29 Mar 2025",
-  "INV-0821": "17 Jan 2025",
+  "INV-1042": "20 Apr 2026",
+  "INV-0998": "29 Mar 2026",
+  "INV-0967": "29 Mar 2026",
+  "INV-0821": "17 Jan 2026",
 };
 
 function InvoicePreviewDialog({
@@ -2066,7 +2575,7 @@ function InvoicePreviewDialog({
               </div>
               <div className="mt-2">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Issue Date</p>
-                <p className="text-sm text-slate-700 mt-0.5">{invoice.date} 2025</p>
+                <p className="text-sm text-slate-700 mt-0.5">{invoice.date} 2026</p>
               </div>
               <div className="mt-2">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Due Date</p>
@@ -2138,8 +2647,19 @@ function InvoicePreviewDialog({
   );
 }
 
-function InvoicesTab({ canExport, fireToast }: { canExport: boolean; fireToast: FireToast }) {
+function InvoicesTab({
+  canExport,
+  fireToast,
+  invoices,
+  onPaymentRecorded,
+}: {
+  canExport: boolean;
+  fireToast: FireToast;
+  invoices: StudentInvoice[];
+  onPaymentRecorded: (invoiceId: string, paidAmount: number, fullyPaid: boolean) => void;
+}) {
   const [previewInvoice, setPreviewInvoice] = useState<StudentInvoiceRow | null>(null);
+  const [payInvoiceId, setPayInvoiceId] = useState<string | null>(null);
   return (
     <div className="space-y-4">
       {canExport && (
@@ -2179,7 +2699,7 @@ function InvoicesTab({ canExport, fireToast }: { canExport: boolean; fireToast: 
             </tr>
           </thead>
           <tbody>
-            {studentDetail.invoices.map((inv) => (
+            {invoices.map((inv) => (
               <tr key={inv.id} className="border-b border-slate-100 last:border-0">
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{inv.id}</td>
                 <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{inv.date}</td>
@@ -2237,6 +2757,14 @@ function InvoicesTab({ canExport, fireToast }: { canExport: boolean; fireToast: 
         open={previewInvoice !== null}
         onOpenChange={(o) => !o && setPreviewInvoice(null)}
         fireToast={fireToast}
+      />
+      <RecordPaymentStudentDialog
+        open={payInvoiceId !== null}
+        onOpenChange={(o) => !o && setPayInvoiceId(null)}
+        invoices={invoices}
+        initialInvoiceId={payInvoiceId ?? undefined}
+        fireToast={fireToast}
+        onPaymentRecorded={onPaymentRecorded}
       />
     </div>
   );
@@ -2784,10 +3312,10 @@ function TicketsTab({ fireToast }: { fireToast: FireToast }) {
 // ─── Tab 11 — Files ──────────────────────────────────────────────────────────
 
 const STUDENT_FILES = [
-  { name: "Term 3 Enrolment Contract.pdf",   uploadedOn: "6 Jan 2025",  uploadedBy: "Jason Daswani"  },
-  { name: "Assessment Report — Jan 2025.pdf", uploadedOn: "15 Jan 2025", uploadedBy: "Jason Daswani"  },
+  { name: "Term 3 Enrolment Contract.pdf",   uploadedOn: "6 Jan 2026",  uploadedBy: "Jason Daswani"  },
+  { name: "Assessment Report — Jan 2026.pdf", uploadedOn: "15 Jan 2026", uploadedBy: "Jason Daswani"  },
   { name: "Guardian ID — Fatima Rahman.pdf",  uploadedOn: "12 Sep 2022", uploadedBy: "System"         },
-  { name: "Medical Note — Mar 2025.pdf",      uploadedOn: "3 Mar 2025",  uploadedBy: "Sarah Thompson" },
+  { name: "Medical Note — Mar 2026.pdf",      uploadedOn: "3 Mar 2026",  uploadedBy: "Sarah Thompson" },
 ];
 
 function FilesTab({
@@ -2958,6 +3486,17 @@ export default function StudentProfilePage() {
   const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [journeyEnrolmentOpen, setJourneyEnrolmentOpen] = useState(false);
   const [journeyPaymentOpen, setJourneyPaymentOpen] = useState(false);
+  const [invoicesState, setInvoicesState] = useState<StudentInvoice[]>(() => studentDetail.invoices);
+
+  function handlePaymentRecorded(invoiceId: string, _paidAmount: number, fullyPaid: boolean) {
+    setInvoicesState((list) =>
+      list.map((inv) =>
+        inv.id === invoiceId
+          ? { ...inv, status: fullyPaid ? "Paid" : "Partial" }
+          : inv,
+      ),
+    );
+  }
 
   // Keep the journey student profile in sync with journey state
   useEffect(() => {
@@ -3025,6 +3564,8 @@ export default function StudentProfilePage() {
         isJourneyStudent={isJourneyStudent}
         onJourneyAddEnrolment={() => setJourneyEnrolmentOpen(true)}
         journeyStatusBadge={journeyStatusBadge}
+        invoices={invoicesState}
+        onPaymentRecorded={handlePaymentRecorded}
       />
 
       {isJourneyStudent && (
@@ -3058,7 +3599,7 @@ export default function StudentProfilePage() {
             {activeTab === "overview"    && <OverviewTab    onTabChange={handleTabChange} />}
             {activeTab === "calendar"    && <CalendarTab    canExport={canExport} fireToast={fireToast} />}
             {activeTab === "attendance"  && <AttendanceTab  canExport={canExport} />}
-            {activeTab === "invoices"    && <InvoicesTab    canExport={canExport} fireToast={fireToast} />}
+            {activeTab === "invoices"    && <InvoicesTab    canExport={canExport} fireToast={fireToast} invoices={invoicesState} onPaymentRecorded={handlePaymentRecorded} />}
             {activeTab === "grades"      && <GradesTab      canExport={canExport} />}
             {activeTab === "courses"     && <CoursesTab />}
             {activeTab === "comms"       && <CommLogTab     canExport={canExport} fireToast={fireToast} />}

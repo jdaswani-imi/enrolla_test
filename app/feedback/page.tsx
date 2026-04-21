@@ -51,6 +51,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ const FEEDBACK_STATUS_CONFIG: Record<FeedbackStatus, string> = {
   "Pending Approval": "bg-amber-100 text-amber-700",
   Approved:           "bg-emerald-100 text-emerald-700",
   Sent:               "bg-blue-100 text-blue-700",
+  Rejected:           "bg-red-100 text-red-700",
 };
 
 const ANN_TYPE_CONFIG: Record<AnnouncementType, string> = {
@@ -156,78 +158,171 @@ const POST_TYPE_CONFIG: Record<PostType, string> = {
 
 // ─── Tab 1 — Feedback Queue ───────────────────────────────────────────────────
 
-function ReviewSlideover({ item, onClose }: { item: FeedbackItem; onClose: () => void }) {
+function ReviewSlideover({
+  item,
+  onClose,
+  onApprove,
+  onReject,
+}: {
+  item: FeedbackItem;
+  onClose: () => void;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}) {
   const { can } = usePermission();
-  const [editedSummary, setEditedSummary] = useState(item.aiSummary ?? "");
+  const canAct = can('feedback.approve') && item.status === "Pending Approval";
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
-        {/* Header */}
+      <DialogContent className="w-[calc(100%-2rem)] max-w-lg max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="text-base font-semibold text-slate-800">{item.studentName}</DialogTitle>
-          <p className="text-xs text-slate-400 mt-0.5">{item.subject} · {item.sessionDate}</p>
+          <DialogTitle className="text-base font-semibold text-slate-800">Review Feedback</DialogTitle>
         </DialogHeader>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
-          {/* Selectors */}
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Feedback Selectors</p>
-            <div className="flex flex-wrap gap-2">
-              {item.selectors.map((sel) => (
-                <div key={sel.label} className="flex items-center gap-1.5 bg-slate-100 rounded-full px-3 py-1">
-                  <span className="text-xs text-slate-500">{sel.label}:</span>
-                  <span className="text-xs font-semibold text-slate-700">{sel.value}</span>
-                </div>
-              ))}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 min-h-0">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-slate-400 font-medium mb-0.5">Student</p>
+              <p className="font-medium text-slate-800">{item.studentName}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-medium mb-0.5">Subject</p>
+              <p className="text-slate-700">{item.subject}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-medium mb-0.5">Teacher</p>
+              <p className="text-slate-700">{item.teacher}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-medium mb-0.5">Date submitted</p>
+              <p className="text-slate-700">{item.sessionDate}</p>
             </div>
           </div>
 
-          {/* Teacher Notes */}
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Teacher Notes</p>
-            <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 leading-relaxed">
-              {item.teacherNotes}
+            <p className="text-xs text-slate-400 font-medium mb-1">Rating</p>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star
+                    key={n}
+                    className={cn(
+                      "w-5 h-5",
+                      n <= item.score ? "fill-amber-400 text-amber-400" : "text-slate-200"
+                    )}
+                  />
+                ))}
+              </div>
+              <span className="text-sm font-semibold text-slate-700">{item.score}/5</span>
             </div>
           </div>
 
-          {/* AI Summary */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Feedback</p>
+            <textarea
+              readOnly
+              value={item.teacherNotes}
+              rows={5}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-slate-50 resize-none focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">AI Summary</p>
               <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full uppercase tracking-wide">
                 AI Generated
               </span>
             </div>
-            <div className="bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-700 leading-relaxed mb-3">
-              {item.aiSummary ?? <span className="text-slate-400 italic">No AI summary generated.</span>}
-            </div>
-            <label className="text-xs text-slate-500 mb-1 block">Edit before approving</label>
-            <textarea
-              value={editedSummary}
-              onChange={(e) => setEditedSummary(e.target.value)}
-              rows={4}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-            />
+            <p className="text-sm text-slate-700 leading-relaxed">
+              {item.aiSummary ?? "Overall a constructive session with balanced engagement and clear next steps."}
+            </p>
           </div>
         </div>
 
-        {/* Footer */}
         <DialogFooter className="flex items-center gap-3">
-          {can('feedback.approve') ? (
+          {canAct ? (
             <>
-              <button className="flex-1 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer">
-                Approve & Mark Ready to Send
+              <button
+                type="button"
+                onClick={() => onReject(item.id)}
+                className="flex-1 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+              >
+                Reject
               </button>
-              <button onClick={onClose} className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                Return to Teacher
+              <button
+                type="button"
+                onClick={() => onApprove(item.id)}
+                className="flex-1 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer"
+              >
+                Approve
               </button>
             </>
           ) : (
-            <button onClick={onClose} className="flex-1 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
               Close
             </button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RejectReasonDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const trimmed = reason.trim();
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold text-slate-800">Reject feedback</DialogTitle>
+          <p className="text-xs text-slate-400 mt-0.5">Let the teacher know why this feedback isn&apos;t ready to send.</p>
+        </DialogHeader>
+        <div className="px-6 py-5">
+          <label className="text-xs text-slate-500 font-medium mb-1 block" htmlFor="reject-reason">
+            Reason <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            id="reject-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={4}
+            placeholder="e.g. Please expand on the homework notes before sending."
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            autoFocus
+          />
+        </div>
+        <DialogFooter className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!trimmed}
+            onClick={() => onConfirm(trimmed)}
+            className={cn(
+              "flex-1 py-2 text-sm font-semibold rounded-lg transition-colors",
+              trimmed
+                ? "bg-red-600 text-white hover:bg-red-700 cursor-pointer"
+                : "bg-slate-100 text-slate-400 cursor-not-allowed"
+            )}
+          >
+            Confirm rejection
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -243,14 +338,21 @@ function FeedbackQueueTab() {
   const [sortField, setSortField]         = useState<string | null>(null);
   const [sortDir, setSortDir]             = useState<"asc" | "desc">("asc");
   const [selected, setSelected]           = useState<FeedbackItem | null>(null);
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, FeedbackStatus>>({});
+  const [rejectingId, setRejectingId]     = useState<string | null>(null);
 
   function toggleSort(field: string) {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortField(field); setSortDir("asc"); }
   }
 
+  const rows = useMemo(
+    () => feedbackItems.map((i) => ({ ...i, status: statusOverrides[i.id] ?? i.status })),
+    [statusOverrides],
+  );
+
   const filtered = useMemo(() => {
-    let data = feedbackItems.filter((item) => {
+    let data = rows.filter((item) => {
       if (subjectFilter.length > 0 && !subjectFilter.includes(item.subject))    return false;
       if (teacherFilter.length > 0 && !teacherFilter.includes(item.teacher))    return false;
       if (deptFilter.length > 0 && !deptFilter.includes(item.department))       return false;
@@ -266,7 +368,20 @@ function FeedbackQueueTab() {
       });
     }
     return data;
-  }, [subjectFilter, teacherFilter, deptFilter, statusFilter, sortField, sortDir]);
+  }, [rows, subjectFilter, teacherFilter, deptFilter, statusFilter, sortField, sortDir]);
+
+  function handleApprove(id: string) {
+    setStatusOverrides((prev) => ({ ...prev, [id]: "Approved" }));
+    setSelected(null);
+    toast.success("Feedback approved and visible to teacher");
+  }
+
+  function handleRejectConfirm(id: string) {
+    setStatusOverrides((prev) => ({ ...prev, [id]: "Rejected" }));
+    setRejectingId(null);
+    setSelected(null);
+    toast.success("Feedback rejected");
+  }
 
   const subjects    = [...new Set(feedbackItems.map((i) => i.subject))];
   const teachers    = [...new Set(feedbackItems.map((i) => i.teacher))];
@@ -286,7 +401,7 @@ function FeedbackQueueTab() {
         <MultiSelectFilter label="Subject"    options={subjects}                                               selected={subjectFilter} onChange={setSubjectFilter} />
         <MultiSelectFilter label="Teacher"    options={teachers}                                               selected={teacherFilter} onChange={setTeacherFilter} />
         <MultiSelectFilter label="Department" options={["Primary", "Lower Secondary", "Senior"]}              selected={deptFilter}    onChange={setDeptFilter}    />
-        <MultiSelectFilter label="Status"     options={["Draft", "Pending Approval", "Approved", "Sent"]}     selected={statusFilter}  onChange={setStatusFilter}  />
+        <MultiSelectFilter label="Status"     options={["Draft", "Pending Approval", "Approved", "Rejected", "Sent"]} selected={statusFilter}  onChange={setStatusFilter}  />
         <DateRangePicker value={dateRange} onChange={setDateRange} presets={DATE_PRESETS} placeholder="Session date" />
         {(subjectFilter.length > 0 || teacherFilter.length > 0 || deptFilter.length > 0 || statusFilter.length > 0) && (
           <button
@@ -357,7 +472,20 @@ function FeedbackQueueTab() {
         </div>
       </div>
 
-      {selected && <ReviewSlideover item={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ReviewSlideover
+          item={selected}
+          onClose={() => setSelected(null)}
+          onApprove={handleApprove}
+          onReject={(id) => setRejectingId(id)}
+        />
+      )}
+      {rejectingId && (
+        <RejectReasonDialog
+          onCancel={() => setRejectingId(null)}
+          onConfirm={() => handleRejectConfirm(rejectingId)}
+        />
+      )}
     </div>
   );
 }

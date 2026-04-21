@@ -22,11 +22,17 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import {
+  GenerateReportDialog,
+  type GeneratedReportInput,
+  type ReportTypeOption,
+} from "@/components/reports/generate-report-dialog";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type ReportType = "Digest" | "Revenue" | "Churn" | "Academic" | "Staff" | "Pipeline" | "Attendance";
-type ReportFormat = "PDF" | "CSV";
+type ReportFormat = "PDF" | "Excel" | "CSV";
+type ReportStatus = "Ready" | "Generating";
 
 interface Report {
   id: string;
@@ -36,6 +42,7 @@ interface Report {
   size: string;
   generatedAt: string;
   read: boolean;
+  status?: ReportStatus;
 }
 
 interface ScheduledReport {
@@ -48,26 +55,26 @@ interface ScheduledReport {
 
 // ─── Mock data ─────────────────────────────────────────────────────────────────
 
-const reports: Report[] = [
-  { id: "R-001", name: "Weekly Digest — 14 Apr 2025",          type: "Digest",     format: "PDF", size: "1.2 MB",  generatedAt: "14 Apr 2025, 07:00", read: false },
-  { id: "R-002", name: "Churn Risk Report — Term 3",           type: "Churn",      format: "PDF", size: "2.4 MB",  generatedAt: "13 Apr 2025, 00:00", read: false },
-  { id: "R-003", name: "Term 3 Revenue Summary",               type: "Revenue",    format: "CSV", size: "84 KB",   generatedAt: "12 Apr 2025, 00:00", read: false },
-  { id: "R-004", name: "Academic Alerts Summary — Week 3",     type: "Academic",   format: "PDF", size: "980 KB",  generatedAt: "10 Apr 2025, 07:00", read: true  },
-  { id: "R-005", name: "Staff Attendance Report — Mar 2025",   type: "Staff",      format: "CSV", size: "56 KB",   generatedAt: "8 Apr 2025, 07:00",  read: true  },
-  { id: "R-006", name: "Lead Pipeline Report — Term 3",        type: "Pipeline",   format: "PDF", size: "1.8 MB",  generatedAt: "5 Apr 2025, 00:00",  read: true  },
-  { id: "R-007", name: "Attendance Summary — March 2025",      type: "Attendance", format: "PDF", size: "1.4 MB",  generatedAt: "1 Apr 2025, 07:00",  read: true  },
-  { id: "R-008", name: "Revenue by Teacher — Term 2",          type: "Revenue",    format: "CSV", size: "44 KB",   generatedAt: "28 Mar 2025, 00:00", read: true  },
-  { id: "R-009", name: "CPD Progress Report — All Staff",      type: "Staff",      format: "PDF", size: "760 KB",  generatedAt: "25 Mar 2025, 07:00", read: true  },
-  { id: "R-010", name: "Weekly Digest — 24 Mar 2025",          type: "Digest",     format: "PDF", size: "1.1 MB",  generatedAt: "24 Mar 2025, 07:00", read: true  },
-  { id: "R-011", name: "Overdue Invoice Report — Mar 2025",    type: "Revenue",    format: "CSV", size: "38 KB",   generatedAt: "20 Mar 2025, 00:00", read: true  },
-  { id: "R-012", name: "Academic Alerts Summary — Week 2",     type: "Academic",   format: "PDF", size: "890 KB",  generatedAt: "14 Mar 2025, 07:00", read: true  },
+const initialReports: Report[] = [
+  { id: "R-001", name: "Weekly Digest — 14 Apr 2026",          type: "Digest",     format: "PDF", size: "1.2 MB",  generatedAt: "14 Apr 2026, 07:00", read: false },
+  { id: "R-002", name: "Churn Risk Report — Term 3",           type: "Churn",      format: "PDF", size: "2.4 MB",  generatedAt: "13 Apr 2026, 00:00", read: false },
+  { id: "R-003", name: "Term 3 Revenue Summary",               type: "Revenue",    format: "CSV", size: "84 KB",   generatedAt: "12 Apr 2026, 00:00", read: false },
+  { id: "R-004", name: "Academic Alerts Summary — Week 3",     type: "Academic",   format: "PDF", size: "980 KB",  generatedAt: "10 Apr 2026, 07:00", read: true  },
+  { id: "R-005", name: "Staff Attendance Report — Mar 2026",   type: "Staff",      format: "CSV", size: "56 KB",   generatedAt: "8 Apr 2026, 07:00",  read: true  },
+  { id: "R-006", name: "Lead Pipeline Report — Term 3",        type: "Pipeline",   format: "PDF", size: "1.8 MB",  generatedAt: "5 Apr 2026, 00:00",  read: true  },
+  { id: "R-007", name: "Attendance Summary — March 2026",      type: "Attendance", format: "PDF", size: "1.4 MB",  generatedAt: "1 Apr 2026, 07:00",  read: true  },
+  { id: "R-008", name: "Revenue by Teacher — Term 2",          type: "Revenue",    format: "CSV", size: "44 KB",   generatedAt: "28 Mar 2026, 00:00", read: true  },
+  { id: "R-009", name: "CPD Progress Report — All Staff",      type: "Staff",      format: "PDF", size: "760 KB",  generatedAt: "25 Mar 2026, 07:00", read: true  },
+  { id: "R-010", name: "Weekly Digest — 24 Mar 2026",          type: "Digest",     format: "PDF", size: "1.1 MB",  generatedAt: "24 Mar 2026, 07:00", read: true  },
+  { id: "R-011", name: "Overdue Invoice Report — Mar 2026",    type: "Revenue",    format: "CSV", size: "38 KB",   generatedAt: "20 Mar 2026, 00:00", read: true  },
+  { id: "R-012", name: "Academic Alerts Summary — Week 2",     type: "Academic",   format: "PDF", size: "890 KB",  generatedAt: "14 Mar 2026, 07:00", read: true  },
 ];
 
 const scheduledReports: ScheduledReport[] = [
-  { name: "Weekly Digest",    cadence: "Weekly — Monday 07:00",  nextRun: "21 Apr 2025", recipients: "Jason Daswani",                   format: "PDF" },
-  { name: "Churn Risk Report",cadence: "Weekly — Sunday 00:00",  nextRun: "20 Apr 2025", recipients: "Jason Daswani, Sarah Thompson",    format: "PDF" },
-  { name: "Revenue Summary",  cadence: "Monthly — 1st",          nextRun: "1 May 2025",  recipients: "Jason Daswani",                   format: "CSV" },
-  { name: "Academic Alerts",  cadence: "Weekly — Monday 07:00",  nextRun: "21 Apr 2025", recipients: "Jason Daswani",                   format: "PDF" },
+  { name: "Weekly Digest",    cadence: "Weekly — Monday 07:00",  nextRun: "21 Apr 2026", recipients: "Jason Daswani",                   format: "PDF" },
+  { name: "Churn Risk Report",cadence: "Weekly — Sunday 00:00",  nextRun: "20 Apr 2026", recipients: "Jason Daswani, Sarah Thompson",    format: "PDF" },
+  { name: "Revenue Summary",  cadence: "Monthly — 1st",          nextRun: "1 May 2026",  recipients: "Jason Daswani",                   format: "CSV" },
+  { name: "Academic Alerts",  cadence: "Weekly — Monday 07:00",  nextRun: "21 Apr 2026", recipients: "Jason Daswani",                   format: "PDF" },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -84,7 +91,7 @@ const TYPE_CONFIG: Record<ReportType, { label: string; icon: React.ElementType; 
 
 const FILTER_TYPES: (ReportType | "All")[] = ["All", "Revenue", "Attendance", "Churn", "Academic", "Staff", "Pipeline"];
 const FILTER_STATUSES = ["All", "Unread", "Read"] as const;
-const FILTER_FORMATS: (ReportFormat | "All")[] = ["All", "PDF", "CSV"];
+const FILTER_FORMATS: (ReportFormat | "All")[] = ["All", "PDF", "Excel", "CSV"];
 const FILTER_DATES = ["This Month", "Last Month", "This Term", "All Time"] as const;
 
 type StatusFilter = typeof FILTER_STATUSES[number];
@@ -93,11 +100,12 @@ type DateFilter = typeof FILTER_DATES[number];
 // ─── Components ────────────────────────────────────────────────────────────────
 
 function FormatBadge({ format }: { format: ReportFormat }) {
+  const styles =
+    format === "PDF"   ? "bg-red-100 text-red-700"
+  : format === "Excel" ? "bg-blue-100 text-blue-700"
+  :                      "bg-emerald-100 text-emerald-700";
   return (
-    <span className={cn(
-      "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold tracking-wide",
-      format === "PDF" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
-    )}>
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold tracking-wide", styles)}>
       {format}
     </span>
   );
@@ -205,8 +213,30 @@ function ReportRow({ report }: { report: Report }) {
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
+const TYPE_MAP: Record<ReportTypeOption, ReportType> = {
+  "Attendance": "Attendance",
+  "Finance":    "Revenue",
+  "Academic":   "Academic",
+  "Churn":      "Churn",
+  "Staff CPD":  "Staff",
+};
+
+function formatGeneratedAt(d: Date): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`;
+}
+
+function sizeForFormat(format: ReportFormat): string {
+  if (format === "PDF")   return `${(Math.random() * 1.5 + 0.8).toFixed(1)} MB`;
+  if (format === "Excel") return `${Math.floor(120 + Math.random() * 240)} KB`;
+  return `${Math.floor(40 + Math.random() * 80)} KB`;
+}
+
 export default function ReportsPage() {
   const { can } = usePermission();
+  const [reports, setReports] = useState<Report[]>(initialReports);
   const [typeFilter, setTypeFilter] = useState<ReportType | "All">("All");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [formatFilter, setFormatFilter] = useState<ReportFormat | "All">("All");
@@ -214,6 +244,27 @@ export default function ReportsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleGenerate = (input: GeneratedReportInput) => {
+    const format = input.format;
+    const newReport: Report = {
+      id: `R-${Date.now().toString(36).toUpperCase()}`,
+      name: input.name,
+      type: TYPE_MAP[input.type],
+      format,
+      size: sizeForFormat(format),
+      generatedAt: formatGeneratedAt(new Date()),
+      read: false,
+      status: "Ready",
+    };
+    setReports((prev) => [newReport, ...prev]);
+    setTypeFilter("All");
+    setStatusFilter("All");
+    setFormatFilter("All");
+    setSearch("");
+    setPage(1);
+  };
 
   const filtered = useMemo(() => reports.filter((r) => {
     if (typeFilter !== "All" && r.type !== typeFilter) return false;
@@ -222,7 +273,7 @@ export default function ReportsPage() {
     if (formatFilter !== "All" && r.format !== formatFilter) return false;
     if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [typeFilter, statusFilter, formatFilter, search]);
+  }), [reports, typeFilter, statusFilter, formatFilter, search]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -247,7 +298,11 @@ export default function ReportsPage() {
         </div>
         <div className="flex items-center gap-2">
           {can('reports.generate') && (
-          <button className="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm">
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm cursor-pointer"
+          >
             <Plus className="w-4 h-4" />
             Generate Report
           </button>
@@ -355,6 +410,12 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+
+      <GenerateReportDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onGenerate={handleGenerate}
+      />
     </div>
   );
 }

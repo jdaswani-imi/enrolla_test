@@ -94,19 +94,26 @@ const SESSION_TYPES: SessionType[] = ["Regular", "Trial", "Assessment", "Makeup"
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+export type SessionToEdit = TimetableSession & { dateIso?: string };
+
 export interface NewSessionDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onCreated?: (sessions: TimetableSession[]) => void;
+  onUpdated?: (session: TimetableSession) => void;
   defaultDateIso?: string;
+  sessionToEdit?: SessionToEdit | null;
 }
 
 export function NewSessionDialog({
   open,
   onOpenChange,
   onCreated,
+  onUpdated,
   defaultDateIso,
+  sessionToEdit,
 }: NewSessionDialogProps) {
+  const isEditing = Boolean(sessionToEdit);
   const [subject, setSubject] = useState("");
   const [teacher, setTeacher] = useState("");
   const [studentIds, setStudentIds] = useState<string[]>([]);
@@ -136,8 +143,29 @@ export function NewSessionDialog({
   }, [defaultDateIso]);
 
   useEffect(() => {
-    if (!open) reset();
-  }, [open, reset]);
+    if (!open) {
+      reset();
+      return;
+    }
+    if (sessionToEdit) {
+      setSubject(sessionToEdit.subject);
+      setTeacher(sessionToEdit.teacher);
+      setStudentIds(
+        sessionToEdit.students
+          .map((name) => allStudents.find((s) => s.name === name)?.id)
+          .filter((id): id is string => Boolean(id)),
+      );
+      setRoom(sessionToEdit.room);
+      setDate(sessionToEdit.dateIso ?? defaultDateIso ?? todayIso());
+      setStartTime(sessionToEdit.startTime);
+      setEndTime(sessionToEdit.endTime);
+      setSessionType(sessionToEdit.type as SessionType);
+      setRepeat("None");
+      setRepeatUntil("");
+      setStudentSearch("");
+      setErrors({});
+    }
+  }, [open, sessionToEdit, reset, defaultDateIso]);
 
   // Teachers filtered to active Teachers/HODs, then by subject if selected.
   const teacherOptions = useMemo(() => {
@@ -227,6 +255,31 @@ export function NewSessionDialog({
     const department = deptFromSubject(subject);
     const studentNames = selectedStudents.map((s) => s.name);
 
+    if (sessionToEdit) {
+      const idx = timetableSessions.findIndex((s) => s.id === sessionToEdit.id);
+      const updated: TimetableSession = {
+        ...sessionToEdit,
+        day: dayKeyFromIso(date),
+        date: dateLabelFromIso(date),
+        subject,
+        department,
+        teacher,
+        room,
+        startTime,
+        endTime,
+        duration,
+        students: [...studentNames],
+        studentCount: studentNames.length,
+        type: sessionType,
+        isTrial: sessionType === "Trial" ? true : undefined,
+      };
+      if (idx >= 0) timetableSessions[idx] = updated;
+      onUpdated?.(updated);
+      toast.success("Session updated");
+      onOpenChange(false);
+      return;
+    }
+
     const dates: string[] = [date];
     if (repeat !== "None") {
       const step = repeat === "Weekly" ? 7 : 14;
@@ -266,9 +319,11 @@ export function NewSessionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Session</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Session" : "New Session"}</DialogTitle>
           <DialogDescription>
-            Schedule a class, trial, assessment, or make-up session.
+            {isEditing
+              ? "Update session details, teacher, room, or timing."
+              : "Schedule a class, trial, assessment, or make-up session."}
           </DialogDescription>
         </DialogHeader>
 
@@ -473,30 +528,32 @@ export function NewSessionDialog({
           </div>
 
           {/* Repeat */}
-          <div>
-            <Label>Repeat</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {REPEAT_OPTIONS.map((opt) => (
-                <Pill key={opt} selected={repeat === opt} onClick={() => setRepeat(opt)}>
-                  {opt}
-                </Pill>
-              ))}
-            </div>
-            {repeat !== "None" && (
-              <div className="mt-3">
-                <Label htmlFor="ns-repeat-until" required>Repeat until</Label>
-                <input
-                  id="ns-repeat-until"
-                  type="date"
-                  value={repeatUntil}
-                  min={date || undefined}
-                  onChange={(e) => setRepeatUntil(e.target.value)}
-                  className={cn(FIELD, errors.repeatUntil && FIELD_ERROR)}
-                />
-                {errors.repeatUntil && <ErrorText>{errors.repeatUntil}</ErrorText>}
+          {!isEditing && (
+            <div>
+              <Label>Repeat</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {REPEAT_OPTIONS.map((opt) => (
+                  <Pill key={opt} selected={repeat === opt} onClick={() => setRepeat(opt)}>
+                    {opt}
+                  </Pill>
+                ))}
               </div>
-            )}
-          </div>
+              {repeat !== "None" && (
+                <div className="mt-3">
+                  <Label htmlFor="ns-repeat-until" required>Repeat until</Label>
+                  <input
+                    id="ns-repeat-until"
+                    type="date"
+                    value={repeatUntil}
+                    min={date || undefined}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                    className={cn(FIELD, errors.repeatUntil && FIELD_ERROR)}
+                  />
+                  {errors.repeatUntil && <ErrorText>{errors.repeatUntil}</ErrorText>}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Session type */}
           <div>
@@ -530,7 +587,7 @@ export function NewSessionDialog({
             className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
             style={{ backgroundColor: "#F59E0B" }}
           >
-            Add session
+            {isEditing ? "Save changes" : "Add session"}
           </button>
         </div>
       </DialogContent>

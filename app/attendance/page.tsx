@@ -120,6 +120,13 @@ function getInitials(name: string) {
 const STUDENT_YEAR: Record<string, string> = {};
 allStudents.forEach(s => { STUDENT_YEAR[s.name] = s.yearGroup; });
 
+const TODAY_HEADER_LABEL = (() => {
+  const d = new Date();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${days[d.getDay()]} ${String(d.getDate()).padStart(2, "0")} ${months[d.getMonth()]} ${d.getFullYear()}`;
+})();
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AttendancePage() {
@@ -203,7 +210,7 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Mon 21 Apr 2025 · {todaySessions.length} sessions today
+            {TODAY_HEADER_LABEL} · {todaySessions.length} sessions today
           </p>
         </div>
         {can('export') && (

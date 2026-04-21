@@ -7,7 +7,7 @@ import {
   Building2, AlertCircle, CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { students, staffMembers, invoices, type Student } from '@/lib/mock-data';
+import { students, staffMembers, invoices, type Student, type Invoice } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
 import { useJourney, BILAL_STUDENT_ID, enrolmentRateFor } from '@/lib/journey-store';
@@ -89,6 +89,13 @@ function fmtDate(s: string): string {
   if (!s) return '';
   const p = s.split('-');
   return `${p[2]}/${p[1]}/${p[0]}`;
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDateForMock(s: string): string {
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  return `${parseInt(d, 10)} ${MONTHS[parseInt(m, 10) - 1]} ${y}`;
 }
 
 function getInitials(name: string): string {
@@ -389,6 +396,8 @@ export default function NewInvoicePage() {
   const journey = useJourney();
   const [isJourneyInvoice, setIsJourneyInvoice] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [studentError, setStudentError] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -416,11 +425,20 @@ export default function NewInvoicePage() {
   useEffect(() => {
     const sidebar = document.querySelector('aside')
     const topbar = document.querySelector('header')
+    const main = document.querySelector('main')
     if (sidebar) (sidebar as HTMLElement).style.display = 'none'
     if (topbar) (topbar as HTMLElement).style.display = 'none'
+    if (main) {
+      (main as HTMLElement).style.padding = '0'
+      ;(main as HTMLElement).style.overflow = 'hidden'
+    }
     return () => {
       if (sidebar) (sidebar as HTMLElement).style.display = ''
       if (topbar) (topbar as HTMLElement).style.display = ''
+      if (main) {
+        ;(main as HTMLElement).style.padding = ''
+        ;(main as HTMLElement).style.overflow = ''
+      }
     }
   }, [])
 
@@ -479,8 +497,38 @@ export default function NewInvoicePage() {
     return students.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8);
   }, [searchQuery, selectedStudent]);
 
+  function handleConfirmIssue() {
+    const subjects = lineItems.filter((i) => i.subject).map((i) => i.subject).join(' + ');
+    const description = subjects
+      ? `${selectedStudent!.yearGroup} ${subjects}`
+      : `${selectedStudent!.yearGroup} Invoice`;
+    const newInvoice: Invoice = {
+      id: invoiceNo,
+      studentId: selectedStudent!.id,
+      student: selectedStudent!.name,
+      yearGroup: selectedStudent!.yearGroup,
+      department: selectedStudent!.department,
+      guardian: selectedStudent!.guardian,
+      description,
+      issueDate: fmtDateForMock(issueDate),
+      dueDate: fmtDateForMock(dueDate),
+      amount: totals.totalDue,
+      amountPaid: 0,
+      status: 'Issued',
+    };
+    invoices.unshift(newInvoice);
+    setConfirmOpen(false);
+    setStatus('Issued');
+    if (isJourneyInvoice) {
+      journey.setInvoiceIssued(invoiceNo, totals.totalDue);
+    }
+    toast.success(`Invoice ${invoiceNo} issued successfully`);
+    setTimeout(() => router.push('/finance'), 800);
+  }
+
   function handleStudentSelect(s: Student) {
     setSelectedStudent(s);
+    setStudentError(false);
     setSearchQuery('');
     setLineItems((prev) =>
       prev.map((item) => ({ ...item, yearGroup: s.yearGroup, rate: getRate(item.subject, s.yearGroup) })),
@@ -597,11 +645,12 @@ export default function NewInvoicePage() {
             type="button"
             disabled={status === 'Issued'}
             onClick={() => {
-              setStatus('Issued');
-              if (isJourneyInvoice) {
-                journey.setInvoiceIssued(invoiceNo, totals.totalDue);
-                toast.success(`Invoice ${invoiceNo} issued — AED ${totals.totalDue.toFixed(0)}`);
+              if (!selectedStudent) {
+                setStudentError(true);
+                return;
               }
+              setStudentError(false);
+              setConfirmOpen(true);
             }}
             className={cn(
               'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors cursor-pointer',
@@ -644,7 +693,7 @@ export default function NewInvoicePage() {
         {/* Left panel */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-2xl mx-auto px-8 py-8 pb-32">
+            <div className="max-w-2xl mx-auto px-8 pt-8 pb-4">
 
               {/* BLOCK 1 — STUDENT */}
               <div className="mb-8">
@@ -709,6 +758,13 @@ export default function NewInvoicePage() {
                   </div>
                 )}
               </div>
+
+              {studentError && !selectedStudent && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-red-500">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  Please select a student before issuing the invoice
+                </p>
+              )}
 
               {/* BLOCK 2 — INVOICE DETAILS */}
               <div className="mb-8">
@@ -1087,8 +1143,8 @@ export default function NewInvoicePage() {
             </div>
           </div>
 
-          {/* Sticky bottom bar */}
-          <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 px-10 py-4 flex items-center justify-between flex-shrink-0">
+          {/* Bottom summary bar — flex sibling, pinned to bottom of left column */}
+          <div className="flex-shrink-0 bg-white border-t border-slate-200 px-10 py-4 flex items-center justify-between">
             <div className="flex items-center gap-8 text-sm">
               <span className="text-slate-500">
                 Subtotal: <span className="font-medium">{fmtAED(totals.subtotal)}</span>
@@ -1131,6 +1187,53 @@ export default function NewInvoicePage() {
           />
         </div>
       </div>
+
+      {/* ── Issue Confirmation Dialog ── */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Issue this invoice?</h2>
+
+            <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 space-y-2.5 mb-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Student</span>
+                <span className="font-medium text-slate-900">{selectedStudent?.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">Invoice</span>
+                <span className="font-mono font-medium text-slate-900">{invoiceNo}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm border-t border-slate-200 pt-2.5">
+                <span className="text-slate-500">Total due</span>
+                <span className="font-bold text-[#1E3A8A]">{fmtAED(totals.totalDue)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-100 p-3 mb-5 text-xs text-amber-700 leading-relaxed">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>This will mark the invoice as Issued and it cannot be edited after this point.</span>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 h-10 border border-slate-200 text-slate-600 text-sm rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmIssue}
+                className="flex-1 h-10 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Issue Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

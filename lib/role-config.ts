@@ -32,6 +32,7 @@ const NAV_ACCESS: Record<string, string> = {
   feedback:    'feedback.view',
   people:      'people.view',
   automations: 'automations.view',
+  inventory:   'inventory.view',
 }
 
 export function canAccess(role: Role, navId: string): boolean {
@@ -134,7 +135,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'concerns.dismissL2plus':   ['Super Admin','Admin Head','Academic Head','HOD'],
 
   // ── Tasks ──
-  'tasks.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
+  'tasks.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
   'tasks.create':             ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'tasks.editOwn':            ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'tasks.editOthers':         ['Super Admin','Admin Head','Academic Head','HOD'],
@@ -211,6 +212,9 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'export.all':               ['Super Admin'],
   'bulk.generate.invoices':   ['Super Admin','Admin Head','Admin'],
   'stock.take':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
+
+  // ── Inventory ──
+  'inventory.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
 }
 
 export function canDo(role: Role, action: string): boolean {

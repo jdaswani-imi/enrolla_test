@@ -170,7 +170,7 @@ export const DATE_PRESETS = [
     const now = new Date()
     return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 0) }
   }},
-  { label: 'This term', getValue: () => ({ from: new Date(2025, 3, 14), to: new Date(2025, 6, 25) }) },
+  { label: 'This term', getValue: () => ({ from: new Date(2026, 3, 14), to: new Date(2026, 6, 25) }) },
 ]
 
 function getDaysInMonth(month: Date): (Date | null)[] {

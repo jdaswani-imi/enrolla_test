@@ -306,7 +306,7 @@ function LineItemRow({
             ))}
           </select>
         </div>
-        <span className="text-xs text-slate-400 ml-auto">Valid until: 30 Jun 2025</span>
+        <span className="text-xs text-slate-400 ml-auto">Valid until: 30 Jun 2026</span>
       </div>
     </div>
   );

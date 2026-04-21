@@ -12,19 +12,40 @@ import {
   MoreHorizontal,
   Eye,
   BookOpen,
-  FileText,
+  ClipboardList,
   MessageSquare,
   UserX,
   Download,
-  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AddStudentDialog, type NewStudentData } from "@/components/add-student-dialog";
-import { students as studentsStore, type Student } from "@/lib/mock-data";
+import {
+  NewEnrolmentDialog,
+  type StudentDepartment,
+} from "@/components/enrolment/new-enrolment-dialog";
+import {
+  students as studentsStore,
+  studentDetail,
+  tasks as tasksStore,
+  staffMembers,
+  currentUser,
+  type Student,
+  type Task,
+  type TaskPriority,
+  type TaskType,
+} from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -94,12 +115,20 @@ function RowActions({
   onOpen,
   onClose,
   openUpward,
+  onAddEnrolment,
+  onNewTask,
+  onLogNote,
+  onWithdraw,
 }: {
   student: Student;
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
   openUpward: boolean;
+  onAddEnrolment: (s: Student) => void;
+  onNewTask: (s: Student) => void;
+  onLogNote: (s: Student) => void;
+  onWithdraw: (s: Student) => void;
 }) {
   const router = useRouter();
   const { can } = usePermission();
@@ -113,14 +142,26 @@ function RowActions({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [isOpen, onClose]);
 
-  const actions = [
-    { icon: Eye,           label: "View Profile",   onClick: () => router.push(`/students/${student.id}`), danger: false, show: true },
-    { icon: BookOpen,      label: "Add Enrolment",  onClick: () => {},                                      danger: false, show: can('enrolment.create') },
-    { icon: FileText,      label: "Create Invoice", onClick: () => {},                                      danger: false, show: can('finance.createInvoice') },
-    { icon: MessageSquare, label: "Log Note",        onClick: () => {},                                      danger: false, show: true },
-    { icon: UserX,         label: "Withdraw",        onClick: () => {},                                      danger: true,  show: can('enrolment.withdraw') },
-    { icon: Trash2,        label: "Delete Record",  onClick: () => {},                                      danger: true,  show: can('delete.records') },
-  ].filter(a => a.show);
+  const alreadyWithdrawn = student.status === "Withdrawn";
+
+  type Item = {
+    kind: "action";
+    icon: typeof Eye;
+    label: string;
+    onClick: () => void;
+    danger?: boolean;
+    show: boolean;
+  } | { kind: "separator"; show: boolean };
+
+  const rawItems: Item[] = [
+    { kind: "action", icon: Eye,           label: "View profile",     onClick: () => router.push(`/students/${student.id}`), show: true },
+    { kind: "action", icon: BookOpen,      label: "Add enrolment",    onClick: () => onAddEnrolment(student),                show: can('enrolment.create') && !alreadyWithdrawn },
+    { kind: "action", icon: ClipboardList, label: "New task",         onClick: () => onNewTask(student),                     show: can('tasks.create') },
+    { kind: "action", icon: MessageSquare, label: "Log contact note", onClick: () => onLogNote(student),                     show: true },
+    { kind: "separator", show: can('enrolment.withdraw') && !alreadyWithdrawn },
+    { kind: "action", icon: UserX,         label: "Withdraw student", onClick: () => onWithdraw(student), danger: true,       show: can('enrolment.withdraw') && !alreadyWithdrawn },
+  ];
+  const items = rawItems.filter((i) => i.show);
 
   return (
     <div ref={ref} className="relative">
@@ -135,27 +176,32 @@ function RowActions({
 
       {isOpen && (
         <div
+          role="menu"
           className={cn(
-            "absolute right-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[168px] py-1",
+            "absolute right-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[184px] py-1",
             openUpward ? "bottom-full mb-1" : "top-full mt-1"
           )}
         >
-          {actions.map((action) => {
-            const Icon = action.icon;
+          {items.map((item, i) => {
+            if (item.kind === "separator") {
+              return <div key={`sep-${i}`} className="my-1 border-t border-slate-100" />;
+            }
+            const Icon = item.icon;
             return (
               <button
-                key={action.label}
+                key={item.label}
                 type="button"
-                onClick={(e) => { e.stopPropagation(); action.onClick(); onClose(); }}
+                role="menuitem"
+                onClick={(e) => { e.stopPropagation(); item.onClick(); onClose(); }}
                 className={cn(
                   "w-full text-left flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors cursor-pointer",
-                  action.danger
+                  item.danger
                     ? "text-red-600 hover:bg-red-50"
                     : "text-slate-700 hover:bg-slate-50"
                 )}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
-                {action.label}
+                {item.label}
               </button>
             );
           })}
@@ -283,6 +329,12 @@ export default function StudentsPage() {
 
   // Row actions dropdown
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Row action dialogs
+  const [enrolmentStudent, setEnrolmentStudent] = useState<Student | null>(null);
+  const [taskStudent,      setTaskStudent]      = useState<Student | null>(null);
+  const [noteStudent,      setNoteStudent]      = useState<Student | null>(null);
+  const [withdrawStudent,  setWithdrawStudent]  = useState<Student | null>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -772,6 +824,10 @@ export default function StudentsPage() {
                           onOpen={() => setOpenMenuId(student.id)}
                           onClose={() => setOpenMenuId(null)}
                           openUpward={openUpward}
+                          onAddEnrolment={setEnrolmentStudent}
+                          onNewTask={setTaskStudent}
+                          onLogNote={setNoteStudent}
+                          onWithdraw={setWithdrawStudent}
                         />
                       </td>
                     </tr>
@@ -790,6 +846,402 @@ export default function StudentsPage() {
           onPageSizeChange={(size) => { setRowsPerPage(size); setCurrentPage(1); }}
         />
       </div>
+
+      {/* ── Row-action dialogs ────────────────────────────────────────────────── */}
+      {enrolmentStudent && (
+        <NewEnrolmentDialog
+          open={true}
+          onOpenChange={(v) => { if (!v) setEnrolmentStudent(null); }}
+          studentId={enrolmentStudent.id}
+          studentName={enrolmentStudent.name}
+          yearGroup={enrolmentStudent.yearGroup}
+          department={enrolmentStudent.department as StudentDepartment}
+        />
+      )}
+
+      <NewTaskDialog
+        student={taskStudent}
+        onClose={() => setTaskStudent(null)}
+      />
+
+      <LogNoteDialog
+        student={noteStudent}
+        onClose={() => setNoteStudent(null)}
+      />
+
+      <WithdrawStudentDialog
+        student={withdrawStudent}
+        onClose={() => setWithdrawStudent(null)}
+        onConfirmed={() => setStudentsVersion((v) => v + 1)}
+      />
     </div>
+  );
+}
+
+// ─── Row-action dialogs ───────────────────────────────────────────────────────
+
+const FIELD =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400";
+const FIELD_ERROR = "border-red-300 focus:ring-red-300 focus:border-red-400";
+
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  return (
+    <label className="block mb-1.5 text-xs font-semibold text-slate-700">
+      {children}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </label>
+  );
+}
+
+function LinkedChip({ label, name }: { label: string; name: string }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs">
+      <span className="text-amber-700/70 uppercase tracking-wide font-semibold text-[10px]">{label}</span>
+      <span className="text-amber-800 font-semibold">{name}</span>
+    </div>
+  );
+}
+
+// ── New Task ────────────────────────────────────────────────────────────────
+
+const TASK_TYPES: TaskType[] = ["Admin", "Academic", "Finance", "HR", "Student Follow-up", "Cover", "Personal"];
+const TASK_PRIORITIES: TaskPriority[] = ["High", "Medium", "Low"];
+
+function todayIsoPlus(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatTaskDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function getNextTaskId(): string {
+  const max = tasksStore.reduce((acc, t) => {
+    const n = parseInt(t.id.replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) ? Math.max(acc, n) : acc;
+  }, 0);
+  return `TK-${String(max + 1).padStart(3, "0")}`;
+}
+
+function NewTaskDialog({
+  student,
+  onClose,
+}: {
+  student: Student | null;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<TaskType>("Student Follow-up");
+  const [priority, setPriority] = useState<TaskPriority>("Medium");
+  const [dueDate, setDueDate] = useState<string>(() => todayIsoPlus(3));
+  const [assignee, setAssignee] = useState<string>(currentUser.name);
+  const [error, setError] = useState<string>("");
+
+  useEffect(() => {
+    if (student) {
+      setTitle("");
+      setType("Student Follow-up");
+      setPriority("Medium");
+      setDueDate(todayIsoPlus(3));
+      setAssignee(currentUser.name);
+      setError("");
+    }
+  }, [student]);
+
+  function handleSave() {
+    if (!student) return;
+    if (!title.trim()) {
+      setError("Task title is required");
+      return;
+    }
+    const newTask: Task = {
+      id: getNextTaskId(),
+      title: title.trim(),
+      type,
+      priority,
+      status: "Open",
+      assignee,
+      dueDate: formatTaskDate(dueDate),
+      linkedRecord: { type: "student", name: student.name, id: student.id },
+      description: "",
+      subtasks: [],
+      overdue: false,
+    };
+    tasksStore.unshift(newTask);
+    toast.success("Task created", { description: `${newTask.id} · Linked to ${student.name}` });
+    onClose();
+  }
+
+  const activeStaff = useMemo(
+    () => staffMembers.filter((s) => s.status === "Active"),
+    [],
+  );
+
+  return (
+    <Dialog open={!!student} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>New Task</DialogTitle>
+          <DialogDescription>
+            Create a task linked to this student.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          {student && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                Linked record
+              </p>
+              <LinkedChip label="Student" name={`${student.name} · ${student.id}`} />
+            </div>
+          )}
+
+          <div>
+            <FieldLabel required>Task title</FieldLabel>
+            <input
+              autoFocus
+              type="text"
+              placeholder="e.g. Follow up on Term 3 enrolment"
+              value={title}
+              onChange={(e) => { setTitle(e.target.value); if (error) setError(""); }}
+              className={cn(FIELD, error && FIELD_ERROR)}
+            />
+            {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Type</FieldLabel>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as TaskType)}
+                className={FIELD}
+              >
+                {TASK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>Priority</FieldLabel>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                className={FIELD}
+              >
+                {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Due date</FieldLabel>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className={FIELD}
+              />
+            </div>
+            <div>
+              <FieldLabel>Assignee</FieldLabel>
+              <select
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+                className={FIELD}
+              >
+                <option value={currentUser.name}>{currentUser.name} (me)</option>
+                {activeStaff
+                  .filter((s) => s.name !== currentUser.name)
+                  .map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+            style={{ backgroundColor: "#F59E0B" }}
+          >
+            Create task
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Log Contact Note ────────────────────────────────────────────────────────
+
+function LogNoteDialog({
+  student,
+  onClose,
+}: {
+  student: Student | null;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState("");
+
+  useEffect(() => { if (student) setNote(""); }, [student]);
+
+  function handleSave() {
+    if (!student || !note.trim()) return;
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.toLocaleString("en-GB", { month: "short" });
+    studentDetail.communicationLog.unshift({
+      date: `${day} ${month}`,
+      channel: "Email",
+      message: note.trim(),
+      sentBy: currentUser.name,
+      status: "Logged",
+    });
+    toast.success("Contact note saved");
+    onClose();
+  }
+
+  return (
+    <Dialog open={!!student} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-[440px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Log contact note</DialogTitle>
+          <DialogDescription>
+            {student ? `Add a note for ${student.name} (${student.id}).` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5">
+          <FieldLabel required>Note</FieldLabel>
+          <textarea
+            autoFocus
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={5}
+            placeholder="What did you discuss? e.g. Called guardian — confirmed Term 3 schedule…"
+            className={cn(FIELD, "resize-none")}
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!note.trim()}
+            className={cn(
+              "rounded-lg px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors cursor-pointer",
+              note.trim() ? "bg-amber-500 hover:bg-amber-600" : "bg-amber-300 cursor-not-allowed",
+            )}
+            style={note.trim() ? { backgroundColor: "#F59E0B" } : undefined}
+          >
+            Save note
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Withdraw Student ────────────────────────────────────────────────────────
+
+function WithdrawStudentDialog({
+  student,
+  onClose,
+  onConfirmed,
+}: {
+  student: Student | null;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (student) { setReason(""); setError(false); }
+  }, [student]);
+
+  function handleConfirm() {
+    if (!student) return;
+    if (!reason.trim()) { setError(true); return; }
+    const target = studentsStore.find((s) => s.id === student.id);
+    if (target) target.status = "Withdrawn";
+    toast.success(`${student.name} has been withdrawn`);
+    onConfirmed();
+    onClose();
+  }
+
+  return (
+    <Dialog open={!!student} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-[460px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Withdraw student</DialogTitle>
+          <DialogDescription>
+            This will mark {student?.name ?? "this student"} as Withdrawn and
+            stop future enrolment activity. A reason is required for the record.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-800 leading-relaxed">
+              Active enrolments and scheduled sessions should be handled
+              separately. This action changes the student&apos;s status only.
+            </p>
+          </div>
+
+          <div>
+            <FieldLabel required>Reason for withdrawal</FieldLabel>
+            <textarea
+              autoFocus
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); if (error) setError(false); }}
+              rows={4}
+              placeholder="e.g. Family relocating overseas; completed programme early…"
+              className={cn(FIELD, "resize-none", error && FIELD_ERROR)}
+            />
+            {error && <p className="mt-1 text-[11px] text-red-600">Reason is required</p>}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors cursor-pointer"
+          >
+            Withdraw student
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

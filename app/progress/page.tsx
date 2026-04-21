@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Search,
   Plus,
@@ -29,15 +31,18 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { FIELD, FieldLabel } from "@/components/journey/dialog-parts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tier = "Pass" | "Requires Support" | "Not Submitted";
-type ReportStatus = "Approved" | "Pending HOD" | "Draft" | "Not Generated";
+type ReportStatus = "Approved" | "Pending HOD" | "Draft" | "Not Generated" | "Revision Requested" | "Rejected" | "Delivered";
 type Severity = "Critical" | "High" | "Medium" | "Low";
-type AlertStatus = "Open" | "Escalated to Concern" | "Acknowledged" | "Resolved";
+type AlertStatus = "Open" | "Escalated to Concern" | "Acknowledged" | "Resolved" | "Dismissed";
+type AlertLevel = "L1" | "L2" | "L3";
 type AssignmentStatus = "Complete" | "Partial" | "Pending" | "Upcoming";
 type AssignmentType = "Test" | "Homework" | "Classwork" | "Past Paper";
 
@@ -70,6 +75,7 @@ interface Alert {
   raised: string;
   severity: Severity;
   status: AlertStatus;
+  level: AlertLevel;
 }
 
 interface Assignment {
@@ -101,47 +107,110 @@ const TRACKERS: Tracker[] = [
 ];
 
 const REPORTS: Report[] = [
-  { student: "Aisha Rahman",       subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   draftReady: "15 Apr 2025", status: "Draft"       },
-  { student: "Layla Hassan",       subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  draftReady: "14 Apr 2025", status: "Pending HOD" },
-  { student: "Layla Hassan",       subject: "Y10 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "14 Apr 2025", status: "Draft"       },
-  { student: "Faris Qasim",        subject: "Y11 Physics", teacher: "Mr Faris Al-Amin",  draftReady: "13 Apr 2025", status: "Draft"       },
-  { student: "Mariam Al-Suwaidi",  subject: "Y13 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "12 Apr 2025", status: "Pending HOD" },
-  { student: "Hamdan Al-Maktoum",  subject: "Y7 Maths",    teacher: "Mr Tariq Al-Amin",  draftReady: "10 Apr 2025", status: "Approved"    },
-  { student: "Khalid Mansoor",     subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "8 Apr 2025",  status: "Approved"    },
-  { student: "Aisha Rahman",       subject: "Y8 English",  teacher: "Ms Sarah Mitchell", draftReady: "8 Apr 2025",  status: "Approved"    },
-  { student: "Hamdan Al-Maktoum",  subject: "Y7 English",  teacher: "Ms Sarah Mitchell", draftReady: "7 Apr 2025",  status: "Approved"    },
-  { student: "Ziad Khalil",        subject: "Y3 English",  teacher: "Ms Sarah Mitchell", draftReady: "5 Apr 2025",  status: "Approved"    },
+  { student: "Aisha Rahman",       subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   draftReady: "15 Apr 2026", status: "Draft"       },
+  { student: "Layla Hassan",       subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  draftReady: "14 Apr 2026", status: "Pending HOD" },
+  { student: "Layla Hassan",       subject: "Y10 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "14 Apr 2026", status: "Draft"       },
+  { student: "Faris Qasim",        subject: "Y11 Physics", teacher: "Mr Faris Al-Amin",  draftReady: "13 Apr 2026", status: "Draft"       },
+  { student: "Mariam Al-Suwaidi",  subject: "Y13 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "12 Apr 2026", status: "Pending HOD" },
+  { student: "Hamdan Al-Maktoum",  subject: "Y7 Maths",    teacher: "Mr Tariq Al-Amin",  draftReady: "10 Apr 2026", status: "Approved"    },
+  { student: "Khalid Mansoor",     subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "8 Apr 2026",  status: "Approved"    },
+  { student: "Aisha Rahman",       subject: "Y8 English",  teacher: "Ms Sarah Mitchell", draftReady: "8 Apr 2026",  status: "Approved"    },
+  { student: "Hamdan Al-Maktoum",  subject: "Y7 English",  teacher: "Ms Sarah Mitchell", draftReady: "7 Apr 2026",  status: "Approved"    },
+  { student: "Ziad Khalil",        subject: "Y3 English",  teacher: "Ms Sarah Mitchell", draftReady: "5 Apr 2026",  status: "Approved"    },
 ];
 
 const ALERTS: Alert[] = [
-  { student: "Nour Ibrahim",      year: "Y4",  subject: "Y4 Maths",    alertType: "Below Pass Threshold",      signal: "3 consecutive Requires Support",          raised: "14 Apr 2025", severity: "Critical", status: "Open"                 },
-  { student: "Sara Nasser",       year: "Y9",  subject: "Y9 Maths",    alertType: "Below Pass Threshold",      signal: "Avg score 55% — below 80% threshold",     raised: "12 Apr 2025", severity: "Critical", status: "Open"                 },
-  { student: "Omar Al-Farsi",     year: "Y5",  subject: "Y5 Maths",    alertType: "Predicted Grade Gap",       signal: "Predicted C+, target B — gap widening",   raised: "10 Apr 2025", severity: "High",     status: "Open"                 },
-  { student: "Aisha Rahman",      year: "Y8",  subject: "Y8 Maths",    alertType: "Assignment Non-submission", signal: "30%+ non-submission rate this term",       raised: "8 Apr 2025",  severity: "Medium",   status: "Escalated to Concern" },
-  { student: "Faris Qasim",       year: "Y11", subject: "Y11 Physics", alertType: "Predicted Grade Gap",       signal: "Predicted B-, target A — 2 grade gap",    raised: "6 Apr 2025",  severity: "Medium",   status: "Open"                 },
-  { student: "Mariam Al-Suwaidi", year: "Y13", subject: "Y13 Maths",   alertType: "Predicted Grade Gap",       signal: "Predicted B, target A — monitored",        raised: "4 Apr 2025",  severity: "Low",      status: "Acknowledged"         },
-  { student: "Reem Al-Dosari",    year: "Y6",  subject: "Y6 Science",  alertType: "Attendance Impact",         signal: "Attendance below 80% affecting progress",  raised: "2 Apr 2025",  severity: "Medium",   status: "Open"                 },
-  { student: "Dana Al-Zaabi",     year: "Y2",  subject: "Y2 English",  alertType: "Topic Gap",                 signal: "2 topics not yet assessed this term",       raised: "1 Apr 2025",  severity: "Low",      status: "Resolved"             },
+  { student: "Nour Ibrahim",      year: "Y4",  subject: "Y4 Maths",    alertType: "Below Pass Threshold",      signal: "3 consecutive Requires Support",          raised: "14 Apr 2026", severity: "Critical", status: "Open",                 level: "L1" },
+  { student: "Sara Nasser",       year: "Y9",  subject: "Y9 Maths",    alertType: "Below Pass Threshold",      signal: "Avg score 55% — below 80% threshold",     raised: "12 Apr 2026", severity: "Critical", status: "Open",                 level: "L1" },
+  { student: "Omar Al-Farsi",     year: "Y5",  subject: "Y5 Maths",    alertType: "Predicted Grade Gap",       signal: "Predicted C+, target B — gap widening",   raised: "10 Apr 2026", severity: "High",     status: "Open",                 level: "L1" },
+  { student: "Aisha Rahman",      year: "Y8",  subject: "Y8 Maths",    alertType: "Assignment Non-submission", signal: "30%+ non-submission rate this term",       raised: "8 Apr 2026",  severity: "Medium",   status: "Escalated to Concern", level: "L2" },
+  { student: "Faris Qasim",       year: "Y11", subject: "Y11 Physics", alertType: "Predicted Grade Gap",       signal: "Predicted B-, target A — 2 grade gap",    raised: "6 Apr 2026",  severity: "Medium",   status: "Open",                 level: "L1" },
+  { student: "Mariam Al-Suwaidi", year: "Y13", subject: "Y13 Maths",   alertType: "Predicted Grade Gap",       signal: "Predicted B, target A — monitored",        raised: "4 Apr 2026",  severity: "Low",      status: "Acknowledged",         level: "L1" },
+  { student: "Reem Al-Dosari",    year: "Y6",  subject: "Y6 Science",  alertType: "Attendance Impact",         signal: "Attendance below 80% affecting progress",  raised: "2 Apr 2026",  severity: "Medium",   status: "Open",                 level: "L1" },
+  { student: "Dana Al-Zaabi",     year: "Y2",  subject: "Y2 English",  alertType: "Topic Gap",                 signal: "2 topics not yet assessed this term",       raised: "1 Apr 2026",  severity: "Low",      status: "Resolved",             level: "L1" },
 ];
 
 const ASSIGNMENTS: Assignment[] = [
-  { assignment: "Algebra Practice Test",      subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   type: "Test",       dueDate: "18 Apr 2025", submissions: "3/3", marked: "3/3", status: "Complete"  },
-  { assignment: "Essay — Persuasive Writing", subject: "Y8 English",  teacher: "Ms Sarah Mitchell", type: "Homework",   dueDate: "15 Apr 2025", submissions: "2/3", marked: "2/2", status: "Partial"   },
-  { assignment: "Quadratics Quiz",            subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   type: "Classwork",  dueDate: "10 Apr 2025", submissions: "3/3", marked: "3/3", status: "Complete"  },
-  { assignment: "Physics Problem Set 4",      subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  type: "Homework",   dueDate: "20 Apr 2025", submissions: "1/2", marked: "0/1", status: "Pending"   },
-  { assignment: "Y9 Maths Chapter Test",      subject: "Y9 Maths",    teacher: "Mr Tariq Al-Amin",  type: "Test",       dueDate: "22 Apr 2025", submissions: "0/2", marked: "0/0", status: "Upcoming"  },
-  { assignment: "Reading Comprehension",      subject: "Y8 English",  teacher: "Ms Sarah Mitchell", type: "Classwork",  dueDate: "5 Apr 2025",  submissions: "3/3", marked: "3/3", status: "Complete"  },
-  { assignment: "Y12 Mechanics Paper 1",      subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  type: "Past Paper", dueDate: "16 Apr 2025", submissions: "1/1", marked: "1/1", status: "Complete"  },
-  { assignment: "Y3 Spelling Test",           subject: "Y3 English",  teacher: "Ms Sarah Mitchell", type: "Classwork",  dueDate: "14 Apr 2025", submissions: "1/1", marked: "1/1", status: "Complete"  },
+  { assignment: "Algebra Practice Test",      subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   type: "Test",       dueDate: "18 Apr 2026", submissions: "3/3", marked: "3/3", status: "Complete"  },
+  { assignment: "Essay — Persuasive Writing", subject: "Y8 English",  teacher: "Ms Sarah Mitchell", type: "Homework",   dueDate: "15 Apr 2026", submissions: "2/3", marked: "2/2", status: "Partial"   },
+  { assignment: "Quadratics Quiz",            subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   type: "Classwork",  dueDate: "10 Apr 2026", submissions: "3/3", marked: "3/3", status: "Complete"  },
+  { assignment: "Physics Problem Set 4",      subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  type: "Homework",   dueDate: "20 Apr 2026", submissions: "1/2", marked: "0/1", status: "Pending"   },
+  { assignment: "Y9 Maths Chapter Test",      subject: "Y9 Maths",    teacher: "Mr Tariq Al-Amin",  type: "Test",       dueDate: "22 Apr 2026", submissions: "0/2", marked: "0/0", status: "Upcoming"  },
+  { assignment: "Reading Comprehension",      subject: "Y8 English",  teacher: "Ms Sarah Mitchell", type: "Classwork",  dueDate: "5 Apr 2026",  submissions: "3/3", marked: "3/3", status: "Complete"  },
+  { assignment: "Y12 Mechanics Paper 1",      subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  type: "Past Paper", dueDate: "16 Apr 2026", submissions: "1/1", marked: "1/1", status: "Complete"  },
+  { assignment: "Y3 Spelling Test",           subject: "Y3 English",  teacher: "Ms Sarah Mitchell", type: "Classwork",  dueDate: "14 Apr 2026", submissions: "1/1", marked: "1/1", status: "Complete"  },
 ];
 
-const MOCK_TOPICS = [
-  { topic: "Algebra",    score: 88, tier: "Pass"             as Tier, remark: "Strong grasp of linear equations"         },
-  { topic: "Quadratics", score: 76, tier: "Pass"             as Tier, remark: "Needs practice on completing the square"  },
-  { topic: "Geometry",   score: 91, tier: "Pass"             as Tier, remark: "Excellent spatial reasoning"              },
-  { topic: "Statistics", score: 62, tier: "Requires Support" as Tier, remark: "Struggling with probability trees"        },
-  { topic: "Calculus",   score: 55, tier: "Requires Support" as Tier, remark: "Introduction only — needs reinforcement"  },
+type TopicStatus = "Not Started" | "In Progress" | "Complete";
+
+interface TrackerTopic {
+  topic: string;
+  status: TopicStatus;
+  lastUpdated: string;
+  notes: string;
+}
+
+const MOCK_TOPICS: TrackerTopic[] = [
+  { topic: "Algebra",      status: "Complete",    lastUpdated: "14 Apr 2026", notes: "Strong grasp of linear equations"               },
+  { topic: "Quadratics",   status: "Complete",    lastUpdated: "10 Apr 2026", notes: "Completing the square — practice paper issued"  },
+  { topic: "Geometry",     status: "Complete",    lastUpdated: "07 Apr 2026", notes: "Excellent spatial reasoning"                    },
+  { topic: "Statistics",   status: "In Progress", lastUpdated: "02 Apr 2026", notes: "Struggling with probability trees"              },
+  { topic: "Calculus",     status: "In Progress", lastUpdated: "28 Mar 2026", notes: "Introduction only — needs reinforcement"        },
+  { topic: "Trigonometry", status: "Not Started", lastUpdated: "—",           notes: "Scheduled for next half-term"                   },
 ];
+
+function getTopicStatusClass(s: TopicStatus): string {
+  switch (s) {
+    case "Complete":    return "bg-emerald-100 text-emerald-700 border border-emerald-200";
+    case "In Progress": return "bg-amber-100 text-amber-700 border border-amber-200";
+    case "Not Started": return "bg-slate-100 text-slate-500 border border-slate-200";
+  }
+}
+
+function getTeacherForSubject(subject: string): string {
+  if (subject.includes("English")) return "Ms Sarah Mitchell";
+  if (subject.includes("Physics")) return "Mr Faris Al-Amin";
+  const yearMatch = subject.match(/Y(\d+)/);
+  const yearNum = yearMatch ? parseInt(yearMatch[1]) : 0;
+  if (yearNum >= 10) return "Mr Faris Al-Amin";
+  if (yearNum === 8) return "Mr Ahmed Khalil";
+  return "Mr Tariq Al-Amin";
+}
+
+function hashSeed(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0xffffffff;
+  return Math.abs(h);
+}
+
+function getAttendanceSnapshot(tracker: Tracker) {
+  const seed = hashSeed(tracker.student + tracker.subject);
+  const booked = 24;
+  const attended = Math.max(
+    0,
+    Math.min(booked, Math.round(booked * (0.78 + (tracker.avgScore / 100) * 0.2)) - (seed % 2))
+  );
+  const absences = booked - attended;
+  const makeups  = seed % 3;
+  return { booked, attended, absences, makeups };
+}
+
+function getCurrentGrade(avgScore: number): string {
+  if (avgScore >= 90) return "A*";
+  if (avgScore >= 85) return "A";
+  if (avgScore >= 80) return "A-";
+  if (avgScore >= 75) return "B+";
+  if (avgScore >= 70) return "B";
+  if (avgScore >= 65) return "B-";
+  if (avgScore >= 60) return "C+";
+  if (avgScore >= 55) return "C";
+  if (avgScore >= 50) return "C-";
+  if (avgScore >= 45) return "D";
+  if (avgScore >= 40) return "E";
+  return "F";
+}
+
+const CURRENT_TERM = "Spring Term 2026";
 
 // ─── Grade ordering ───────────────────────────────────────────────────────────
 
@@ -193,10 +262,13 @@ function getTierClass(tier: Tier): string {
 
 function getReportStatusClass(status: ReportStatus): string {
   switch (status) {
-    case "Approved":      return "bg-emerald-100 text-emerald-700 border border-emerald-200";
-    case "Pending HOD":   return "bg-amber-100 text-amber-700 border border-amber-200";
-    case "Draft":         return "bg-blue-100 text-blue-700 border border-blue-200";
-    case "Not Generated": return "bg-slate-100 text-slate-500 border border-slate-200";
+    case "Approved":           return "bg-emerald-100 text-emerald-700 border border-emerald-200";
+    case "Pending HOD":        return "bg-amber-100 text-amber-700 border border-amber-200";
+    case "Draft":              return "bg-blue-100 text-blue-700 border border-blue-200";
+    case "Not Generated":      return "bg-slate-100 text-slate-500 border border-slate-200";
+    case "Revision Requested": return "bg-amber-100 text-amber-700 border border-amber-200";
+    case "Rejected":           return "bg-red-100 text-red-700 border border-red-200";
+    case "Delivered":          return "bg-emerald-100 text-emerald-700 border border-emerald-200";
   }
 }
 
@@ -213,8 +285,17 @@ function getAlertStatusClass(s: AlertStatus): string {
   switch (s) {
     case "Open":                 return "bg-red-100 text-red-700 border border-red-200";
     case "Escalated to Concern": return "bg-white text-red-600 border border-red-400";
-    case "Acknowledged":         return "bg-amber-100 text-amber-700 border border-amber-200";
+    case "Acknowledged":         return "bg-slate-100 text-slate-600 border border-slate-200";
     case "Resolved":             return "bg-emerald-100 text-emerald-700 border border-emerald-200";
+    case "Dismissed":            return "bg-slate-100 text-slate-500 border border-slate-200";
+  }
+}
+
+function getAlertLevelClass(l: AlertLevel): string {
+  switch (l) {
+    case "L1": return "bg-slate-100 text-slate-600 border border-slate-200";
+    case "L2": return "bg-red-100 text-red-700 border border-red-200";
+    case "L3": return "bg-red-600 text-white border border-red-700";
   }
 }
 
@@ -345,111 +426,128 @@ function AvgScoreCell({ score }: { score: number }) {
   );
 }
 
-// ─── Tracker Slide-Over ───────────────────────────────────────────────────────
+// ─── View Tracker Dialog ──────────────────────────────────────────────────────
 
-function TrackerSlideOver({ tracker, onClose }: { tracker: Tracker; onClose: () => void }) {
-  const { can } = usePermission();
+function TrackerViewDialog({ tracker, onClose }: { tracker: Tracker; onClose: () => void }) {
   const palette  = getAvatarPalette(tracker.student);
   const initials = getInitials(tracker.student);
+  const teacher  = getTeacherForSubject(tracker.subject);
+  const { booked, attended, absences, makeups } = getAttendanceSnapshot(tracker);
+  const completionPct = booked === 0 ? 0 : Math.round((attended / booked) * 100);
+  const currentGrade  = getCurrentGrade(tracker.avgScore);
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-[560px] max-h-[80vh]">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[85vh]">
         {/* Header */}
-        <DialogHeader className="flex-shrink-0 px-6 py-5 pr-12 border-b border-slate-200 flex-row items-start gap-3">
+        <DialogHeader className="flex-row items-start gap-3">
           <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", palette.bg, palette.text)}>
             {initials}
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <DialogTitle className="text-base font-semibold text-slate-800">{tracker.student}</DialogTitle>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">{tracker.year}</span>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", getTierClass(tracker.tier))}>{tracker.tier}</span>
-            </div>
-            <p className="text-sm text-slate-500 mt-0.5">{tracker.subject}</p>
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-base font-semibold text-slate-800">{tracker.student}</DialogTitle>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {tracker.subject} · {teacher} · {CURRENT_TERM}
+            </p>
           </div>
         </DialogHeader>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-100">
-              <p className="text-xs text-slate-400 mb-1">Topics Covered</p>
-              <p className="text-sm font-semibold text-slate-700">{tracker.topicsCovered}</p>
+          {/* Progress bar */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Overall completion</span>
+              <span className="text-sm font-semibold text-slate-800">{completionPct}%</span>
             </div>
-            <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-100">
-              <p className="text-xs text-slate-400 mb-1">Average Score</p>
-              <AvgScoreCell score={tracker.avgScore} />
+            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div className="h-full rounded-full bg-amber-400" style={{ width: `${completionPct}%` }} />
             </div>
+            <p className="text-xs text-slate-500 mt-1.5">{attended} of {booked} sessions attended</p>
           </div>
 
-          {/* Topic table */}
+          {/* Topics table */}
           <div>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Topic Breakdown</h3>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Topics</h3>
             <div className="rounded-lg border border-slate-200 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    {["Topic", "Score", "Tier", "Remark"].map((h) => (
-                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                    {["Topic", "Status", "Last updated", "Notes"].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {MOCK_TOPICS.map((t, i) => (
-                    <tr key={t.topic} className={cn("border-b border-slate-100 last:border-0", i % 2 === 1 && "bg-slate-50/60")}>
-                      <td className="px-4 py-2.5 font-medium text-slate-700">{t.topic}</td>
+                  {MOCK_TOPICS.map((t) => (
+                    <tr key={t.topic} className="border-b border-slate-100 last:border-0">
+                      <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{t.topic}</td>
                       <td className="px-4 py-2.5">
-                        <span className={cn("font-medium text-sm",
-                          t.score >= 80 ? "text-emerald-600" :
-                          t.score >= 60 ? "text-amber-600"   :
-                          "text-red-600"
-                        )}>{t.score}%</span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium", getTierClass(t.tier))}>
-                          {t.tier === "Pass" ? "Pass ✓" : "Requires Support ⚠️"}
+                        <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap", getTopicStatusClass(t.status))}>
+                          {t.status}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{t.remark}</td>
+                      <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{t.lastUpdated}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{t.notes}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Grades */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Grades</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Target</p>
+                <p className="text-2xl font-bold text-slate-700">{tracker.targetGrade}</p>
+              </div>
+              <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Current</p>
+                <p className="text-2xl font-bold text-slate-700">{currentGrade}</p>
+              </div>
+              <div className="bg-white rounded-lg border border-slate-200 border-l-4 border-l-amber-400 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Predicted</p>
+                <p className="text-2xl font-bold text-amber-600">{tracker.predictedGrade}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Attendance snapshot */}
+          <div>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Attendance snapshot</h3>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-slate-50 rounded-lg border border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Booked</p>
+                <p className="text-lg font-semibold text-slate-700">{booked}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg border border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Attended</p>
+                <p className="text-lg font-semibold text-emerald-600">{attended}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg border border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Absences</p>
+                <p className={cn("text-lg font-semibold", absences > 0 ? "text-red-600" : "text-slate-700")}>{absences}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg border border-slate-100 px-4 py-3">
+                <p className="text-xs text-slate-500 mb-1">Makeups</p>
+                <p className="text-lg font-semibold text-slate-700">{makeups}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
-        <DialogFooter className="flex flex-col gap-3">
-          <div className="flex items-center gap-8 w-full">
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Predicted Grade</p>
-              <p className="text-2xl font-bold text-amber-500">{tracker.predictedGrade}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Target Grade</p>
-              <p className="text-2xl font-bold text-slate-400">{tracker.targetGrade}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 w-full">
-            {can('progress.generateReport') && (
-              <button className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
-                Generate Report
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className={cn(
-                "py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer",
-                can('progress.generateReport') ? "px-5" : "flex-1"
-              )}
-            >
-              Close
-            </button>
-          </div>
+        <DialogFooter className="flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Close
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -573,7 +671,11 @@ function TrackersTab() {
             </thead>
             <tbody>
               {paginated.map((t, i) => (
-                <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer">
+                <tr
+                  key={i}
+                  onClick={() => setSelected(t)}
+                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   <td className="px-4 py-3"><AvatarCell name={t.student} /></td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600 font-medium">{t.year}</span>
@@ -592,7 +694,7 @@ function TrackersTab() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setSelected(t)}
+                        onClick={(e) => { e.stopPropagation(); setSelected(t); }}
                         className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
                       >
                         View Tracker
@@ -622,15 +724,80 @@ function TrackersTab() {
         />
       </div>
 
-      {selected && <TrackerSlideOver tracker={selected} onClose={() => setSelected(null)} />}
+      {selected && <TrackerViewDialog tracker={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }
 
 // ─── Tab 2 — Reports ──────────────────────────────────────────────────────────
 
+type ReportAction = "approve" | "revision" | "reject";
+
 function ReportsTab() {
   const { can } = usePermission();
+  const [reports, setReports] = useState<Report[]>(REPORTS);
+  const [action, setAction] = useState<{ kind: ReportAction; index: number } | null>(null);
+  const [notes, setNotes] = useState("");
+  const [notesError, setNotesError] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+  const [deliverIndex, setDeliverIndex] = useState<number | null>(null);
+
+  function openReview(index: number) {
+    setReviewIndex(index);
+    toast("Opening report editor…");
+  }
+
+  function confirmDeliver() {
+    if (deliverIndex === null) return;
+    updateStatus(deliverIndex, "Delivered");
+    toast.success("Report marked as delivered");
+    setDeliverIndex(null);
+  }
+
+  const reviewReport = reviewIndex !== null ? reports[reviewIndex] : null;
+  const deliverReport = deliverIndex !== null ? reports[deliverIndex] : null;
+
+  function openAction(kind: ReportAction, index: number) {
+    setAction({ kind, index });
+    setNotes("");
+    setNotesError(false);
+  }
+
+  function closeAction() {
+    setAction(null);
+    setNotes("");
+    setNotesError(false);
+  }
+
+  function updateStatus(index: number, status: ReportStatus) {
+    setReports((prev) => prev.map((r, i) => (i === index ? { ...r, status } : r)));
+  }
+
+  function confirmApprove() {
+    if (!action) return;
+    updateStatus(action.index, "Approved");
+    toast.success("Report approved and sent to guardian");
+    closeAction();
+  }
+
+  function confirmRevision() {
+    if (!action) return;
+    if (!notes.trim()) { setNotesError(true); return; }
+    updateStatus(action.index, "Revision Requested");
+    toast.success("Revision requested — teacher has been notified");
+    closeAction();
+  }
+
+  function confirmReject() {
+    if (!action) return;
+    if (!notes.trim()) { setNotesError(true); return; }
+    updateStatus(action.index, "Rejected");
+    toast.success("Report rejected");
+    closeAction();
+  }
+
+  const activeReport = action ? reports[action.index] : null;
+
   return (
     <div className="space-y-5">
       {/* Summary strip */}
@@ -652,7 +819,7 @@ function ReportsTab() {
               </tr>
             </thead>
             <tbody>
-              {REPORTS.map((r, i) => (
+              {reports.map((r, i) => (
                 <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3"><AvatarCell name={r.student} /></td>
                   <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.subject}</td>
@@ -665,38 +832,69 @@ function ReportsTab() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {r.status === "Draft" && (
                         <>
-                          <button className="px-3 py-1 text-xs font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap">
+                          <button
+                            onClick={() => openReview(i)}
+                            className="px-3 py-1 text-xs font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                          >
                             Review &amp; Edit
                           </button>
-                          <button className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap">
+                          <button
+                            onClick={() => toast.success("AI narrative generated")}
+                            className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                          >
                             <Sparkles className="w-3 h-3" />
                             Generate AI Narrative
                           </button>
                         </>
                       )}
-                      {r.status === "Pending HOD" && (
+                      {r.status === "Pending HOD" && can('progress.approveReport') && (
                         <>
-                          {can('progress.approveReport') && (
-                          <button className="px-3 py-1 text-xs font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap">
+                          <button
+                            onClick={() => openAction("approve", i)}
+                            className="px-3 py-1 text-xs font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                          >
                             Approve
                           </button>
-                          )}
-                          <button className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap">
-                            Send Back
+                          <button
+                            onClick={() => openAction("revision", i)}
+                            className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
+                          >
+                            Request Revision
+                          </button>
+                          <button
+                            onClick={() => openAction("reject", i)}
+                            className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+                          >
+                            Reject
                           </button>
                         </>
                       )}
                       {r.status === "Approved" && (
                         <>
-                          <button className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap">
+                          <button
+                            onClick={() => toast.success("Downloading report PDF…")}
+                            className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                          >
                             <Download className="w-3 h-3" />
                             Download PDF
                           </button>
-                          <button className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap">
+                          <button
+                            onClick={() => setDeliverIndex(i)}
+                            className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                          >
                             <CheckCircle className="w-3 h-3" />
                             Mark as Delivered
                           </button>
                         </>
+                      )}
+                      {r.status === "Delivered" && (
+                        <button
+                          onClick={() => toast.success("Downloading report PDF…")}
+                          className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                        >
+                          <Download className="w-3 h-3" />
+                          Download PDF
+                        </button>
                       )}
                     </div>
                   </td>
@@ -714,6 +912,219 @@ function ReportsTab() {
           AI narratives are draft-only. Teacher reviews and edits before HOD approves. No report is sent without explicit approval.
         </p>
       </div>
+
+      {/* Approve confirmation */}
+      <Dialog open={action?.kind === "approve"} onOpenChange={(o) => { if (!o) closeAction(); }}>
+        <DialogContent className="w-[480px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Approve this report?</DialogTitle>
+          </DialogHeader>
+          {activeReport && (
+            <div className="px-6 py-5 space-y-2 text-sm">
+              <div className="flex gap-3">
+                <span className="text-slate-500 w-20 shrink-0">Student</span>
+                <span className="font-medium text-slate-800">{activeReport.student}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-slate-500 w-20 shrink-0">Report</span>
+                <span className="font-medium text-slate-800">{activeReport.subject}</span>
+              </div>
+              <p className="text-xs text-slate-500 pt-2">
+                The approved report will be delivered to the student&apos;s guardian.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeAction}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmApprove}
+              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors cursor-pointer"
+            >
+              Approve report
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Revision */}
+      <Dialog open={action?.kind === "revision"} onOpenChange={(o) => { if (!o) closeAction(); }}>
+        <DialogContent className="w-[520px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Request Revision</DialogTitle>
+          </DialogHeader>
+          {activeReport && (
+            <div className="px-6 py-5 space-y-3 text-sm">
+              <p className="text-slate-500">
+                <span className="font-medium text-slate-800">{activeReport.student}</span> — {activeReport.subject}
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Revision notes <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => { setNotes(e.target.value); if (notesError) setNotesError(false); }}
+                  rows={5}
+                  placeholder="Explain what the teacher should change before resubmitting…"
+                  className={cn(
+                    "w-full px-3 py-2 text-sm border rounded-lg bg-white outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-amber-300 resize-none",
+                    notesError ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"
+                  )}
+                />
+                {notesError && <p className="mt-1 text-xs text-red-600">Revision notes are required.</p>}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeAction}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmRevision}
+              className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              Send to teacher
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject */}
+      <Dialog open={action?.kind === "reject"} onOpenChange={(o) => { if (!o) closeAction(); }}>
+        <DialogContent className="w-[520px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle className="text-red-700">Reject Report</DialogTitle>
+          </DialogHeader>
+          {activeReport && (
+            <div className="px-6 py-5 space-y-3 text-sm">
+              <p className="text-slate-500">
+                <span className="font-medium text-slate-800">{activeReport.student}</span> — {activeReport.subject}
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Reason for rejection <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => { setNotes(e.target.value); if (notesError) setNotesError(false); }}
+                  rows={5}
+                  placeholder="Why is this report being rejected? This will be recorded on the report."
+                  className={cn(
+                    "w-full px-3 py-2 text-sm border rounded-lg bg-white outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-red-200 resize-none",
+                    notesError ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-red-400"
+                  )}
+                />
+                {notesError && <p className="mt-1 text-xs text-red-600">A reason is required to reject this report.</p>}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeAction}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmReject}
+              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors cursor-pointer"
+            >
+              Reject report
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review & Edit (placeholder editor) */}
+      <Dialog open={reviewIndex !== null} onOpenChange={(o) => { if (!o) setReviewIndex(null); }}>
+        <DialogContent className="w-[640px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Edit report</DialogTitle>
+            {reviewReport && (
+              <DialogDescription>
+                {reviewReport.student} — {reviewReport.subject}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="px-6 py-5">
+            <label className="block text-xs font-medium text-slate-700 mb-1">Report narrative</label>
+            <textarea
+              readOnly
+              rows={10}
+              value={`Term progress summary for ${reviewReport?.student ?? "the student"} in ${reviewReport?.subject ?? "this subject"}.\n\n${reviewReport?.student ?? "The student"} has demonstrated steady engagement across the term, with consistent attendance and active participation in class discussions. Assessment performance shows a positive trajectory, particularly on application-style questions.\n\nAreas for development: deepen revision of foundational topics ahead of the upcoming mock exam, and continue practising past-paper questions under timed conditions.\n\n— Placeholder draft. The full editor is not yet wired up in this prototype.`}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-700 outline-none resize-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+            />
+            <p className="mt-2 text-xs text-slate-400 italic">Read-only placeholder — full inline editor coming soon.</p>
+          </div>
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setReviewIndex(null)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              disabled
+              className="rounded-lg bg-amber-300 px-3 py-1.5 text-sm font-semibold text-white shadow-sm opacity-60 cursor-not-allowed"
+            >
+              Edit
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark as Delivered confirmation */}
+      <Dialog open={deliverIndex !== null} onOpenChange={(o) => { if (!o) setDeliverIndex(null); }}>
+        <DialogContent className="w-[460px] max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Mark this report as delivered to the guardian?</DialogTitle>
+          </DialogHeader>
+          {deliverReport && (
+            <div className="px-6 py-5 space-y-2 text-sm">
+              <div className="flex gap-3">
+                <span className="text-slate-500 w-20 shrink-0">Student</span>
+                <span className="font-medium text-slate-800">{deliverReport.student}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="text-slate-500 w-20 shrink-0">Report</span>
+                <span className="font-medium text-slate-800">{deliverReport.subject}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDeliverIndex(null)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeliver}
+              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors cursor-pointer"
+            >
+              Confirm
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -733,7 +1144,236 @@ const ALERT_STUDENT_IDS: Record<string, string> = {
 
 // ─── Tab 3 — Academic Alerts ──────────────────────────────────────────────────
 
-function AlertsTab() {
+function nextLevel(l: AlertLevel): AlertLevel | null {
+  if (l === "L1") return "L2";
+  if (l === "L2") return "L3";
+  return null;
+}
+
+function EscalateAlertDialog({
+  alert,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  alert: Alert | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onConfirm: (notes: string) => void;
+}) {
+  const [notes, setNotes] = useState("");
+
+  if (!alert) return null;
+  const target = nextLevel(alert.level);
+  const canSubmit = notes.trim().length > 0 && target !== null;
+
+  function close() {
+    setNotes("");
+    onOpenChange(false);
+  }
+
+  function submit() {
+    if (!canSubmit) return;
+    onConfirm(notes.trim());
+    close();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) close(); else onOpenChange(true); }}>
+      <DialogContent className="w-[520px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Escalate alert</DialogTitle>
+          <DialogDescription>
+            {alert.student} · {alert.subject} · {alert.alertType}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel>Escalation level</FieldLabel>
+            {target ? (
+              <div className="flex items-center gap-2">
+                <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium", getAlertLevelClass(alert.level))}>
+                  {alert.level}
+                </span>
+                <ArrowUpCircle className="w-4 h-4 text-slate-400" />
+                <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium", getAlertLevelClass(target))}>
+                  {target}
+                </span>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Alert is already at the highest level (L3).</p>
+            )}
+          </div>
+
+          <div>
+            <FieldLabel htmlFor="esc-notes" required>Escalation notes</FieldLabel>
+            <textarea
+              id="esc-notes"
+              rows={4}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Why is this being escalated? What intervention is needed?"
+              className={FIELD}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className={cn(
+              "rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors cursor-pointer",
+              canSubmit ? "hover:bg-amber-600" : "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {target ? `Escalate to ${target}` : "Escalate"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DismissAlertDialog({
+  alert,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  alert: Alert | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  if (!alert) return null;
+  const canSubmit = reason.trim().length > 0;
+
+  function close() {
+    setReason("");
+    onOpenChange(false);
+  }
+
+  function submit() {
+    if (!canSubmit) return;
+    onConfirm(reason.trim());
+    close();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) close(); else onOpenChange(true); }}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle className="text-red-700">Dismiss alert?</DialogTitle>
+          <DialogDescription>
+            Dismiss the {alert.alertType.toLowerCase()} alert for {alert.student}. This removes it from the active alerts list.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel htmlFor="dis-reason" required>Reason for dismissal</FieldLabel>
+            <textarea
+              id="dis-reason"
+              rows={4}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why is this alert being dismissed?"
+              className={FIELD}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={close}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Keep alert
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className={cn(
+              "rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors cursor-pointer",
+              canSubmit ? "hover:bg-red-700" : "opacity-50 cursor-not-allowed"
+            )}
+          >
+            Dismiss alert
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AlertsTab({ onNavigateToTrackers }: { onNavigateToTrackers: () => void }) {
+  const [alerts, setAlerts] = useState<Alert[]>(ALERTS);
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [escalateTarget, setEscalateTarget] = useState<number | null>(null);
+  const [dismissTarget, setDismissTarget] = useState<number | null>(null);
+  const [trackerDialog, setTrackerDialog] = useState<Tracker | null>(null);
+
+  function viewTracker(a: Alert) {
+    const match = TRACKERS.find((t) => t.student === a.student && t.subject === a.subject);
+    if (match) {
+      setTrackerDialog(match);
+    } else {
+      onNavigateToTrackers();
+      toast("Viewing trackers for this student");
+    }
+  }
+
+  const visible = useMemo(() => {
+    return alerts
+      .map((a, i) => ({ a, i }))
+      .filter(({ a }) => {
+        if (a.status === "Dismissed") return showDismissed;
+        return a.status !== "Acknowledged" && a.status !== "Resolved";
+      });
+  }, [alerts, showDismissed]);
+
+  function acknowledge(index: number) {
+    setAlerts((prev) => prev.map((a, i) => (i === index ? { ...a, status: "Acknowledged" } : a)));
+    toast.success("Alert acknowledged");
+  }
+
+  function escalate(index: number, notes: string) {
+    const current = alerts[index];
+    const target = nextLevel(current.level);
+    if (!target) return;
+    setAlerts((prev) =>
+      prev.map((a, i) =>
+        i === index ? { ...a, level: target, status: "Escalated to Concern" } : a
+      )
+    );
+    toast.success(`Alert escalated to ${target}`);
+    // Notes are captured in the dialog but the prototype doesn't persist them beyond the toast.
+    void notes;
+  }
+
+  function dismiss(index: number, reason: string) {
+    setAlerts((prev) => prev.map((a, i) => (i === index ? { ...a, status: "Dismissed" } : a)));
+    toast.success("Alert dismissed");
+    void reason;
+  }
+
+  const escalateAlert = escalateTarget != null ? alerts[escalateTarget] : null;
+  const dismissAlert  = dismissTarget  != null ? alerts[dismissTarget]  : null;
+
   return (
     <div className="space-y-5">
       {/* Summary strip */}
@@ -743,39 +1383,71 @@ function AlertsTab() {
         <StatCard label="Resolved This Week"  value="4"  />
       </div>
 
+      {/* Toolbar */}
+      <div className="flex items-center justify-end">
+        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showDismissed}
+            onChange={(e) => setShowDismissed(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 accent-amber-500 cursor-pointer"
+          />
+          Show dismissed
+        </label>
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                {["Student", "Year", "Subject", "Alert Type", "Signal", "Raised", "Severity", "Status", "Actions"].map((h) => (
+                {["Student", "Year", "Subject", "Alert Type", "Signal", "Raised", "Severity", "Level", "Status", "Actions"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {ALERTS.map((a, i) => {
-                const canRaiseConcern = a.status === "Open" || a.severity === "Critical";
+              {visible.map(({ a, i }) => {
+                const isDismissed   = a.status === "Dismissed";
+                const isHandled     = isDismissed || a.status === "Acknowledged" || a.status === "Resolved";
+                const canEscalate   = !isHandled && nextLevel(a.level) !== null;
                 return (
-                  <tr key={i} className={cn("border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors", a.severity === "Critical" && "bg-red-50/40")}>
-                    <td className="px-4 py-3"><AvatarCell name={a.student} /></td>
+                  <tr
+                    key={i}
+                    className={cn(
+                      "border-b border-slate-100 last:border-0 transition-colors",
+                      isDismissed
+                        ? "bg-slate-50/60 text-slate-400 opacity-70 hover:bg-slate-50"
+                        : "hover:bg-slate-50",
+                      !isDismissed && a.severity === "Critical" && "bg-red-50/40"
+                    )}
+                  >
+                    <td className={cn("px-4 py-3", isDismissed && "opacity-80")}>
+                      <AvatarCell name={a.student} />
+                    </td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600 font-medium">{a.year}</span>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{a.subject}</td>
-                    <td className="px-4 py-3 text-xs font-medium text-slate-600 whitespace-nowrap">{a.alertType}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px]">{a.signal}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{a.raised}</td>
+                    <td className={cn("px-4 py-3 whitespace-nowrap", isDismissed ? "text-slate-400" : "text-slate-700")}>{a.subject}</td>
+                    <td className={cn("px-4 py-3 text-xs font-medium whitespace-nowrap", isDismissed ? "text-slate-400" : "text-slate-600")}>{a.alertType}</td>
+                    <td className={cn("px-4 py-3 text-xs max-w-[200px]", isDismissed ? "text-slate-400" : "text-slate-500")}>{a.signal}</td>
+                    <td className={cn("px-4 py-3 text-xs whitespace-nowrap", isDismissed ? "text-slate-400" : "text-slate-500")}>{a.raised}</td>
                     <td className="px-4 py-3">
                       <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap", getSeverityClass(a.severity))}>{a.severity}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap", getAlertLevelClass(a.level))}>{a.level}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap", getAlertStatusClass(a.status))}>{a.status}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => viewTracker(a)}
+                          className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
+                        >
                           View Tracker
                         </button>
                         {ALERT_STUDENT_IDS[a.student] && (
@@ -786,21 +1458,65 @@ function AlertsTab() {
                             View Student
                           </Link>
                         )}
-                        {canRaiseConcern && (
-                          <button className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap">
-                            <ArrowUpCircle className="w-3 h-3" />
-                            Raise Concern
-                          </button>
+                        {!isHandled && (
+                          <>
+                            <button
+                              onClick={() => acknowledge(i)}
+                              className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <CheckCircle className="w-3 h-3" />
+                              Acknowledge
+                            </button>
+                            {canEscalate && (
+                              <button
+                                onClick={() => setEscalateTarget(i)}
+                                className="px-3 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                              >
+                                <ArrowUpCircle className="w-3 h-3" />
+                                Escalate
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setDismissTarget(i)}
+                              className="px-3 py-1 text-xs font-medium border border-slate-200 text-slate-500 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <X className="w-3 h-3" />
+                              Dismiss
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-10 text-center text-sm text-slate-400">
+                    No active alerts.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <EscalateAlertDialog
+        alert={escalateAlert}
+        open={escalateTarget != null}
+        onOpenChange={(o) => { if (!o) setEscalateTarget(null); }}
+        onConfirm={(notes) => { if (escalateTarget != null) escalate(escalateTarget, notes); }}
+      />
+      <DismissAlertDialog
+        alert={dismissAlert}
+        open={dismissTarget != null}
+        onOpenChange={(o) => { if (!o) setDismissTarget(null); }}
+        onConfirm={(reason) => { if (dismissTarget != null) dismiss(dismissTarget, reason); }}
+      />
+      {trackerDialog && (
+        <TrackerViewDialog tracker={trackerDialog} onClose={() => setTrackerDialog(null)} />
+      )}
     </div>
   );
 }
@@ -874,6 +1590,7 @@ type TabId = (typeof TABS)[number]["id"];
 
 export default function ProgressPage() {
   const { can, role } = usePermission();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("trackers");
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -943,7 +1660,14 @@ export default function ProgressPage() {
       {/* Tab content */}
       {activeTab === "trackers"    && <TrackersTab />}
       {activeTab === "reports"     && <ReportsTab />}
-      {activeTab === "alerts"      && <AlertsTab />}
+      {activeTab === "alerts"      && (
+        <AlertsTab
+          onNavigateToTrackers={() => {
+            router.push("/progress?tab=trackers");
+            setActiveTab("trackers");
+          }}
+        />
+      )}
       {activeTab === "assignments" && <AssignmentsTab />}
     </div>
   );

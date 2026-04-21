@@ -14,6 +14,9 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
+  ReferenceLine,
 } from "recharts";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,13 +75,14 @@ const churnByDept = [
   { name: "Senior", value: 12 },
 ];
 
-const churnSignals = [
-  { signal: "Missed 3+ Sessions", count: 24 },
-  { signal: "Overdue Invoice", count: 18 },
-  { signal: "Teaching Quality Concern", count: 11 },
-  { signal: "Inconsistency", count: 9 },
-  { signal: "NPS Low", count: 6 },
-];
+// Churn — derive signal weights from mock churnRiskStudents.topSignal
+const churnSignals = (() => {
+  const counts = new Map<string, number>();
+  for (const s of churnRiskStudents) {
+    counts.set(s.topSignal, (counts.get(s.topSignal) ?? 0) + 1);
+  }
+  return Array.from(counts, ([signal, count]) => ({ signal, count })).sort((a, b) => b.count - a.count);
+})();
 
 const staffFeedback = [
   { teacher: "Ms Hana Yusuf", score: 4.7 },
@@ -88,6 +92,61 @@ const staffFeedback = [
   { teacher: "Mr Tariq Al-Amin", score: 4.0 },
   { teacher: "Nadia Al-Hassan", score: 3.8 },
 ];
+
+// Occupancy — room utilisation (% of capacity, target 80)
+const roomUtilisation = [
+  { room: "Room 1A", util: 77 },
+  { room: "Room 1B", util: 64 },
+  { room: "Room 1C", util: 58 },
+  { room: "Room 2A", util: 72 },
+  { room: "Room 2B", util: 65 },
+  { room: "Room 3A", util: 81 },
+  { room: "Room 3B", util: 88 },
+  { room: "Room 4A", util: 54 },
+];
+
+// Occupancy — peak hours (avg % by department, 08:00-20:00)
+const peakHoursData = [
+  { hour: "08:00", Primary: 12, "Lower Sec": 8,  Senior: 6  },
+  { hour: "09:00", Primary: 18, "Lower Sec": 12, Senior: 10 },
+  { hour: "10:00", Primary: 24, "Lower Sec": 18, Senior: 14 },
+  { hour: "11:00", Primary: 28, "Lower Sec": 22, Senior: 18 },
+  { hour: "12:00", Primary: 32, "Lower Sec": 26, Senior: 22 },
+  { hour: "13:00", Primary: 38, "Lower Sec": 32, Senior: 28 },
+  { hour: "14:00", Primary: 58, "Lower Sec": 42, Senior: 34 },
+  { hour: "15:00", Primary: 82, "Lower Sec": 74, Senior: 68 },
+  { hour: "16:00", Primary: 88, "Lower Sec": 92, Senior: 85 },
+  { hour: "17:00", Primary: 76, "Lower Sec": 95, Senior: 94 },
+  { hour: "18:00", Primary: 62, "Lower Sec": 88, Senior: 91 },
+  { hour: "19:00", Primary: 40, "Lower Sec": 72, Senior: 83 },
+  { hour: "20:00", Primary: 18, "Lower Sec": 42, Senior: 58 },
+];
+
+// Churn — rate over time (last 6 months)
+const churnRateData = [
+  { month: "Nov", rate: 3.2 },
+  { month: "Dec", rate: 3.8 },
+  { month: "Jan", rate: 4.4 },
+  { month: "Feb", rate: 5.1 },
+  { month: "Mar", rate: 4.6 },
+  { month: "Apr", rate: 4.1 },
+];
+
+// Churn — retention actions taken (mock counts)
+const retentionActions = [
+  { name: "Re-enrol offer",  value: 14 },
+  { name: "Credit offered",  value: 9  },
+  { name: "Schedule change", value: 7  },
+  { name: "Review meeting",  value: 5  },
+];
+const RETENTION_COLORS = ["#f59e0b", "#10b981", "#6366f1", "#f43f5e"];
+
+// Staff — teaching-load palette (by workloadLevel)
+const WORKLOAD_FILL: Record<string, string> = {
+  High:     "#ef4444",
+  Moderate: "#f59e0b",
+  Low:      "#10b981",
+};
 
 const staffMetaByName: Record<string, { feedback: number; attendance: number; compliance: number }> = {
   "Hana Yusuf":      { feedback: 4.7, attendance: 98, compliance: 100 },
@@ -314,6 +373,38 @@ function OccupancyTab() {
         </div>
       </Card>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card>
+          <CardTitle>Room Utilisation</CardTitle>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={roomUtilisation} barCategoryGap="28%" margin={{ top: 8, right: 16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="room" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: unknown) => [`${v as number}%`, "Utilisation"]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
+              <ReferenceLine y={80} stroke="#64748B" strokeDasharray="4 4" label={{ value: "Target 80%", position: "insideTopRight", fill: "#64748B", fontSize: 11 }} />
+              <Bar dataKey="util" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card>
+          <CardTitle>Peak Hours by Department</CardTitle>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={peakHoursData} margin={{ top: 8, right: 16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="hour" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: unknown, name: unknown) => [`${v as number}%`, name as string]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#64748B" }} />
+              <Line type="monotone" dataKey="Primary"     stroke={DEPT_COLORS.Primary}  strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Lower Sec"   stroke={DEPT_COLORS.LowerSec} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Senior"      stroke={DEPT_COLORS.Senior}   strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
       <Card>
         <CardTitle>Occupancy by Room</CardTitle>
         <div className="overflow-x-auto">
@@ -393,7 +484,7 @@ function ChurnTab() {
 
         {/* Signals bar */}
         <Card>
-          <CardTitle>Top Churn Signals</CardTitle>
+          <CardTitle>Churn by Signal</CardTitle>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={churnSignals} layout="vertical" barCategoryGap="30%" margin={{ left: 8, right: 32 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
@@ -403,6 +494,48 @@ function ChurnTab() {
               <Bar dataKey="count" fill="#ef4444" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card>
+          <CardTitle>Churn Rate Over Time</CardTitle>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={churnRateData} margin={{ top: 8, right: 16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: unknown) => [`${v as number}%`, "Churn rate"]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
+              <Line type="monotone" dataKey="rate" stroke="#ef4444" strokeWidth={2} dot={{ r: 4, fill: "#ef4444" }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card>
+          <CardTitle>Retention Actions Taken</CardTitle>
+          <div className="flex items-center gap-6">
+            <div className="flex-1">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={retentionActions} cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={3} dataKey="value">
+                    {retentionActions.map((_, i) => (
+                      <Cell key={i} fill={RETENTION_COLORS[i]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: unknown) => [`${v as number} actions`, ""]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-col gap-2.5 text-sm flex-shrink-0">
+              {retentionActions.map((d, i) => (
+                <div key={d.name} className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ background: RETENTION_COLORS[i] }} />
+                  <span className="text-slate-600">{d.name}</span>
+                  <span className="font-semibold text-slate-800 ml-3">{d.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </Card>
       </div>
 
@@ -455,6 +588,16 @@ function ChurnTab() {
 function StaffTab() {
   const teachingStaff = staffMembers.filter((s) => s.role === "Teacher" || s.role === "HOD");
 
+  const cpdData = teachingStaff.map((s) => ({
+    name:      s.name.split(" ")[0] + " " + (s.name.split(" ")[1]?.[0] ?? "") + ".",
+    completed: s.cpdHours,
+    target:    s.cpdTarget,
+  }));
+
+  const teachingLoad = teachingStaff
+    .map((s) => ({ name: s.name, sessions: s.sessionsThisWeek, level: s.workloadLevel }))
+    .sort((a, b) => b.sessions - a.sessions);
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -476,6 +619,51 @@ function StaffTab() {
           </BarChart>
         </ResponsiveContainer>
       </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card>
+          <CardTitle>CPD Completion (hours)</CardTitle>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={cpdData} barCategoryGap="22%" margin={{ top: 8, right: 16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} interval={0} angle={-20} textAnchor="end" height={54} />
+              <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: unknown, name: unknown) => [`${v as number} hrs`, name as string]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
+              <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#64748B" }} />
+              <Bar dataKey="completed" name="Completed" fill="#F59E0B" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="target"    name="Target"    fill="#CBD5E1" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card>
+          <CardTitle>Teaching Load (sessions / week)</CardTitle>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={teachingLoad} layout="vertical" barCategoryGap="26%" margin={{ left: 8, right: 32 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} width={128} />
+              <Tooltip formatter={(v: unknown, _n: unknown, item: { payload?: { level?: string } }) => [`${v as number} sessions · ${item?.payload?.level ?? ""}`, "Load"]} contentStyle={{ fontSize: 12, borderRadius: 6 }} />
+              <Bar dataKey="sessions" radius={[0, 4, 4, 0]}>
+                {teachingLoad.map((row, i) => (
+                  <Cell key={i} fill={WORKLOAD_FILL[row.level] ?? "#94A3B8"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500 flex-wrap">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: WORKLOAD_FILL.Low }} /> Low
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: WORKLOAD_FILL.Moderate }} /> Moderate
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: WORKLOAD_FILL.High }} /> High
+            </span>
+          </div>
+        </Card>
+      </div>
 
       {/* Staff table */}
       <Card>

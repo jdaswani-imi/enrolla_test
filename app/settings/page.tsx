@@ -1,8 +1,17 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "sonner";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FIELD, FieldLabel, FormActions } from "@/components/journey/dialog-parts";
 import {
   Building2,
   GitBranch,
@@ -30,6 +39,7 @@ import {
   Search,
   Pencil,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
@@ -185,9 +195,12 @@ function SaveButton() {
   );
 }
 
-function AddButton({ label }: { label: string }) {
+function AddButton({ label, onClick }: { label: string; onClick?: () => void }) {
   return (
-    <button className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600 transition-colors cursor-pointer">
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600 transition-colors cursor-pointer"
+    >
       <Plus className="w-3.5 h-3.5" />
       {label}
     </button>
@@ -218,14 +231,17 @@ function TableAction({
   label,
   disabled = false,
   danger = false,
+  onClick,
 }: {
   label: string;
   disabled?: boolean;
   danger?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
       disabled={disabled}
+      onClick={onClick}
       className={cn(
         "text-xs font-medium px-2 py-1 rounded transition-colors",
         disabled
@@ -321,45 +337,6 @@ function Toggle({
 
 type FeatureState = "On" | "Off" | "Later";
 
-function SegmentedToggle({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: FeatureState;
-  onChange: (v: FeatureState) => void;
-  disabled?: boolean;
-}) {
-  if (disabled) {
-    return (
-      <span className="text-xs text-slate-400 italic">0% — disabled</span>
-    );
-  }
-  return (
-    <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-xs font-medium">
-      {(["On", "Off", "Later"] as FeatureState[]).map((option, i) => (
-        <button
-          key={option}
-          onClick={() => onChange(option)}
-          className={cn(
-            "px-3 py-1.5 transition-colors duration-150 cursor-pointer",
-            i < 2 && "border-r border-slate-200",
-            value === option
-              ? option === "On"
-                ? "bg-amber-500 text-white"
-                : option === "Off"
-                ? "bg-rose-500 text-white"
-                : "bg-slate-500 text-white"
-              : "bg-white text-slate-500 hover:bg-slate-50"
-          )}
-        >
-          {option}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ─── Section 1: Organisation ───────────────────────────────────────────────────
 
 function OrganisationSection() {
@@ -432,43 +409,224 @@ function OrganisationSection() {
 
 // ─── Section 2: Branches ───────────────────────────────────────────────────────
 
+type Branch = { id: string; name: string; address: string; phone: string };
+
+function BranchDialog({
+  open,
+  onOpenChange,
+  initial,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initial: Branch | null;
+  onSave: (branch: { name: string; address: string; phone: string }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setName(initial?.name ?? "");
+      setAddress(initial?.address ?? "");
+      setPhone(initial?.phone ?? "");
+    }
+  }, [open, initial]);
+
+  const canSubmit = name.trim() && address.trim() && phone.trim();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>{initial ? "Edit branch" : "Add branch"}</DialogTitle>
+          <DialogDescription>
+            {initial ? "Update branch details." : "Create a new campus location."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel required>Branch name</FieldLabel>
+            <input
+              className={FIELD}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Downtown Campus"
+            />
+          </div>
+          <div>
+            <FieldLabel required>Address</FieldLabel>
+            <input
+              className={FIELD}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street, area, city"
+            />
+          </div>
+          <div>
+            <FieldLabel required>Phone</FieldLabel>
+            <input
+              className={FIELD}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+971 4 000 0000"
+            />
+          </div>
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => {
+            if (!canSubmit) return;
+            onSave({ name: name.trim(), address: address.trim(), phone: phone.trim() });
+            onOpenChange(false);
+          }}
+          submitLabel={initial ? "Save changes" : "Add branch"}
+          submitDisabled={!canSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ArchiveConfirmDialog({
+  open,
+  onOpenChange,
+  label,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  label: string;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[440px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-500" />
+            Archive {label}?
+          </DialogTitle>
+          <DialogDescription>
+            Archived items are hidden from active lists but their history is preserved.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 text-sm text-slate-600">
+          You can restore it later from the archive.
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => {
+            onConfirm();
+            onOpenChange(false);
+          }}
+          submitLabel="Archive"
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BranchesSection() {
+  const [branches, setBranches] = useState<Branch[]>([
+    {
+      id: "b1",
+      name: "Gold & Diamond Park",
+      address: "Gold & Diamond Park, Al Quoz, Dubai",
+      phone: "+971 4 123 4567",
+    },
+  ]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Branch | null>(null);
+  const [archiving, setArchiving] = useState<Branch | null>(null);
+
+  function openAdd() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+  function openEdit(b: Branch) {
+    setEditing(b);
+    setDialogOpen(true);
+  }
+
+  function handleSave(data: { name: string; address: string; phone: string }) {
+    if (editing) {
+      setBranches((prev) =>
+        prev.map((b) => (b.id === editing.id ? { ...b, ...data } : b))
+      );
+      toast.success("Branch updated");
+    } else {
+      setBranches((prev) => [
+        ...prev,
+        { id: `b${Date.now()}`, ...data },
+      ]);
+      toast.success("Branch added");
+    }
+  }
+
+  function handleArchive(id: string) {
+    setBranches((prev) => prev.filter((b) => b.id !== id));
+    toast.success("Branch archived");
+  }
+
+  const onlyOne = branches.length <= 1;
+
   return (
     <div>
       <SectionHeader
         title="Branches"
         description="Physical locations and campus settings."
-        action={<AddButton label="Add Branch" />}
+        action={<AddButton label="Add Branch" onClick={openAdd} />}
       />
       <Table headers={["Branch", "Address", "Phone", "Status", "Actions"]}>
-        <tr className="hover:bg-slate-50 transition-colors">
-          <td className="px-4 py-3.5 text-sm font-medium text-slate-800">
-            Gold &amp; Diamond Park
-          </td>
-          <td className="px-4 py-3.5 text-sm text-slate-600">
-            Gold &amp; Diamond Park, Al Quoz, Dubai
-          </td>
-          <td className="px-4 py-3.5 text-sm text-slate-600">+971 4 123 4567</td>
-          <td className="px-4 py-3.5">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-              Active
-            </span>
-          </td>
-          <td className="px-4 py-3.5">
-            <div className="flex items-center gap-1">
-              <TableAction label="Edit" />
-              <Tooltip>
-                <TooltipTrigger>
-                  <span>
-                    <TableAction label="Archive" disabled />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Cannot archive — only branch.</TooltipContent>
-              </Tooltip>
-            </div>
-          </td>
-        </tr>
+        {branches.map((b) => (
+          <tr key={b.id} className="hover:bg-slate-50 transition-colors">
+            <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{b.name}</td>
+            <td className="px-4 py-3.5 text-sm text-slate-600">{b.address}</td>
+            <td className="px-4 py-3.5 text-sm text-slate-600">{b.phone}</td>
+            <td className="px-4 py-3.5">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                Active
+              </span>
+            </td>
+            <td className="px-4 py-3.5">
+              <div className="flex items-center gap-1">
+                <TableAction label="Edit" onClick={() => openEdit(b)} />
+                {onlyOne ? (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <span>
+                        <TableAction label="Archive" disabled />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Cannot archive — only branch.</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <TableAction
+                    label="Archive"
+                    danger
+                    onClick={() => setArchiving(b)}
+                  />
+                )}
+              </div>
+            </td>
+          </tr>
+        ))}
       </Table>
+
+      <BranchDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initial={editing}
+        onSave={handleSave}
+      />
+      <ArchiveConfirmDialog
+        open={archiving !== null}
+        onOpenChange={(o) => !o && setArchiving(null)}
+        label={archiving?.name ?? ""}
+        onConfirm={() => archiving && handleArchive(archiving.id)}
+      />
     </div>
   );
 }
@@ -511,26 +669,155 @@ function DepartmentsSection() {
 
 // ─── Section 4: Rooms ──────────────────────────────────────────────────────────
 
+type RoomType = "Classroom" | "Lab" | "Office";
+type Room = {
+  id: string;
+  name: string;
+  branch: string;
+  capacity: number;
+  soft: number;
+  hard: number;
+  type: RoomType;
+};
+
+const ROOM_BRANCH_OPTIONS = ["Gold & Diamond Park"];
+
+function AddRoomDialog({
+  open,
+  onOpenChange,
+  branches,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  branches: string[];
+  onSave: (room: { name: string; branch: string; capacity: number; type: RoomType }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [branch, setBranch] = useState(branches[0] ?? "");
+  const [capacity, setCapacity] = useState("");
+  const [type, setType] = useState<RoomType>("Classroom");
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setBranch(branches[0] ?? "");
+      setCapacity("");
+      setType("Classroom");
+    }
+  }, [open, branches]);
+
+  const capNum = Number(capacity);
+  const canSubmit = name.trim() && branch && capNum > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Add room</DialogTitle>
+          <DialogDescription>Register a new room and its default capacity.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel required>Room name</FieldLabel>
+            <input
+              className={FIELD}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Room 4A"
+            />
+          </div>
+          <div>
+            <FieldLabel required>Branch</FieldLabel>
+            <select
+              className={FIELD}
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+            >
+              {branches.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>Capacity</FieldLabel>
+              <input
+                className={FIELD}
+                type="number"
+                min={1}
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                placeholder="6"
+              />
+            </div>
+            <div>
+              <FieldLabel required>Type</FieldLabel>
+              <select
+                className={FIELD}
+                value={type}
+                onChange={(e) => setType(e.target.value as RoomType)}
+              >
+                <option>Classroom</option>
+                <option>Lab</option>
+                <option>Office</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => {
+            if (!canSubmit) return;
+            onSave({ name: name.trim(), branch, capacity: capNum, type });
+            onOpenChange(false);
+          }}
+          submitLabel="Add room"
+          submitDisabled={!canSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RoomsSection() {
-  const rooms = [
-    { name: "Room 1A", capacity: 6, soft: 5, hard: 6 },
-    { name: "Room 2B", capacity: 4, soft: 4, hard: 4 },
-    { name: "Room 3A", capacity: 8, soft: 7, hard: 8 },
-    { name: "Room 1C", capacity: 4, soft: 4, hard: 4 },
-    { name: "Room 2A", capacity: 6, soft: 5, hard: 6 },
-  ];
+  const [rooms, setRooms] = useState<Room[]>([
+    { id: "r1", name: "Room 1A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom" },
+    { id: "r2", name: "Room 2B", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom" },
+    { id: "r3", name: "Room 3A", branch: "Gold & Diamond Park", capacity: 8, soft: 7, hard: 8, type: "Classroom" },
+    { id: "r4", name: "Room 1C", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom" },
+    { id: "r5", name: "Room 2A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom" },
+  ]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  function handleAdd(data: { name: string; branch: string; capacity: number; type: RoomType }) {
+    setRooms((prev) => [
+      ...prev,
+      {
+        id: `r${Date.now()}`,
+        name: data.name,
+        branch: data.branch,
+        capacity: data.capacity,
+        soft: Math.max(1, data.capacity - 1),
+        hard: data.capacity,
+        type: data.type,
+      },
+    ]);
+    toast.success("Room added");
+  }
+
   return (
     <div>
       <SectionHeader
         title="Rooms"
         description="Classroom capacity and occupancy caps per branch."
-        action={<AddButton label="Add Room" />}
+        action={<AddButton label="Add Room" onClick={() => setDialogOpen(true)} />}
       />
       <Table headers={["Room", "Branch", "Capacity", "Soft Cap", "Hard Cap", "Status", "Actions"]}>
         {rooms.map((r) => (
-          <tr key={r.name} className="hover:bg-slate-50 transition-colors">
+          <tr key={r.id} className="hover:bg-slate-50 transition-colors">
             <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{r.name}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">Gold &amp; Diamond Park</td>
+            <td className="px-4 py-3.5 text-sm text-slate-600">{r.branch}</td>
             <td className="px-4 py-3.5 text-sm text-slate-600">{r.capacity}</td>
             <td className="px-4 py-3.5 text-sm text-slate-600">{r.soft}</td>
             <td className="px-4 py-3.5 text-sm text-slate-600">{r.hard}</td>
@@ -548,6 +835,13 @@ function RoomsSection() {
           </tr>
         ))}
       </Table>
+
+      <AddRoomDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        branches={ROOM_BRANCH_OPTIONS}
+        onSave={handleAdd}
+      />
     </div>
   );
 }
@@ -679,22 +973,138 @@ function PaymentPlansSection() {
 
 // ─── Section 7: Academic Calendar ─────────────────────────────────────────────
 
+type HolidayType = "Public holiday" | "School holiday" | "Break";
+type Holiday = { id: string; name: string; from: string; to: string; type: HolidayType };
+
+const HOLIDAY_BADGE: Record<HolidayType, string> = {
+  "Public holiday": "bg-rose-50 text-rose-700 border-rose-200",
+  "School holiday": "bg-amber-50 text-amber-700 border-amber-200",
+  "Break": "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+function formatRange(from: string, to: string) {
+  if (!from) return "";
+  const f = new Date(from);
+  const fDisp = f.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (!to || to === from) return fDisp;
+  const t = new Date(to);
+  const tDisp = t.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return `${fDisp} – ${tDisp}`;
+}
+
+function AddHolidayDialog({
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onSave: (h: { name: string; from: string; to: string; type: HolidayType }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [type, setType] = useState<HolidayType>("Public holiday");
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setFrom("");
+      setTo("");
+      setType("Public holiday");
+    }
+  }, [open]);
+
+  const canSubmit = name.trim() && from && to && new Date(to) >= new Date(from);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Add holiday</DialogTitle>
+          <DialogDescription>Add a public holiday, school closure, or break.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel required>Holiday name</FieldLabel>
+            <input
+              className={FIELD}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. UAE National Day"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>From</FieldLabel>
+              <input
+                className={FIELD}
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </div>
+            <div>
+              <FieldLabel required>To</FieldLabel>
+              <input
+                className={FIELD}
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                min={from || undefined}
+              />
+            </div>
+          </div>
+          <div>
+            <FieldLabel required>Type</FieldLabel>
+            <select
+              className={FIELD}
+              value={type}
+              onChange={(e) => setType(e.target.value as HolidayType)}
+            >
+              <option>Public holiday</option>
+              <option>School holiday</option>
+              <option>Break</option>
+            </select>
+          </div>
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => {
+            if (!canSubmit) return;
+            onSave({ name: name.trim(), from, to, type });
+            onOpenChange(false);
+          }}
+          submitLabel="Add holiday"
+          submitDisabled={!canSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AcademicCalendarSection() {
   const terms = [
     { name: "Term 1", start: "2 Sep 2024", end: "13 Dec 2024", flex: 14, color: "bg-amber-500 text-white" },
     { name: "Winter Break", start: "14 Dec", end: "5 Jan", flex: 3, color: "bg-slate-200 text-slate-600" },
-    { name: "Term 2", start: "6 Jan 2025", end: "28 Mar 2025", flex: 12, color: "bg-teal-500 text-white" },
+    { name: "Term 2", start: "6 Jan 2026", end: "28 Mar 2026", flex: 12, color: "bg-teal-500 text-white" },
     { name: "Spring Break", start: "29 Mar", end: "13 Apr", flex: 2, color: "bg-slate-200 text-slate-600" },
-    { name: "Term 3", start: "14 Apr 2025", end: "25 Jul 2025", flex: 14, color: "bg-slate-700 text-white" },
+    { name: "Term 3", start: "14 Apr 2026", end: "25 Jul 2026", flex: 14, color: "bg-slate-700 text-white" },
     { name: "Graduation", start: "~end Jul", end: "—", flex: 1, color: "bg-violet-500 text-white" },
   ];
 
-  const holidays = [
-    { name: "UAE National Day", date: "2 Dec 2024" },
-    { name: "Eid Al Fitr (est.)", date: "29 Mar 2025" },
-    { name: "Eid Al Adha (est.)", date: "5 Jun 2025" },
-    { name: "Islamic New Year (est.)", date: "26 Jun 2025" },
-  ];
+  const [holidays, setHolidays] = useState<Holiday[]>([
+    { id: "h1", name: "UAE National Day",        from: "2024-12-02", to: "2024-12-02", type: "Public holiday" },
+    { id: "h2", name: "Eid Al Fitr (est.)",      from: "2026-03-29", to: "2026-03-31", type: "Public holiday" },
+    { id: "h3", name: "Eid Al Adha (est.)",      from: "2026-06-05", to: "2026-06-07", type: "Public holiday" },
+    { id: "h4", name: "Islamic New Year (est.)", from: "2026-06-26", to: "2026-06-26", type: "Public holiday" },
+  ]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  function handleAdd(h: { name: string; from: string; to: string; type: HolidayType }) {
+    setHolidays((prev) => [...prev, { id: `h${Date.now()}`, ...h }]);
+    toast.success("Holiday added");
+  }
 
   return (
     <div>
@@ -742,19 +1152,33 @@ function AcademicCalendarSection() {
 
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-semibold text-slate-700">Public Holidays</p>
-        <AddButton label="Add Holiday" />
+        <AddButton label="Add Holiday" onClick={() => setDialogOpen(true)} />
       </div>
-      <Table headers={["Holiday", "Date", "Actions"]}>
+      <Table headers={["Holiday", "Date", "Type", "Actions"]}>
         {holidays.map((h) => (
-          <tr key={h.name} className="hover:bg-slate-50 transition-colors">
+          <tr key={h.id} className="hover:bg-slate-50 transition-colors">
             <td className="px-4 py-3.5 text-sm text-slate-800">{h.name}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{h.date}</td>
+            <td className="px-4 py-3.5 text-sm text-slate-600">{formatRange(h.from, h.to)}</td>
+            <td className="px-4 py-3.5">
+              <span className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
+                HOLIDAY_BADGE[h.type]
+              )}>
+                {h.type}
+              </span>
+            </td>
             <td className="px-4 py-3.5">
               <TableAction label="Edit" />
             </td>
           </tr>
         ))}
       </Table>
+
+      <AddHolidayDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSave={handleAdd}
+      />
     </div>
   );
 }
@@ -1408,9 +1832,12 @@ function NotificationsSection() {
               <td className="px-4 py-3.5">
                 <Toggle
                   checked={toggles[n.name as keyof typeof toggles]}
-                  onChange={(v) =>
-                    setToggles((prev) => ({ ...prev, [n.name]: v }))
-                  }
+                  onChange={(v) => {
+                    setToggles((prev) => ({ ...prev, [n.name]: v }));
+                    toast.success("Notification preference updated", {
+                      description: `${n.name} — ${v ? "enabled" : "disabled"}`,
+                    });
+                  }}
                 />
               </td>
             </tr>
@@ -1425,13 +1852,13 @@ function NotificationsSection() {
 
 function TemplatesSection() {
   const templates = [
-    { name: "New Lead Welcome", trigger: "Lead: New", edited: "10 Mar 2025" },
-    { name: "Assessment Booking Confirmation", trigger: "Lead: Assessment Booked", edited: "8 Mar 2025" },
-    { name: "Trial Booking Confirmation", trigger: "Lead: Trial Booked", edited: "8 Mar 2025" },
-    { name: "Invoice Issued", trigger: "Finance: Invoice Issued", edited: "1 Mar 2025" },
-    { name: "Payment Reminder", trigger: "Finance: Invoice Overdue", edited: "1 Mar 2025" },
-    { name: "Absence Notification", trigger: "Attendance: Absence Marked", edited: "15 Feb 2025" },
-    { name: "Session Cancellation", trigger: "Timetable: Session Cancelled", edited: "10 Feb 2025" },
+    { name: "New Lead Welcome", trigger: "Lead: New", edited: "10 Mar 2026" },
+    { name: "Assessment Booking Confirmation", trigger: "Lead: Assessment Booked", edited: "8 Mar 2026" },
+    { name: "Trial Booking Confirmation", trigger: "Lead: Trial Booked", edited: "8 Mar 2026" },
+    { name: "Invoice Issued", trigger: "Finance: Invoice Issued", edited: "1 Mar 2026" },
+    { name: "Payment Reminder", trigger: "Finance: Invoice Overdue", edited: "1 Mar 2026" },
+    { name: "Absence Notification", trigger: "Attendance: Absence Marked", edited: "15 Feb 2026" },
+    { name: "Session Cancellation", trigger: "Timetable: Session Cancelled", edited: "10 Feb 2026" },
   ];
   return (
     <div>
@@ -1491,6 +1918,44 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   "WhatsApp BSP": "Automated WhatsApp messaging",
 };
 
+function ComingSoonBadge() {
+  return (
+    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      Coming soon
+    </span>
+  );
+}
+
+function OnOffToggle({
+  value,
+  onChange,
+}: {
+  value: "On" | "Off";
+  onChange: (v: "On" | "Off") => void;
+}) {
+  return (
+    <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-xs font-medium">
+      {(["On", "Off"] as const).map((option, i) => (
+        <button
+          key={option}
+          onClick={() => onChange(option)}
+          className={cn(
+            "px-3 py-1.5 transition-colors duration-150 cursor-pointer",
+            i === 0 && "border-r border-slate-200",
+            value === option
+              ? option === "On"
+                ? "bg-amber-500 text-white"
+                : "bg-rose-500 text-white"
+              : "bg-white text-slate-500 hover:bg-slate-50"
+          )}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FeatureTogglesSection() {
   const [features, setFeatures] = useState<Record<string, FeatureState>>(INITIAL_FEATURES);
 
@@ -1508,10 +1973,19 @@ function FeatureTogglesSection() {
               {FEATURE_DESCRIPTIONS[name]}
             </td>
             <td className="px-4 py-3.5">
-              <SegmentedToggle
-                value={state}
-                onChange={(v) => setFeatures((prev) => ({ ...prev, [name]: v }))}
-              />
+              {state === "Later" ? (
+                <ComingSoonBadge />
+              ) : (
+                <OnOffToggle
+                  value={state}
+                  onChange={(v) => {
+                    setFeatures((prev) => ({ ...prev, [name]: v }));
+                    toast.success("Feature toggle updated", {
+                      description: `${name} — ${v}`,
+                    });
+                  }}
+                />
+              )}
             </td>
           </tr>
         ))}
@@ -1665,16 +2139,16 @@ function ChurnSection() {
 // ─── Section 16: Audit Log ────────────────────────────────────────────────────
 
 const AUDIT_ENTRIES = [
-  { ts: "16 Apr 2025, 09:14", user: "Jason Daswani", action: "Settings changed", module: "M20", detail: "VAT rate updated: 5% → 5% (no change)" },
-  { ts: "15 Apr 2025, 17:32", user: "Jason Daswani", action: "Invoice created", module: "M08", detail: "INV-1042 issued to Fatima Rahman" },
-  { ts: "15 Apr 2025, 16:45", user: "Sarah Thompson", action: "Attendance marked", module: "M06", detail: "Y8 Maths — Mon 14 Apr — 3 students" },
-  { ts: "15 Apr 2025, 14:20", user: "Jason Daswani", action: "Staff role updated", module: "M09/PL02", detail: "Mariam Saleh — Access Revoked" },
-  { ts: "14 Apr 2025, 11:05", user: "Jason Daswani", action: "Lead stage changed", module: "M01", detail: "L-0060 → Won" },
-  { ts: "14 Apr 2025, 10:30", user: "Sarah Thompson", action: "Student created", module: "M02", detail: "IMI-1847 — Amna Al-Qubaisi" },
-  { ts: "13 Apr 2025, 16:20", user: "Jason Daswani", action: "Credit issued", module: "M08", detail: "AED 800 — Aisha Rahman — goodwill" },
-  { ts: "13 Apr 2025, 09:00", user: "Jason Daswani", action: "Concern raised", module: "M06.A", detail: "Y8 Maths — Aisha Rahman — L1" },
-  { ts: "12 Apr 2025, 14:15", user: "Sarah Thompson", action: "Payment recorded", module: "M08", detail: "AED 3,360 — INV-1039 — Bank Transfer" },
-  { ts: "11 Apr 2025, 11:45", user: "Jason Daswani", action: "Staff added", module: "M09", detail: "Khalil Mansouri — Teacher — Primary" },
+  { ts: "16 Apr 2026, 09:14", user: "Jason Daswani", action: "Settings changed", module: "M20", detail: "VAT rate updated: 5% → 5% (no change)" },
+  { ts: "15 Apr 2026, 17:32", user: "Jason Daswani", action: "Invoice created", module: "M08", detail: "INV-1042 issued to Fatima Rahman" },
+  { ts: "15 Apr 2026, 16:45", user: "Sarah Thompson", action: "Attendance marked", module: "M06", detail: "Y8 Maths — Mon 14 Apr — 3 students" },
+  { ts: "15 Apr 2026, 14:20", user: "Jason Daswani", action: "Staff role updated", module: "M09/PL02", detail: "Mariam Saleh — Access Revoked" },
+  { ts: "14 Apr 2026, 11:05", user: "Jason Daswani", action: "Lead stage changed", module: "M01", detail: "L-0060 → Won" },
+  { ts: "14 Apr 2026, 10:30", user: "Sarah Thompson", action: "Student created", module: "M02", detail: "IMI-1847 — Amna Al-Qubaisi" },
+  { ts: "13 Apr 2026, 16:20", user: "Jason Daswani", action: "Credit issued", module: "M08", detail: "AED 800 — Aisha Rahman — goodwill" },
+  { ts: "13 Apr 2026, 09:00", user: "Jason Daswani", action: "Concern raised", module: "M06.A", detail: "Y8 Maths — Aisha Rahman — L1" },
+  { ts: "12 Apr 2026, 14:15", user: "Sarah Thompson", action: "Payment recorded", module: "M08", detail: "AED 3,360 — INV-1039 — Bank Transfer" },
+  { ts: "11 Apr 2026, 11:45", user: "Jason Daswani", action: "Staff added", module: "M09", detail: "Khalil Mansouri — Teacher — Primary" },
 ];
 
 function AuditLogSection() {

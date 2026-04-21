@@ -30,16 +30,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { NewTaskDialog } from "@/components/tasks/new-task-dialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TODAY_DATE = "16 Apr 2025";
-const TODAY_DAY = 16;
-const MONTH_YEAR = "April 2025";
+const TODAY_DATE = "21 Apr 2026";
+const TODAY_DAY = 21;
+const MONTH_YEAR = "April 2026";
 
 const ASSIGNEE_OPTIONS = ["Jason Daswani", "Sarah Thompson", "Ahmed Khalil", "Sarah Mitchell"];
 const TYPE_OPTIONS     = ["Admin", "Academic", "Finance", "HR", "Student Follow-up", "Cover", "Personal"];
-const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
+const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const STATUS_OPTIONS   = ["Open", "In Progress", "Blocked", "Done"];
 
 const ACTIVITY_LOG = [
@@ -75,6 +76,7 @@ function getInitials(name: string): string {
 
 function getPriorityClass(priority: Task["priority"]): string {
   switch (priority) {
+    case "Urgent": return "bg-red-600 text-white border border-red-600";
     case "High":   return "bg-red-100 text-red-700 border border-red-200";
     case "Medium": return "bg-amber-100 text-amber-700 border border-amber-200";
     case "Low":    return "bg-slate-100 text-slate-600 border border-slate-200";
@@ -83,6 +85,7 @@ function getPriorityClass(priority: Task["priority"]): string {
 
 function getPriorityDot(priority: Task["priority"]): string {
   switch (priority) {
+    case "Urgent": return "bg-red-600";
     case "High":   return "bg-red-500";
     case "Medium": return "bg-amber-500";
     case "Low":    return "bg-slate-400";
@@ -200,6 +203,7 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
   }
 
   const assigneePalette = getAvatarPalette(task.assignee);
+  const allSubtasksDone = task.subtasks.length === 0 || subtasksDone.every(Boolean);
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -331,10 +335,17 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
           </div>
         </div>
 
-        <DialogFooter className="flex items-center gap-3">
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:items-stretch">
+          {!isDone && !allSubtasksDone && (
+            <p className="text-xs text-slate-500 text-center">
+              Complete all sub-tasks before marking this task as done
+            </p>
+          )}
+          <div className="flex items-center gap-3">
           {!isDone && (
             <button
               type="button"
+              disabled={!allSubtasksDone}
               onClick={() => {
                 if (task.sourceLeadId && typeof window !== "undefined") {
                   window.dispatchEvent(
@@ -351,7 +362,12 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
                 onComplete(task.id);
                 onClose();
               }}
-              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors cursor-pointer"
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-colors",
+                allSubtasksDone
+                  ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer"
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              )}
             >
               <Check className="w-4 h-4" />
               Mark Complete
@@ -367,6 +383,7 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
           >
             Close
           </button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -579,8 +596,8 @@ function KanbanCard({ task, isDone, onClick }: { task: Task; isDone: boolean; on
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
 
-// April 2025 starts on a Tuesday (index 1 in Mon–Sun week)
-const APRIL_START_DOF = 1;
+// April 2026 starts on a Wednesday (index 2 in Mon–Sun week)
+const APRIL_START_DOF = 2;
 const APRIL_DAYS = 30;
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -704,6 +721,8 @@ export default function TasksPage() {
     new Set(allTasks.filter((t) => t.status === "Done").map((t) => t.id))
   );
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [tasksVersion, setTasksVersion] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -754,7 +773,7 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks]);
+  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, tasksVersion]);
 
   // List view groups
   const overdue  = filtered.filter((t) => t.overdue && !doneTasks.has(t.id));
@@ -767,7 +786,7 @@ export default function TasksPage() {
   const overdueCount = allTasks.filter((t) => t.overdue && !doneTasks.has(t.id)).length;
 
   // Kanban columns
-  const priorityOrder: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+  const priorityOrder: Record<string, number> = { Urgent: -1, High: 0, Medium: 1, Low: 2 };
   const kanbanTodo = filtered
     .filter((t) => !doneTasks.has(t.id) && t.status === "Open")
     .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
@@ -824,6 +843,7 @@ export default function TasksPage() {
           {can('tasks.create') && (
           <button
             type="button"
+            onClick={() => setNewTaskOpen(true)}
             className="btn-primary flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm"
           >
             <Plus className="w-4 h-4" />
@@ -1089,6 +1109,21 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* ── New Task Dialog ─────────────────────────────────────────────────── */}
+      <NewTaskDialog
+        open={newTaskOpen}
+        onOpenChange={setNewTaskOpen}
+        onCreated={(created) => {
+          // Ensure the new task is visible: clear "my tasks" filter when the
+          // creator assigned it to someone else, and bump the tasks version so
+          // the filtered useMemo recomputes.
+          if (myTasksOnly && created.assignee !== currentUser.name) {
+            setMyTasksOnly(false);
+          }
+          setTasksVersion((v) => v + 1);
+        }}
+      />
 
       {/* ── Detail Modal ───────────────────────────────────────────────────── */}
       {selectedTask && (

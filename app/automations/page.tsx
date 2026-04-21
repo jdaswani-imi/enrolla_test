@@ -42,6 +42,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+} from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
@@ -339,12 +343,8 @@ function DispatchQueueTab() {
   const [unclaimedOnly, setUnclaimedOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [items, setItems] = useState<DispatchQueueItem[]>(dispatchQueueItems);
-  const [toast, setToast] = useState('');
-
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(''), 2500);
-  }
+  const [sentToday, setSentToday] = useState<DispatchQueueItem[]>([]);
+  const [sentExpanded, setSentExpanded] = useState(false);
 
   function handleCopy(item: DispatchQueueItem) {
     setItems(prev => prev.map(i =>
@@ -352,12 +352,16 @@ function DispatchQueueTab() {
     ));
     setExpandedId(item.id);
     navigator.clipboard?.writeText(item.renderedBody).catch(() => {});
+    toast.success('Message copied — paste into WhatsApp');
   }
 
   function handleMarkSent(id: string) {
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: 'Sent' } : i));
-    setExpandedId(null);
-    showToast('Marked as sent');
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    setItems(prev => prev.filter(i => i.id !== id));
+    setSentToday(prev => [{ ...item, status: 'Sent' }, ...prev]);
+    setExpandedId(curr => curr === id ? null : curr);
+    toast.success('Marked as sent');
   }
 
   function handleDismiss(id: string) {
@@ -374,16 +378,10 @@ function DispatchQueueTab() {
 
   const unclaimed = items.filter(i => i.status === 'Unclaimed').length;
   const claimedByMe = items.filter(i => i.claimedBy === 'Jason Daswani').length;
-  const sent = items.filter(i => i.status === 'Sent').length;
+  const sent = sentToday.length;
 
   return (
     <div className="relative">
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
-          {toast}
-        </div>
-      )}
-
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-start gap-2">
         <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-amber-700">
@@ -483,7 +481,10 @@ function DispatchQueueTab() {
                             <div className="flex gap-2">
                               <button
                                 type="button"
-                                onClick={() => { navigator.clipboard?.writeText(item.renderedBody).catch(() => {}); showToast('Copied to clipboard'); }}
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(item.renderedBody).catch(() => {});
+                                  toast.success('Message copied — paste into WhatsApp');
+                                }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded transition-colors cursor-pointer"
                               >
                                 <Clipboard className="w-3 h-3" /> Copy to clipboard
@@ -507,6 +508,35 @@ function DispatchQueueTab() {
           </div>
         )}
       </div>
+
+      {sentToday.length > 0 && (
+        <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setSentExpanded(x => !x)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+              <span className="text-sm font-semibold text-slate-800">Sent today</span>
+              <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{sentToday.length}</span>
+            </div>
+            <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform', sentExpanded && 'rotate-180')} />
+          </button>
+          {sentExpanded && (
+            <ul className="border-t border-slate-100 divide-y divide-slate-100">
+              {sentToday.map(it => (
+                <li key={`sent-${it.id}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                  <span className="font-medium text-slate-700 truncate">{it.templateName}</span>
+                  <span className="text-slate-500 truncate">→ {it.contactName}</span>
+                  <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">{it.generatedAt}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1716,8 +1746,8 @@ function getCalendarDays(year: number, month: number) {
 }
 
 function MarketingTab() {
-  const [calYear]  = useState(2025);
-  const [calMonth] = useState(3); // April 2025
+  const [calYear]  = useState(2026);
+  const [calMonth] = useState(3); // April 2026
   const [selectedMoment, setSelectedMoment] = useState<MarketingMoment | null>(null);
   const [newMomentOpen, setNewMomentOpen] = useState(false);
   const [nmName, setNmName] = useState('');
@@ -1774,7 +1804,7 @@ function MarketingTab() {
           <button type="button" className="p-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer">
             <ArrowLeft className="w-4 h-4 text-slate-500" />
           </button>
-          <span className="text-sm font-medium text-slate-700">April 2025</span>
+          <span className="text-sm font-medium text-slate-700">April 2026</span>
           <button type="button" className="p-1 border border-slate-200 rounded hover:bg-slate-50 cursor-pointer">
             <ArrowRight className="w-4 h-4 text-slate-500" />
           </button>
@@ -2452,33 +2482,99 @@ function TemplateEditSheet({
 
 // ─── Rule Builder Sheet ───────────────────────────────────────────────────────
 
-type Condition = { id: number; field: string; operator: string; value: string; logic: 'AND' | 'OR' };
-type RuleAction = { id: number; type: string; config: Record<string, string> };
+type Condition  = { id: number; field: string; operator: string; value: string; logic: 'AND' | 'OR' };
+type RuleAction = { id: number; type: ActionType; config: Record<string, string> };
+
+type TriggerLabel =
+  | 'Student enrolled'
+  | 'Invoice overdue'
+  | 'Attendance marked'
+  | 'Trial booked'
+  | 'Lead stage changed'
+  | 'Session cancelled'
+  | 'Assessment booked';
+
+type ActionType = 'Create task' | 'Send notification' | 'Update field' | 'Add tag' | 'Assign to staff';
+
+const TRIGGER_LABELS: TriggerLabel[] = [
+  'Student enrolled',
+  'Invoice overdue',
+  'Attendance marked',
+  'Trial booked',
+  'Lead stage changed',
+  'Session cancelled',
+  'Assessment booked',
+];
+
+const TRIGGER_TO_CATEGORY: Record<TriggerLabel, AutomationRuleTrigger> = {
+  'Student enrolled':   'Status Change',
+  'Invoice overdue':    'Time-based',
+  'Attendance marked':  'Status Change',
+  'Trial booked':       'Status Change',
+  'Lead stage changed': 'Status Change',
+  'Session cancelled':  'Status Change',
+  'Assessment booked':  'Status Change',
+};
+
+const TRIGGER_TO_MODULE: Record<TriggerLabel, string> = {
+  'Student enrolled':   'M03',
+  'Invoice overdue':    'M08',
+  'Attendance marked':  'M05',
+  'Trial booked':       'M03',
+  'Lead stage changed': 'M02',
+  'Session cancelled':  'M04',
+  'Assessment booked':  'M03',
+};
+
+const FIELD_OPTIONS: Record<TriggerLabel, string[]> = {
+  'Student enrolled':   ['Program', 'Branch', 'Year group', 'Start date'],
+  'Invoice overdue':    ['Days overdue', 'Amount', 'Student', 'Branch'],
+  'Attendance marked':  ['Status', 'Student', 'Session', 'Teacher'],
+  'Trial booked':       ['Subject', 'Branch', 'Lead source', 'Date'],
+  'Lead stage changed': ['From stage', 'To stage', 'Source', 'Owner'],
+  'Session cancelled':  ['Reason', 'Teacher', 'Subject', 'Branch'],
+  'Assessment booked':  ['Subject', 'Assessor', 'Date', 'Branch'],
+};
+
+const OPERATOR_OPTIONS = ['=', '!=', '>', '<', '>=', '<=', 'contains'];
+
+const ACTION_TYPES: ActionType[] = ['Create task', 'Send notification', 'Update field', 'Add tag', 'Assign to staff'];
+
+const NOTIFICATION_CHANNELS = ['Email', 'SMS', 'WhatsApp', 'In-app'];
 
 function RuleBuilderSheet({
   open,
   rule,
   onClose,
+  onSave,
 }: {
   open: boolean;
   rule: AutomationRule | null;
   onClose: () => void;
+  onSave: (rule: AutomationRule, isNew: boolean) => void;
 }) {
   const isNew    = rule === null;
   const isLocked = rule?.locked ?? false;
-  const [rbName,        setRbName]        = useState(rule?.name ?? '');
-  const [rbDesc,        setRbDesc]        = useState('');
-  const [rbTrigger,     setRbTrigger]     = useState('Status Change');
-  const [rbConditions,  setRbConditions]  = useState<Condition[]>([]);
-  const [rbActions,     setRbActions]     = useState<RuleAction[]>([]);
-  const [rbRateLimit,   setRbRateLimit]   = useState('1');
-  const [rbPeriod,      setRbPeriod]      = useState('day');
-  const [rbIdempotency, setRbIdempotency] = useState('');
-  const [rbEnabled,     setRbEnabled]     = useState(true);
+  const initialTrigger: TriggerLabel = rule
+    ? (TRIGGER_LABELS.find(
+        l => TRIGGER_TO_CATEGORY[l] === rule.triggerType && TRIGGER_TO_MODULE[l] === rule.module
+      ) ?? TRIGGER_LABELS.find(l => TRIGGER_TO_CATEGORY[l] === rule.triggerType) ?? 'Student enrolled')
+    : 'Student enrolled';
+  const [rbName,       setRbName]       = useState(rule?.name ?? '');
+  const [rbTrigger,    setRbTrigger]    = useState<TriggerLabel>(initialTrigger);
+  const [rbConditions, setRbConditions] = useState<Condition[]>([]);
+  const [rbActions,    setRbActions]    = useState<RuleAction[]>([]);
+  const [rbEnabled,    setRbEnabled]    = useState(rule ? rule.status === 'Enabled' : true);
   const nextId = useRef(1);
 
   function addCondition() {
-    setRbConditions(c => [...c, { id: nextId.current++, field: '', operator: '=', value: '', logic: 'AND' }]);
+    setRbConditions(c => [...c, {
+      id: nextId.current++,
+      field: FIELD_OPTIONS[rbTrigger][0],
+      operator: '=',
+      value: '',
+      logic: 'AND',
+    }]);
   }
   function removeCondition(id: number) {
     setRbConditions(c => c.filter(x => x.id !== id));
@@ -2487,7 +2583,7 @@ function RuleBuilderSheet({
     setRbConditions(c => c.map(x => x.id === id ? { ...x, ...patch } : x));
   }
   function addAction() {
-    setRbActions(a => [...a, { id: nextId.current++, type: 'Send Message', config: {} }]);
+    setRbActions(a => [...a, { id: nextId.current++, type: 'Create task', config: {} }]);
   }
   function removeAction(id: number) {
     setRbActions(a => a.filter(x => x.id !== id));
@@ -2496,341 +2592,350 @@ function RuleBuilderSheet({
     setRbActions(a => a.map(x => x.id === id ? { ...x, ...patch } : x));
   }
 
-  const triggerLabels = ['Status Change', 'Time-based Absolute', 'Time-based Relative', 'Threshold Breach', 'Form Submission', 'Manual', 'Recurring Schedule'];
-  const triggerIcons  = [RefreshCw, Calendar, Clock, AlertTriangle, ClipboardList, MousePointer, Repeat];
-
-  const sectionNum = (n: number) => (
-    <div className="w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{n}</div>
-  );
+  function handleSave() {
+    const name = rbName.trim();
+    if (!name) {
+      toast.error('Rule name is required');
+      return;
+    }
+    const saved: AutomationRule = {
+      id: rule?.id ?? `RULE-${Date.now().toString(36).toUpperCase()}`,
+      name,
+      triggerType: TRIGGER_TO_CATEGORY[rbTrigger],
+      module: TRIGGER_TO_MODULE[rbTrigger],
+      status: rbEnabled ? 'Enabled' : 'Disabled',
+      lastFired: rule?.lastFired ?? 'Never',
+      fireCount: rule?.fireCount ?? 0,
+      locked: rule?.locked ?? false,
+    };
+    onSave(saved, isNew);
+    toast.success('Rule saved');
+    onClose();
+  }
 
   return (
-    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
-        <DialogHeader>
-          <div className="flex items-center gap-2 flex-wrap">
-            <DialogTitle className="text-slate-900 text-base font-semibold mr-auto">
-              {isNew ? 'New Rule' : rule.name}
-            </DialogTitle>
-            {rule && ruleStatusBadge(rule.status)}
+    <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl p-0 gap-0 bg-white flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-slate-200 flex-shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-slate-900 truncate">
+              {isNew ? 'Create automation rule' : `Edit rule — ${rule.name}`}
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isNew ? 'Define a trigger, conditions and actions.' : 'Update this rule\u2019s trigger, conditions or actions.'}
+            </p>
+            {isLocked && (
+              <div className="flex items-center gap-2 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                <Lock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                <span className="text-xs text-amber-700 font-medium">System-locked — read only</span>
+              </div>
+            )}
           </div>
-          {isLocked && (
-            <div className="flex items-center gap-2 mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              <Lock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-              <span className="text-xs text-amber-700 font-medium">System-locked — read only</span>
-            </div>
-          )}
-        </DialogHeader>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close drawer"
+            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer text-slate-500 flex-shrink-0"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
+        {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
-          {/* ① Name & Description */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              {sectionNum(1)}
-              <span className="text-sm font-semibold text-slate-700">Name &amp; Description</span>
-            </div>
+          {/* Rule name */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Rule name</label>
             <input
               disabled={isLocked}
               type="text"
               value={rbName}
               onChange={e => setRbName(e.target.value)}
-              placeholder="Rule name"
+              placeholder="e.g. Invoice overdue 7 days — notify parent"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50"
             />
-            <textarea
+          </div>
+
+          {/* Trigger */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Trigger</label>
+            <select
               disabled={isLocked}
-              value={rbDesc}
-              onChange={e => setRbDesc(e.target.value)}
-              placeholder="Optional description"
-              rows={2}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none disabled:opacity-50"
-            />
+              value={rbTrigger}
+              onChange={e => {
+                setRbTrigger(e.target.value as TriggerLabel);
+                setRbConditions([]);
+              }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50"
+            >
+              {TRIGGER_LABELS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
 
-          {/* ② Trigger */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              {sectionNum(2)}
-              <span className="text-sm font-semibold text-slate-700">Trigger</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {triggerLabels.map((label, i) => {
-                const Icon = triggerIcons[i];
-                const isSelected = rbTrigger === label;
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    disabled={isLocked}
-                    onClick={() => setRbTrigger(label)}
-                    className={cn(
-                      'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm text-left transition-all cursor-pointer',
-                      isSelected
-                        ? 'bg-amber-50 border-amber-400 text-amber-800 font-medium'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-amber-200',
-                      isLocked && 'opacity-50 cursor-not-allowed'
-                    )}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Trigger config hint */}
-            <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-xs text-slate-500">
-              {rbTrigger === 'Status Change' && 'Entity → Field → changes to → Value'}
-              {rbTrigger === 'Time-based Absolute' && 'Select a specific date and time for the trigger.'}
-              {rbTrigger === 'Time-based Relative' && 'Offset (days/hours) before/after an anchor field.'}
-              {rbTrigger === 'Threshold Breach' && 'Field → operator ( > < = ≥ ≤ ) → Value'}
-              {rbTrigger === 'Form Submission' && 'Select the form that triggers this rule.'}
-              {rbTrigger === 'Manual' && 'No configuration required — triggered manually.'}
-              {rbTrigger === 'Recurring Schedule' && 'Frequency (Daily / Weekly / Monthly) + time.'}
-            </div>
-          </div>
-
-          {/* ③ Conditions */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              {sectionNum(3)}
-              <span className="text-sm font-semibold text-slate-700">Conditions <span className="font-normal text-slate-400">(optional)</span></span>
+          {/* Conditions */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                Conditions <span className="font-normal text-slate-400 normal-case">(optional)</span>
+              </label>
+              {!isLocked && (
+                <button
+                  type="button"
+                  onClick={addCondition}
+                  className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add condition
+                </button>
+              )}
             </div>
             {rbConditions.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No conditions — rule fires on all matching trigger events.</p>
+              <p className="text-xs text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 rounded-lg px-3 py-3">
+                No conditions — rule fires on every trigger event.
+              </p>
             ) : (
               <div className="space-y-2">
                 {rbConditions.map((cond, idx) => (
-                  <div key={cond.id} className="flex items-center gap-2 flex-wrap">
-                    {idx > 0 && (
+                  <div key={cond.id} className="flex items-center gap-2 flex-wrap bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2">
+                    {idx === 0 ? (
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide w-10">Where</span>
+                    ) : (
                       <button
                         type="button"
+                        disabled={isLocked}
                         onClick={() => updateCondition(cond.id, { logic: cond.logic === 'AND' ? 'OR' : 'AND' })}
-                        className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 cursor-pointer"
+                        className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 w-10 text-center cursor-pointer hover:bg-amber-100 transition-colors"
                       >
                         {cond.logic}
                       </button>
                     )}
-                    <input
-                      type="text"
+                    <select
+                      disabled={isLocked}
                       value={cond.field}
                       onChange={e => updateCondition(cond.id, { field: e.target.value })}
-                      placeholder="Field"
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                    />
+                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                    >
+                      {FIELD_OPTIONS[rbTrigger].map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
                     <select
+                      disabled={isLocked}
                       value={cond.operator}
                       onChange={e => updateCondition(cond.id, { operator: e.target.value })}
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300"
+                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
                     >
-                      {['=', '!=', '>', '<', '>=', '<='].map(op => <option key={op}>{op}</option>)}
+                      {OPERATOR_OPTIONS.map(op => <option key={op}>{op}</option>)}
                     </select>
                     <input
+                      disabled={isLocked}
                       type="text"
                       value={cond.value}
                       onChange={e => updateCondition(cond.id, { value: e.target.value })}
                       placeholder="Value"
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-amber-300"
+                      className="flex-1 min-w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
                     />
-                    <button
-                      type="button"
-                      onClick={() => removeCondition(cond.id)}
-                      className="text-red-400 hover:text-red-600 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!isLocked && (
+                      <button
+                        type="button"
+                        onClick={() => removeCondition(cond.id)}
+                        aria-label="Remove condition"
+                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
-            {!isLocked && (
-              <button
-                type="button"
-                onClick={addCondition}
-                className="text-xs text-amber-600 hover:text-amber-700 font-medium cursor-pointer"
-              >
-                + Add Condition
-              </button>
-            )}
           </div>
 
-          {/* ④ Actions */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              {sectionNum(4)}
-              <span className="text-sm font-semibold text-slate-700">Actions</span>
-            </div>
-            {rbActions.map(action => (
-              <div key={action.id} className="bg-white border border-slate-200 rounded-lg p-3 flex items-start gap-3">
-                <select
-                  value={action.type}
-                  onChange={e => updateAction(action.id, { type: e.target.value, config: {} })}
-                  disabled={isLocked}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-44 focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+          {/* Actions */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Actions</label>
+              {!isLocked && (
+                <button
+                  type="button"
+                  onClick={addAction}
+                  className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium cursor-pointer"
                 >
-                  {['Send Message', 'Create Task', 'Update Field', 'Assign Owner', 'Create Concern'].map(t => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-                <div className="flex-1 flex gap-2 flex-wrap">
-                  {action.type === 'Send Message' && (
-                    <select
-                      value={action.config.template ?? ''}
-                      onChange={e => updateAction(action.id, { config: { template: e.target.value } })}
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs flex-1 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                    >
-                      <option value="">Select template…</option>
-                      {automationTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  )}
-                  {action.type === 'Create Task' && (
-                    <>
-                      <input
-                        type="text"
-                        placeholder="Task title"
-                        value={action.config.title ?? ''}
-                        onChange={e => updateAction(action.id, { config: { ...action.config, title: e.target.value } })}
-                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-32 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                      />
+                  <Plus className="w-3.5 h-3.5" />
+                  Add action
+                </button>
+              )}
+            </div>
+            {rbActions.length === 0 ? (
+              <p className="text-xs text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 rounded-lg px-3 py-3">
+                Add at least one action to run when this rule fires.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {rbActions.map((action, idx) => (
+                  <div key={action.id} className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Then #{idx + 1}</span>
                       <select
-                        value={action.config.priority ?? 'Medium'}
-                        onChange={e => updateAction(action.id, { config: { ...action.config, priority: e.target.value } })}
-                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300"
+                        disabled={isLocked}
+                        value={action.type}
+                        onChange={e => updateAction(action.id, { type: e.target.value as ActionType, config: {} })}
+                        className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
                       >
-                        {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
+                        {ACTION_TYPES.map(t => <option key={t}>{t}</option>)}
                       </select>
-                    </>
-                  )}
-                  {action.type === 'Update Field' && (
-                    <>
-                      <input
-                        type="text"
-                        placeholder="Field"
-                        value={action.config.field ?? ''}
-                        onChange={e => updateAction(action.id, { config: { ...action.config, field: e.target.value } })}
-                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                      />
-                      <input
-                        type="text"
-                        placeholder="New value"
-                        value={action.config.value ?? ''}
-                        onChange={e => updateAction(action.id, { config: { ...action.config, value: e.target.value } })}
-                        className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-28 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                      />
-                    </>
-                  )}
-                  {action.type === 'Assign Owner' && (
-                    <input
-                      type="text"
-                      placeholder="Assignee"
-                      value={action.config.assignee ?? ''}
-                      onChange={e => updateAction(action.id, { config: { assignee: e.target.value } })}
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs flex-1 focus:outline-none focus:ring-1 focus:ring-amber-300"
-                    />
-                  )}
-                  {action.type === 'Create Concern' && (
-                    <select
-                      value={action.config.level ?? 'L1'}
-                      onChange={e => updateAction(action.id, { config: { ...action.config, level: e.target.value } })}
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300"
-                    >
-                      {['L1', 'L2', 'L3'].map(l => <option key={l}>{l}</option>)}
-                    </select>
-                  )}
-                </div>
-                {!isLocked && (
-                  <button
-                    type="button"
-                    onClick={() => removeAction(action.id)}
-                    className="text-red-400 hover:text-red-600 cursor-pointer mt-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                      {!isLocked && (
+                        <button
+                          type="button"
+                          onClick={() => removeAction(action.id)}
+                          aria-label="Remove action"
+                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {action.type === 'Create task' && (
+                        <>
+                          <input
+                            disabled={isLocked}
+                            type="text"
+                            placeholder="Task title"
+                            value={action.config.title ?? ''}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, title: e.target.value } })}
+                            className="flex-1 min-w-40 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          />
+                          <select
+                            disabled={isLocked}
+                            value={action.config.priority ?? 'Medium'}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, priority: e.target.value } })}
+                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          >
+                            {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
+                          </select>
+                          <input
+                            disabled={isLocked}
+                            type="text"
+                            placeholder="Assignee (name or role)"
+                            value={action.config.assignee ?? ''}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, assignee: e.target.value } })}
+                            className="flex-1 min-w-40 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          />
+                        </>
+                      )}
+                      {action.type === 'Send notification' && (
+                        <>
+                          <select
+                            disabled={isLocked}
+                            value={action.config.channel ?? 'Email'}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, channel: e.target.value } })}
+                            className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          >
+                            {NOTIFICATION_CHANNELS.map(c => <option key={c}>{c}</option>)}
+                          </select>
+                          <select
+                            disabled={isLocked}
+                            value={action.config.template ?? ''}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, template: e.target.value } })}
+                            className="flex-1 min-w-40 border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          >
+                            <option value="">Select template…</option>
+                            {automationTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        </>
+                      )}
+                      {action.type === 'Update field' && (
+                        <>
+                          <input
+                            disabled={isLocked}
+                            type="text"
+                            placeholder="Field name"
+                            value={action.config.field ?? ''}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, field: e.target.value } })}
+                            className="flex-1 min-w-32 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          />
+                          <input
+                            disabled={isLocked}
+                            type="text"
+                            placeholder="New value"
+                            value={action.config.value ?? ''}
+                            onChange={e => updateAction(action.id, { config: { ...action.config, value: e.target.value } })}
+                            className="flex-1 min-w-32 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                          />
+                        </>
+                      )}
+                      {action.type === 'Add tag' && (
+                        <input
+                          disabled={isLocked}
+                          type="text"
+                          placeholder="Tag name (e.g. high-risk)"
+                          value={action.config.tag ?? ''}
+                          onChange={e => updateAction(action.id, { config: { tag: e.target.value } })}
+                          className="flex-1 min-w-40 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                        />
+                      )}
+                      {action.type === 'Assign to staff' && (
+                        <input
+                          disabled={isLocked}
+                          type="text"
+                          placeholder="Staff member name"
+                          value={action.config.staff ?? ''}
+                          onChange={e => updateAction(action.id, { config: { staff: e.target.value } })}
+                          className="flex-1 min-w-40 border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-            {!isLocked && (
-              <button
-                type="button"
-                onClick={addAction}
-                className="text-xs text-amber-600 hover:text-amber-700 font-medium cursor-pointer"
-              >
-                + Add Action
-              </button>
             )}
           </div>
 
-          {/* ⑤ Settings */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              {sectionNum(5)}
-              <span className="text-sm font-semibold text-slate-700">Settings</span>
+          {/* Enabled toggle */}
+          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Enabled</p>
+              <p className="text-xs text-slate-500 mt-0.5">Rule fires on matching events when enabled.</p>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <label className="text-xs text-slate-600 font-medium w-24">Rate limit</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={rbRateLimit}
-                  onChange={e => setRbRateLimit(e.target.value)}
-                  disabled={isLocked}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-16 focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
-                />
-                <span className="text-xs text-slate-500">executions per</span>
-                <select
-                  value={rbPeriod}
-                  onChange={e => setRbPeriod(e.target.value)}
-                  disabled={isLocked}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
-                >
-                  {['hour', 'day', 'week'].map(p => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-600 font-medium w-24">Idempotency key</label>
-                <input
-                  type="text"
-                  value={rbIdempotency}
-                  onChange={e => setRbIdempotency(e.target.value)}
-                  disabled={isLocked}
-                  placeholder="e.g. student_id+session_id"
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs flex-1 focus:outline-none focus:ring-1 focus:ring-amber-300 disabled:opacity-50"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-600 font-medium w-24">Enabled</label>
-                <ToggleSwitch enabled={rbEnabled} onChange={setRbEnabled} disabled={isLocked} />
-              </div>
-            </div>
+            <ToggleSwitch enabled={rbEnabled} onChange={setRbEnabled} disabled={isLocked} />
           </div>
         </div>
 
-        <DialogFooter className="flex items-center gap-3">
+        {/* Footer */}
+        <div className="flex items-center gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 flex-shrink-0">
           {isLocked ? (
             <button
+              type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+              className="ml-auto px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer hover:bg-slate-50"
             >
               Close
             </button>
           ) : (
             <>
               <button
+                type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                Save Rule
-              </button>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer"
+                className="ml-auto px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg transition-colors cursor-pointer hover:bg-slate-50"
               >
                 Cancel
               </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+              >
+                Save Rule
+              </button>
             </>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -3000,13 +3105,15 @@ function RulesTab() {
   const [moduleSel,   setModuleSel]   = useState<string[]>([]);
   const [ruleOpen,    setRuleOpen]    = useState(false);
   const [selectedRule, setSelectedRule] = useState<AutomationRule | null>(null);
+  const [builderKey, setBuilderKey] = useState(0);
+  const [rules, setRules] = useState<AutomationRule[]>(automationRules);
   const { sortField, sortDir, toggleSort, sortData } = useSortState('name');
 
   const TRIGGER_OPTIONS = ['Status Change', 'Time-based', 'Threshold', 'Form Submission', 'Manual'];
   const MODULE_OPTIONS  = ['M02', 'M03', 'M04', 'M05', 'M07', 'M08', 'M09', 'M12'];
 
   const filtered = useMemo(() => {
-    const base = automationRules.filter(r => {
+    const base = rules.filter(r => {
       if (search && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusF !== 'All' && r.status !== statusF) return false;
       if (triggerSel.length > 0 && !triggerSel.includes(r.triggerType)) return false;
@@ -3014,11 +3121,22 @@ function RulesTab() {
       return true;
     });
     return sortData(base as unknown as Record<string, unknown>[]) as unknown as AutomationRule[];
-  }, [search, statusF, triggerSel, moduleSel, sortField, sortDir, sortData]);
+  }, [rules, search, statusF, triggerSel, moduleSel, sortField, sortDir, sortData]);
 
   function openBuilder(rule: AutomationRule | null) {
     setSelectedRule(rule);
+    setBuilderKey(k => k + 1);
     setRuleOpen(true);
+  }
+
+  function handleSaveRule(saved: AutomationRule, isNew: boolean) {
+    setRules(prev => isNew ? [saved, ...prev] : prev.map(r => r.id === saved.id ? saved : r));
+  }
+
+  function handleToggleRule(id: string) {
+    setRules(prev => prev.map(r =>
+      r.id === id ? { ...r, status: r.status === 'Enabled' ? 'Disabled' : 'Enabled' } : r
+    ));
   }
 
   const statusPills = ['All', 'Enabled', 'Disabled', 'Locked'] as const;
@@ -3132,7 +3250,7 @@ function RulesTab() {
                       <div className="flex items-center justify-end gap-2">
                         <ToggleSwitch
                           enabled={rule.status === 'Enabled'}
-                          onChange={() => {}}
+                          onChange={() => handleToggleRule(rule.id)}
                           disabled={rule.locked || !can('automations.toggleRule')}
                         />
                         {can('automations.editRule') && (
@@ -3166,9 +3284,11 @@ function RulesTab() {
       </div>
 
       <RuleBuilderSheet
+        key={`${selectedRule?.id ?? 'new'}-${builderKey}`}
         open={ruleOpen}
         rule={selectedRule}
         onClose={() => { setRuleOpen(false); setSelectedRule(null); }}
+        onSave={handleSaveRule}
       />
     </>
   );

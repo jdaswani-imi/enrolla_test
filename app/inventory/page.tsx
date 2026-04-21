@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { toast } from 'sonner';
 import {
   Plus, Search, ClipboardList, Package, ChevronDown, ChevronRight,
   Zap, ExternalLink, Trash2, X, AlertTriangle,
@@ -9,6 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   inventoryItems, inventorySuppliers, reorderAlerts, stockLedgerEntries,
+  currentUser,
   type InventoryItem, type AutoDeductRule, type LedgerEntry,
   type ReorderAlert, type StockLedgerEntry, type InventorySupplier,
 } from '@/lib/mock-data';
@@ -306,6 +308,243 @@ function AdjustStockSheet({
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer">
             Cancel
           </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── StockTakeDialog ───────────────────────────────────────────────────────────
+
+function computeHealth(stock: number, minStock: number): InventoryItem['health'] {
+  if (stock <= minStock) return 'below';
+  if (stock <= Math.floor(minStock * 1.5)) return 'approaching';
+  return 'healthy';
+}
+
+function formatStockTakeDate(d: Date): string {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function formatLedgerTimestamp(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${formatStockTakeDate(d)}, ${hh}:${mm}`;
+}
+
+function StockTakeDialog({ onClose }: { onClose: () => void }) {
+  const [counted, setCounted] = useState<Record<string, string>>({});
+  const [selectedCats, setSelectedCats] = useState<string[]>([]);
+
+  const today = useMemo(() => new Date(), []);
+  const todayLabel = formatStockTakeDate(today);
+
+  const presentCategories = useMemo(
+    () => ALL_CATEGORIES.filter(c => inventoryItems.some(i => i.category === c)),
+    [],
+  );
+
+  const visibleItems = useMemo(() => {
+    const items = selectedCats.length
+      ? inventoryItems.filter(i => selectedCats.includes(i.category))
+      : inventoryItems;
+    return [...items].sort((a, b) => {
+      const ca = a.category.localeCompare(b.category);
+      return ca !== 0 ? ca : a.name.localeCompare(b.name);
+    });
+  }, [selectedCats]);
+
+  const itemsCounted = Object.values(counted).filter(v => v !== '' && v !== undefined).length;
+  const totalItems = inventoryItems.length;
+  const canComplete = itemsCounted >= 1;
+
+  function toggleCategory(cat: string) {
+    setSelectedCats(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  }
+
+  function fillAllWithSystem() {
+    const next: Record<string, string> = {};
+    for (const item of inventoryItems) next[item.id] = String(item.currentStock);
+    setCounted(next);
+  }
+
+  function handleSaveProgress() {
+    toast.success(`Progress saved — ${itemsCounted} of ${totalItems} items counted`);
+  }
+
+  function handleComplete() {
+    let variances = 0;
+    let checked = 0;
+    for (const item of inventoryItems) {
+      const raw = counted[item.id];
+      if (raw === undefined || raw === '') continue;
+      const countedQty = Math.max(0, parseInt(raw, 10));
+      if (Number.isNaN(countedQty)) continue;
+      checked += 1;
+      if (countedQty !== item.currentStock) variances += 1;
+      item.currentStock = countedQty;
+      item.health = computeHealth(countedQty, item.minStock);
+    }
+
+    const now = new Date();
+    stockLedgerEntries.unshift({
+      id: `sl-stkt-${now.getTime()}`,
+      itemName: 'Stock-take',
+      category: 'Stock-take',
+      changeType: 'stock_take_correction',
+      quantityChange: 0,
+      actor: currentUser.name,
+      reference: `${checked} items checked, ${variances} variance${variances === 1 ? '' : 's'} found`,
+      timestamp: formatLedgerTimestamp(now),
+    });
+
+    toast.success(`Stock-take completed — ${variances} variance${variances === 1 ? '' : 's'} recorded`);
+    onClose();
+  }
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[85vh]">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-3 pr-8">
+            <div>
+              <DialogTitle className="font-semibold text-base">Stock-take</DialogTitle>
+              <p className="text-sm text-slate-500 mt-0.5">{todayLabel}</p>
+            </div>
+            <button
+              onClick={handleSaveProgress}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer font-medium"
+            >
+              Save progress
+            </button>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
+          {/* Category filter pills */}
+          <div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedCats([])}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors',
+                  selectedCats.length === 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                )}
+              >
+                All
+              </button>
+              {presentCategories.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors',
+                    selectedCats.includes(cat) ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Fill all shortcut */}
+          <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-slate-500">Tip: leave counted blank for items you didn&apos;t physically count.</p>
+            <button
+              onClick={fillAllWithSystem}
+              className="text-xs px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer font-medium whitespace-nowrap"
+            >
+              Fill all with system quantities
+            </button>
+          </div>
+
+          {/* Items table */}
+          <div className="rounded-lg border border-slate-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="text-left font-semibold px-3 py-2">Item</th>
+                  <th className="text-left font-semibold px-3 py-2">Category</th>
+                  <th className="text-right font-semibold px-3 py-2">System</th>
+                  <th className="text-right font-semibold px-3 py-2">Counted</th>
+                  <th className="text-right font-semibold px-3 py-2">Variance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((item, idx) => {
+                  const raw = counted[item.id] ?? '';
+                  const hasValue = raw !== '';
+                  const parsed = hasValue ? parseInt(raw, 10) : NaN;
+                  const variance = hasValue && !Number.isNaN(parsed) ? parsed - item.currentStock : null;
+                  const varianceColor =
+                    variance === null || variance === 0 ? 'text-slate-400'
+                    : variance > 0 ? 'text-green-600'
+                    : 'text-red-600';
+                  return (
+                    <tr key={item.id} className={cn(idx > 0 && 'border-t border-slate-100')}>
+                      <td className="px-3 py-2 text-slate-800">{item.name}</td>
+                      <td className="px-3 py-2">
+                        <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          {item.category}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-600 tabular-nums">{item.currentStock}</td>
+                      <td className="px-3 py-2 text-right">
+                        <input
+                          type="number"
+                          min={0}
+                          value={raw}
+                          onChange={e => {
+                            const v = e.target.value;
+                            setCounted(prev => {
+                              const next = { ...prev };
+                              if (v === '') delete next[item.id];
+                              else next[item.id] = v;
+                              return next;
+                            });
+                          }}
+                          className="w-20 text-right tabular-nums border border-slate-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        />
+                      </td>
+                      <td className={cn('px-3 py-2 text-right tabular-nums font-medium', varianceColor)}>
+                        {variance === null ? '—' : variance > 0 ? `+${variance}` : variance}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <DialogFooter className="flex items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">
+            Items counted: <span className="font-semibold text-slate-700">{itemsCounted}</span> of {totalItems}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleComplete}
+              disabled={!canComplete}
+              className={cn(
+                'px-4 py-2 rounded-xl text-sm font-medium transition-colors',
+                canComplete
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed',
+              )}
+            >
+              Complete stock-take
+            </button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1593,6 +1832,7 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<Tab>('Catalogue');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [stockTakeOpen, setStockTakeOpen] = useState(false);
 
   return (
     <div className="p-6 space-y-6">
@@ -1604,7 +1844,10 @@ export default function InventoryPage() {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {can('stock.take') && (
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer">
+            <button
+              onClick={() => setStockTakeOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer"
+            >
               <ClipboardList className="w-4 h-4" />Stock-take
             </button>
           )}
@@ -1664,6 +1907,11 @@ export default function InventoryPage() {
       {/* Adjust stock sheet */}
       {adjustItem && (
         <AdjustStockSheet item={adjustItem} onClose={() => setAdjustItem(null)} />
+      )}
+
+      {/* Stock-take dialog */}
+      {stockTakeOpen && (
+        <StockTakeDialog onClose={() => setStockTakeOpen(false)} />
       )}
     </div>
   );

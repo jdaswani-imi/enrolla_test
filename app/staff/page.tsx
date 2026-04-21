@@ -7,16 +7,16 @@ import {
   X,
   Plus,
   UserCheck,
-  UserMinus,
   Clock,
   UserX,
   Eye,
   Edit2,
-  RefreshCw,
-  ShieldOff,
   Send,
   Download,
+  Check,
+  Ban,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,16 @@ import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { ExportDialog } from "@/components/ui/export-dialog";
+import {
+  AddStaffDialog,
+  DeactivateStaffDialog,
+  type NewStaffData,
+} from "@/components/staff/add-staff-dialog";
+import {
+  RequestLeaveDialog,
+  type LeaveRequestSubmission,
+} from "@/components/staff/request-leave-dialog";
+import { currentUser } from "@/lib/mock-data";
 
 // ─── Avatar helpers ────────────────────────────────────────────────────────────
 
@@ -84,6 +94,7 @@ const ROLE_BADGE: Record<string, string> = {
 const STATUS_BADGE: Record<StaffStatus, string> = {
   "Active":       "bg-emerald-100 text-emerald-700 border border-emerald-200",
   "On Leave":     "bg-amber-100 text-amber-700 border border-amber-200",
+  "Inactive":     "bg-slate-200 text-slate-700 border border-slate-300",
   "Suspended":    "bg-red-100 text-red-700 border border-red-200",
   "Off-boarded":  "bg-slate-100 text-slate-500 border border-slate-200",
 };
@@ -130,12 +141,18 @@ function RowActionsMenu({
   onOpen,
   onClose,
   onViewProfile,
+  onEdit,
+  onMarkOnLeave,
+  onDeactivate,
 }: {
   staff: StaffMember;
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
   onViewProfile: () => void;
+  onEdit: () => void;
+  onMarkOnLeave: () => void;
+  onDeactivate: () => void;
 }) {
   const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
@@ -148,14 +165,9 @@ function RowActionsMenu({
     return () => document.removeEventListener("mousedown", h);
   }, [isOpen, onClose]);
 
-  const allActions = [
-    { icon: Eye,       label: "View Profile",         onClick: onViewProfile, danger: false, permission: null               },
-    { icon: Edit2,     label: "Edit",                  onClick: () => {},      danger: false, permission: 'staff.edit'       },
-    { icon: RefreshCw, label: "Assign Cover",          onClick: () => {},      danger: false, permission: null               },
-    { icon: UserMinus, label: "Initiate Off-boarding", onClick: () => {},      danger: true,  permission: 'offboard.staff' },
-    { icon: ShieldOff, label: "Revoke Access",         onClick: () => {},      danger: true,  permission: 'staff.revokeAccess'        },
-  ];
-  const actions = allActions.filter(a => a.permission === null || can(a.permission));
+  const canEdit         = can('staff.edit');
+  const canSetLeave     = can('staff.edit') && staff.status === "Active";
+  const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive";
 
   return (
     <div ref={ref} className="relative flex justify-end">
@@ -170,20 +182,50 @@ function RowActionsMenu({
 
       {isOpen && (
         <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
-          {actions.map(({ icon: Icon, label, onClick, danger }) => (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onViewProfile(); onClose(); }}
+            className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 shrink-0" />
+            View profile
+          </button>
+
+          {canEdit && (
             <button
-              key={label}
               type="button"
-              onClick={(e) => { e.stopPropagation(); onClick(); onClose(); }}
-              className={cn(
-                "w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer transition-colors",
-                danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"
-              )}
+              onClick={(e) => { e.stopPropagation(); onEdit(); onClose(); }}
+              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
             >
-              <Icon className="w-3.5 h-3.5 shrink-0" />
-              {label}
+              <Edit2 className="w-3.5 h-3.5 shrink-0" />
+              Edit details
             </button>
-          ))}
+          )}
+
+          {canSetLeave && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onMarkOnLeave(); onClose(); }}
+              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              Mark as on leave
+            </button>
+          )}
+
+          {canDeactivate && (
+            <>
+              <div className="my-1 border-t border-slate-100" />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDeactivate(); onClose(); }}
+                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Ban className="w-3.5 h-3.5 shrink-0" />
+                Deactivate
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -193,9 +235,9 @@ function RowActionsMenu({
 // ─── CPD log mock data (shared) ────────────────────────────────────────────────
 
 const CPD_LOG = [
-  { activity: "Differentiation Strategies Workshop", date: "10 Mar 2025", hours: 3, type: "Training",   status: "Verified"   },
-  { activity: "Reading: Cambridge Assessment Guide", date: "2 Feb 2025",  hours: 2, type: "Reading",    status: "Unverified" },
-  { activity: "Regional Teachers Conference",        date: "15 Jan 2025", hours: 6, type: "Conference", status: "Verified"   },
+  { activity: "Differentiation Strategies Workshop", date: "10 Mar 2026", hours: 3, type: "Training",   status: "Verified"   },
+  { activity: "Reading: Cambridge Assessment Guide", date: "2 Feb 2026",  hours: 2, type: "Reading",    status: "Unverified" },
+  { activity: "Regional Teachers Conference",        date: "15 Jan 2026", hours: 6, type: "Conference", status: "Verified"   },
   { activity: "Classroom Management Webinar",        date: "5 Dec 2024",  hours: 2, type: "Training",   status: "Queried"    },
 ];
 
@@ -450,7 +492,7 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
                 <ul className="space-y-2">
                   {[
                     "Improve 48-hour marking compliance rate to 95%",
-                    "Complete 20 CPD hours by July 2025",
+                    "Complete 20 CPD hours by July 2026",
                     "Take on Year 9 Science group from Term 3",
                   ].map((target) => (
                     <li key={target} className="flex items-start gap-2 text-sm text-slate-700">
@@ -551,11 +593,34 @@ function StatCard({
 
 // ─── Filters ───────────────────────────────────────────────────────────────────
 
-const STATUS_FILTER_OPTIONS = ["Active", "On Leave", "Suspended", "Off-boarded"];
+const STATUS_FILTER_OPTIONS = ["Active", "On Leave", "Inactive", "Suspended", "Off-boarded"];
 const DEPT_FILTER_OPTIONS   = ["Primary", "Lower Secondary", "Senior", "Admin"];
 const ROLE_FILTER_OPTIONS   = ["Teacher", "TA", "Admin", "Admin Head", "HOD", "Academic Head", "HR-Finance", "Super Admin"];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
+
+type LeaveRequestStatus = "Pending" | "Approved" | "Rejected";
+
+interface LeaveRequest {
+  id: string;
+  staffId: string;
+  name: string;
+  type: string;
+  range: string;
+  days: number;
+  submitted: string;
+  status: LeaveRequestStatus;
+  coverProposed?: boolean;
+  coverCoveredCount?: number;
+  coverTotalCount?: number;
+}
+
+const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
+  { id: "LR-01", staffId: "ST-003", name: "Ahmed Khalil",   type: "Annual leave",   range: "5–9 May",  days: 5, submitted: "18 Apr 2026", status: "Pending" },
+  { id: "LR-02", staffId: "ST-006", name: "Hana Yusuf",     type: "Personal",       range: "29 Apr",   days: 1, submitted: "17 Apr 2026", status: "Pending" },
+  { id: "LR-03", staffId: "ST-012", name: "Khalil Mansouri",type: "Medical",        range: "22 Apr",   days: 1, submitted: "19 Apr 2026", status: "Pending" },
+  { id: "LR-04", staffId: "ST-004", name: "Sarah Mitchell", type: "Annual leave",   range: "12–14 May",days: 3, submitted: "16 Apr 2026", status: "Pending" },
+];
 
 export default function StaffPage() {
   const { can, role } = usePermission();
@@ -567,6 +632,113 @@ export default function StaffPage() {
   const [search,        setSearch]        = useState("");
   const [openMenu,      setOpenMenu]      = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+
+  // Mutable staff list — seeded from mock data, edited in-memory.
+  const [rows, setRows] = useState<StaffMember[]>(() => staffMembers.map((s) => ({ ...s })));
+
+  // Dialog state
+  const [addOpen, setAddOpen] = useState(false);
+  const [editStaff, setEditStaff] = useState<StaffMember | null>(null);
+  const [deactivateStaff, setDeactivateStaff] = useState<StaffMember | null>(null);
+
+  // HR dashboard — leave requests
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
+  const [requestLeaveOpen, setRequestLeaveOpen] = useState(false);
+
+  function updateRow(id: string, patch: Partial<StaffMember>) {
+    setRows((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  }
+
+  function handleMarkOnLeave(s: StaffMember) {
+    updateRow(s.id, { status: "On Leave" });
+    toast.success(`${s.name} marked as on leave`);
+  }
+
+  function handleDeactivate(s: StaffMember) {
+    updateRow(s.id, { status: "Inactive" });
+    toast.success(`${s.name} deactivated`);
+  }
+
+  function handleAddStaff(data: NewStaffData) {
+    const name = `${data.firstName} ${data.lastName}`.trim();
+    const id = `ST-${String(rows.length + 1).padStart(3, "0")}`;
+    const startDisplay = (() => {
+      if (!data.startDate) return "";
+      const [y, m, d] = data.startDate.split("-");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `${Number(d)} ${months[Number(m) - 1]} ${y}`;
+    })();
+    const next: StaffMember = {
+      id,
+      name,
+      email: data.email,
+      role: data.role,
+      department: data.department,
+      subjects: data.subjects,
+      sessionsThisWeek: 0,
+      cpdHours: 0,
+      cpdTarget: 20,
+      status: "Active",
+      hireDate: startDisplay,
+      contractType: "Full-time",
+      lineManager: "—",
+      workloadLevel: "Low",
+    };
+    setRows((prev) => [next, ...prev]);
+    toast.success(`${name} added to staff`);
+  }
+
+  function handleEditStaff(data: NewStaffData) {
+    if (!editStaff) return;
+    const name = `${data.firstName} ${data.lastName}`.trim();
+    updateRow(editStaff.id, {
+      name,
+      email: data.email,
+      role: data.role,
+      department: data.department,
+      subjects: data.subjects,
+    });
+    toast.success(`${name} updated`);
+    setEditStaff(null);
+  }
+
+  function handleLeaveDecision(id: string, decision: "Approved" | "Rejected") {
+    const req = leaveRequests.find((r) => r.id === id);
+    setLeaveRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: decision } : r)));
+    if (!req) return;
+    if (decision === "Approved") {
+      toast.success(`Leave approved — ${req.name} · ${req.range}`);
+    } else {
+      toast.error(`Leave rejected — ${req.name} · ${req.range}`);
+    }
+  }
+
+  function handleRequestLeaveSubmit(payload: LeaveRequestSubmission) {
+    const nextId = `LR-${String(leaveRequests.length + 1).padStart(2, "0")}`;
+    const today = new Date();
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const submitted = `${today.getDate()} ${months[today.getMonth()]} ${today.getFullYear()}`;
+    const next: LeaveRequest = {
+      id: nextId,
+      staffId: "—",
+      name: payload.staffName,
+      type: `${payload.leaveType} leave`,
+      range: payload.rangeLabel,
+      days: payload.days,
+      submitted,
+      status: "Pending",
+      coverProposed: true,
+      coverCoveredCount: payload.coveredSessions,
+      coverTotalCount: payload.totalSessions,
+    };
+    setLeaveRequests((prev) => [next, ...prev]);
+    toast.success("Leave request submitted");
+  }
+
+  function openStaffById(id: string) {
+    const s = rows.find((x) => x.id === id);
+    if (s) setSelectedStaff(s);
+  }
 
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDir,   setSortDir]   = useState<"asc" | "desc">("asc");
@@ -582,7 +754,7 @@ export default function StaffPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    let data = staffMembers.filter((s) => {
+    let data = rows.filter((s) => {
       if (statusFilter.length > 0 && !statusFilter.includes(s.status)) return false;
       if (deptFilter.length > 0   && !deptFilter.includes(s.department)) return false;
       if (roleFilter.length > 0   && !roleFilter.includes(s.role)) return false;
@@ -600,7 +772,7 @@ export default function StaffPage() {
       });
     }
     return data;
-  }, [statusFilter, deptFilter, roleFilter, search, sortField, sortDir]);
+  }, [rows, statusFilter, deptFilter, roleFilter, search, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -608,8 +780,8 @@ export default function StaffPage() {
   }, [filtered, page, pageSize]);
 
   const teachingStaff = useMemo(
-    () => [...staffMembers.filter((s) => ["Teacher", "TA", "HOD"].includes(s.role))].sort((a, b) => b.sessionsThisWeek - a.sessionsThisWeek),
-    []
+    () => [...rows.filter((s) => ["Teacher", "TA", "HOD"].includes(s.role))].sort((a, b) => b.sessionsThisWeek - a.sessionsThisWeek),
+    [rows],
   );
 
   const outerTabs = [
@@ -693,6 +865,7 @@ export default function StaffPage() {
                 {can('staff.create') && (
                   <button
                     type="button"
+                    onClick={() => setAddOpen(true)}
                     className="btn-primary flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold shadow-sm whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" />
@@ -799,6 +972,9 @@ export default function StaffPage() {
                             onOpen={() => setOpenMenu(s.id)}
                             onClose={() => setOpenMenu(null)}
                             onViewProfile={() => { setSelectedStaff(s); setOpenMenu(null); }}
+                            onEdit={() => { setEditStaff(s); setOpenMenu(null); }}
+                            onMarkOnLeave={() => { handleMarkOnLeave(s); setOpenMenu(null); }}
+                            onDeactivate={() => { setDeactivateStaff(s); setOpenMenu(null); }}
                           />
                         </td>
                       </tr>
@@ -916,7 +1092,7 @@ export default function StaffPage() {
               <p className="text-xs text-slate-400 mt-0.5 mb-4">Staff events and achievements</p>
               <div className="space-y-2">
                 {[
-                  { name: "Hana Yusuf",     event: "3-year anniversary",  whenLabel: "1 Sep 2025"  },
+                  { name: "Hana Yusuf",     event: "3-year anniversary",  whenLabel: "1 Sep 2026"  },
                   { name: "Ahmed Khalil",    event: "CPD 100% complete",   whenLabel: "Today"       },
                   { name: "Sarah Mitchell",  event: "CPD 90% reached",     whenLabel: "3 days ago"  },
                 ].map(({ name, event, whenLabel }) => {
@@ -934,7 +1110,7 @@ export default function StaffPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setSelectedStaff(staffMembers.find((s) => s.name === name) ?? null)}
+                        onClick={() => setSelectedStaff(rows.find((s) => s.name === name) ?? null)}
                         className="text-xs text-amber-600 font-medium hover:underline cursor-pointer whitespace-nowrap shrink-0"
                       >
                         View Profile
@@ -955,7 +1131,7 @@ export default function StaffPage() {
                     dotCls:      "bg-red-500",
                     name:        "Mariam Saleh",
                     label:       "Access Revoked",
-                    detail:      "15 Apr 2025",
+                    detail:      "15 Apr 2026",
                     action:      "View Details",
                     actionCls:   "text-red-600 hover:bg-red-50 border-red-200",
                   },
@@ -963,7 +1139,7 @@ export default function StaffPage() {
                     dotCls:      "bg-amber-400",
                     name:        "Rania Aziz",
                     label:       "Emergency Leave active",
-                    detail:      "Since 10 Apr 2025 · 12 sessions need cover",
+                    detail:      "Since 10 Apr 2026 · 12 sessions need cover",
                     action:      "Assign Cover",
                     actionCls:   "text-amber-700 hover:bg-amber-50 border-amber-200",
                   },
@@ -1019,7 +1195,11 @@ export default function StaffPage() {
                       s.status === "On Leave"  ? "bg-amber-50/60" :
                       "";
                     return (
-                      <tr key={s.id} className={cn("border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-default", rowBg)}>
+                      <tr
+                        key={s.id}
+                        onClick={() => setSelectedStaff(s)}
+                        className={cn("border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer", rowBg)}
+                      >
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0", pal.bg, pal.text)}>
@@ -1059,6 +1239,126 @@ export default function StaffPage() {
               </table>
             </div>
           </div>
+
+          {/* Leave Requests Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Leave Requests</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Pending approvals and recent decisions</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRequestLeaveOpen(true)}
+                className="btn-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm whitespace-nowrap shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                Request Leave
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    {["Staff", "Type", "Dates", "Days", "Submitted", "Status", ""].map((h, i) => (
+                      <th key={`${h}-${i}`} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaveRequests.map((r) => {
+                    const pal = getAvatarPalette(r.name);
+                    return (
+                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0", pal.bg, pal.text)}>
+                              {getInitials(r.name)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openStaffById(r.staffId)}
+                              className="font-medium text-slate-800 hover:text-amber-600 cursor-pointer transition-colors"
+                            >
+                              {r.name}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-slate-600">{r.type}</td>
+                        <td className="px-5 py-3 text-slate-600 whitespace-nowrap">{r.range}</td>
+                        <td className="px-5 py-3 text-slate-600 tabular-nums">{r.days}</td>
+                        <td className="px-5 py-3 text-slate-400 text-xs whitespace-nowrap">{r.submitted}</td>
+                        <td className="px-5 py-3">
+                          {r.status === "Pending" ? (
+                            <div className="flex flex-col gap-0.5 items-start">
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                Pending
+                              </span>
+                              {r.coverProposed && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                                  Cover proposed
+                                  {typeof r.coverCoveredCount === "number" && typeof r.coverTotalCount === "number" && r.coverTotalCount > 0 && (
+                                    <span className="text-slate-400 tabular-nums">
+                                      {" "}· {r.coverCoveredCount}/{r.coverTotalCount}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          ) : r.status === "Approved" ? (
+                            <div className="flex flex-col gap-0.5 items-start">
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                Approved
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700">
+                                <Check className="w-3 h-3" strokeWidth={3} />
+                                Cover confirmed
+                                {typeof r.coverCoveredCount === "number" && typeof r.coverTotalCount === "number" && r.coverTotalCount > 0 && (
+                                  <span className="text-slate-400 tabular-nums">
+                                    {" "}· {r.coverCoveredCount}/{r.coverTotalCount}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                              Rejected
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {r.status === "Pending" ? (
+                            <div className="flex items-center gap-1.5 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleLeaveDecision(r.id, "Approved")}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer whitespace-nowrap"
+                              >
+                                <Check className="w-3 h-3" />
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleLeaveDecision(r.id, "Rejected")}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors cursor-pointer whitespace-nowrap"
+                              >
+                                <X className="w-3 h-3" />
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="block text-right text-[11px] text-slate-400 italic">Decided</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1079,6 +1379,33 @@ export default function StaffPage() {
           { id: 'csv-directory', label: 'Staff Directory', description: 'Name, email, role, department, subjects, status.', icon: 'rows', recommended: true },
           { id: 'csv-hr', label: 'HR Export', description: 'Includes CPD hours, review dates, employment type, and leave records.', icon: 'items' },
         ]}
+      />
+
+      <AddStaffDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onConfirm={handleAddStaff}
+      />
+
+      <AddStaffDialog
+        open={editStaff !== null}
+        onOpenChange={(o) => { if (!o) setEditStaff(null); }}
+        onConfirm={handleEditStaff}
+        mode={editStaff ? { kind: "edit", staff: editStaff } : { kind: "add" }}
+      />
+
+      <DeactivateStaffDialog
+        staff={deactivateStaff}
+        open={deactivateStaff !== null}
+        onOpenChange={(o) => { if (!o) setDeactivateStaff(null); }}
+        onConfirm={() => { if (deactivateStaff) handleDeactivate(deactivateStaff); }}
+      />
+
+      <RequestLeaveDialog
+        open={requestLeaveOpen}
+        staffName={currentUser.name}
+        onOpenChange={setRequestLeaveOpen}
+        onSubmit={handleRequestLeaveSubmit}
       />
     </div>
   );

@@ -384,14 +384,14 @@ function UpcomingTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const OUTCOMES_DATA = [
-  { name: "Amna Al-Qubaisi",   type: "Lead" as const, yearGroup: "Y3",  subjects: ["English", "Maths"],  assessor: "Ms Sarah Mitchell", completedDate: "15 Apr 2025", recommendedPlacement: "Y3 English — Group",               outcome: "Recommended" },
-  { name: "Hamdan Al-Maktoum", type: "Lead" as const, yearGroup: "Y7",  subjects: ["Maths"],             assessor: "Mr Ahmed Khalil",   completedDate: "12 Apr 2025", recommendedPlacement: "Y7 Maths — Group",                 outcome: "Recommended" },
-  { name: "Rashid Al-Ketbi",   type: "Lead" as const, yearGroup: "Y12", subjects: ["Maths", "Physics"],  assessor: "Mr Faris Al-Amin",  completedDate: "10 Apr 2025", recommendedPlacement: "Y12 Maths — Private, Y12 Physics", outcome: "Recommended" },
-  { name: "Mira Al-Suwaidi",   type: "Lead" as const, yearGroup: "Y7",  subjects: ["English"],           assessor: "Ms Sarah Mitchell", completedDate: "8 Apr 2025",  recommendedPlacement: "Y7 English — Group",               outcome: "Recommended" },
-  { name: "Obaid Al-Falasi",   type: "Lead" as const, yearGroup: "Y9",  subjects: ["Science", "Maths"],  assessor: "Mr Tariq Al-Amin",  completedDate: "5 Apr 2025",  recommendedPlacement: "Y9 Science — Group",               outcome: "Parent to decide" },
-  { name: "Shaikha Bin Saeed", type: "Lead" as const, yearGroup: "Y1",  subjects: ["English"],           assessor: "Ms Sarah Mitchell", completedDate: "3 Apr 2025",  recommendedPlacement: "Y1 English — Group",               outcome: "Recommended" },
-  { name: "Talal Mansouri",    type: "Lead" as const, yearGroup: "Y11", subjects: ["Chemistry"],         assessor: "Ms Hana Yusuf",     completedDate: "1 Apr 2025",  recommendedPlacement: "Y11 Chemistry — Group",            outcome: "Not recommended" },
-  { name: "Rawan Al-Zarooni",  type: "Lead" as const, yearGroup: "Y4",  subjects: ["Maths"],             assessor: "Mr Ahmed Khalil",   completedDate: "28 Mar 2025", recommendedPlacement: "Y4 Maths — Group",                 outcome: "Recommended" },
+  { name: "Amna Al-Qubaisi",   type: "Lead" as const, yearGroup: "Y3",  subjects: ["English", "Maths"],  assessor: "Ms Sarah Mitchell", completedDate: "15 Apr 2026", recommendedPlacement: "Y3 English — Group",               outcome: "Recommended" },
+  { name: "Hamdan Al-Maktoum", type: "Lead" as const, yearGroup: "Y7",  subjects: ["Maths"],             assessor: "Mr Ahmed Khalil",   completedDate: "12 Apr 2026", recommendedPlacement: "Y7 Maths — Group",                 outcome: "Recommended" },
+  { name: "Rashid Al-Ketbi",   type: "Lead" as const, yearGroup: "Y12", subjects: ["Maths", "Physics"],  assessor: "Mr Faris Al-Amin",  completedDate: "10 Apr 2026", recommendedPlacement: "Y12 Maths — Private, Y12 Physics", outcome: "Recommended" },
+  { name: "Mira Al-Suwaidi",   type: "Lead" as const, yearGroup: "Y7",  subjects: ["English"],           assessor: "Ms Sarah Mitchell", completedDate: "8 Apr 2026",  recommendedPlacement: "Y7 English — Group",               outcome: "Recommended" },
+  { name: "Obaid Al-Falasi",   type: "Lead" as const, yearGroup: "Y9",  subjects: ["Science", "Maths"],  assessor: "Mr Tariq Al-Amin",  completedDate: "5 Apr 2026",  recommendedPlacement: "Y9 Science — Group",               outcome: "Parent to decide" },
+  { name: "Shaikha Bin Saeed", type: "Lead" as const, yearGroup: "Y1",  subjects: ["English"],           assessor: "Ms Sarah Mitchell", completedDate: "3 Apr 2026",  recommendedPlacement: "Y1 English — Group",               outcome: "Recommended" },
+  { name: "Talal Mansouri",    type: "Lead" as const, yearGroup: "Y11", subjects: ["Chemistry"],         assessor: "Ms Hana Yusuf",     completedDate: "1 Apr 2026",  recommendedPlacement: "Y11 Chemistry — Group",            outcome: "Not recommended" },
+  { name: "Rawan Al-Zarooni",  type: "Lead" as const, yearGroup: "Y4",  subjects: ["Maths"],             assessor: "Mr Ahmed Khalil",   completedDate: "28 Mar 2026", recommendedPlacement: "Y4 Maths — Group",                 outcome: "Recommended" },
 ];
 
 function OutcomesTab() {

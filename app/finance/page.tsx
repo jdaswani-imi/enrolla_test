@@ -140,12 +140,21 @@ function InvoicePreviewDialog({
   invoice,
   open,
   onClose,
+  canRecordPayment,
+  onRecordPayment,
 }: {
   invoice: Invoice | null;
   open: boolean;
   onClose: () => void;
+  canRecordPayment?: boolean;
+  onRecordPayment?: (invoice: Invoice) => void;
 }) {
   if (!invoice) return null;
+  const payable =
+    invoice.status !== "Paid" &&
+    invoice.status !== "Cancelled" &&
+    invoice.status !== "Draft";
+  const showRecordPayment = Boolean(canRecordPayment && payable && onRecordPayment);
 
   const subtotal  = invoice.amount / 1.05;
   const vat       = invoice.amount - subtotal;
@@ -250,11 +259,20 @@ function InvoicePreviewDialog({
           <button
             type="button"
             onClick={() => toast.success(`Downloading ${invoice.id}...`)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 bg-white text-slate-700 text-sm font-semibold rounded-lg hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
             Download PDF
           </button>
+          {showRecordPayment && (
+            <button
+              type="button"
+              onClick={() => onRecordPayment!(invoice)}
+              className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+            >
+              Record Payment
+            </button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -1219,6 +1237,11 @@ function InvoicesTab() {
         invoice={previewInvoice}
         open={previewInvoice !== null}
         onClose={() => setPreviewInvoice(null)}
+        canRecordPayment={can('finance.logPayment')}
+        onRecordPayment={(inv) => {
+          setPreviewInvoice(null);
+          setPayInvoice(inv);
+        }}
       />
       <RecordPaymentDialog
         invoice={payInvoice}

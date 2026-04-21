@@ -250,7 +250,7 @@ const GENDER_OPTIONS = ["Male", "Female"];
 // Common country dial codes shown first, then alphabetical.
 type DialOption = { code: string; country: string; flag: string };
 
-const COMMON_DIAL_CODES: DialOption[] = [
+export const COMMON_DIAL_CODES: DialOption[] = [
   { code: "+971", country: "United Arab Emirates", flag: "🇦🇪" },
   { code: "+44",  country: "United Kingdom",       flag: "🇬🇧" },
   { code: "+1",   country: "United States / Canada", flag: "🇺🇸" },
@@ -357,7 +357,7 @@ const OTHER_DIAL_CODES: DialOption[] = [
   { code: "+263", country: "Zimbabwe",        flag: "🇿🇼" },
 ];
 
-const DIAL_CODES: DialOption[] = [
+export const DIAL_CODES: DialOption[] = [
   ...COMMON_DIAL_CODES,
   ...[...OTHER_DIAL_CODES].sort((a, b) => a.country.localeCompare(b.country)),
 ];
@@ -965,7 +965,7 @@ function CountryCodeSelect({
 
 // ─── Phone input with dial-code picker + blur formatting ──────────────────────
 
-function PhoneInput({
+export function PhoneInput({
   id,
   dialCode,
   onDialCodeChange,

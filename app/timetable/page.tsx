@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast as sonnerToast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
@@ -516,265 +518,298 @@ function DownloadMenu({ onExport }: { onExport: (label: string) => void }) {
   );
 }
 
-// ─── Session Detail Slide-Over ────────────────────────────────────────────────
+// ─── Session Detail Modal ─────────────────────────────────────────────────────
 
-function SessionSlideover({
+type DerivedStatus = "Upcoming" | "In Progress" | "Completed" | "Cancelled";
+
+function deriveStatus(session: TimetableSession, dateIso: string | null, now: Date): DerivedStatus {
+  if (session.status === "Cancelled") return "Cancelled";
+  if (session.status === "Completed") return "Completed";
+  if (!dateIso) return "Upcoming";
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (dateIso !== todayIso) {
+    return dateIso < todayIso ? "Completed" : "Upcoming";
+  }
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const start = timeToMins(session.startTime);
+  const end   = timeToMins(session.endTime);
+  if (mins < start)  return "Upcoming";
+  if (mins >= end)   return "Completed";
+  return "In Progress";
+}
+
+function SessionDetailModal({
   session,
+  dateIso,
+  now,
   onClose,
+  onEdit,
+  onCancelled,
 }: {
   session: TimetableSession;
+  dateIso: string | null;
+  now: Date;
   onClose: () => void;
+  onEdit: () => void;
+  onCancelled: () => void;
 }) {
   const { can } = usePermission();
-  const [attendanceMode,     setAttendanceMode]     = useState(false);
-  const [attendanceStatuses, setAttendanceStatuses] = useState<Record<number, string>>({});
+  const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setAttendanceMode(false);
-    setAttendanceStatuses({});
-  }, [session]);
+  const derived = deriveStatus(session, dateIso, now);
+  const yearMatch = session.subject.match(/^(KG\d*|Y\d+)/);
+  const yearGroup = yearMatch?.[1] ?? null;
 
-  function markAllPresent() {
-    const all: Record<number, string> = {};
-    session.students.forEach((_, i) => { all[i] = "Present"; });
-    setAttendanceStatuses(all);
+  function navigateAttendance() {
+    onClose();
+    router.push("/attendance");
   }
 
-  function handleSetAttendanceStatus(index: number, status: string) {
-    setAttendanceStatuses((prev) => ({ ...prev, [index]: status }));
+  function handleConfirmCancel() {
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setReasonError("Please provide a reason for cancelling this session.");
+      return;
+    }
+    const idx = timetableSessions.findIndex((s) => s.id === session.id);
+    if (idx >= 0) {
+      timetableSessions[idx] = { ...timetableSessions[idx], status: "Cancelled" };
+    }
+    setConfirmOpen(false);
+    setReason("");
+    setReasonError(null);
+    sonnerToast.success("Session cancelled");
+    onCancelled();
   }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[calc(100%-2rem)] max-w-[640px] max-h-[80vh]">
+    <>
+      <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md max-h-[85vh]">
 
-        {/* Header */}
-        <DialogHeader>
-          <div className="flex items-center gap-2 flex-wrap">
-            <DialogTitle className="text-base font-bold text-slate-800">{session.subject}</DialogTitle>
-            <span className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-medium",
-              DEPT_BADGE[session.department] ?? "bg-slate-100 text-slate-600"
-            )}>
-              {session.department}
-            </span>
-            {session.type !== "Regular" && (
+          {/* Header */}
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-800 leading-tight pr-2">
+              {session.subject}
+            </DialogTitle>
+            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+              {yearGroup && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
+                  {yearGroup}
+                </span>
+              )}
               <span className={cn(
-                "px-2 py-0.5 rounded-full text-xs font-medium",
+                "px-2 py-0.5 rounded-full text-[10px] font-medium",
+                DEPT_BADGE[session.department] ?? "bg-slate-100 text-slate-600"
+              )}>
+                {session.department}
+              </span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-medium",
                 TYPE_BADGE[session.type] ?? "bg-slate-100 text-slate-600"
               )}>
                 {session.type}
               </span>
-            )}
-            {session.isTrial && session.type !== "Trial" && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400 text-white">
-                Trial
+              {session.isTrial && session.type !== "Trial" && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400 text-white">
+                  Trial
+                </span>
+              )}
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 min-h-0">
+
+            {/* Meta rows */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-2.5">
+                <User className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Teacher</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">{session.teacher}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Room</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">{session.room}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Date &amp; Time</p>
+                  <p className="text-sm font-medium text-slate-800">
+                    {DAY_LONG[session.day] ?? session.day} {session.date}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {fmt12(session.startTime)} – {fmt12(session.endTime)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Status pill */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1.5">Status</p>
+              <span className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+                derived === "Upcoming"    && "bg-blue-50 text-blue-700",
+                derived === "In Progress" && "bg-amber-50 text-amber-700",
+                derived === "Completed"   && "bg-emerald-50 text-emerald-700",
+                derived === "Cancelled"   && "bg-red-50 text-red-600",
+              )}>
+                <span className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  derived === "Upcoming"    && "bg-blue-500",
+                  derived === "In Progress" && "bg-amber-500 animate-pulse",
+                  derived === "Completed"   && "bg-emerald-500",
+                  derived === "Cancelled"   && "bg-red-500",
+                )} />
+                {derived}
               </span>
-            )}
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {session.day} {session.date} · {session.startTime}–{session.endTime}
-          </p>
-        </DialogHeader>
+            </div>
 
-        {/* ── Attendance register mode ─────────────────────────────────────── */}
-        {attendanceMode ? (
-          <div className="flex-1 px-6 py-5 overflow-y-auto min-h-0">
-            <button
-              onClick={() => setAttendanceMode(false)}
-              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4 cursor-pointer transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back to session details
-            </button>
-
-            <h3 className="font-semibold text-slate-800 mb-1">{session.subject}</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              {session.date} · {session.startTime}–{session.endTime} · {session.room}
-            </p>
-
-            <button
-              onClick={markAllPresent}
-              className="w-full mb-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors cursor-pointer"
-            >
-              ✓ Mark All Present
-            </button>
-
-            <div className="space-y-2">
+            {/* Students */}
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-2">
+                Students ({session.studentCount})
+              </p>
               {session.students.length === 0 ? (
-                <p className="text-sm text-slate-400 italic text-center py-6">No students — staff session</p>
+                <p className="text-sm text-slate-400 italic">No students — staff session</p>
               ) : (
-                session.students.map((student, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700">
-                        {student.split(" ").map((n: string) => n[0]).join("")}
+                <div className="space-y-1.5">
+                  {session.students.map((name) => (
+                    <div key={name} className="flex items-center gap-2.5">
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0",
+                        avatarColor(name),
+                      )}>
+                        {initials(name)}
                       </div>
-                      <span className="text-sm font-medium text-slate-800">{student}</span>
+                      <span className="text-sm text-slate-700 truncate">{name}</span>
                     </div>
-                    <div className="flex gap-1">
-                      {(["Present", "Late", "Absent"] as const).map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => handleSetAttendanceStatus(i, status)}
-                          className={cn(
-                            "px-2 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer",
-                            attendanceStatuses[i] === status
-                              ? status === "Present" ? "bg-green-500 text-white"
-                                : status === "Late"    ? "bg-amber-500 text-white"
-                                : "bg-red-500 text-white"
-                              : "bg-white border border-slate-200 text-slate-500 hover:border-slate-300"
-                          )}
-                        >
-                          {status}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
-
-            <button
-              onClick={() => setAttendanceMode(false)}
-              className="w-full mt-4 py-2.5 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-            >
-              Save &amp; Confirm Attendance
-            </button>
           </div>
 
-        ) : (
-          /* ── Session detail mode ─────────────────────────────────────────── */
-          <>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 min-h-0">
-
-              {session.type === "Cover Required" && (
-                <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-sm text-red-700 font-medium">Cover teacher required for this session</p>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Session Details</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-start gap-2.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-400 mb-0.5">Date &amp; Time</p>
-                      <p className="text-sm font-medium text-slate-700">{session.day} {session.date}</p>
-                      <p className="text-sm text-slate-600">{session.startTime}–{session.endTime}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-400 mb-0.5">Duration</p>
-                      <p className="text-sm font-medium text-slate-700">{session.duration} minutes</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-400 mb-0.5">Room</p>
-                      <p className="text-sm font-medium text-slate-700">{session.room}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2.5">
-                    <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-400 mb-0.5">Teacher</p>
-                      <p className="text-sm font-medium text-slate-700">{session.teacher}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Status</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium",
-                    session.status === "Scheduled" && "bg-blue-50 text-blue-700",
-                    session.status === "Completed" && "bg-emerald-50 text-emerald-700",
-                    session.status === "Cancelled" && "bg-red-50 text-red-600",
-                  )}>
-                    <span className={cn(
-                      "w-1.5 h-1.5 rounded-full",
-                      session.status === "Scheduled" && "bg-blue-500",
-                      session.status === "Completed" && "bg-emerald-500",
-                      session.status === "Cancelled" && "bg-red-500",
-                    )} />
-                    {session.status}
-                  </span>
-                  {session.attendanceMarked && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                      <Check className="w-3 h-3" strokeWidth={3} />
-                      Attendance marked
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
-                  Students Enrolled ({session.studentCount})
-                </p>
-                {session.students.length === 0 ? (
-                  <p className="text-sm text-slate-400 italic">No students — staff session</p>
-                ) : (
-                  <div className="space-y-1">
-                    {session.students.map((name) => (
-                      <div
-                        key={name}
-                        className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500 flex-shrink-0">
-                            {name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                          </div>
-                          <span className="text-sm text-slate-700">{name}</span>
-                        </div>
-                        <span className="text-xs text-slate-400 italic">
-                          {session.attendanceMarked ? "Present" : "Not yet marked"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+          {/* Footer — context-sensitive actions */}
+          <DialogFooter className="flex items-center gap-2 flex-wrap">
+            {derived === "Upcoming" && (
+              <>
+                {can('timetable.editSession') && (
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="flex-1 min-w-0 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Edit session
+                  </button>
                 )}
-              </div>
-            </div>
-
-            {/* Actions footer */}
-            <DialogFooter className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setAttendanceMode(true)}
-                className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                Mark Attendance
-              </button>
-              {can('timetable.editSession') && (
-                <button className="px-3 py-2 border border-slate-300 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  Edit Session
-                </button>
-              )}
-              {can('timetable.cancelSession') && (
-                <button className="px-3 py-2 border border-slate-200 text-red-500 text-xs font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer">
-                  Cancel Session
-                </button>
-              )}
+                {can('timetable.cancelSession') && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmOpen(true)}
+                    className="px-3 py-2 border border-red-200 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                  >
+                    Cancel session
+                  </button>
+                )}
+              </>
+            )}
+            {derived === "In Progress" && (
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                onClick={navigateAttendance}
+                className="flex-1 min-w-0 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
               >
-                Close
+                Mark attendance
               </button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+            )}
+            {derived === "Completed" && (
+              <button
+                type="button"
+                onClick={navigateAttendance}
+                className="flex-1 min-w-0 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+              >
+                View attendance record
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 border border-slate-200 bg-white text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel-session confirmation */}
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          setConfirmOpen(o);
+          if (!o) { setReason(""); setReasonError(null); }
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-800">Cancel this session?</DialogTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              {session.subject} · {DAY_LONG[session.day] ?? session.day} {session.date} · {fmt12(session.startTime)}
+            </p>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-2">
+            <label htmlFor="cancel-reason" className="block text-xs font-semibold text-slate-700">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="cancel-reason"
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (reasonError) setReasonError(null);
+              }}
+              rows={3}
+              placeholder="e.g. Teacher unavailable, room flooded, public holiday…"
+              className={cn(
+                "w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2",
+                reasonError
+                  ? "border-red-300 focus:ring-red-300 focus:border-red-400"
+                  : "border-slate-300 focus:ring-amber-400 focus:border-amber-400",
+              )}
+            />
+            {reasonError && <p className="text-xs text-red-600">{reasonError}</p>}
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { setConfirmOpen(false); setReason(""); setReasonError(null); }}
+              className="px-3 py-1.5 border border-slate-300 bg-white text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Keep session
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmCancel}
+              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+            >
+              Cancel session
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -796,6 +831,7 @@ export default function TimetablePage() {
   const [activeView,      setActiveView]      = useState<ViewMode>("Week");
   const [weekSubMode,     setWeekSubMode]     = useState<WeekSubMode>("Room");
   const [selectedSession, setSelectedSession] = useState<ExtendedSession | null>(null);
+  const [editSession,     setEditSession]     = useState<(ExtendedSession & { dateIso: string }) | null>(null);
   const { assessments, markDone, cancel } = useAssessments();
   const [showNewSession,  setShowNewSession]  = useState(false);
   const [sessionTick,     setSessionTick]     = useState(0);
@@ -1510,9 +1546,21 @@ export default function TimetablePage() {
           }}
         />
       ) : selectedSession ? (
-        <SessionSlideover
+        <SessionDetailModal
           session={selectedSession}
+          dateIso={dateIsoForSession(selectedSession, weekDays)}
+          now={now}
           onClose={() => setSelectedSession(null)}
+          onEdit={() => {
+            const iso = dateIsoForSession(selectedSession, weekDays)
+              ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+            setEditSession({ ...selectedSession, dateIso: iso });
+            setSelectedSession(null);
+          }}
+          onCancelled={() => {
+            setSelectedSession(null);
+            setSessionTick((n) => n + 1);
+          }}
         />
       ) : null}
       <NewSessionDialog
@@ -1520,8 +1568,21 @@ export default function TimetablePage() {
         onOpenChange={setShowNewSession}
         onCreated={() => setSessionTick((n) => n + 1)}
       />
+      <NewSessionDialog
+        open={!!editSession}
+        onOpenChange={(o) => { if (!o) setEditSession(null); }}
+        sessionToEdit={editSession}
+        onUpdated={() => { setEditSession(null); setSessionTick((n) => n + 1); }}
+      />
     </div>
   );
+}
+
+function dateIsoForSession(session: TimetableSession, weekDays: DayInfo[]): string | null {
+  const match = weekDays.find((d) => d.key === session.day);
+  if (!match) return null;
+  const d = match.fullDate;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // ─── List View ────────────────────────────────────────────────────────────────
