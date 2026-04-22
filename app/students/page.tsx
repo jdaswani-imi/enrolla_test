@@ -51,6 +51,7 @@ import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
+import { DateRangePicker, type DateRange, type PresetItem } from "@/components/ui/date-range-picker";
 
 function getNextStudentId(): string {
   const max = studentsStore.reduce((acc, s) => {
@@ -303,6 +304,105 @@ function matchEnrolmentFilter(enrolments: number, selected: string[]): boolean {
   });
 }
 
+// ─── Date filter helpers ──────────────────────────────────────────────────────
+
+const MONTH_MAP: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+};
+
+function parseCreatedOn(s: string): Date | null {
+  const parts = s.trim().split(/\s+/);
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = MONTH_MAP[parts[1]];
+    const year = parseInt(parts[2], 10);
+    if (!isNaN(day) && month !== undefined && !isNaN(year)) {
+      return new Date(year, month, day);
+    }
+  }
+  return null;
+}
+
+function inDateRange(createdOn: string, range: DateRange): boolean {
+  if (!range.from && !range.to) return true;
+  const d = parseCreatedOn(createdOn);
+  if (!d) return true;
+  if (range.from) {
+    const from = new Date(range.from);
+    from.setHours(0, 0, 0, 0);
+    if (d < from) return false;
+  }
+  if (range.to) {
+    const to = new Date(range.to);
+    to.setHours(23, 59, 59, 999);
+    if (d > to) return false;
+  }
+  return true;
+}
+
+function getTermRange(now: Date, offset: 0 | -1): DateRange {
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  let from: Date, to: Date;
+
+  if (offset === 0) {
+    if (month >= 9)       { from = new Date(year, 8, 1);  to = new Date(year, 11, 31); }
+    else if (month <= 4)  { from = new Date(year, 0, 1);  to = new Date(year, 3, 30); }
+    else                  { from = new Date(year, 4, 1);  to = new Date(year, 7, 31); }
+  } else {
+    if (month >= 9)       { from = new Date(year, 4, 1);      to = new Date(year, 7, 31); }
+    else if (month <= 4)  { from = new Date(year - 1, 8, 1);  to = new Date(year - 1, 11, 31); }
+    else                  { from = new Date(year, 0, 1);      to = new Date(year, 3, 30); }
+  }
+
+  return { from, to };
+}
+
+function getAcademicYearRange(now: Date, offset: 0 | -1): DateRange {
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const startYear = (month >= 9 ? year : year - 1) + offset;
+  return { from: new Date(startYear, 8, 1), to: new Date(startYear + 1, 7, 31) };
+}
+
+function buildAddedOnPresets(): PresetItem[] {
+  return [
+    { label: "Today",      getValue: () => { const d = new Date(); return { from: d, to: d }; } },
+    { label: "Yesterday",  getValue: () => { const d = new Date(); d.setDate(d.getDate() - 1); return { from: d, to: d }; } },
+    { label: "This Week",  getValue: () => {
+      const now = new Date();
+      const mon = new Date(now);
+      mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      mon.setHours(0, 0, 0, 0);
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      return { from: mon, to: sun };
+    }},
+    { label: "Last 7 Days", getValue: () => {
+      const to = new Date(); const from = new Date();
+      from.setDate(from.getDate() - 6);
+      return { from, to };
+    }},
+    { label: "Last Month", getValue: () => {
+      const now = new Date();
+      return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 0) };
+    }},
+    { label: "Last 30 Days", getValue: () => {
+      const to = new Date(); const from = new Date();
+      from.setDate(from.getDate() - 29);
+      return { from, to };
+    }},
+    { label: "This Term",          getValue: () => getTermRange(new Date(), 0) },
+    { label: "Last Term",          getValue: () => getTermRange(new Date(), -1) },
+    { label: "This Academic Year", getValue: () => getAcademicYearRange(new Date(), 0) },
+    { label: "Last Academic Year", getValue: () => getAcademicYearRange(new Date(), -1) },
+    { label: "All Time",           getValue: () => ({ from: null, to: null }) },
+    { separator: true } as const,
+    { label: "Custom Range", getValue: () => ({ from: null, to: null }), keepOpen: true },
+  ];
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentsPage() {
@@ -317,8 +417,11 @@ export default function StudentsPage() {
   const [yearFilter,       setYearFilter]       = useState<string[]>([]);
   const [deptFilter,       setDeptFilter]       = useState<string[]>([]);
   const [enrolmentsFilter, setEnrolmentsFilter] = useState<string[]>([]);
+  const [dateFilter,       setDateFilter]       = useState<DateRange>({ from: null, to: null });
   const [searchQuery,      setSearchQuery]      = useState("");
   const [searchExpanded,   setSearchExpanded]   = useState(false);
+
+  const addedOnPresets = useMemo(() => buildAddedOnPresets(), []);
 
   // Sort
   const [sortField, setSortField] = useState<string | null>(null);
@@ -346,15 +449,17 @@ export default function StudentsPage() {
 
   const isAnyFilterActive =
     statusFilter.length > 0 || yearFilter.length > 0 ||
-    deptFilter.length > 0 || enrolmentsFilter.length > 0 || searchQuery !== "";
+    deptFilter.length > 0 || enrolmentsFilter.length > 0 ||
+    searchQuery !== "" || !!(dateFilter.from || dateFilter.to);
 
-  useEffect(() => { setCurrentPage(1); }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, searchQuery]);
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, searchQuery, dateFilter]);
 
   function clearFilters() {
     setStatusFilter([]);
     setYearFilter([]);
     setDeptFilter([]);
     setEnrolmentsFilter([]);
+    setDateFilter({ from: null, to: null });
     setSearchQuery("");
     setCurrentPage(1);
   }
@@ -382,6 +487,7 @@ export default function StudentsPage() {
       if (yearFilter.length > 0 && !yearFilter.includes(s.yearGroup)) return false;
       if (deptFilter.length > 0 && !deptFilter.includes(s.department)) return false;
       if (!matchEnrolmentFilter(s.enrolments, enrolmentsFilter)) return false;
+      if ((dateFilter.from || dateFilter.to) && !inDateRange(s.createdOn, dateFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (
@@ -406,7 +512,7 @@ export default function StudentsPage() {
     }
 
     return data;
-  }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, searchQuery, sortField, sortDir, studentsVersion]);
+  }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, dateFilter, searchQuery, sortField, sortDir, studentsVersion]);
 
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -580,6 +686,13 @@ export default function StudentsPage() {
           <MultiSelectFilter label="Year Group" options={YEAR_OPTIONS}      selected={yearFilter}       onChange={setYearFilter}       />
           <MultiSelectFilter label="Department" options={DEPT_OPTIONS}      selected={deptFilter}       onChange={setDeptFilter}       />
           <MultiSelectFilter label="Enrolments" options={ENROLMENT_OPTIONS} selected={enrolmentsFilter} onChange={setEnrolmentsFilter} />
+          <DateRangePicker
+            value={dateFilter}
+            onChange={(r) => { setDateFilter(r); setCurrentPage(1); }}
+            presets={addedOnPresets}
+            placeholder="Added On"
+            twoMonth
+          />
           {isAnyFilterActive && (
             <div className="relative flex items-center gap-2">
               <button
