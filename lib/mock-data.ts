@@ -1235,6 +1235,8 @@ export interface TimetableSession {
   subject: string;
   department: string;
   teacher: string;
+  teacherId: string;
+  assignedTAs?: string[];
   room: string;
   startTime: string;
   endTime: string;
@@ -1257,49 +1259,51 @@ export const rooms: Room[] = [
 
 export const timetableSessions: TimetableSession[] = [
   // Monday 21 Apr
-  { id: "s001", day: "Mon", date: "21 Apr", subject: "Y8 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Aisha Rahman", "Omar Al-Farsi", "Sara Nasser"], studentCount: 3, type: "Regular",        status: "Scheduled" },
-  { id: "s002", day: "Mon", date: "21 Apr", subject: "Y4 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Nour Ibrahim", "Dana Al-Zaabi"],              studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s003", day: "Mon", date: "21 Apr", subject: "Y12 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Khalid Mansoor", "Mariam Al-Suwaidi"],       studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s004", day: "Mon", date: "21 Apr", subject: "Y6 Science",   department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],             studentCount: 2, type: "Regular",        status: "Scheduled", attendanceMarked: true },
-  { id: "s005", day: "Mon", date: "21 Apr", subject: "Y9 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Hamdan Al-Maktoum"],                         studentCount: 1, type: "Trial",          status: "Scheduled", isTrial: true },
-  { id: "s006", day: "Mon", date: "21 Apr", subject: "Y10 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Layla Hassan", "Faris Qasim"],               studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s007", day: "Mon", date: "21 Apr", subject: "Y3 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "16:30", endTime: "17:30", duration: 60, students: ["Ziad Khalil", "Raya Khouri"],                studentCount: 2, type: "Regular",        status: "Scheduled" },
+  { id: "s001", day: "Mon", date: "21 Apr", subject: "Y8 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",   teacherId: "ST-003",                          room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Aisha Rahman", "Omar Al-Farsi", "Sara Nasser"], studentCount: 3, type: "Regular",   status: "Scheduled" },
+  { id: "s002", day: "Mon", date: "21 Apr", subject: "Y4 English",   department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004", assignedTAs: ["ST-008"],  room: "Room 1A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Nour Ibrahim", "Dana Al-Zaabi"],              studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s003", day: "Mon", date: "21 Apr", subject: "Y12 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007",                          room: "Room 2A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Khalid Mansoor", "Mariam Al-Suwaidi"],       studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s004", day: "Mon", date: "21 Apr", subject: "Y6 Science",   department: "Primary",         teacher: "Ms Hana Yusuf",     teacherId: "ST-006", assignedTAs: ["ST-008"],  room: "Room 1C", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],             studentCount: 2, type: "Regular",   status: "Scheduled", attendanceMarked: true },
+  { id: "s005", day: "Mon", date: "21 Apr", subject: "Y9 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005",                          room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Hamdan Al-Maktoum"],                         studentCount: 1, type: "Trial",     status: "Scheduled", isTrial: true },
+  { id: "s006", day: "Mon", date: "21 Apr", subject: "Y10 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007",                          room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Layla Hassan", "Faris Qasim"],               studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s007", day: "Mon", date: "21 Apr", subject: "Y3 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004",                          room: "Room 1A", startTime: "16:30", endTime: "17:30", duration: 60, students: ["Ziad Khalil", "Raya Khouri"],                studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s038", day: "Mon", date: "21 Apr", subject: "Y9 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",   teacherId: "ST-003",                          room: "Room 3A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Sara Nasser", "Yousef Salim"],               studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s039", day: "Mon", date: "21 Apr", subject: "Y7 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",   teacherId: "ST-003",                          room: "Room 3A", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Hamdan Al-Maktoum"],                         studentCount: 1, type: "Regular",   status: "Scheduled" },
+  { id: "s033", day: "Mon", date: "21 Apr", subject: "Y2 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004",                          room: "Room 1A", startTime: "09:30", endTime: "10:30", duration: 60, students: ["Dana Al-Zaabi", "Ziad Khalil"],              studentCount: 2, type: "Regular",   status: "Scheduled", attendanceMarked: true },
   // Tuesday 22 Apr
-  { id: "s008", day: "Tue", date: "22 Apr", subject: "Y8 English",   department: "Lower Secondary", teacher: "Ms Sarah Mitchell",  room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Aisha Rahman", "Yousef Salim", "Sara Nasser"], studentCount: 3, type: "Regular",       status: "Scheduled" },
-  { id: "s009", day: "Tue", date: "22 Apr", subject: "Y5 Maths",     department: "Primary",         teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Nadia Al-Ghaith", "Hessa Al-Blooshi"],       studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s010", day: "Tue", date: "22 Apr", subject: "Y11 Chemistry",department: "Senior",          teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Faris Qasim", "Talal Mansouri"],             studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s011", day: "Tue", date: "22 Apr", subject: "Y7 Maths",     department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Hamdan Al-Maktoum", "Majid Al-Romaithi"],    studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s012", day: "Tue", date: "22 Apr", subject: "Y2 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Dana Al-Zaabi"],                             studentCount: 1, type: "Makeup",         status: "Scheduled", attendanceMarked: true },
-  { id: "s013", day: "Tue", date: "22 Apr", subject: "Y13 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "15:30", endTime: "16:30", duration: 60, students: ["Mariam Al-Suwaidi"],                         studentCount: 1, type: "Regular",        status: "Scheduled" },
+  { id: "s008", day: "Tue", date: "22 Apr", subject: "Y8 English",   department: "Lower Secondary", teacher: "Ms Sarah Mitchell", teacherId: "ST-004",                          room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Aisha Rahman", "Yousef Salim", "Sara Nasser"], studentCount: 3, type: "Regular", status: "Scheduled" },
+  { id: "s009", day: "Tue", date: "22 Apr", subject: "Y5 Maths",     department: "Primary",         teacher: "Mr Ahmed Khalil",   teacherId: "ST-003",                          room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Nadia Al-Ghaith", "Hessa Al-Blooshi"],       studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s010", day: "Tue", date: "22 Apr", subject: "Y11 Chemistry",department: "Senior",          teacher: "Ms Hana Yusuf",     teacherId: "ST-006",                          room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Faris Qasim", "Talal Mansouri"],             studentCount: 2, type: "Regular",   status: "Scheduled" },
+  { id: "s011", day: "Tue", date: "22 Apr", subject: "Y7 Maths",        department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Hamdan Al-Maktoum", "Majid Al-Romaithi"], studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s012", day: "Tue", date: "22 Apr", subject: "Y2 English",      department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004", room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Dana Al-Zaabi"],                            studentCount: 1, type: "Makeup",        status: "Scheduled", attendanceMarked: true },
+  { id: "s013", day: "Tue", date: "22 Apr", subject: "Y13 Maths",       department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", room: "Room 2A", startTime: "15:30", endTime: "16:30", duration: 60, students: ["Mariam Al-Suwaidi"],                        studentCount: 1, type: "Regular",       status: "Scheduled" },
   // Wednesday 23 Apr
-  { id: "s014", day: "Wed", date: "23 Apr", subject: "Y8 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Aisha Rahman", "Omar Al-Farsi", "Sara Nasser"], studentCount: 3, type: "Regular",       status: "Scheduled" },
-  { id: "s015", day: "Wed", date: "23 Apr", subject: "Y4 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Nour Ibrahim", "Fatima Al-Shehhi"],          studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s016", day: "Wed", date: "23 Apr", subject: "Y10 Maths",    department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Layla Hassan"],                              studentCount: 1, type: "Regular",        status: "Scheduled" },
-  { id: "s017", day: "Wed", date: "23 Apr", subject: "Y6 Maths",     department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali", "Raya Khouri"], studentCount: 3, type: "Regular",      status: "Scheduled" },
-  { id: "s018", day: "Wed", date: "23 Apr", subject: "CAT4 Assessment", department: "Primary",      teacher: "Mr Ahmed Khalil",    room: "Room 2B", startTime: "10:15", endTime: "11:15", duration: 60, students: ["Nour Ibrahim"],                              studentCount: 1, type: "Assessment",     status: "Scheduled", attendanceMarked: true },
+  { id: "s014", day: "Wed", date: "23 Apr", subject: "Y8 Maths",        department: "Lower Secondary", teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Aisha Rahman", "Omar Al-Farsi", "Sara Nasser"], studentCount: 3, type: "Regular",  status: "Scheduled" },
+  { id: "s015", day: "Wed", date: "23 Apr", subject: "Y4 Maths",        department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004", room: "Room 1A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Nour Ibrahim", "Fatima Al-Shehhi"],         studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s016", day: "Wed", date: "23 Apr", subject: "Y10 Maths",       department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Layla Hassan"],                             studentCount: 1, type: "Regular",       status: "Scheduled" },
+  { id: "s017", day: "Wed", date: "23 Apr", subject: "Y6 Maths",        department: "Primary",         teacher: "Ms Hana Yusuf",     teacherId: "ST-006", room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali", "Raya Khouri"], studentCount: 3, type: "Regular", status: "Scheduled" },
+  { id: "s018", day: "Wed", date: "23 Apr", subject: "CAT4 Assessment", department: "Primary",         teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", room: "Room 2B", startTime: "10:15", endTime: "11:15", duration: 60, students: ["Nour Ibrahim"],                             studentCount: 1, type: "Assessment",    status: "Scheduled", attendanceMarked: true },
   // Thursday 24 Apr
-  { id: "s019", day: "Thu", date: "24 Apr", subject: "Y8 English",   department: "Lower Secondary", teacher: "Ms Sarah Mitchell",  room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Aisha Rahman", "Yousef Salim"],              studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s020", day: "Thu", date: "24 Apr", subject: "Y9 Maths",     department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Sara Nasser", "Yousef Salim"],               studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s021", day: "Thu", date: "24 Apr", subject: "Y12 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Khalid Mansoor"],                            studentCount: 1, type: "Regular",        status: "Scheduled" },
-  { id: "s022", day: "Thu", date: "24 Apr", subject: "Staff Meeting", department: "Primary",        teacher: "Jason Daswani",      room: "Room 1A", startTime: "09:00", endTime: "10:00", duration: 60, students: [],                                            studentCount: 0, type: "Meeting",        status: "Scheduled" },
-  { id: "s023", day: "Thu", date: "24 Apr", subject: "Y5 English",   department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Hessa Al-Blooshi"],                          studentCount: 1, type: "Regular",        status: "Scheduled" },
+  { id: "s019", day: "Thu", date: "24 Apr", subject: "Y8 English",      department: "Lower Secondary", teacher: "Ms Sarah Mitchell", teacherId: "ST-004", room: "Room 2B", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Aisha Rahman", "Yousef Salim"],             studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s020", day: "Thu", date: "24 Apr", subject: "Y9 Maths",        department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", room: "Room 3A", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Sara Nasser", "Yousef Salim"],              studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s021", day: "Thu", date: "24 Apr", subject: "Y12 Physics",     department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", room: "Room 2A", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Khalid Mansoor"],                           studentCount: 1, type: "Regular",       status: "Scheduled" },
+  { id: "s022", day: "Thu", date: "24 Apr", subject: "Staff Meeting",   department: "Primary",         teacher: "Jason Daswani",     teacherId: "ST-001", room: "Room 1A", startTime: "09:00", endTime: "10:00", duration: 60, students: [],                                           studentCount: 0, type: "Meeting",       status: "Scheduled" },
+  { id: "s023", day: "Thu", date: "24 Apr", subject: "Y5 English",      department: "Primary",         teacher: "Ms Hana Yusuf",     teacherId: "ST-006", room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Hessa Al-Blooshi"],                         studentCount: 1, type: "Regular",       status: "Scheduled" },
   // Friday 25 Apr
-  { id: "s024", day: "Fri", date: "25 Apr", subject: "Y8 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Aisha Rahman"],                              studentCount: 1, type: "Regular",        status: "Scheduled" },
-  { id: "s025", day: "Fri", date: "25 Apr", subject: "Y11 Biology",  department: "Senior",          teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Faris Qasim", "Yousuf Al-Hammadi"],         studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s026", day: "Fri", date: "25 Apr", subject: "Y3 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Ziad Khalil"],                               studentCount: 1, type: "Regular",        status: "Scheduled" },
-  { id: "s027", day: "Fri", date: "25 Apr", subject: "Y9 English",   department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Sara Nasser", "Hamdan Al-Maktoum"],          studentCount: 2, type: "Cover Required", status: "Scheduled" },
+  { id: "s024", day: "Fri", date: "25 Apr", subject: "Y8 Science",      department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", room: "Room 2B", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Aisha Rahman"],                             studentCount: 1, type: "Regular",       status: "Scheduled" },
+  { id: "s025", day: "Fri", date: "25 Apr", subject: "Y11 Biology",     department: "Senior",          teacher: "Ms Hana Yusuf",     teacherId: "ST-006", room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Faris Qasim", "Yousuf Al-Hammadi"],        studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s026", day: "Fri", date: "25 Apr", subject: "Y3 English",      department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004", room: "Room 1A", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Ziad Khalil"],                              studentCount: 1, type: "Regular",       status: "Scheduled" },
+  { id: "s027", day: "Fri", date: "25 Apr", subject: "Y9 English",      department: "Lower Secondary", teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", room: "Room 3A", startTime: "16:00", endTime: "17:00", duration: 60, students: ["Sara Nasser", "Hamdan Al-Maktoum"],         studentCount: 2, type: "Cover Required", status: "Scheduled" },
   // Saturday 26 Apr
-  { id: "s028", day: "Sat", date: "26 Apr", subject: "Y7 Maths",     department: "Lower Secondary", teacher: "Mr Ahmed Khalil",    room: "Room 3A", startTime: "10:00", endTime: "11:00", duration: 60, students: ["Bilal Mahmood"],                             studentCount: 1, type: "Trial",          status: "Scheduled", isTrial: true },
-  { id: "s029", day: "Sat", date: "26 Apr", subject: "Y4 English",   department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "11:00", endTime: "12:00", duration: 60, students: ["Hessa Al-Blooshi", "Fatima Al-Shehhi"],      studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s030", day: "Sat", date: "26 Apr", subject: "Y10 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "12:00", endTime: "13:30", duration: 90, students: ["Layla Hassan"],                              studentCount: 1, type: "Makeup",         status: "Scheduled" },
-  { id: "s031", day: "Sat", date: "26 Apr", subject: "Y9 Science",   department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Sara Nasser"],                               studentCount: 1, type: "Makeup",         status: "Scheduled" },
-  { id: "s032", day: "Sat", date: "26 Apr", subject: "Y6 Science",   department: "Primary",         teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],             studentCount: 2, type: "Regular",        status: "Scheduled" },
-  // Weekday fill-ins (morning + late evening) for a denser calendar
-  { id: "s033", day: "Mon", date: "21 Apr", subject: "Y2 Maths",     department: "Primary",         teacher: "Ms Sarah Mitchell",  room: "Room 1A", startTime: "09:30", endTime: "10:30", duration: 60, students: ["Dana Al-Zaabi", "Ziad Khalil"],              studentCount: 2, type: "Regular",        status: "Scheduled", attendanceMarked: true },
-  { id: "s034", day: "Tue", date: "22 Apr", subject: "Y9 Maths",     department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",   room: "Room 2B", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Ali Hassan"],                                studentCount: 1, type: "Regular",        status: "Scheduled", isTrial: true },
-  { id: "s035", day: "Wed", date: "23 Apr", subject: "Y7 English",   department: "Lower Secondary", teacher: "Ms Sarah Mitchell",  room: "Room 2B", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Yousef Salim"],                              studentCount: 1, type: "Regular",        status: "Scheduled" },
-  { id: "s036", day: "Thu", date: "24 Apr", subject: "Y11 Physics",  department: "Senior",          teacher: "Mr Faris Al-Amin",   room: "Room 2A", startTime: "18:30", endTime: "19:30", duration: 60, students: ["Faris Qasim", "Talal Mansouri"],            studentCount: 2, type: "Regular",        status: "Scheduled" },
-  { id: "s037", day: "Fri", date: "25 Apr", subject: "Y11 Biology",  department: "Senior",          teacher: "Ms Hana Yusuf",      room: "Room 1C", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Yousuf Al-Hammadi"],                         studentCount: 1, type: "Makeup",         status: "Scheduled" },
+  { id: "s028", day: "Sat", date: "26 Apr", subject: "Y7 Maths",        department: "Lower Secondary", teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", room: "Room 3A", startTime: "10:00", endTime: "11:00", duration: 60, students: ["Bilal Mahmood"],                            studentCount: 1, type: "Trial",         status: "Scheduled", isTrial: true },
+  { id: "s029", day: "Sat", date: "26 Apr", subject: "Y4 English",      department: "Primary",         teacher: "Ms Sarah Mitchell", teacherId: "ST-004", room: "Room 1A", startTime: "11:00", endTime: "12:00", duration: 60, students: ["Hessa Al-Blooshi", "Fatima Al-Shehhi"],    studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s030", day: "Sat", date: "26 Apr", subject: "Y10 Physics",     department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", room: "Room 2A", startTime: "12:00", endTime: "13:30", duration: 90, students: ["Layla Hassan"],                             studentCount: 1, type: "Makeup",        status: "Scheduled" },
+  { id: "s031", day: "Sat", date: "26 Apr", subject: "Y9 Science",      department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", room: "Room 2B", startTime: "14:00", endTime: "15:00", duration: 60, students: ["Sara Nasser"],                              studentCount: 1, type: "Makeup",        status: "Scheduled" },
+  { id: "s032", day: "Sat", date: "26 Apr", subject: "Y6 Science",      department: "Primary",         teacher: "Ms Hana Yusuf",     teacherId: "ST-006", room: "Room 1C", startTime: "15:00", endTime: "16:00", duration: 60, students: ["Reem Al-Dosari", "Adam Benali"],            studentCount: 2, type: "Regular",       status: "Scheduled" },
+  // Weekday fill-ins
+  { id: "s034", day: "Tue", date: "22 Apr", subject: "Y9 Maths",        department: "Lower Secondary", teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", room: "Room 2B", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Ali Hassan"],                               studentCount: 1, type: "Regular",       status: "Scheduled", isTrial: true },
+  { id: "s035", day: "Wed", date: "23 Apr", subject: "Y7 English",      department: "Lower Secondary", teacher: "Ms Sarah Mitchell", teacherId: "ST-004", room: "Room 2B", startTime: "18:00", endTime: "19:00", duration: 60, students: ["Yousef Salim"],                             studentCount: 1, type: "Regular",       status: "Scheduled" },
+  { id: "s036", day: "Thu", date: "24 Apr", subject: "Y11 Physics",     department: "Senior",          teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", room: "Room 2A", startTime: "18:30", endTime: "19:30", duration: 60, students: ["Faris Qasim", "Talal Mansouri"],           studentCount: 2, type: "Regular",       status: "Scheduled" },
+  { id: "s037", day: "Fri", date: "25 Apr", subject: "Y11 Biology",     department: "Senior",          teacher: "Ms Hana Yusuf",     teacherId: "ST-006", room: "Room 1C", startTime: "17:00", endTime: "18:00", duration: 60, students: ["Yousuf Al-Hammadi"],                        studentCount: 1, type: "Makeup",        status: "Scheduled" },
 ];
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
@@ -1308,7 +1312,9 @@ export interface UnmarkedSession {
   id: string;
   subject: string;
   date: string;
+  dept: string;
   teacher: string;
+  teacherId: string;
   hoursRemaining: number;
   overdue: boolean;
 }
@@ -1319,6 +1325,7 @@ export interface AbsenceRecord {
   year: string;
   dept: string;
   subject: string;
+  teacherId: string;
   totalAbsences: number;
   consecutive: number;
   makeupAllowance: number;
@@ -1334,34 +1341,44 @@ export interface AttendanceMakeupEntry {
   student: string;
   makeupDate: string;
   status: AttendanceMakeupStatus;
+  teacherId: string;
+  dept: string;
 }
 
 export const unmarkedSessions: UnmarkedSession[] = [
-  { id: "u001", subject: "Y5 Maths",     date: "Fri 18 Apr", teacher: "Mr Ahmed Khalil",   hoursRemaining: 3,  overdue: false },
-  { id: "u002", subject: "Y11 Chemistry", date: "Thu 17 Apr", teacher: "Ms Hana Yusuf",     hoursRemaining: 0,  overdue: true  },
-  { id: "u003", subject: "Y3 English",    date: "Thu 17 Apr", teacher: "Ms Sarah Mitchell", hoursRemaining: 0,  overdue: true  },
-  { id: "u004", subject: "Y9 Science",    date: "Mon 21 Apr", teacher: "Mr Tariq Al-Amin",  hoursRemaining: 47, overdue: false },
+  { id: "u001", subject: "Y5 Maths",      date: "Fri 18 Apr", dept: "Primary",         teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", hoursRemaining: 3,  overdue: false },
+  { id: "u002", subject: "Y11 Chemistry", date: "Thu 17 Apr", dept: "Senior",           teacher: "Ms Hana Yusuf",     teacherId: "ST-006", hoursRemaining: 0,  overdue: true  },
+  { id: "u003", subject: "Y3 English",    date: "Thu 17 Apr", dept: "Primary",          teacher: "Ms Sarah Mitchell", teacherId: "ST-004", hoursRemaining: 0,  overdue: true  },
+  { id: "u004", subject: "Y9 Science",    date: "Mon 21 Apr", dept: "Lower Secondary",  teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", hoursRemaining: 47, overdue: false },
 ];
 
 export const absenceSummary: AbsenceRecord[] = [
-  { student: "Aisha Rahman",      studentId: "IMI-0001", year: "Y8",  dept: "Lower Sec", subject: "Y8 Maths",    totalAbsences: 2, consecutive: 1, makeupAllowance: 0, status: "Allowance Exhausted" },
-  { student: "Omar Al-Farsi",     studentId: "IMI-0002", year: "Y5",  dept: "Primary",   subject: "Y5 English",  totalAbsences: 2, consecutive: 0, makeupAllowance: 0, status: "Allowance Exhausted" },
-  { student: "Ziad Khalil",       studentId: "IMI-0004", year: "Y3",  dept: "Primary",   subject: "Y3 Maths",    totalAbsences: 1, consecutive: 1, makeupAllowance: 0, status: "Allowance Exhausted" },
-  { student: "Sara Nasser",       studentId: "IMI-0005", year: "Y9",  dept: "Lower Sec", subject: "Y9 Science",  totalAbsences: 2, consecutive: 2, makeupAllowance: 1, status: "Consecutive Alert"   },
-  { student: "Reem Al-Dosari",    studentId: "IMI-0006", year: "Y6",  dept: "Primary",   subject: "Y6 Science",  totalAbsences: 1, consecutive: 0, makeupAllowance: 0, status: "Allowance Exhausted" },
-  { student: "Faris Qasim",       studentId: "IMI-0007", year: "Y11", dept: "Senior",    subject: "Y11 Physics", totalAbsences: 1, consecutive: 1, makeupAllowance: 1, status: "Monitor"             },
-  { student: "Hamdan Al-Maktoum", studentId: "IMI-0009", year: "Y7",  dept: "Lower Sec", subject: "Y7 Maths",    totalAbsences: 1, consecutive: 0, makeupAllowance: 1, status: "Normal"              },
-  { student: "Nour Ibrahim",      studentId: "IMI-0008", year: "Y4",  dept: "Primary",   subject: "Y4 Maths",    totalAbsences: 1, consecutive: 0, makeupAllowance: 0, status: "Allowance Exhausted" },
+  { student: "Aisha Rahman",      studentId: "IMI-0001", year: "Y8",  dept: "Lower Sec", subject: "Y8 Maths",    teacherId: "ST-003", totalAbsences: 2, consecutive: 1, makeupAllowance: 0, status: "Allowance Exhausted" },
+  { student: "Omar Al-Farsi",     studentId: "IMI-0002", year: "Y5",  dept: "Primary",   subject: "Y5 English",  teacherId: "ST-004", totalAbsences: 2, consecutive: 0, makeupAllowance: 0, status: "Allowance Exhausted" },
+  { student: "Ziad Khalil",       studentId: "IMI-0004", year: "Y3",  dept: "Primary",   subject: "Y3 Maths",    teacherId: "ST-004", totalAbsences: 1, consecutive: 1, makeupAllowance: 0, status: "Allowance Exhausted" },
+  { student: "Sara Nasser",       studentId: "IMI-0005", year: "Y9",  dept: "Lower Sec", subject: "Y9 Science",  teacherId: "ST-005", totalAbsences: 2, consecutive: 2, makeupAllowance: 1, status: "Consecutive Alert"   },
+  { student: "Reem Al-Dosari",    studentId: "IMI-0006", year: "Y6",  dept: "Primary",   subject: "Y6 Science",  teacherId: "ST-006", totalAbsences: 1, consecutive: 0, makeupAllowance: 0, status: "Allowance Exhausted" },
+  { student: "Faris Qasim",       studentId: "IMI-0007", year: "Y11", dept: "Senior",    subject: "Y11 Physics", teacherId: "ST-007", totalAbsences: 1, consecutive: 1, makeupAllowance: 1, status: "Monitor"             },
+  { student: "Hamdan Al-Maktoum", studentId: "IMI-0009", year: "Y7",  dept: "Lower Sec", subject: "Y7 Maths",    teacherId: "ST-005", totalAbsences: 1, consecutive: 0, makeupAllowance: 1, status: "Normal"              },
+  { student: "Nour Ibrahim",      studentId: "IMI-0008", year: "Y4",  dept: "Primary",   subject: "Y4 Maths",    teacherId: "ST-004", totalAbsences: 1, consecutive: 0, makeupAllowance: 0, status: "Allowance Exhausted" },
 ];
 
 export const makeupLog: AttendanceMakeupEntry[] = [
-  { id: "m001", originalSession: "Mon 7 Apr",  subject: "Y8 Maths",   student: "Aisha Rahman",   makeupDate: "Sat 12 Apr", status: "Completed" },
-  { id: "m002", originalSession: "Wed 9 Apr",  subject: "Y8 Maths",   student: "Aisha Rahman",   makeupDate: "Sat 26 Apr", status: "Pending"   },
-  { id: "m003", originalSession: "Thu 10 Apr", subject: "Y5 English", student: "Omar Al-Farsi",  makeupDate: "Sat 19 Apr", status: "Confirmed" },
-  { id: "m004", originalSession: "Tue 8 Apr",  subject: "Y3 Maths",   student: "Ziad Khalil",    makeupDate: "Sat 26 Apr", status: "Pending"   },
-  { id: "m005", originalSession: "Mon 14 Apr", subject: "Y6 Science", student: "Reem Al-Dosari", makeupDate: "—",          status: "Expired"   },
-  { id: "m006", originalSession: "Wed 2 Apr",  subject: "Y4 Maths",   student: "Nour Ibrahim",   makeupDate: "Sat 12 Apr", status: "Completed" },
+  { id: "m001", originalSession: "Mon 7 Apr",  subject: "Y8 Maths",   student: "Aisha Rahman",   makeupDate: "Sat 12 Apr", status: "Completed", teacherId: "ST-003", dept: "Lower Sec" },
+  { id: "m002", originalSession: "Wed 9 Apr",  subject: "Y8 Maths",   student: "Aisha Rahman",   makeupDate: "Sat 26 Apr", status: "Pending",   teacherId: "ST-003", dept: "Lower Sec" },
+  { id: "m003", originalSession: "Thu 10 Apr", subject: "Y5 English", student: "Omar Al-Farsi",  makeupDate: "Sat 19 Apr", status: "Confirmed", teacherId: "ST-004", dept: "Primary"   },
+  { id: "m004", originalSession: "Tue 8 Apr",  subject: "Y3 Maths",   student: "Ziad Khalil",    makeupDate: "Sat 26 Apr", status: "Pending",   teacherId: "ST-004", dept: "Primary"   },
+  { id: "m005", originalSession: "Mon 14 Apr", subject: "Y6 Science", student: "Reem Al-Dosari", makeupDate: "—",          status: "Expired",   teacherId: "ST-006", dept: "Primary"   },
+  { id: "m006", originalSession: "Wed 2 Apr",  subject: "Y4 Maths",   student: "Nour Ibrahim",   makeupDate: "Sat 12 Apr", status: "Completed", teacherId: "ST-004", dept: "Primary"   },
 ];
+
+// Maps prototype role to the mock staff member acting as "current user" for that role.
+// Teacher → Ahmed Khalil (ST-003), TA → Mariam Saleh (ST-008), HOD → Nadia Al-Hassan (ST-009)
+export const ATTENDANCE_ROLE_USER: Record<string, { staffId: string; department: string }> = {
+  'Teacher': { staffId: 'ST-003', department: 'Lower Secondary' },
+  'TA':      { staffId: 'ST-008', department: 'Primary' },
+  'HOD':     { staffId: 'ST-009', department: 'Primary' },
+};
 
 // ─── Staff ────────────────────────────────────────────────────────────────────
 

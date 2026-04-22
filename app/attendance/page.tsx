@@ -18,6 +18,8 @@ import {
   BookOpen,
   Users,
   Download,
+  Lock,
+  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,9 @@ import {
   unmarkedSessions,
   absenceSummary,
   makeupLog,
+  staffMembers,
+  ATTENDANCE_ROLE_USER,
+  type TimetableSession,
 } from "@/lib/mock-data";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,6 +99,8 @@ const MAKEUP_PILL: Record<string, string> = {
   Expired:   "bg-red-100 text-red-700",
 };
 
+const ADMIN_ROLES = ['Super Admin', 'Admin Head', 'Admin', 'Academic Head', 'HOD'] as const;
+
 // ─── Avatar helpers ───────────────────────────────────────────────────────────
 
 const AVATAR_PALETTES = [
@@ -121,6 +128,12 @@ function getInitials(name: string) {
 const STUDENT_YEAR: Record<string, string> = {};
 allStudents.forEach(s => { STUDENT_YEAR[s.name] = s.yearGroup; });
 
+// Teacher name → staff ID lookup (for admin filter)
+const teacherNameToId = new Map(
+  staffMembers.filter(s => s.role === 'Teacher').map(s => [s.name, s.id])
+);
+const teacherOptions = staffMembers.filter(s => s.role === 'Teacher').map(s => s.name);
+
 const TODAY_HEADER_LABEL = (() => {
   const d = new Date();
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -142,6 +155,27 @@ function AttendancePageContent() {
   const [openNote, setOpenNote]     = useState<string | null>(null);
   const [openMenu, setOpenMenu]     = useState<string | null>(null);
 
+  // ── Role-based user context ───────────────────────────────────────────────
+
+  const roleUser    = ATTENDANCE_ROLE_USER[role];
+  const currentStaffId   = roleUser?.staffId ?? '';
+  const currentDept      = roleUser?.department ?? '';
+  const isAdminRole      = (ADMIN_ROLES as readonly string[]).includes(role);
+  const isRestrictedRole = role === 'Teacher' || role === 'TA';
+  const isHOD            = role === 'HOD';
+
+  // ── Unified admin filter state ────────────────────────────────────────────
+  // HOD: dept pre-set + locked. Others: empty = show all.
+
+  const [filterDept,     setFilterDept]     = useState<string[]>([]);
+  const [filterTeachers, setFilterTeachers] = useState<string[]>([]);
+  const [filterDateRange, setFilterDateRange] = useState<DateRange>({ from: null, to: null });
+  const [filterStatus,   setFilterStatus]   = useState<string[]>([]);
+
+  const effectiveDept = isHOD ? [currentDept] : filterDept;
+
+  // ── Tab routing ───────────────────────────────────────────────────────────
+
   const tabParam = searchParams.get('tab') ?? 'register';
   const mainTab: MainTab = tabParam === 'register' ? 'register' : 'overview';
   const overviewTab: OverviewTab =
@@ -157,16 +191,42 @@ function AttendancePageContent() {
     else if (key === 'absence') router.replace('?tab=absence', { scroll: false });
     else router.replace('?tab=overview', { scroll: false });
   }
-  const [absenceDeptFilter, setAbsenceDeptFilter] = useState<string[]>([]);
-  const [absenceDateRange, setAbsenceDateRange]   = useState<DateRange>({ from: null, to: null });
 
-  const todaySessions   = timetableSessions.filter(s => s.day === "Mon");
-  const selectedSession = todaySessions.find(s => s.id === selectedId) ?? todaySessions[0];
+  // ── Role-based session filter ─────────────────────────────────────────────
+
+  function filterByRole(sessions: TimetableSession[]): TimetableSession[] {
+    if (role === 'Teacher') return sessions.filter(s => s.teacherId === currentStaffId);
+    if (role === 'TA')      return sessions.filter(s => s.assignedTAs?.includes(currentStaffId) ?? false);
+    if (role === 'HOD')     return sessions.filter(s => s.department === currentDept);
+    return sessions;
+  }
+
+  // ── Admin filter application ──────────────────────────────────────────────
+
+  function applyAdminSessionFilters(sessions: TimetableSession[]): TimetableSession[] {
+    let result = sessions;
+    if (effectiveDept.length > 0)
+      result = result.filter(s => effectiveDept.includes(s.department));
+    if (filterTeachers.length > 0) {
+      const ids = filterTeachers.map(n => teacherNameToId.get(n)).filter(Boolean) as string[];
+      result = result.filter(s => ids.includes(s.teacherId));
+    }
+    if (filterStatus.length > 0) {
+      result = result.filter(s => {
+        const mark = getSessionMark(s.id, s.attendanceMarked);
+        if (filterStatus.includes('Marked')   && mark === 'Complete')     return true;
+        if (filterStatus.includes('Partial')  && mark === 'In Progress')  return true;
+        if (filterStatus.includes('Unmarked') && mark === 'Unmarked')     return true;
+        return false;
+      });
+    }
+    return result;
+  }
 
   // ── State helpers ─────────────────────────────────────────────────────────
 
-  function getSessionMark(sessionId: string): SessionMark {
-    if (completed.has(sessionId)) return "Complete";
+  function getSessionMark(sessionId: string, attendanceMarked?: boolean): SessionMark {
+    if (completed.has(sessionId) || attendanceMarked) return "Complete";
     const att = attendance[sessionId];
     if (!att) return "Unmarked";
     return Object.values(att).some(v => v !== "Unmarked") ? "In Progress" : "Unmarked";
@@ -209,6 +269,67 @@ function AttendancePageContent() {
     return "bg-slate-100 text-slate-500";
   }
 
+  // ── Derived session lists ─────────────────────────────────────────────────
+
+  const allTodaySessions = timetableSessions.filter(s => s.day === "Mon");
+  const roleTodaySessions = filterByRole(allTodaySessions);
+  const todaySessions = isAdminRole
+    ? applyAdminSessionFilters(roleTodaySessions)
+    : roleTodaySessions;
+
+  const selectedSession = todaySessions.find(s => s.id === selectedId) ?? todaySessions[0];
+
+  const roleUnmarked = unmarkedSessions.filter(u => {
+    if (role === 'Teacher') return u.teacherId === currentStaffId;
+    if (role === 'TA')      return u.dept === currentDept;
+    if (role === 'HOD')     return u.dept === currentDept || u.dept.startsWith(currentDept.split(' ')[0]);
+    return true;
+  });
+  const filteredUnmarked = isAdminRole
+    ? roleUnmarked.filter(u => {
+        if (effectiveDept.length > 0 && !effectiveDept.some(d => u.dept.includes(d.split(' ')[0]))) return false;
+        if (filterTeachers.length > 0) {
+          const ids = filterTeachers.map(n => teacherNameToId.get(n)).filter(Boolean) as string[];
+          if (!ids.includes(u.teacherId)) return false;
+        }
+        return true;
+      })
+    : roleUnmarked;
+
+  const roleAbsence = absenceSummary.filter(r => {
+    if (role === 'Teacher') return r.teacherId === currentStaffId;
+    if (role === 'TA')      return r.dept.includes('Primary');
+    if (role === 'HOD')     return r.dept.includes(currentDept.split(' ')[0]);
+    return true;
+  });
+  const filteredAbsence = isAdminRole
+    ? roleAbsence.filter(r => {
+        if (effectiveDept.length > 0 && !effectiveDept.some(d => r.dept.includes(d.split(' ')[0]))) return false;
+        if (filterTeachers.length > 0) {
+          const ids = filterTeachers.map(n => teacherNameToId.get(n)).filter(Boolean) as string[];
+          if (!ids.includes(r.teacherId)) return false;
+        }
+        return true;
+      })
+    : roleAbsence;
+
+  const roleMakeup = makeupLog.filter(m => {
+    if (role === 'Teacher') return m.teacherId === currentStaffId;
+    if (role === 'TA')      return m.dept === 'Primary';
+    if (role === 'HOD')     return m.dept.includes(currentDept.split(' ')[0]);
+    return true;
+  });
+  const filteredMakeup = isAdminRole
+    ? roleMakeup.filter(m => {
+        if (effectiveDept.length > 0 && !effectiveDept.some(d => m.dept.includes(d.split(' ')[0]))) return false;
+        if (filterTeachers.length > 0) {
+          const ids = filterTeachers.map(n => teacherNameToId.get(n)).filter(Boolean) as string[];
+          if (!ids.includes(m.teacherId)) return false;
+        }
+        return true;
+      })
+    : roleMakeup;
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!can('attendance.view')) return <AccessDenied />;
@@ -219,15 +340,16 @@ function AttendancePageContent() {
       style={{ minHeight: "calc(100vh - 56px)" }}
       onClick={() => { if (openMenu) setOpenMenu(null); }}
     >
-      {(role === 'Teacher' || role === 'TA') && (
+      {isRestrictedRole && (
         <RoleBanner message="You can mark attendance for your own sessions only." />
       )}
+
       {/* Page header */}
       <div className="px-6 pt-6 pb-0 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {TODAY_HEADER_LABEL} · {todaySessions.length} sessions today
+            {TODAY_HEADER_LABEL} · {todaySessions.length} session{todaySessions.length !== 1 ? 's' : ''} today
           </p>
         </div>
         {can('export') && (
@@ -278,6 +400,53 @@ function AttendancePageContent() {
         </div>
       </div>
 
+      {/* ── Admin filter bar (Admin+ roles only) ─────────────────────────────── */}
+      {isAdminRole && (
+        <div className="px-6 py-3 border-b border-slate-100 bg-white flex items-center gap-2 flex-wrap">
+          {/* Department filter — locked for HOD */}
+          {isHOD ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-lg border border-slate-200">
+              <Lock className="w-3 h-3 text-slate-400" />
+              Department: {currentDept}
+            </div>
+          ) : (
+            <MultiSelectFilter
+              label="Department"
+              options={["Primary", "Lower Secondary", "Senior"]}
+              selected={filterDept}
+              onChange={setFilterDept}
+            />
+          )}
+
+          <MultiSelectFilter
+            label="Teacher"
+            options={teacherOptions}
+            selected={filterTeachers}
+            onChange={setFilterTeachers}
+          />
+
+          {/* Date range — shown on Overview tab only */}
+          {mainTab === 'overview' && (
+            <DateRangePicker
+              value={filterDateRange}
+              onChange={setFilterDateRange}
+              presets={DATE_PRESETS}
+              placeholder="Session date"
+            />
+          )}
+
+          {/* Status filter — shown on Register tab */}
+          {mainTab === 'register' && (
+            <MultiSelectFilter
+              label="Status"
+              options={["Marked", "Partial", "Unmarked"]}
+              selected={filterStatus}
+              onChange={setFilterStatus}
+            />
+          )}
+        </div>
+      )}
+
       {/* ═══════════════════════════════════════════════════════════════════
           TAB 1 — Today's Register
       ═══════════════════════════════════════════════════════════════════ */}
@@ -286,59 +455,75 @@ function AttendancePageContent() {
 
           {/* Left panel — session list */}
           <div className="w-80 shrink-0 border-r border-slate-200 overflow-y-auto bg-white">
-            <div className="p-3 space-y-1.5">
-              {todaySessions.map(session => {
-                const mark       = getSessionMark(session.id);
-                const pill       = SESSION_PILL[mark];
-                const isSelected = session.id === selectedId;
+            {todaySessions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 px-6 text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600">No sessions scheduled for today</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {isRestrictedRole ? "You have no sessions assigned today." : "Try adjusting the filters above."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 space-y-1.5">
+                {todaySessions.map(session => {
+                  const mark       = getSessionMark(session.id, session.attendanceMarked);
+                  const pill       = SESSION_PILL[mark];
+                  const isSelected = session.id === (selectedSession?.id ?? '');
 
-                return (
-                  <button
-                    key={session.id}
-                    onClick={() => { setSelectedId(session.id); setOpenNote(null); setOpenMenu(null); }}
-                    className={cn(
-                      "w-full text-left p-3 rounded-lg border transition-colors cursor-pointer",
-                      isSelected
-                        ? "border-amber-200 border-l-4 border-l-amber-500 bg-amber-50"
-                        : "border-slate-200 hover:bg-slate-50",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-sm text-slate-900 leading-tight">
-                        {session.subject}
-                      </span>
-                      <span className={cn("shrink-0 text-xs font-medium px-2 py-0.5 rounded-full", pill.className)}>
-                        {pill.label}
-                      </span>
-                    </div>
-                    <div className="mt-1.5 space-y-0.5">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <Clock className="w-3 h-3 shrink-0" />
-                        <span>{session.startTime}–{session.endTime}</span>
-                        <span className="text-slate-300">·</span>
-                        <MapPin className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{session.room}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <User className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{session.teacher}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-slate-400">
-                        <Users className="w-3 h-3 shrink-0" />
-                        <span>
-                          {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => { setSelectedId(session.id); setOpenNote(null); setOpenMenu(null); }}
+                      className={cn(
+                        "w-full text-left p-3 rounded-lg border transition-colors cursor-pointer",
+                        isSelected
+                          ? "border-amber-200 border-l-4 border-l-amber-500 bg-amber-50"
+                          : "border-slate-200 hover:bg-slate-50",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-sm text-slate-900 leading-tight">
+                          {session.subject}
+                        </span>
+                        <span className={cn("shrink-0 text-xs font-medium px-2 py-0.5 rounded-full", pill.className)}>
+                          {pill.label}
                         </span>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span>{session.startTime}–{session.endTime}</span>
+                          <span className="text-slate-300">·</span>
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{session.room}</span>
+                        </div>
+                        {!isRestrictedRole && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <User className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{session.teacher}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 text-xs text-slate-400">
+                          <Users className="w-3 h-3 shrink-0" />
+                          <span>
+                            {session.studentCount} student{session.studentCount !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Right panel — register */}
           <div className="flex-1 overflow-y-auto">
-            {selectedSession && (
+            {selectedSession ? (
               <div className="p-6 max-w-5xl">
 
                 {/* Register header */}
@@ -349,10 +534,11 @@ function AttendancePageContent() {
                       {selectedSession.startTime}–{selectedSession.endTime}
                     </h2>
                     <p className="text-sm text-slate-500 mt-0.5">
-                      {selectedSession.room} · {selectedSession.teacher}
+                      {selectedSession.room}
+                      {!isRestrictedRole && ` · ${selectedSession.teacher}`}
                     </p>
                   </div>
-                  {!completed.has(selectedSession.id) && selectedSession.students.length > 0 && (
+                  {!completed.has(selectedSession.id) && !selectedSession.attendanceMarked && selectedSession.students.length > 0 && (
                     <button
                       onClick={() => markAllPresent(selectedSession.id, selectedSession.students)}
                       className="shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
@@ -391,7 +577,7 @@ function AttendancePageContent() {
                           const status   = getStudentStatus(selectedSession.id, student);
                           const noteKey  = `${selectedSession.id}:${student}`;
                           const palette  = getAvatarPalette(student);
-                          const isDone   = completed.has(selectedSession.id);
+                          const isDone   = completed.has(selectedSession.id) || (selectedSession.attendanceMarked ?? false);
                           const menuOpen = openMenu === noteKey;
                           const noteOpen = openNote === noteKey;
                           const year     = STUDENT_YEAR[student] ?? "";
@@ -516,7 +702,7 @@ function AttendancePageContent() {
                 )}
 
                 {/* 48-hour warning banner */}
-                {!completed.has(selectedSession.id) && selectedSession.students.length > 0 && (
+                {!completed.has(selectedSession.id) && !selectedSession.attendanceMarked && selectedSession.students.length > 0 && (
                   <div className="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-amber-700">
@@ -529,7 +715,7 @@ function AttendancePageContent() {
                 )}
 
                 {/* Save & Confirm */}
-                {!completed.has(selectedSession.id) && selectedSession.students.length > 0 && (
+                {!completed.has(selectedSession.id) && !selectedSession.attendanceMarked && selectedSession.students.length > 0 && (
                   <button
                     onClick={() => confirmSession(selectedSession.id)}
                     className="mt-4 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors cursor-pointer text-sm"
@@ -539,7 +725,7 @@ function AttendancePageContent() {
                 )}
 
                 {/* Confirmed banner */}
-                {completed.has(selectedSession.id) && (
+                {(completed.has(selectedSession.id) || selectedSession.attendanceMarked) && (
                   <div className="mt-4 flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                     <p className="text-sm text-emerald-700 font-medium">
@@ -547,6 +733,13 @@ function AttendancePageContent() {
                     </p>
                   </div>
                 )}
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20 text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-slate-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-600">Select a session to mark attendance</p>
               </div>
             )}
           </div>
@@ -559,7 +752,7 @@ function AttendancePageContent() {
       {mainTab === "overview" && (
         <div className="flex-1 p-6">
 
-          {/* Secondary tab bar — slate underline (distinct from amber primary tabs) */}
+          {/* Secondary tab bar */}
           <div className="flex gap-6 border-b border-slate-200 mb-6">
             {(
               [
@@ -595,9 +788,11 @@ function AttendancePageContent() {
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
                       Date
                     </th>
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
-                      Teacher
-                    </th>
+                    {!isRestrictedRole && (
+                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
+                        Teacher
+                      </th>
+                    )}
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
                       Hours Remaining
                     </th>
@@ -607,11 +802,19 @@ function AttendancePageContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {unmarkedSessions.map(session => (
+                  {filteredUnmarked.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+                        No unmarked sessions found.
+                      </td>
+                    </tr>
+                  ) : filteredUnmarked.map(session => (
                     <tr key={session.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-slate-900">{session.subject}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{session.date}</td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{session.teacher}</td>
+                      {!isRestrictedRole && (
+                        <td className="px-4 py-3 text-sm text-slate-600">{session.teacher}</td>
+                      )}
                       <td className="px-4 py-3">
                         {session.overdue ? (
                           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-600">
@@ -651,20 +854,6 @@ function AttendancePageContent() {
           {/* ── Sub-tab B: Absence Summary ─────────────────────────────── */}
           {overviewTab === "absence" && (
             <>
-            <div className="flex items-center gap-2 flex-wrap mb-4">
-              <MultiSelectFilter
-                label="Department"
-                options={["Primary", "Lower Secondary", "Senior"]}
-                selected={absenceDeptFilter}
-                onChange={setAbsenceDeptFilter}
-              />
-              <DateRangePicker
-                value={absenceDateRange}
-                onChange={setAbsenceDateRange}
-                presets={DATE_PRESETS}
-                placeholder="Date range"
-              />
-            </div>
             <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
               <table className="w-full min-w-[900px]">
                 <thead>
@@ -696,10 +885,13 @@ function AttendancePageContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(absenceDeptFilter.length > 0
-                    ? absenceSummary.filter(row => absenceDeptFilter.includes(row.dept))
-                    : absenceSummary
-                  ).map((row, i) => (
+                  {filteredAbsence.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
+                        No absence records found.
+                      </td>
+                    </tr>
+                  ) : filteredAbsence.map((row, i) => (
                     <tr key={i} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
@@ -773,7 +965,7 @@ function AttendancePageContent() {
           {overviewTab === "makeup" && (
             <>
               <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-slate-500">{makeupLog.length} makeup sessions this term</p>
+                <p className="text-sm text-slate-500">{filteredMakeup.length} makeup session{filteredMakeup.length !== 1 ? 's' : ''} this term</p>
                 {can('attendance.bookMakeup') && (
                   <button className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer">
                     <CalendarPlus className="w-4 h-4" />
@@ -806,7 +998,13 @@ function AttendancePageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {makeupLog.map(entry => (
+                    {filteredMakeup.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                          No makeup sessions found.
+                        </td>
+                      </tr>
+                    ) : filteredMakeup.map(entry => (
                       <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 text-sm text-slate-600">{entry.originalSession}</td>
                         <td className="px-4 py-3 text-sm text-slate-700">{entry.subject}</td>

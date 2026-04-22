@@ -298,6 +298,7 @@ export function NewSessionDialog({
       subject,
       department,
       teacher,
+      teacherId: '',
       room,
       startTime,
       endTime,

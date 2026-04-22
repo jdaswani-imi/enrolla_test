@@ -231,6 +231,7 @@ function assessmentToSessions(a: AssessmentRecord): ExtendedSession[] {
     subject: `${a.yearGroup} ${a.subject}`,
     department: a.department,
     teacher,
+    teacherId: '',
     room: a.room,
     startTime: a.time,
     endTime: a.endTime,
