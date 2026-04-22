@@ -170,7 +170,8 @@ enrolla_frontend_prototype/
 │   ├── attendance/page.tsx           # Attendance (Today tab + Overview tab)
 │   ├── assessments/page.tsx          # Assessments (3 tabs)
 │   ├── progress/page.tsx             # Academic progress (4 tabs)
-│   ├── feedback/page.tsx             # Feedback (5 tabs)
+│   ├── feedback/page.tsx             # Feedback (2 tabs — queue + class discussion)
+│   ├── communications/page.tsx       # Communications hub (3 tabs — M07)
 │   ├── finance/page.tsx              # Finance (4 tabs)
 │   ├── staff/page.tsx                # Staff (2 tabs)
 │   ├── tasks/page.tsx                # Tasks kanban + list
@@ -275,7 +276,7 @@ enrolla_frontend_prototype/
 │
 ├── tests/
 │   └── e2e/
-│       ├── smoke.spec.ts             # 40 smoke tests across all routes + tabs + roles
+│       ├── smoke.spec.ts             # 176 smoke tests across all routes + tabs + roles (2 skipped)
 │       └── deep.spec.ts              # Deeper interaction tests
 │
 ├── CLAUDE.md                         # Claude Code instructions (references AGENTS.md)
@@ -524,27 +525,47 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 
 **RBAC:** `feedback.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA.
 
-**Tabs (5):**
+Feedback queue (Draft→Approved→Sent flow) and Class Discussion. Two tabs only. Feedback template placeholder notice. HOD/Academic Head approval gate.
+
+**Tabs (2):**
 
 | Tab | Content |
 |---|---|
-| **Feedback Queue** | 12 feedback items — score badge, status (Draft/Pending Approval/Approved/Sent/Rejected), AI summary, teacher notes, selectors |
-| **Announcements** | 8 pre/post-session announcements — audience, status (Draft/Pending/Sent) |
-| **Complaints** | 6 complaint tickets — severity, category, two-sign-off escalation workflow |
-| **Surveys** | NPS survey responses (10 sent) + pending surveys (5) — Promoter/Passive/Detractor categories |
+| **Feedback Queue** | 12 feedback items — score badge, status (Draft→Pending Approval→Approved→Sent/Rejected), AI summary, teacher notes, selectors. Template placeholder notice shown. |
 | **Class Discussion** | 4 class groups with threaded posts (Announcement/Discussion/Question types) |
 
 **Actions:**
 - Submit feedback: `feedback.submit`
-- Approve feedback: `feedback.approve`
-- Raise complaint: `feedback.raiseComplaint`
-- Resolve complaint: `feedback.resolveComplaint`
-- Send survey: `feedback.sendSurvey`
+- Approve feedback: `feedback.approve` (HOD / Academic Head only)
 - Post to discussion: `feedback.postDiscussion`
 
 ---
 
-### 6.14 `/finance`
+### 6.14 `/communications`
+
+**Module:** M07
+
+**RBAC:** `communications.view` — Super Admin, Admin Head, Admin, Academic Head, HOD.
+
+Communications hub — Announcements, Concerns & Tickets, and Surveys. Severity sorted High→Medium→Low. Announcement approve + view actions are wired.
+
+**Tabs (3):**
+
+| Tab | Content |
+|---|---|
+| **Announcements** | 8 pre/post-session announcements — audience, status (Draft/Pending/Sent). Approve and view actions wired. |
+| **Concerns & Tickets** | 6 concern/complaint tickets — severity (High/Medium/Low, sorted), category, two-sign-off escalation workflow |
+| **Surveys** | NPS survey responses (10 sent) + pending surveys (5) — Promoter/Passive/Detractor categories |
+
+**Actions:**
+- Approve announcement: `communications.approveAnnouncement`
+- Raise concern: `communications.raiseConcern`
+- Resolve concern: `communications.resolveConcern`
+- Send survey: `communications.sendSurvey`
+
+---
+
+### 6.15 `/finance`
 
 **RBAC:** `finance.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
 
@@ -565,7 +586,7 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 
 ---
 
-### 6.15 `/finance/invoice/new`
+### 6.16 `/finance/invoice/new`
 
 Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layout — no sidebar, no topbar, no scroll container. Has its own minimal layout.
 
@@ -573,7 +594,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ---
 
-### 6.16 `/staff`
+### 6.17 `/staff`
 
 **RBAC:** `staff.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
 
@@ -597,7 +618,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ---
 
-### 6.17 `/tasks`
+### 6.18 `/tasks`
 
 **RBAC:** `tasks.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
 
@@ -619,7 +640,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ---
 
-### 6.18 `/automations`
+### 6.19 `/automations`
 
 **RBAC:** `automations.view` — Super Admin, Admin Head, Admin.
 
@@ -642,7 +663,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ---
 
-### 6.19 `/inventory`
+### 6.20 `/inventory`
 
 **RBAC:** `inventory.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
 
@@ -661,7 +682,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ---
 
-### 6.20 `/people`
+### 6.21 `/people`
 
 **RBAC:** `people.view` — Super Admin, Admin Head, Admin, Academic Head, HR/Finance.
 
@@ -685,7 +706,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ---
 
-### 6.21 `/analytics`
+### 6.22 `/analytics`
 
 **RBAC:** `analytics.view` — Super Admin, Admin Head, Academic Head, HOD, HR/Finance.
 
@@ -702,7 +723,7 @@ All charts use Recharts (`BarChart`, `ResponsiveContainer`, `CartesianGrid`, etc
 
 ---
 
-### 6.22 `/reports`
+### 6.23 `/reports`
 
 **RBAC:** `reports.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
 
@@ -710,7 +731,7 @@ Reports inbox (5 items: Weekly Digest, Churn Risk, Term Revenue, Academic Alerts
 
 ---
 
-### 6.23 `/settings`
+### 6.24 `/settings`
 
 **RBAC:** `settings.view` — Super Admin only.
 
@@ -736,13 +757,13 @@ Left-nav panel with sections (not URL tabs — section state held in local useSt
 
 ---
 
-### 6.24 `/profile`
+### 6.25 `/profile`
 
 User profile page — displays current user's details (Jason Daswani, Super Admin). Edit fields inline.
 
 ---
 
-### 6.25 `/page.tsx` (root)
+### 6.26 `/page.tsx` (root)
 
 Immediate redirect to `/dashboard`.
 
@@ -1164,7 +1185,27 @@ interface JourneyEnrolment { subject, teacher, frequency, startDate?: string, pa
 interface JourneyInvoice { id, amount, status }
 ```
 
-### 7.18 Assessment Store Types (`lib/assessment-store.tsx`)
+### 7.18 New Fields Added in Session 6
+
+The following fields were added to existing interfaces in `lib/mock-data.ts`:
+
+| Type | New Fields |
+|---|---|
+| `ActivityEvent` | `link: string`, `actionedBy: { name, role } \| 'system'` |
+| `ChurnRiskStudent` | `trend`, `reasons: ChurnReason[]`, `retentionConfidence`, `retentionFactors` |
+| `ReportItem` | `periodLabel?: string` |
+| `RoomSlotDetail` / `RoomDetail` | Room occupancy detail for heatmap drill-in |
+| `Guardian` | `status`, `linkedStudents`, `communicationPreference`, `createdOn`, `department` |
+| `TimetableSession` | `teacherId`, `assignedTAs?: string[]`, `department` |
+| `Assignment` | `linkedSessionId?`, `instructions?`, `assignTo` |
+| `Task` | `linkedAssignmentId?`, `linkedInventoryItemId?`, `createdOn` |
+| `Payment` | `studentId`, `department`, `method` |
+| `Credit` | `studentId`, `department`, `type` |
+| `InventoryItem` / `ReorderAlert` | `responsibleStaffId?` |
+
+### 7.19 Assessment Store Types (`lib/assessment-store.tsx`)
+
+
 
 ```typescript
 interface AssessmentRecord {
@@ -1237,6 +1278,21 @@ interface AssessmentRecord {
 | `export.all` | Super Admin only |
 
 Full permissions matrix is in `lib/role-config.ts` — `PERMISSIONS` object, 50+ action keys.
+
+### 8.3 Staff Directory Visibility (Role-Filtered)
+
+The `/staff` directory filters rows and columns by role:
+
+| Role | Rows visible | Columns hidden |
+|---|---|---|
+| Teacher / TA | Own department only — info banner shown | HR/performance columns |
+| HOD | Own department, all teaching roles | Salary |
+| Academic Head | All teaching staff across all departments — no HR/Finance staff | HR/performance columns |
+| Admin | All staff | Salary, performance |
+| Admin Head | All staff | Salary |
+| HR/Finance / Super Admin | Full access | — |
+
+The **HR Dashboard** tab is hidden from the DOM entirely for all roles except HR/Finance, Admin Head, and Super Admin.
 
 ---
 
@@ -1315,7 +1371,14 @@ All in `components/journey/`. Called from `leads/page.tsx` as the lead progresse
 
 **Times:** `components/journey/time-select.tsx` — pre-defined time slot selector.
 
-### 9.4 Other Dialogs
+### 9.4 Dashboard Modals
+
+| Component | Location | Notes |
+|---|---|---|
+| `ChurnDetailModal` | `components/dashboard/churn-detail-modal.tsx` | Shared churn + retention detail modal — used on dashboard Churn Risk card and `/students/[id]` churn score badge |
+| `OccupancyDetailModal` | `components/dashboard/occupancy-detail-modal.tsx` | Heatmap cell drill-in — room breakdown |
+
+### 9.5 Other Dialogs
 
 | Component | Route Used From |
 |---|---|
@@ -1450,13 +1513,56 @@ import { cn } from '@/lib/utils';
 
 ### 11.8 `?tab=` Deep Linking
 
-Pages with tabs use `useSearchParams()` to read the initial tab. Links from dashboard alerts, task chips, and KPI cards carry `?tab=alerts`, `?tab=finance` etc. to land the user on the right tab directly.
+All 11 tabbed pages now use `useSearchParams()` + `router.replace('?tab=slug')` universally. Every tab has its own stable URL. Links from dashboard alerts, task chips, and KPI cards carry `?tab=<slug>` to land the user on the right tab directly.
 
 ```tsx
 const tab = searchParams.get('tab') ?? 'overview';
+// On tab change:
+router.replace(`?tab=${slug}`);
 ```
 
-### 11.9 Page Transitions
+**Complete tab slug reference:**
+
+| Route | Tab Slugs |
+|---|---|
+| `/attendance` | `register`, `overview`, `makeup-log` |
+| `/finance` | `invoices`, `payments`, `credits`, `reports` |
+| `/progress` | `trackers`, `reports`, `alerts`, `assignments` |
+| `/feedback` | `queue`, `class-discussion` |
+| `/communications` | `announcements`, `concerns-tickets`, `surveys` |
+| `/people` | `overview`, `duplicates`, `segments`, `broadcast-lists`, `forms`, `exports` |
+| `/automations` | `templates`, `rules`, `trigger-library`, `dispatch-queue`, `internal-messages`, `marketing`, `execution-log` |
+| `/inventory` | `catalogue`, `reorder-alerts`, `stock-ledger`, `suppliers` |
+| `/staff` | `directory`, `hr-dashboard` |
+| `/assessments` | `upcoming`, `outcomes`, `slots` |
+| `/analytics` | `revenue`, `occupancy`, `churn`, `staff` |
+| `/students/[id]` | all 11 profile tabs |
+
+### 11.9 Date Range Filter
+
+A standard `DateRangePicker` with 12 presets is present on the following pages/tabs:
+
+| Page / Tab | Notes |
+|---|---|
+| `/students` | |
+| `/guardians` | |
+| `/leads` | |
+| `/enrolment` | Per tab |
+| `/attendance` | Admin+ roles |
+| `/progress?tab=reports` | |
+| `/tasks` | Due Date + Created On pickers |
+| `/finance` | Payments + Credits tabs |
+| `/inventory?tab=stock-ledger` | |
+| `/automations?tab=execution-log` | |
+| `/staff?tab=hr-dashboard` | |
+| `/analytics` | All tabs |
+| `/reports` | Generated + Scheduled sections |
+
+**Preset list:** Today / Yesterday / This Week / Last 7 Days / Last Month / Last 30 Days / This Term / Last Term / This Academic Year / Last Academic Year / All Time / Custom Range.
+
+**Term boundaries:** Term 1 = Sep–Dec, Term 2 = Jan–Apr, Term 3 = May–Aug. Boundaries are computed dynamically from `new Date()`.
+
+### 11.10 Page Transitions
 
 Every page renders with the `page-enter` CSS class applied to `<main>`. The class triggers `fadeSlideIn` (translateY + opacity). The key is the `pathname`:
 
@@ -1466,11 +1572,11 @@ Every page renders with the `page-enter` CSS class applied to `<main>`. The clas
 </main>
 ```
 
-### 11.10 Sidebar Flyout Auto-Close
+### 11.11 Sidebar Flyout Auto-Close
 
 The sidebar auto-collapses its active flyout when the user navigates to `/leads` because the lead detail slide-over uses the full right portion of the screen.
 
-### 11.11 Active Route Detection
+### 11.12 Active Route Detection
 
 Use `usePathname()` from `next/navigation`:
 ```typescript
@@ -1478,11 +1584,11 @@ const pathname = usePathname();
 const isActive = pathname === '/students' || pathname.startsWith('/students/');
 ```
 
-### 11.12 Mock Data Extension
+### 11.13 Mock Data Extension
 
 When adding new mock data, extend `lib/mock-data.ts`. Do not create new mock source files. Export new types and arrays from this single file.
 
-### 11.13 Component Aliases
+### 11.14 Component Aliases
 
 From `components.json`:
 ```
@@ -1492,6 +1598,36 @@ From `components.json`:
 @/lib/utils     → lib/utils.ts
 @/hooks         → hooks/
 ```
+
+### 11.15 Churn Detail Modal
+
+`components/dashboard/churn-detail-modal.tsx` is a shared modal used in two places:
+- Dashboard Churn Risk card (click row)
+- `/students/[id]` churn score badge (click badge)
+
+**Contents:** Score ring (red ≥70, amber 40–69, green <40), trend arrow, Churn Signals list with IMI weights, Retention Confidence section. "View Full Profile" navigates to `/students/[id]?tab=overview`.
+
+### 11.16 Attendance Confirm Gate
+
+The **Save & Confirm Attendance** button is disabled when any student in the session has `status = Unmarked`. A warning banner is shown above the button. "Mark All Present" satisfies the check immediately and enables the save button.
+
+### 11.17 Inventory Reorder Tasks
+
+Each reorder alert row has an **Assign To** staff dropdown and a **Create Reorder Task** button. Creates a task titled `Reorder: [Item]` with:
+- Due = today + 3 days
+- Priority based on stock level
+- `linkedInventoryItemId` set on the task record
+
+### 11.18 Assignments → Auto Marking Task
+
+Creating an assignment auto-creates a task titled `Mark: [Assignment Title]` with:
+- Due = assignment due date + 2 days
+- Assigned to the session teacher (if a linked session was selected)
+- `linkedAssignmentId` set on the task record
+
+### 11.19 Profile Photo Upload
+
+The avatar on `/profile` supports photo upload via a hidden `<input type="file">`. A camera button is overlaid at the bottom-right of the avatar. `FileReader` converts the selected image to base64 and renders it as the avatar src. "Remove photo" reverts to initials. Email field is read-only for all roles except Super Admin (lock icon + tooltip shown).
 
 ---
 
@@ -1514,7 +1650,7 @@ From `components.json`:
 | **Test 5: Navigation links** | Visits 9 key sidebar links directly, verifies no 404. |
 
 **Routes covered by smoke tests:**
-`/dashboard`, `/students`, `/guardians`, `/leads`, `/enrolment`, `/finance`, `/timetable`, `/attendance`, `/assessments`, `/progress`, `/tasks`, `/staff`, `/analytics`, `/reports`, `/settings`, `/feedback`, `/people`, `/automations`, `/inventory`, `/finance/invoice/new`
+`/dashboard`, `/students`, `/guardians`, `/leads`, `/enrolment`, `/finance`, `/timetable`, `/attendance`, `/assessments`, `/progress`, `/tasks`, `/staff`, `/analytics`, `/reports`, `/settings`, `/feedback`, `/communications`, `/people`, `/automations`, `/inventory`, `/finance/invoice/new`
 
 **Tabs covered by smoke tests:**
 
@@ -1523,15 +1659,16 @@ From `components.json`:
 | `/finance` | Invoices, Payments, Credits, Reports |
 | `/progress` | Trackers, Reports, Alerts, Assignments |
 | `/analytics` | Revenue, Occupancy, Churn, Staff |
-| `/feedback` | Feedback Queue, Announcements, Complaints, Surveys, Class Discussion |
+| `/feedback` | Queue, Class Discussion |
+| `/communications` | Announcements, Concerns & Tickets, Surveys |
 | `/people` | Directory, Duplicates, Segments, Broadcast Lists, Forms, Exports |
 | `/automations` | Templates, Rules, Trigger Library, Dispatch Queue, Internal Messages, Marketing, Execution Log |
 | `/inventory` | Catalogue, Reorder Alerts, Stock Ledger, Suppliers |
-| `/attendance` | Today, Overview |
+| `/attendance` | Register, Overview, Makeup Log |
 | `/staff` | Directory, HR Dashboard |
 | `/assessments` | Upcoming, Outcomes, Slots |
 
-**As of 21 April 2026:** 40/40 Playwright smoke tests passing.
+**As of 22 April 2026:** 176 passed, 2 skipped, 0 failed.
 
 **Screenshots:** Saved to `tests/screenshots/`. Named by route path + role.
 
