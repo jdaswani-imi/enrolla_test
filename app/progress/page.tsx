@@ -17,7 +17,18 @@ import {
   Sparkles,
   ArrowUpCircle,
   AlertTriangle,
+  Calendar,
+  ExternalLink,
 } from "lucide-react";
+import {
+  timetableSessions,
+  assignments as seedAssignments,
+  tasks,
+  type Assignment,
+  type AssignmentStatus,
+  type AssignmentType,
+  type Task,
+} from "@/lib/mock-data";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -43,9 +54,6 @@ type ReportStatus = "Approved" | "Pending HOD" | "Draft" | "Not Generated" | "Re
 type Severity = "Critical" | "High" | "Medium" | "Low";
 type AlertStatus = "Open" | "Escalated to Concern" | "Acknowledged" | "Resolved" | "Dismissed";
 type AlertLevel = "L1" | "L2" | "L3";
-type AssignmentStatus = "Complete" | "Partial" | "Pending" | "Upcoming";
-type AssignmentType = "Test" | "Homework" | "Classwork" | "Past Paper";
-
 interface Tracker {
   student: string;
   year: string;
@@ -76,17 +84,6 @@ interface Alert {
   severity: Severity;
   status: AlertStatus;
   level: AlertLevel;
-}
-
-interface Assignment {
-  assignment: string;
-  subject: string;
-  teacher: string;
-  type: AssignmentType;
-  dueDate: string;
-  submissions: string;
-  marked: string;
-  status: AssignmentStatus;
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -128,17 +125,6 @@ const ALERTS: Alert[] = [
   { student: "Mariam Al-Suwaidi", year: "Y13", subject: "Y13 Maths",   alertType: "Predicted Grade Gap",       signal: "Predicted B, target A — monitored",        raised: "4 Apr 2026",  severity: "Low",      status: "Acknowledged",         level: "L1" },
   { student: "Reem Al-Dosari",    year: "Y6",  subject: "Y6 Science",  alertType: "Attendance Impact",         signal: "Attendance below 80% affecting progress",  raised: "2 Apr 2026",  severity: "Medium",   status: "Open",                 level: "L1" },
   { student: "Dana Al-Zaabi",     year: "Y2",  subject: "Y2 English",  alertType: "Topic Gap",                 signal: "2 topics not yet assessed this term",       raised: "1 Apr 2026",  severity: "Low",      status: "Resolved",             level: "L1" },
-];
-
-const ASSIGNMENTS: Assignment[] = [
-  { assignment: "Algebra Practice Test",      subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   type: "Test",       dueDate: "18 Apr 2026", submissions: "3/3", marked: "3/3", status: "Complete"  },
-  { assignment: "Essay — Persuasive Writing", subject: "Y8 English",  teacher: "Ms Sarah Mitchell", type: "Homework",   dueDate: "15 Apr 2026", submissions: "2/3", marked: "2/2", status: "Partial"   },
-  { assignment: "Quadratics Quiz",            subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   type: "Classwork",  dueDate: "10 Apr 2026", submissions: "3/3", marked: "3/3", status: "Complete"  },
-  { assignment: "Physics Problem Set 4",      subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  type: "Homework",   dueDate: "20 Apr 2026", submissions: "1/2", marked: "0/1", status: "Pending"   },
-  { assignment: "Y9 Maths Chapter Test",      subject: "Y9 Maths",    teacher: "Mr Tariq Al-Amin",  type: "Test",       dueDate: "22 Apr 2026", submissions: "0/2", marked: "0/0", status: "Upcoming"  },
-  { assignment: "Reading Comprehension",      subject: "Y8 English",  teacher: "Ms Sarah Mitchell", type: "Classwork",  dueDate: "5 Apr 2026",  submissions: "3/3", marked: "3/3", status: "Complete"  },
-  { assignment: "Y12 Mechanics Paper 1",      subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  type: "Past Paper", dueDate: "16 Apr 2026", submissions: "1/1", marked: "1/1", status: "Complete"  },
-  { assignment: "Y3 Spelling Test",           subject: "Y3 English",  teacher: "Ms Sarah Mitchell", type: "Classwork",  dueDate: "14 Apr 2026", submissions: "1/1", marked: "1/1", status: "Complete"  },
 ];
 
 type TopicStatus = "Not Started" | "In Progress" | "Complete";
@@ -305,15 +291,16 @@ function getAssignmentStatusClass(s: AssignmentStatus): string {
     case "Partial":   return "bg-amber-100 text-amber-700 border border-amber-200";
     case "Pending":   return "bg-blue-100 text-blue-700 border border-blue-200";
     case "Upcoming":  return "bg-slate-100 text-slate-500 border border-slate-200";
+    case "Overdue":   return "bg-red-100 text-red-700 border border-red-200";
   }
 }
 
 function getAssignmentTypeClass(t: AssignmentType): string {
   switch (t) {
-    case "Test":       return "bg-purple-100 text-purple-700 border border-purple-200";
-    case "Homework":   return "bg-teal-100 text-teal-700 border border-teal-200";
-    case "Classwork":  return "bg-slate-100 text-slate-500 border border-slate-200";
-    case "Past Paper": return "bg-blue-50 text-blue-900 border border-blue-200";
+    case "Test":       return "bg-red-100 text-red-700 border border-red-200";
+    case "Homework":   return "bg-blue-100 text-blue-700 border border-blue-200";
+    case "Classwork":  return "bg-emerald-100 text-emerald-700 border border-emerald-200";
+    case "Past Paper": return "bg-purple-100 text-purple-700 border border-purple-200";
   }
 }
 
@@ -1521,12 +1508,579 @@ function AlertsTab({ onNavigateToTrackers }: { onNavigateToTrackers: () => void 
   );
 }
 
+// ─── Tab 4 — Assignments (helpers) ───────────────────────────────────────────
+
+function getStudentsForAssignment(a: Assignment): string[] {
+  if (a.linkedSessionId) {
+    const sess = timetableSessions.find((s) => s.id === a.linkedSessionId);
+    if (sess?.students?.length) return sess.students;
+  }
+  const sess = timetableSessions.find(
+    (s) => s.subject === a.subject && s.teacher === a.teacher
+  );
+  if (sess?.students?.length) return sess.students;
+  return [];
+}
+
+function mockGradeForStudent(name: string): string {
+  const seed = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return `${60 + (seed % 36)}%`;
+}
+
+function sessionDateToInput(sessionDate: string): string {
+  const MM: Record<string, string> = {
+    Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+    Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+  };
+  const [d, mon] = sessionDate.split(" ");
+  return `2026-${MM[mon] ?? "04"}-${d.padStart(2, "0")}`;
+}
+
+function inputToDisplayDate(input: string): string {
+  const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [y, m, d] = input.split("-");
+  return `${parseInt(d)} ${MN[parseInt(m) - 1]} ${y}`;
+}
+
+function addDaysToDisplayDate(dateStr: string, days: number): string {
+  const MM: Record<string, number> = {
+    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+  };
+  const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const parts = dateStr.split(" ");
+  if (parts.length < 3) return dateStr;
+  const result = new Date(parseInt(parts[2]), MM[parts[1]], parseInt(parts[0]) + days);
+  return `${result.getDate()} ${MN[result.getMonth()]} ${result.getFullYear()}`;
+}
+
+// ─── Create Assignment Modal ──────────────────────────────────────────────────
+
+function CreateAssignmentModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (a: Assignment) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<AssignmentType>("Homework");
+  const [subject, setSubject] = useState("");
+  const [linkedSessionId, setLinkedSessionId] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [assignTo, setAssignTo] = useState<"class" | "individual">("class");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const upcomingSessions = useMemo(
+    () =>
+      timetableSessions.filter(
+        (s) =>
+          s.status === "Scheduled" &&
+          !["Meeting", "Blocked", "Assessment"].includes(s.type)
+      ),
+    []
+  );
+
+  const subjects = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          timetableSessions
+            .filter((s) => !["Meeting", "Blocked", "Assessment"].includes(s.type))
+            .map((s) => s.subject)
+        )
+      ).sort(),
+    []
+  );
+
+  function handleSessionChange(sid: string) {
+    setLinkedSessionId(sid);
+    if (!sid) return;
+    const sess = timetableSessions.find((s) => s.id === sid);
+    if (sess) {
+      setSubject(sess.subject);
+      setDueDate(sessionDateToInput(sess.date));
+      setErrors((p) => ({ ...p, subject: "", dueDate: "" }));
+    }
+  }
+
+  function validate() {
+    const errs: Record<string, string> = {};
+    if (!title.trim()) errs.title = "Title is required";
+    if (!subject) errs.subject = "Subject is required";
+    if (!dueDate) errs.dueDate = "Due date is required";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  function handleSubmit() {
+    if (!validate()) return;
+    const sess = linkedSessionId
+      ? timetableSessions.find((s) => s.id === linkedSessionId)
+      : null;
+    const teacher = sess?.teacher ?? getTeacherForSubject(subject);
+    const newAssignment: Assignment = {
+      id: `AS-${Date.now()}`,
+      assignment: title.trim(),
+      subject,
+      teacher,
+      teacherId: sess?.teacherId,
+      type,
+      dueDate: inputToDisplayDate(dueDate),
+      submissions: "0/0",
+      marked: "0/0",
+      status: "Upcoming",
+      linkedSessionId: linkedSessionId || undefined,
+      instructions: instructions.trim() || undefined,
+      assignTo,
+    };
+    onSave(newAssignment);
+  }
+
+  function inputCls(field: string) {
+    return cn(
+      "w-full px-3 py-2 h-9 text-sm border rounded-lg bg-white outline-none transition-all",
+      "placeholder:text-slate-400 focus:ring-2 focus:ring-amber-300 focus:border-amber-400",
+      errors[field] ? "border-red-300" : "border-slate-200"
+    );
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="w-[540px] max-w-[90vw]">
+        <DialogHeader>
+          <DialogTitle>Create Assignment</DialogTitle>
+          <DialogDescription>
+            Set a new assignment and optionally link it to a timetable session.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Title */}
+          <div>
+            <FieldLabel htmlFor="a-title" required>Title</FieldLabel>
+            <input
+              id="a-title"
+              type="text"
+              value={title}
+              onChange={(e) => { setTitle(e.target.value); setErrors((p) => ({ ...p, title: "" })); }}
+              placeholder="e.g. Algebra Practice Test"
+              className={inputCls("title")}
+            />
+            {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title}</p>}
+          </div>
+
+          {/* Type */}
+          <div>
+            <FieldLabel htmlFor="a-type">Type</FieldLabel>
+            <select
+              id="a-type"
+              value={type}
+              onChange={(e) => setType(e.target.value as AssignmentType)}
+              className={inputCls("type")}
+            >
+              {(["Homework", "Classwork", "Test", "Past Paper"] as AssignmentType[]).map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Linked Session */}
+          <div>
+            <FieldLabel htmlFor="a-session">
+              Linked Session{" "}
+              <span className="font-normal text-slate-400">(optional)</span>
+            </FieldLabel>
+            <select
+              id="a-session"
+              value={linkedSessionId}
+              onChange={(e) => handleSessionChange(e.target.value)}
+              className={inputCls("session")}
+            >
+              <option value="">No session linked</option>
+              {upcomingSessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.subject} · {s.day} {s.date} · {s.teacher}
+                </option>
+              ))}
+            </select>
+            {linkedSessionId && (
+              <p className="mt-1 text-xs text-slate-500">
+                Subject and due date auto-filled from the selected session.
+              </p>
+            )}
+          </div>
+
+          {/* Subject */}
+          <div>
+            <FieldLabel htmlFor="a-subject" required>Subject</FieldLabel>
+            <select
+              id="a-subject"
+              value={subject}
+              onChange={(e) => { setSubject(e.target.value); setErrors((p) => ({ ...p, subject: "" })); }}
+              className={inputCls("subject")}
+            >
+              <option value="">Select subject…</option>
+              {subjects.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {errors.subject && <p className="mt-1 text-xs text-red-600">{errors.subject}</p>}
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <FieldLabel htmlFor="a-due" required>Due Date</FieldLabel>
+            <input
+              id="a-due"
+              type="date"
+              value={dueDate}
+              onChange={(e) => { setDueDate(e.target.value); setErrors((p) => ({ ...p, dueDate: "" })); }}
+              className={inputCls("dueDate")}
+            />
+            {errors.dueDate && <p className="mt-1 text-xs text-red-600">{errors.dueDate}</p>}
+          </div>
+
+          {/* Instructions */}
+          <div>
+            <FieldLabel htmlFor="a-instructions">
+              Instructions{" "}
+              <span className="font-normal text-slate-400">(optional)</span>
+            </FieldLabel>
+            <textarea
+              id="a-instructions"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={3}
+              placeholder="Any additional instructions for students…"
+              className={FIELD}
+            />
+          </div>
+
+          {/* Assign To */}
+          <div>
+            <FieldLabel htmlFor="a-assign-to">Assign To</FieldLabel>
+            <select
+              id="a-assign-to"
+              value={assignTo}
+              onChange={(e) => setAssignTo(e.target.value as "class" | "individual")}
+              className={inputCls("assignTo")}
+            >
+              <option value="class">Whole Class</option>
+              <option value="individual">Individual Students</option>
+            </select>
+          </div>
+        </div>
+
+        <DialogFooter className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="rounded-lg bg-amber-400 hover:bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors cursor-pointer"
+          >
+            Create Assignment
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Assignment Slide-Over ────────────────────────────────────────────────────
+
+function AssignmentSlideOver({
+  assignment,
+  onClose,
+}: {
+  assignment: Assignment;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [markingOpen, setMarkingOpen] = useState(false);
+  const [grades, setGrades] = useState<Record<string, string>>({});
+
+  const linkedSession = assignment.linkedSessionId
+    ? (timetableSessions.find((s) => s.id === assignment.linkedSessionId) ?? null)
+    : null;
+
+  const students = getStudentsForAssignment(assignment);
+  const submittedCount = parseInt(assignment.submissions.split("/")[0]) || 0;
+  const markedCount    = parseInt(assignment.marked.split("/")[0]) || 0;
+
+  const submissionRows = students.map((name, i) => ({
+    name,
+    submitted: i < submittedCount,
+    graded: i < markedCount,
+  }));
+
+  function handleNavigateToTimetable() {
+    onClose();
+    router.push("/timetable");
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-[480px] max-w-[95vw] bg-white shadow-2xl z-50 flex flex-col">
+        {/* Header */}
+        <div className="flex items-start gap-3 px-6 py-4 border-b border-slate-200 shrink-0">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold text-slate-800 leading-tight">
+              {assignment.assignment}
+            </h2>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span
+                className={cn(
+                  "px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap",
+                  getAssignmentTypeClass(assignment.type)
+                )}
+              >
+                {assignment.type}
+              </span>
+              <span
+                className={cn(
+                  "px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap",
+                  getAssignmentStatusClass(assignment.status)
+                )}
+              >
+                {assignment.status}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-slate-100 transition-colors cursor-pointer shrink-0 mt-0.5"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4 text-slate-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Key details grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Subject</p>
+              <p className="text-sm font-medium text-slate-800">{assignment.subject}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Teacher</p>
+              <p className="text-sm font-medium text-slate-800">{assignment.teacher}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Due Date</p>
+              <p className="text-sm font-medium text-slate-800">{assignment.dueDate}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Assign To</p>
+              <p className="text-sm font-medium text-slate-800">
+                {assignment.assignTo === "class" ? "Whole Class" : "Individual Students"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Submissions</p>
+              <p className="text-sm font-medium text-slate-800">{assignment.submissions}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">Marked</p>
+              <p className="text-sm font-medium text-slate-800">{assignment.marked}</p>
+            </div>
+          </div>
+
+          {/* Linked session chip */}
+          {linkedSession && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Linked Session
+              </p>
+              <button
+                onClick={handleNavigateToTimetable}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 rounded-lg text-sm text-slate-700 transition-colors cursor-pointer text-left"
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="flex-1 min-w-0 text-sm">
+                  {linkedSession.subject} · {linkedSession.day} {linkedSession.date} · {linkedSession.teacher}
+                </span>
+                <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+              </button>
+            </div>
+          )}
+
+          {/* Instructions */}
+          {assignment.instructions && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Instructions
+              </p>
+              <p className="text-sm text-slate-700 bg-slate-50 rounded-lg px-3 py-2.5 border border-slate-100 leading-relaxed">
+                {assignment.instructions}
+              </p>
+            </div>
+          )}
+
+          {/* Student submissions */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Student Submissions
+              </p>
+              {students.length > 0 && (
+                <button
+                  onClick={() => setMarkingOpen((o) => !o)}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <CheckCircle className="w-3 h-3" />
+                  Mark All
+                </button>
+              )}
+            </div>
+
+            {students.length > 0 ? (
+              <div className="rounded-lg border border-slate-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Student
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Status
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Grade
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {submissionRows.map((row) => (
+                      <tr key={row.name} className="border-b border-slate-100 last:border-0">
+                        <td className="px-4 py-2.5">
+                          <AvatarCell name={row.name} />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {row.submitted ? (
+                            <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              Submitted
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                              Not Submitted
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600 font-medium text-xs">
+                          {row.graded
+                            ? grades[row.name] || mockGradeForStudent(row.name)
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-6 bg-slate-50 rounded-lg border border-slate-100">
+                No student data linked to this assignment.
+              </p>
+            )}
+          </div>
+
+          {/* Mark All inline grading panel */}
+          {markingOpen && students.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+                Enter Grades
+              </p>
+              <div className="space-y-2">
+                {submissionRows.map((row) => (
+                  <div key={row.name} className="flex items-center gap-3">
+                    <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">
+                      {row.name}
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="e.g. 85%"
+                      value={grades[row.name] || ""}
+                      onChange={(e) =>
+                        setGrades((prev) => ({ ...prev, [row.name]: e.target.value }))
+                      }
+                      className="w-28 px-2.5 py-1.5 text-sm border border-slate-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={() => {
+                    toast.success("Grades saved");
+                    setMarkingOpen(false);
+                  }}
+                  className="px-4 py-1.5 text-sm font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  Save grades
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Tab 4 — Assignments ──────────────────────────────────────────────────────
 
 function AssignmentsTab() {
+  const [assignmentsList, setAssignmentsList] = useState<Assignment[]>(seedAssignments);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+
+  function handleSave(newAssignment: Assignment) {
+    setAssignmentsList((prev) => [newAssignment, ...prev]);
+    toast.success("Assignment created");
+
+    const linkedSession = newAssignment.linkedSessionId
+      ? timetableSessions.find((s) => s.id === newAssignment.linkedSessionId)
+      : null;
+
+    const markingDue = addDaysToDisplayDate(newAssignment.dueDate, 2);
+    const markingTask: Task = {
+      id: `TK-${Date.now()}`,
+      title: `Mark: ${newAssignment.assignment}`,
+      type: "Academic",
+      priority: "Medium",
+      status: "Open",
+      assignee: linkedSession?.teacher ?? "Unassigned",
+      dueDate: markingDue,
+      linkedRecord: null,
+      description: `Mark student submissions for "${newAssignment.assignment}" — ${newAssignment.subject}.`,
+      subtasks: ["Review submissions", "Enter grades", "Return feedback"],
+      overdue: false,
+      linkedAssignmentId: newAssignment.id,
+    };
+    tasks.push(markingTask);
+
+    if (linkedSession) {
+      toast.info(`Marking task created and assigned to ${linkedSession.teacher}`);
+    } else {
+      toast.info("Marking task created — assign a teacher manually");
+    }
+
+    setCreateOpen(false);
+  }
+
   return (
     <div className="space-y-5">
-      {/* Summary strip */}
+      {/* Summary strip + Create button */}
       <div className="flex items-start justify-between gap-4">
         <div className="grid grid-cols-3 gap-4 flex-1">
           <StatCard label="Assignments Set This Term" value="284" />
@@ -1534,7 +2088,10 @@ function AssignmentsTab() {
           <StatCard label="Overdue Submissions"       value="28"  accent="red"   />
         </div>
         <div className="pt-1">
-          <button className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap">
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-amber-400 hover:bg-amber-500 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+          >
             <Plus className="w-3.5 h-3.5" />
             Create Assignment
           </button>
@@ -1547,32 +2104,75 @@ function AssignmentsTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                {["Assignment", "Subject", "Teacher", "Type", "Due Date", "Submissions", "Marked", "Status"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
+                {["Assignment", "Subject", "Teacher", "Type", "Due Date", "Submissions", "Marked", "Status"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
             <tbody>
-              {ASSIGNMENTS.map((a, i) => (
-                <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+              {assignmentsList.map((a) => (
+                <tr
+                  key={a.id}
+                  onClick={() => setSelectedAssignment(a)}
+                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{a.assignment}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.subject}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{a.teacher}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap", getAssignmentTypeClass(a.type))}>{a.type}</span>
+                    <span
+                      className={cn(
+                        "px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap",
+                        getAssignmentTypeClass(a.type)
+                      )}
+                    >
+                      {a.type}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{a.dueDate}</td>
                   <td className="px-4 py-3 text-slate-600 font-medium">{a.submissions}</td>
                   <td className="px-4 py-3 text-slate-600 font-medium">{a.marked}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap", getAssignmentStatusClass(a.status))}>{a.status}</span>
+                    <span
+                      className={cn(
+                        "px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap",
+                        getAssignmentStatusClass(a.status)
+                      )}
+                    >
+                      {a.status}
+                    </span>
                   </td>
                 </tr>
               ))}
+              {assignmentsList.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
+                    No assignments yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {createOpen && (
+        <CreateAssignmentModal onClose={() => setCreateOpen(false)} onSave={handleSave} />
+      )}
+
+      {selectedAssignment && (
+        <AssignmentSlideOver
+          assignment={selectedAssignment}
+          onClose={() => setSelectedAssignment(null)}
+        />
+      )}
     </div>
   );
 }

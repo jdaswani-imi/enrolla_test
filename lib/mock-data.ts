@@ -1611,6 +1611,38 @@ export const assessments: Assessment[] = [
   { id: "A-010", name: "Khalifa Rashid",      type: "Lead",    yearGroup: "Y8",  subjects: ["Maths"],                  assessor: null,                date: null,         time: null,    room: null,      status: "Awaiting Booking", outcome: null },
 ];
 
+// ─── Assignments ──────────────────────────────────────────────────────────────
+
+export type AssignmentStatus = "Complete" | "Partial" | "Pending" | "Upcoming" | "Overdue";
+export type AssignmentType = "Test" | "Homework" | "Classwork" | "Past Paper";
+
+export interface Assignment {
+  id: string;
+  assignment: string;
+  subject: string;
+  teacher: string;
+  teacherId?: string;
+  type: AssignmentType;
+  dueDate: string;
+  submissions: string;
+  marked: string;
+  status: AssignmentStatus;
+  linkedSessionId?: string;
+  instructions?: string;
+  assignTo: "class" | "individual";
+}
+
+export const assignments: Assignment[] = [
+  { id: "AS-001", assignment: "Algebra Practice Test",      subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", type: "Test",       dueDate: "18 Apr 2026", submissions: "3/3", marked: "3/3", status: "Complete", linkedSessionId: "s001", assignTo: "class" },
+  { id: "AS-002", assignment: "Essay — Persuasive Writing", subject: "Y8 English",  teacher: "Ms Sarah Mitchell", teacherId: "ST-004", type: "Homework",   dueDate: "15 Apr 2026", submissions: "2/3", marked: "2/2", status: "Partial",  linkedSessionId: "s008", assignTo: "class" },
+  { id: "AS-003", assignment: "Quadratics Quiz",            subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   teacherId: "ST-003", type: "Classwork",  dueDate: "10 Apr 2026", submissions: "3/3", marked: "3/3", status: "Complete",                          assignTo: "class" },
+  { id: "AS-004", assignment: "Physics Problem Set 4",      subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", type: "Homework",   dueDate: "20 Apr 2026", submissions: "1/2", marked: "0/1", status: "Overdue",  linkedSessionId: "s006", assignTo: "class" },
+  { id: "AS-005", assignment: "Y9 Maths Chapter Test",      subject: "Y9 Maths",    teacher: "Mr Tariq Al-Amin",  teacherId: "ST-005", type: "Test",       dueDate: "22 Apr 2026", submissions: "0/2", marked: "0/0", status: "Upcoming",                          assignTo: "class" },
+  { id: "AS-006", assignment: "Reading Comprehension",      subject: "Y8 English",  teacher: "Ms Sarah Mitchell", teacherId: "ST-004", type: "Classwork",  dueDate: "5 Apr 2026",  submissions: "3/3", marked: "3/3", status: "Complete",                          assignTo: "class" },
+  { id: "AS-007", assignment: "Y12 Mechanics Paper 1",      subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  teacherId: "ST-007", type: "Past Paper", dueDate: "16 Apr 2026", submissions: "1/1", marked: "1/1", status: "Complete", linkedSessionId: "s003", assignTo: "class" },
+  { id: "AS-008", assignment: "Y3 Spelling Test",           subject: "Y3 English",  teacher: "Ms Sarah Mitchell", teacherId: "ST-004", type: "Classwork",  dueDate: "14 Apr 2026", submissions: "1/1", marked: "1/1", status: "Complete",                          assignTo: "class" },
+];
+
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
@@ -1631,6 +1663,7 @@ export interface Task {
   overdue: boolean;
   sourceLeadId?: string;
   sourceLeadName?: string;
+  linkedAssignmentId?: string;
 }
 
 export const tasks: Task[] = [
@@ -1656,6 +1689,9 @@ export const tasks: Task[] = [
   { id: "TK-020", title: "Archive inactive leads — Q1 batch", type: "Admin", priority: "Low", status: "Done", assignee: "Jason Daswani", dueDate: "1 Apr 2026", linkedRecord: null, description: "Archived 14 leads inactive for 90+ days.", subtasks: ["Generate list", "Archive with reason"], overdue: false },
   { id: "TK-021", title: "Send Y7 Maths starter pack to Bilal's guardian", type: "Student Follow-up", priority: "Medium", status: "Open", assignee: "Jason Daswani", dueDate: "18 Apr 2026", linkedRecord: null, description: "Created from lead chat. Guardian asked for a Y7 Maths starter pack with sample exercises before Saturday's assessment.", subtasks: ["Compile starter pack", "Email guardian"], overdue: false, sourceLeadId: "L-0041", sourceLeadName: "Bilal Mahmood" },
   { id: "TK-022", title: "Confirm Tues 17:00 trial slot for Saif", type: "Student Follow-up", priority: "High", status: "In Progress", assignee: "Jason Daswani", dueDate: "17 Apr 2026", linkedRecord: null, description: "Created from lead chat. Confirm Tariq Al Nasser's Tues 17:00 availability for Saif's Y9 Science trial.", subtasks: ["Check Tariq's diary", "Message guardian"], overdue: false, sourceLeadId: "L-0045", sourceLeadName: "Saif Al-Nuaimi" },
+  { id: "TK-023", title: "Mark: Algebra Practice Test",      type: "Academic", priority: "Medium", status: "Done", assignee: "Mr Ahmed Khalil",   dueDate: "20 Apr 2026", linkedRecord: null, description: "Mark student submissions for \"Algebra Practice Test\" — Y8 Maths.",    subtasks: ["Review submissions", "Enter grades", "Return feedback"], overdue: false, linkedAssignmentId: "AS-001" },
+  { id: "TK-024", title: "Mark: Essay — Persuasive Writing", type: "Academic", priority: "Medium", status: "Open", assignee: "Ms Sarah Mitchell", dueDate: "17 Apr 2026", linkedRecord: null, description: "Mark student submissions for \"Essay — Persuasive Writing\" — Y8 English.", subtasks: ["Review submissions", "Enter grades", "Return feedback"], overdue: true,  linkedAssignmentId: "AS-002" },
+  { id: "TK-025", title: "Mark: Physics Problem Set 4",      type: "Academic", priority: "Medium", status: "Open", assignee: "Mr Faris Al-Amin",  dueDate: "22 Apr 2026", linkedRecord: null, description: "Mark student submissions for \"Physics Problem Set 4\" — Y10 Physics.", subtasks: ["Review submissions", "Enter grades", "Return feedback"], overdue: false, linkedAssignmentId: "AS-004" },
 ];
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────
