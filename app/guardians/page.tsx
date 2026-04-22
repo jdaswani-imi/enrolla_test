@@ -24,6 +24,9 @@ import { ExportDialog } from "@/components/ui/export-dialog";
 import { guardians as seedGuardians, type Guardian } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { DateRangePicker, type DateRange, type PresetItem } from "@/components/ui/date-range-picker";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +35,121 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STATUS_OPTIONS          = ["Active", "Inactive"];
+const LINKED_STUDENTS_OPTIONS = ["Has 1 student", "Has 2 students", "Has 3+ students", "No linked students"];
+const DEPT_OPTIONS            = ["Primary", "Lower Secondary", "Senior", "Mixed"];
+const COMM_PREF_OPTIONS       = ["WhatsApp", "Email", "Both", "None set"];
+
+const DEPT_MAP: Record<string, string> = {
+  "Primary":         "primary",
+  "Lower Secondary": "lower-secondary",
+  "Senior":          "senior",
+  "Mixed":           "mixed",
+};
+
+const COMM_MAP: Record<string, string> = {
+  "WhatsApp": "whatsapp",
+  "Email":    "email",
+  "Both":     "both",
+  "None set": "none",
+};
+
+function matchLinkedStudents(count: number, selected: string[]): boolean {
+  if (selected.length === 0) return true;
+  return selected.some((opt) => {
+    if (opt === "No linked students") return count === 0;
+    if (opt === "Has 1 student")      return count === 1;
+    if (opt === "Has 2 students")     return count === 2;
+    if (opt === "Has 3+ students")    return count >= 3;
+    return false;
+  });
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function inDateRange(iso: string, range: DateRange): boolean {
+  if (!range.from && !range.to) return true;
+  const d = new Date(iso);
+  if (range.from) {
+    const from = new Date(range.from);
+    from.setHours(0, 0, 0, 0);
+    if (d < from) return false;
+  }
+  if (range.to) {
+    const to = new Date(range.to);
+    to.setHours(23, 59, 59, 999);
+    if (d > to) return false;
+  }
+  return true;
+}
+
+function formatISODate(iso: string): string {
+  const d = new Date(iso);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function formatDateChip(range: DateRange): string | null {
+  if (!range.from && !range.to) return null;
+  const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (range.from && range.to) return `${fmt(range.from)} – ${fmt(range.to)}`;
+  if (range.from) return `From ${fmt(range.from)}`;
+  return null;
+}
+
+function getTermRange(now: Date, offset: 0 | -1): DateRange {
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  let from: Date, to: Date;
+
+  if (offset === 0) {
+    if (month >= 9)      { from = new Date(year, 8, 1);  to = new Date(year, 11, 31); }
+    else if (month <= 4) { from = new Date(year, 0, 1);  to = new Date(year, 3, 30); }
+    else                 { from = new Date(year, 4, 1);  to = new Date(year, 7, 31); }
+  } else {
+    if (month >= 9)      { from = new Date(year, 4, 1);      to = new Date(year, 7, 31); }
+    else if (month <= 4) { from = new Date(year - 1, 8, 1);  to = new Date(year - 1, 11, 31); }
+    else                 { from = new Date(year, 0, 1);      to = new Date(year, 3, 30); }
+  }
+
+  return { from, to };
+}
+
+function getAcademicYearRange(now: Date, offset: 0 | -1): DateRange {
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const startYear = (month >= 9 ? year : year - 1) + offset;
+  return { from: new Date(startYear, 8, 1), to: new Date(startYear + 1, 7, 31) };
+}
+
+function buildAddedOnPresets(): PresetItem[] {
+  return [
+    { label: "Today",      getValue: () => { const d = new Date(); return { from: d, to: d }; } },
+    { label: "Yesterday",  getValue: () => { const d = new Date(); d.setDate(d.getDate() - 1); return { from: d, to: d }; } },
+    { label: "This Week",  getValue: () => {
+      const now = new Date();
+      const mon = new Date(now);
+      mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      mon.setHours(0, 0, 0, 0);
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      return { from: mon, to: sun };
+    }},
+    { label: "Last 7 Days",  getValue: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 6); return { from, to }; } },
+    { label: "Last Month",   getValue: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 0) }; } },
+    { label: "Last 30 Days", getValue: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate() - 29); return { from, to }; } },
+    { label: "This Term",          getValue: () => getTermRange(new Date(), 0) },
+    { label: "Last Term",          getValue: () => getTermRange(new Date(), -1) },
+    { label: "This Academic Year", getValue: () => getAcademicYearRange(new Date(), 0) },
+    { label: "Last Academic Year", getValue: () => getAcademicYearRange(new Date(), -1) },
+    { label: "All Time",           getValue: () => ({ from: null, to: null }) },
+    { separator: true } as const,
+    { label: "Custom Range", getValue: () => ({ from: null, to: null }), keepOpen: true },
+  ];
+}
 
 // ─── Avatar palette ───────────────────────────────────────────────────────────
 
@@ -60,9 +178,29 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: Guardian["status"] }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+        status === "active"
+          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+          : "bg-slate-100 text-slate-500 border-slate-200"
+      )}
+    >
+      {status === "active" ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
 // ─── Family chips ─────────────────────────────────────────────────────────────
 
 function FamilyChips({ students }: { students: Guardian["students"] }) {
+  if (students.length === 0) {
+    return <span className="text-xs text-slate-400 italic">None</span>;
+  }
   return (
     <div className="flex items-center">
       {students.map((student, index) => {
@@ -83,11 +221,9 @@ function FamilyChips({ students }: { students: Guardian["students"] }) {
           </div>
         );
       })}
-      {students.length > 1 && (
-        <span className="ml-2 text-xs text-slate-400">
-          {students.length} students
-        </span>
-      )}
+      <span className="ml-2 text-xs text-slate-400">
+        {students.length === 1 ? "1 student" : `${students.length} students`}
+      </span>
     </div>
   );
 }
@@ -129,11 +265,11 @@ function RowActions({
   }, [isOpen, onClose]);
 
   const actions = [
-    { icon: Eye,          label: "View Profile",  onClick: onView,         danger: false, show: true },
-    { icon: UserPlus2,    label: "Add Student",   onClick: onAddStudent,   danger: false, show: can('students.create') },
-    { icon: MessageSquare,label: "Send Message",  onClick: onSendMessage,  danger: false, show: true },
-    { icon: Archive,      label: "Archive",       onClick: onArchive,      danger: true,  show: can('guardians.edit') },
-    { icon: Trash2,       label: "Delete",        onClick: onDelete,       danger: true,  show: can('delete.records') },
+    { icon: Eye,           label: "View Profile",  onClick: onView,        danger: false, show: true },
+    { icon: UserPlus2,     label: "Add Student",   onClick: onAddStudent,  danger: false, show: can('students.create') },
+    { icon: MessageSquare, label: "Send Message",  onClick: onSendMessage, danger: false, show: true },
+    { icon: Archive,       label: "Archive",       onClick: onArchive,     danger: true,  show: can('guardians.edit') },
+    { icon: Trash2,        label: "Delete",        onClick: onDelete,      danger: true,  show: can('delete.records') },
   ].filter(a => a.show);
 
   void guardian;
@@ -181,26 +317,91 @@ function RowActions({
   );
 }
 
+// ─── Active filter chip ───────────────────────────────────────────────────────
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-medium border border-amber-200">
+      {label}
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={`Clear ${label} filter`}
+        className="flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-amber-300 transition-colors cursor-pointer"
+      >
+        <X className="w-2.5 h-2.5" />
+      </button>
+    </span>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function GuardiansPage() {
   const { can } = usePermission();
   const router = useRouter();
-  const [exportOpen,     setExportOpen]     = useState(false);
-  const [searchQuery,    setSearchQuery]    = useState("");
-  const [searchExpanded, setSearchExpanded] = useState(false);
-  const [bulkSelect,     setBulkSelect]     = useState(false);
-  const [selectedIds,    setSelectedIds]    = useState<Set<string>>(new Set());
-  const [openMenuId,     setOpenMenuId]     = useState<string | null>(null);
-  const [currentPage,    setCurrentPage]    = useState(1);
-  const [rowsPerPage,    setRowsPerPage]    = useState(20);
-  const [removedIds,     setRemovedIds]     = useState<Set<string>>(new Set());
-  const [toast,          setToast]          = useState<{ msg: string; tone: "default" | "success" | "warning" } | null>(null);
-  const [archiveTarget,  setArchiveTarget]  = useState<Guardian | null>(null);
-  const [deleteTarget,   setDeleteTarget]   = useState<Guardian | null>(null);
+
+  const [exportOpen,       setExportOpen]       = useState(false);
+  const [searchQuery,      setSearchQuery]      = useState("");
+  const [searchExpanded,   setSearchExpanded]   = useState(false);
+  const [bulkSelect,       setBulkSelect]       = useState(false);
+  const [selectedIds,      setSelectedIds]      = useState<Set<string>>(new Set());
+  const [openMenuId,       setOpenMenuId]       = useState<string | null>(null);
+  const [currentPage,      setCurrentPage]      = useState(1);
+  const [rowsPerPage,      setRowsPerPage]      = useState(20);
+  const [removedIds,       setRemovedIds]       = useState<Set<string>>(new Set());
+  const [toast,            setToast]            = useState<{ msg: string; tone: "default" | "success" | "warning" } | null>(null);
+  const [archiveTarget,    setArchiveTarget]    = useState<Guardian | null>(null);
+  const [deleteTarget,     setDeleteTarget]     = useState<Guardian | null>(null);
   const [addStudentTarget, setAddStudentTarget] = useState<Guardian | null>(null);
 
-  useEffect(() => { setCurrentPage(1); }, [searchQuery]);
+  // Filters
+  const [statusFilter,          setStatusFilter]          = useState<string[]>([]);
+  const [linkedStudentsFilter,  setLinkedStudentsFilter]  = useState<string[]>([]);
+  const [deptFilter,            setDeptFilter]            = useState<string[]>([]);
+  const [commPrefFilter,        setCommPrefFilter]        = useState<string[]>([]);
+  const [dateFilter,            setDateFilter]            = useState<DateRange>({ from: null, to: null });
+
+  // Sort
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir,   setSortDir]   = useState<"asc" | "desc">("asc");
+
+  const addedOnPresets = useMemo(() => buildAddedOnPresets(), []);
+
+  const isAnyFilterActive =
+    statusFilter.length > 0 ||
+    linkedStudentsFilter.length > 0 ||
+    deptFilter.length > 0 ||
+    commPrefFilter.length > 0 ||
+    !!(dateFilter.from || dateFilter.to);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, linkedStudentsFilter, deptFilter, commPrefFilter, dateFilter, searchQuery]);
+
+  function clearFilters() {
+    setStatusFilter([]);
+    setLinkedStudentsFilter([]);
+    setDeptFilter([]);
+    setCommPrefFilter([]);
+    setDateFilter({ from: null, to: null });
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
+
+  function clearSearch() {
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
+
+  function toggleSort(field: string) {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  }
 
   function fireToast(msg: string, tone: "default" | "success" | "warning" = "default") {
     setToast({ msg, tone });
@@ -212,21 +413,63 @@ export default function GuardiansPage() {
     [removedIds],
   );
 
-  function clearSearch() {
-    setSearchQuery("");
-    setCurrentPage(1);
-  }
-
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return visibleGuardians;
-    const q = searchQuery.toLowerCase();
-    return visibleGuardians.filter((g) =>
-      g.name.toLowerCase().includes(q) ||
-      g.email.toLowerCase().includes(q) ||
-      g.phone.includes(q) ||
-      g.students.some((s) => s.name.toLowerCase().includes(q))
-    );
-  }, [searchQuery, visibleGuardians]);
+    let data = visibleGuardians.filter((g) => {
+      // Status
+      if (statusFilter.length > 0) {
+        const statusVal = statusFilter.map(s => s.toLowerCase());
+        if (!statusVal.includes(g.status)) return false;
+      }
+
+      // Linked students count
+      if (!matchLinkedStudents(g.students.length, linkedStudentsFilter)) return false;
+
+      // Department
+      if (deptFilter.length > 0) {
+        if (!deptFilter.some(d => DEPT_MAP[d] === g.department)) return false;
+      }
+
+      // Communication preference
+      if (commPrefFilter.length > 0) {
+        if (!commPrefFilter.some(p => COMM_MAP[p] === g.communicationPreference)) return false;
+      }
+
+      // Added On date
+      if ((dateFilter.from || dateFilter.to) && !inDateRange(g.createdOn, dateFilter)) return false;
+
+      // Search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (
+          !g.name.toLowerCase().includes(q) &&
+          !g.email.toLowerCase().includes(q) &&
+          !g.phone.includes(q) &&
+          !g.students.some((s) => s.name.toLowerCase().includes(q))
+        ) return false;
+      }
+
+      return true;
+    });
+
+    if (sortField) {
+      data = [...data].sort((a, b) => {
+        let av: unknown, bv: unknown;
+        if (sortField === "studentsCount") {
+          av = a.students.length;
+          bv = b.students.length;
+        } else {
+          av = (a as unknown as Record<string, unknown>)[sortField];
+          bv = (b as unknown as Record<string, unknown>)[sortField];
+        }
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+
+    return data;
+  }, [visibleGuardians, statusFilter, linkedStudentsFilter, deptFilter, commPrefFilter, dateFilter, searchQuery, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -251,6 +494,13 @@ export default function GuardiansPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }
+
+  // Build chip labels for active filters
+  function chipLabel(filterName: string, values: string[]): string {
+    if (values.length === 1) return `${filterName}: ${values[0]}`;
+    if (values.length === 2) return `${filterName}: ${values[0]}, ${values[1]}`;
+    return `${filterName}: ${values[0]} +${values.length - 1}`;
   }
 
   if (!can('guardians.view')) return <AccessDenied />;
@@ -299,61 +549,140 @@ export default function GuardiansPage() {
       />
 
       {/* ── Filter & search bar ──────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Search — always visible on left */}
-        <div
-          className="relative flex items-center border border-slate-200 bg-white rounded-md transition-all duration-200"
-          style={{ width: searchExpanded || searchQuery ? "16rem" : "2rem" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSearchExpanded(true)}
-            aria-label="Search guardians"
-            className="absolute left-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer z-10"
-          >
-            <Search className="w-3.5 h-3.5" />
-          </button>
-          <input
-            type="text"
-            placeholder="Search guardian..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setSearchExpanded(true)}
-            onBlur={() => { if (!searchQuery) setSearchExpanded(false); }}
-            className={cn(
-              "w-full pl-7 pr-7 py-1.5 text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400 transition-opacity",
-              !searchExpanded && !searchQuery ? "opacity-0 pointer-events-none" : "opacity-100"
-            )}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {/* Left — filter dropdowns */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <MultiSelectFilter
+            label="Status"
+            options={STATUS_OPTIONS}
+            selected={statusFilter}
+            onChange={setStatusFilter}
           />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              aria-label="Clear search"
-              className="absolute right-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <MultiSelectFilter
+            label="Linked Students"
+            options={LINKED_STUDENTS_OPTIONS}
+            selected={linkedStudentsFilter}
+            onChange={setLinkedStudentsFilter}
+          />
+          <MultiSelectFilter
+            label="Department"
+            options={DEPT_OPTIONS}
+            selected={deptFilter}
+            onChange={setDeptFilter}
+          />
+          <MultiSelectFilter
+            label="Comm. Preference"
+            options={COMM_PREF_OPTIONS}
+            selected={commPrefFilter}
+            onChange={setCommPrefFilter}
+          />
+          <DateRangePicker
+            value={dateFilter}
+            onChange={(r) => { setDateFilter(r); setCurrentPage(1); }}
+            presets={addedOnPresets}
+            placeholder="Added On"
+            twoMonth
+          />
         </div>
 
-        {/* Bulk select toggle */}
-        <button
-          type="button"
-          onClick={() => {
-            setBulkSelect((v) => !v);
-            if (bulkSelect) setSelectedIds(new Set());
-          }}
-          className={cn(
-            "px-3 py-1.5 rounded-md border text-sm font-medium transition-colors cursor-pointer",
-            bulkSelect
-              ? "border-amber-400 bg-amber-50 text-amber-700"
-              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800"
-          )}
-        >
-          Bulk select
-        </button>
+        {/* Right — search + bulk select */}
+        <div className="flex items-center gap-2">
+          <div
+            className="relative flex items-center border border-slate-200 bg-white rounded-md transition-all duration-200"
+            style={{ width: searchExpanded || searchQuery ? "16rem" : "2rem" }}
+          >
+            <button
+              type="button"
+              onClick={() => setSearchExpanded(true)}
+              aria-label="Search guardians"
+              className="absolute left-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer z-10"
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
+            <input
+              type="text"
+              placeholder="Search guardian..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchExpanded(true)}
+              onBlur={() => { if (!searchQuery) setSearchExpanded(false); }}
+              className={cn(
+                "w-full pl-7 pr-7 py-1.5 text-sm bg-transparent outline-none text-slate-700 placeholder:text-slate-400 transition-opacity",
+                !searchExpanded && !searchQuery ? "opacity-0 pointer-events-none" : "opacity-100"
+              )}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                className="absolute right-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setBulkSelect((v) => !v);
+              if (bulkSelect) setSelectedIds(new Set());
+            }}
+            className={cn(
+              "px-3 py-1.5 rounded-md border text-sm font-medium transition-colors cursor-pointer whitespace-nowrap",
+              bulkSelect
+                ? "border-amber-400 bg-amber-50 text-amber-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800"
+            )}
+          >
+            Bulk select
+          </button>
+        </div>
       </div>
+
+      {/* ── Active filter chips ──────────────────────────────────────────────── */}
+      {isAnyFilterActive && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {statusFilter.length > 0 && (
+            <FilterChip
+              label={chipLabel("Status", statusFilter)}
+              onClear={() => setStatusFilter([])}
+            />
+          )}
+          {linkedStudentsFilter.length > 0 && (
+            <FilterChip
+              label={chipLabel("Linked Students", linkedStudentsFilter)}
+              onClear={() => setLinkedStudentsFilter([])}
+            />
+          )}
+          {deptFilter.length > 0 && (
+            <FilterChip
+              label={chipLabel("Department", deptFilter)}
+              onClear={() => setDeptFilter([])}
+            />
+          )}
+          {commPrefFilter.length > 0 && (
+            <FilterChip
+              label={chipLabel("Comm. Preference", commPrefFilter)}
+              onClear={() => setCommPrefFilter([])}
+            />
+          )}
+          {(dateFilter.from || dateFilter.to) && (
+            <FilterChip
+              label={`Added On: ${formatDateChip(dateFilter)}`}
+              onClear={() => setDateFilter({ from: null, to: null })}
+            />
+          )}
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors cursor-pointer ml-1"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       {/* ── Bulk actions bar ─────────────────────────────────────────────────── */}
       {someSelected && (
@@ -391,10 +720,12 @@ export default function GuardiansPage() {
                     />
                   </th>
                 )}
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Name</th>
+                <SortableHeader label="Guardian Name"   field="name"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Status</th>
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Email</th>
                 <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Phone</th>
-                <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-3 py-3 whitespace-nowrap">Family</th>
+                <SortableHeader label="Linked Students" field="studentsCount"  sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Added On"        field="createdOn"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                 <th className="w-12 px-3 py-3" />
               </tr>
             </thead>
@@ -402,12 +733,12 @@ export default function GuardiansPage() {
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={bulkSelect ? 6 : 5}>
+                  <td colSpan={bulkSelect ? 8 : 7}>
                     <EmptyState
                       icon={Users}
                       title="No guardians found"
-                      description="No guardians match your search. Try a different query."
-                      action={{ label: "Clear search", onClick: clearSearch }}
+                      description="No guardians match your current filters. Try adjusting or clearing them."
+                      action={{ label: "Clear filters", onClick: clearFilters }}
                     />
                   </td>
                 </tr>
@@ -465,6 +796,11 @@ export default function GuardiansPage() {
                         </div>
                       </td>
 
+                      {/* Status */}
+                      <td className="px-3 py-0">
+                        <StatusBadge status={guardian.status} />
+                      </td>
+
                       {/* Email */}
                       <td className="px-3 py-0 max-w-[200px]">
                         <span className="text-slate-500 text-sm truncate block">
@@ -479,9 +815,16 @@ export default function GuardiansPage() {
                         </span>
                       </td>
 
-                      {/* Family */}
+                      {/* Linked Students */}
                       <td className="px-3 py-0">
                         <FamilyChips students={guardian.students} />
+                      </td>
+
+                      {/* Added On */}
+                      <td className="px-3 py-0">
+                        <span className="text-slate-400 text-xs whitespace-nowrap">
+                          {formatISODate(guardian.createdOn)}
+                        </span>
                       </td>
 
                       {/* Actions */}

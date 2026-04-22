@@ -70,27 +70,36 @@ export interface GuardianStudent {
   initials: string;
 }
 
+export type GuardianStatus = 'active' | 'inactive';
+export type GuardianDepartment = 'primary' | 'lower-secondary' | 'senior' | 'mixed';
+export type CommunicationPreference = 'whatsapp' | 'email' | 'both' | 'none';
+
 export interface Guardian {
   id: string;
   name: string;
   email: string;
   phone: string;
   students: GuardianStudent[];
+  status: GuardianStatus;
+  linkedStudents: string[];
+  communicationPreference: CommunicationPreference;
+  createdOn: string;
+  department: GuardianDepartment;
 }
 
 export const guardians: Guardian[] = [
-  { id: "G-001", name: "Fatima Rahman",      email: "fatima.rahman@gmail.com",      phone: "+971 50 123 4567", students: [{ id: "IMI-0001", name: "Aisha Rahman",     initials: "AR" }] },
-  { id: "G-002", name: "Khalid Al-Farsi",    email: "khalid.alfarsi@gmail.com",     phone: "+971 55 234 5678", students: [{ id: "IMI-0002", name: "Omar Al-Farsi",    initials: "OA" }] },
-  { id: "G-003", name: "Nadia Hassan",       email: "nadia.hassan@gmail.com",       phone: "+971 52 345 6789", students: [{ id: "IMI-0003", name: "Layla Hassan",     initials: "LH" }] },
-  { id: "G-004", name: "Rami Khalil",        email: "rami.khalil@gmail.com",        phone: "+971 50 456 7890", students: [{ id: "IMI-0004", name: "Ziad Khalil",      initials: "ZK" }] },
-  { id: "G-005", name: "Hessa Nasser",       email: "hessa.nasser@gmail.com",       phone: "+971 55 567 8901", students: [{ id: "IMI-0005", name: "Sara Nasser",      initials: "SN" }] },
-  { id: "G-006", name: "Maryam Al-Dosari",   email: "maryam.aldosari@gmail.com",    phone: "+971 52 678 9012", students: [{ id: "IMI-0006", name: "Reem Al-Dosari",   initials: "RA" }] },
-  { id: "G-007", name: "Tariq Qasim",        email: "tariq.qasim@gmail.com",        phone: "+971 50 789 0123", students: [{ id: "IMI-0007", name: "Faris Qasim",      initials: "FQ" }] },
-  { id: "G-008", name: "Leila Ibrahim",      email: "leila.ibrahim@gmail.com",      phone: "+971 55 890 1234", students: [{ id: "IMI-0008", name: "Nour Ibrahim",     initials: "NI" }] },
-  { id: "G-009", name: "Shaikha Al-Maktoum", email: "shaikha.almaktoum@gmail.com",  phone: "+971 52 901 2345", students: [{ id: "IMI-0009", name: "Hamdan Al-Maktoum", initials: "HA" }] },
-  { id: "G-010", name: "Saeed Al-Zaabi",     email: "saeed.alzaabi@gmail.com",      phone: "+971 50 012 3456", students: [{ id: "IMI-0012", name: "Dana Al-Zaabi",    initials: "DZ" }, { id: "IMI-0004", name: "Ziad Khalil", initials: "ZK" }] },
-  { id: "G-011", name: "Amal Mansoor",       email: "amal.mansoor@gmail.com",       phone: "+971 55 111 2233", students: [{ id: "IMI-0011", name: "Khalid Mansoor",   initials: "KM" }] },
-  { id: "G-012", name: "Elias Khouri",       email: "elias.khouri@gmail.com",       phone: "+971 55 100 2020", students: [{ id: "IMI-0020", name: "Raya Khouri",      initials: "RK" }, { id: "IMI-0015", name: "Adam Benali", initials: "AB" }] },
+  { id: "G-001", name: "Fatima Rahman",      email: "fatima.rahman@gmail.com",      phone: "+971 50 123 4567", students: [{ id: "IMI-0001", name: "Aisha Rahman",      initials: "AR" }], status: "active",   linkedStudents: ["IMI-0001"],             communicationPreference: "whatsapp", createdOn: "2022-09-12", department: "lower-secondary" },
+  { id: "G-002", name: "Khalid Al-Farsi",    email: "khalid.alfarsi@gmail.com",     phone: "+971 55 234 5678", students: [{ id: "IMI-0002", name: "Omar Al-Farsi",     initials: "OA" }], status: "active",   linkedStudents: ["IMI-0002"],             communicationPreference: "email",    createdOn: "2023-03-03", department: "primary"         },
+  { id: "G-003", name: "Nadia Hassan",       email: "nadia.hassan@gmail.com",       phone: "+971 52 345 6789", students: [{ id: "IMI-0003", name: "Layla Hassan",      initials: "LH" }], status: "active",   linkedStudents: ["IMI-0003"],             communicationPreference: "both",     createdOn: "2021-09-01", department: "senior"          },
+  { id: "G-004", name: "Rami Khalil",        email: "rami.khalil@gmail.com",        phone: "+971 50 456 7890", students: [{ id: "IMI-0004", name: "Ziad Khalil",       initials: "ZK" }], status: "active",   linkedStudents: ["IMI-0004"],             communicationPreference: "whatsapp", createdOn: "2023-01-15", department: "primary"         },
+  { id: "G-005", name: "Hessa Nasser",       email: "hessa.nasser@gmail.com",       phone: "+971 55 567 8901", students: [{ id: "IMI-0005", name: "Sara Nasser",       initials: "SN" }], status: "active",   linkedStudents: ["IMI-0005"],             communicationPreference: "email",    createdOn: "2023-04-08", department: "lower-secondary" },
+  { id: "G-006", name: "Maryam Al-Dosari",   email: "maryam.aldosari@gmail.com",    phone: "+971 52 678 9012", students: [{ id: "IMI-0006", name: "Reem Al-Dosari",    initials: "RA" }], status: "inactive", linkedStudents: ["IMI-0006"],             communicationPreference: "none",     createdOn: "2022-08-20", department: "primary"         },
+  { id: "G-007", name: "Tariq Qasim",        email: "tariq.qasim@gmail.com",        phone: "+971 50 789 0123", students: [{ id: "IMI-0007", name: "Faris Qasim",       initials: "FQ" }], status: "active",   linkedStudents: ["IMI-0007"],             communicationPreference: "whatsapp", createdOn: "2022-09-05", department: "senior"          },
+  { id: "G-008", name: "Leila Ibrahim",      email: "leila.ibrahim@gmail.com",      phone: "+971 55 890 1234", students: [{ id: "IMI-0008", name: "Nour Ibrahim",      initials: "NI" }], status: "inactive", linkedStudents: ["IMI-0008"],             communicationPreference: "email",    createdOn: "2023-11-10", department: "primary"         },
+  { id: "G-009", name: "Shaikha Al-Maktoum", email: "shaikha.almaktoum@gmail.com",  phone: "+971 52 901 2345", students: [{ id: "IMI-0009", name: "Hamdan Al-Maktoum", initials: "HA" }], status: "active",   linkedStudents: ["IMI-0009"],             communicationPreference: "both",     createdOn: "2023-09-01", department: "lower-secondary" },
+  { id: "G-010", name: "Saeed Al-Zaabi",     email: "saeed.alzaabi@gmail.com",      phone: "+971 50 012 3456", students: [{ id: "IMI-0012", name: "Dana Al-Zaabi",     initials: "DZ" }, { id: "IMI-0004", name: "Ziad Khalil",  initials: "ZK" }], status: "active",   linkedStudents: ["IMI-0012", "IMI-0004"], communicationPreference: "whatsapp", createdOn: "2024-09-03", department: "primary"         },
+  { id: "G-011", name: "Amal Mansoor",       email: "amal.mansoor@gmail.com",       phone: "+971 55 111 2233", students: [{ id: "IMI-0011", name: "Khalid Mansoor",    initials: "KM" }], status: "active",   linkedStudents: ["IMI-0011"],             communicationPreference: "email",    createdOn: "2020-09-01", department: "senior"          },
+  { id: "G-012", name: "Elias Khouri",       email: "elias.khouri@gmail.com",       phone: "+971 55 100 2020", students: [{ id: "IMI-0020", name: "Raya Khouri",       initials: "RK" }, { id: "IMI-0015", name: "Adam Benali", initials: "AB" }], status: "active",   linkedStudents: ["IMI-0020", "IMI-0015"], communicationPreference: "both",     createdOn: "2023-09-05", department: "mixed"           },
 ];
 
 // ─── KPI Cards ────────────────────────────────────────────────────────────────
