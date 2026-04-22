@@ -150,7 +150,11 @@ function AttendancePageContent() {
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState("s001");
   const [completed, setCompleted]   = useState<Set<string>>(new Set());
-  const [attendance, setAttState]   = useState<Record<string, Record<string, AttendanceStatus>>>({});
+  const [attendance, setAttState]   = useState<Record<string, Record<string, AttendanceStatus>>>({
+    // s002 (Y4 English) pre-seeded: all students marked → demonstrates enabled Save button
+    s002: { "Nour Ibrahim": "Present", "Dana Al-Zaabi": "Late" },
+    // s001 (Y8 Maths) intentionally empty → demonstrates blocked Save button
+  });
   const [notes, setNotes]           = useState<Record<string, string>>({});
   const [openNote, setOpenNote]     = useState<string | null>(null);
   const [openMenu, setOpenMenu]     = useState<string | null>(null);
@@ -220,6 +224,19 @@ function AttendancePageContent() {
         return false;
       });
     }
+    if (filterDateRange.from || filterDateRange.to) {
+      const year = new Date().getFullYear();
+      result = result.filter(s => {
+        const d = new Date(`${s.date} ${year}`);
+        if (isNaN(d.getTime())) return true;
+        if (filterDateRange.from && d < filterDateRange.from) return false;
+        if (filterDateRange.to) {
+          const to = new Date(filterDateRange.to); to.setHours(23, 59, 59, 999);
+          if (d > to) return false;
+        }
+        return true;
+      });
+    }
     return result;
   }
 
@@ -278,6 +295,10 @@ function AttendancePageContent() {
     : roleTodaySessions;
 
   const selectedSession = todaySessions.find(s => s.id === selectedId) ?? todaySessions[0];
+
+  const hasUnmarkedStudents = selectedSession
+    ? selectedSession.students.some(s => getStudentStatus(selectedSession.id, s) === "Unmarked")
+    : false;
 
   const roleUnmarked = unmarkedSessions.filter(u => {
     if (role === 'Teacher') return u.teacherId === currentStaffId;
@@ -425,15 +446,13 @@ function AttendancePageContent() {
             onChange={setFilterTeachers}
           />
 
-          {/* Date range — shown on Overview tab only */}
-          {mainTab === 'overview' && (
-            <DateRangePicker
-              value={filterDateRange}
-              onChange={setFilterDateRange}
-              presets={DATE_PRESETS}
-              placeholder="Session date"
-            />
-          )}
+          {/* Date range */}
+          <DateRangePicker
+            value={filterDateRange}
+            onChange={setFilterDateRange}
+            presets={DATE_PRESETS}
+            placeholder="Session date"
+          />
 
           {/* Status filter — shown on Register tab */}
           {mainTab === 'register' && (
@@ -701,27 +720,45 @@ function AttendancePageContent() {
                   </div>
                 )}
 
-                {/* 48-hour warning banner */}
+                {/* Banners + Save — only when session is active and has students */}
                 {!completed.has(selectedSession.id) && !selectedSession.attendanceMarked && selectedSession.students.length > 0 && (
-                  <div className="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-700">
-                      Attendance must be marked within 48 working hours. Session closes{" "}
-                      <span className="font-semibold">
-                        Wed 23 Apr at {selectedSession.startTime}
-                      </span>.
-                    </p>
-                  </div>
-                )}
+                  <>
+                    {/* Unmarked-students warning — replaces/sits above the 48-hr banner */}
+                    {hasUnmarkedStudents && (
+                      <div className="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-sm text-amber-700">
+                          <span className="font-semibold">Attendance cannot be confirmed while students are unmarked.</span>{" "}
+                          Mark all students before saving.
+                        </p>
+                      </div>
+                    )}
 
-                {/* Save & Confirm */}
-                {!completed.has(selectedSession.id) && !selectedSession.attendanceMarked && selectedSession.students.length > 0 && (
-                  <button
-                    onClick={() => confirmSession(selectedSession.id)}
-                    className="mt-4 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-colors cursor-pointer text-sm"
-                  >
-                    Save &amp; Confirm Attendance
-                  </button>
+                    {/* 48-hour deadline banner */}
+                    <div className={cn("flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3", hasUnmarkedStudents ? "mt-2" : "mt-4")}>
+                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-700">
+                        Attendance must be marked within 48 working hours. Session closes{" "}
+                        <span className="font-semibold">
+                          Wed 23 Apr at {selectedSession.startTime}
+                        </span>.
+                      </p>
+                    </div>
+
+                    {/* Save & Confirm — disabled until all students are marked */}
+                    <button
+                      onClick={() => confirmSession(selectedSession.id)}
+                      disabled={hasUnmarkedStudents}
+                      className={cn(
+                        "mt-4 w-full py-3 text-white font-semibold rounded-xl transition-colors text-sm",
+                        hasUnmarkedStudents
+                          ? "bg-amber-500 opacity-50 cursor-not-allowed"
+                          : "bg-amber-500 hover:bg-amber-600 cursor-pointer"
+                      )}
+                    >
+                      Save &amp; Confirm Attendance
+                    </button>
+                  </>
                 )}
 
                 {/* Confirmed banner */}

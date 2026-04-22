@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
+import { DateRangePicker, DATE_PRESETS, type DateRange } from '@/components/ui/date-range-picker';
 import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -2000,6 +2001,7 @@ function ExecutionLogTab() {
   const [search, setSearch] = useState('');
   const [statusSel, setStatusSel] = useState<string[]>([]);
   const [triggerSel, setTriggerSel] = useState<string[]>([]);
+  const [executedAtRange, setExecutedAtRange] = useState<DateRange>({ from: null, to: null });
   const [selectedLog, setSelectedLog] = useState<ExecutionLog | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
 
@@ -2007,8 +2009,17 @@ function ExecutionLogTab() {
     if (search && !l.rule.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusSel.length > 0 && !statusSel.includes(l.status)) return false;
     if (triggerSel.length > 0 && !triggerSel.includes(l.triggerType)) return false;
+    if (executedAtRange.from || executedAtRange.to) {
+      const d = l.executedAt ? new Date(l.executedAt) : null;
+      if (!d || isNaN(d.getTime())) return false;
+      if (executedAtRange.from && d < executedAtRange.from) return false;
+      if (executedAtRange.to) {
+        const to = new Date(executedAtRange.to); to.setHours(23, 59, 59, 999);
+        if (d > to) return false;
+      }
+    }
     return true;
-  }), [search, statusSel, triggerSel]);
+  }), [search, statusSel, triggerSel, executedAtRange]);
 
   const statusColors: Record<string, string> = {
     Success: 'bg-green-100 text-green-700',
@@ -2037,6 +2048,12 @@ function ExecutionLogTab() {
         </div>
         <MultiSelectFilter label="Status"  options={['Success','Failed','Skipped']} selected={statusSel}  onChange={setStatusSel} />
         <MultiSelectFilter label="Trigger" options={['Status Change','Time-based','Threshold','Form Submission','Manual']} selected={triggerSel} onChange={setTriggerSel} />
+        <DateRangePicker
+          value={executedAtRange}
+          onChange={setExecutedAtRange}
+          presets={DATE_PRESETS}
+          placeholder="Executed at"
+        />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

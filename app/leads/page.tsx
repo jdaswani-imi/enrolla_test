@@ -36,6 +36,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
@@ -2911,6 +2912,7 @@ export default function LeadsPage() {
   const [assignedFilter, setAssignedFilter] = useState<string[]>([]);
   const [myLeads, setMyLeads] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [createdOnRange, setCreatedOnRange] = useState<DateRange>({ from: null, to: null });
   const [searchFocused, setSearchFocused] = useState(false);
 
   // Dialogs
@@ -2939,7 +2941,8 @@ export default function LeadsPage() {
 
   const hasActiveFilters =
     stageFilter.length > 0 || sourceFilter.length > 0 ||
-    deptFilter.length > 0 || assignedFilter.length > 0 || myLeads || searchQuery !== "";
+    deptFilter.length > 0 || assignedFilter.length > 0 || myLeads || searchQuery !== "" ||
+    createdOnRange.from !== null || createdOnRange.to !== null;
 
   // Journey store — used to override Bilal's stage & power the journey dialogs
   const journey = useJourney();
@@ -3175,7 +3178,7 @@ export default function LeadsPage() {
   }
 
   // Reset page when filters/view change
-  useEffect(() => { setPage(1); }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view]);
+  useEffect(() => { setPage(1); }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view, createdOnRange]);
 
   // Keep the open detail lead in sync with journey overrides (Bilal's stage)
   useEffect(() => {
@@ -3225,6 +3228,15 @@ export default function LeadsPage() {
           !l.subjects.join(" ").toLowerCase().includes(q)
         ) return false;
       }
+      if (createdOnRange.from || createdOnRange.to) {
+        const d = l.createdOn ? new Date(l.createdOn) : null;
+        if (!d || isNaN(d.getTime())) return false;
+        if (createdOnRange.from && d < createdOnRange.from) return false;
+        if (createdOnRange.to) {
+          const to = new Date(createdOnRange.to); to.setHours(23, 59, 59, 999);
+          if (d > to) return false;
+        }
+      }
       return true;
     });
     if (sortField) {
@@ -3238,7 +3250,7 @@ export default function LeadsPage() {
       });
     }
     return data;
-  }, [leads, stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, searchQuery, sortField, sortDir]);
+  }, [leads, stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, searchQuery, sortField, sortDir, createdOnRange]);
 
   const paginatedLeads = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -3252,6 +3264,7 @@ export default function LeadsPage() {
     setAssignedFilter([]);
     setMyLeads(false);
     setSearchQuery("");
+    setCreatedOnRange({ from: null, to: null });
   }
 
   const currentFilters = {
@@ -3655,6 +3668,13 @@ export default function LeadsPage() {
             </button>
             <span className="text-sm text-slate-600 font-medium">My Leads</span>
           </div>
+
+          <DateRangePicker
+            value={createdOnRange}
+            onChange={setCreatedOnRange}
+            presets={DATE_PRESETS}
+            placeholder="Created on"
+          />
 
           {hasActiveFilters && (
             <div className="relative flex items-center gap-2">

@@ -39,6 +39,7 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { staffMembers, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { ExportDialog } from "@/components/ui/export-dialog";
@@ -758,6 +759,7 @@ function StaffPageContent() {
 
   const [page,     setPage]     = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [hrPeriodRange, setHrPeriodRange] = useState<DateRange>({ from: null, to: null });
 
   useEffect(() => { setPage(1); }, [statusFilter, deptFilter, roleFilter, search]);
 
@@ -1059,6 +1061,16 @@ function StaffPageContent() {
       {/* ═══════════ HR DASHBOARD ═══════════ */}
       {outerTab === "hr-dashboard" && (
         <div key="hr-dashboard" className="page-enter space-y-6">
+
+          {/* Period filter */}
+          <div className="flex items-center gap-2">
+            <DateRangePicker
+              value={hrPeriodRange}
+              onChange={setHrPeriodRange}
+              presets={DATE_PRESETS}
+              placeholder="Period"
+            />
+          </div>
 
           {/* 2×2 panel grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

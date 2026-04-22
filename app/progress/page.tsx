@@ -30,6 +30,7 @@ import {
   type Task,
 } from "@/lib/mock-data";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
@@ -785,6 +786,19 @@ function ReportsTab() {
 
   const activeReport = action ? reports[action.index] : null;
 
+  const [draftReadyRange, setDraftReadyRange] = useState<DateRange>({ from: null, to: null });
+  const filteredReports = useMemo(() => reports.filter((r) => {
+    if (!draftReadyRange.from && !draftReadyRange.to) return true;
+    const d = new Date(r.draftReady);
+    if (isNaN(d.getTime())) return true;
+    if (draftReadyRange.from && d < draftReadyRange.from) return false;
+    if (draftReadyRange.to) {
+      const to = new Date(draftReadyRange.to); to.setHours(23, 59, 59, 999);
+      if (d > to) return false;
+    }
+    return true;
+  }), [reports, draftReadyRange]);
+
   return (
     <div className="space-y-5">
       {/* Summary strip */}
@@ -792,6 +806,16 @@ function ReportsTab() {
         <StatCard label="Reports Generated This Term" value="142" />
         <StatCard label="Pending Approval"            value="12"  accent="amber" />
         <StatCard label="Delivered to Parents"        value="108" />
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <DateRangePicker
+          value={draftReadyRange}
+          onChange={setDraftReadyRange}
+          presets={DATE_PRESETS}
+          placeholder="Draft ready"
+        />
       </div>
 
       {/* Table */}
@@ -806,7 +830,7 @@ function ReportsTab() {
               </tr>
             </thead>
             <tbody>
-              {reports.map((r, i) => (
+              {filteredReports.map((r) => { const i = reports.indexOf(r); return (
                 <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3"><AvatarCell name={r.student} /></td>
                   <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{r.subject}</td>
@@ -886,7 +910,7 @@ function ReportsTab() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              ); })}
             </tbody>
           </table>
         </div>

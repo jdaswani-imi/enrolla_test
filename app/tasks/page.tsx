@@ -22,6 +22,7 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { tasks as allTasks, currentUser, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
 import {
   Dialog,
@@ -717,6 +718,8 @@ export default function TasksPage() {
     setStatusFilter(filters.status ?? []);
   }
   const [search, setSearch] = useState("");
+  const [dueDateRange, setDueDateRange] = useState<DateRange>({ from: null, to: null });
+  const [createdOnRange, setCreatedOnRange] = useState<DateRange>({ from: null, to: null });
   const [doneTasks, setDoneTasks] = useState<Set<string>>(
     new Set(allTasks.filter((t) => t.status === "Done").map((t) => t.id))
   );
@@ -771,9 +774,27 @@ export default function TasksPage() {
         const q = search.toLowerCase();
         if (!t.title.toLowerCase().includes(q) && !t.type.toLowerCase().includes(q)) return false;
       }
+      if (dueDateRange.from || dueDateRange.to) {
+        const d = new Date(t.dueDate);
+        if (isNaN(d.getTime())) return false;
+        if (dueDateRange.from && d < dueDateRange.from) return false;
+        if (dueDateRange.to) {
+          const to = new Date(dueDateRange.to); to.setHours(23, 59, 59, 999);
+          if (d > to) return false;
+        }
+      }
+      if (createdOnRange.from || createdOnRange.to) {
+        const d = t.createdOn ? new Date(t.createdOn) : null;
+        if (!d || isNaN(d.getTime())) return false;
+        if (createdOnRange.from && d < createdOnRange.from) return false;
+        if (createdOnRange.to) {
+          const to = new Date(createdOnRange.to); to.setHours(23, 59, 59, 999);
+          if (d > to) return false;
+        }
+      }
       return true;
     });
-  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, tasksVersion]);
+  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, tasksVersion, dueDateRange, createdOnRange]);
 
   // List view groups
   const overdue  = filtered.filter((t) => t.overdue && !doneTasks.has(t.id));
@@ -942,6 +963,19 @@ export default function TasksPage() {
             )}
           </div>
         )}
+
+        <DateRangePicker
+          value={dueDateRange}
+          onChange={setDueDateRange}
+          presets={DATE_PRESETS}
+          placeholder="Due date"
+        />
+        <DateRangePicker
+          value={createdOnRange}
+          onChange={setCreatedOnRange}
+          presets={DATE_PRESETS}
+          placeholder="Created on"
+        />
 
         {/* Search */}
         <div className="relative ml-auto">

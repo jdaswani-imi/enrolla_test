@@ -19,6 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { cn } from "@/lib/utils";
@@ -498,6 +499,7 @@ function ActiveEnrolmentsTab() {
   const [status, setStatus] = useState<string[]>([]);
   const [year, setYear]     = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [enrolledOnRange, setEnrolledOnRange] = useState<DateRange>({ from: null, to: null });
   const [selected, setSelected] = useState<Enrolment | null>(null);
   const [withdrawTarget, setWithdrawTarget] = useState<Enrolment | null>(null);
 
@@ -509,7 +511,7 @@ function ActiveEnrolmentsTab() {
   }
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  useEffect(() => { setPage(1); }, [dept, status, year, search]);
+  useEffect(() => { setPage(1); }, [dept, status, year, search, enrolledOnRange]);
 
   function applyWithdraw(data: WithdrawConfirmData) {
     createWithdrawals(data);
@@ -528,6 +530,15 @@ function ActiveEnrolmentsTab() {
         const q = search.toLowerCase();
         if (!e.student.toLowerCase().includes(q) && !e.subject.toLowerCase().includes(q)) return false;
       }
+      if (enrolledOnRange.from || enrolledOnRange.to) {
+        const d = e.enrolledOn ? new Date(e.enrolledOn) : null;
+        if (!d || isNaN(d.getTime())) return false;
+        if (enrolledOnRange.from && d < enrolledOnRange.from) return false;
+        if (enrolledOnRange.to) {
+          const to = new Date(enrolledOnRange.to); to.setHours(23, 59, 59, 999);
+          if (d > to) return false;
+        }
+      }
       return true;
     });
     if (sortField) {
@@ -541,7 +552,7 @@ function ActiveEnrolmentsTab() {
       });
     }
     return data;
-  }, [dept, status, year, search, sortField, sortDir]);
+  }, [dept, status, year, search, enrolledOnRange, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -575,6 +586,13 @@ function ActiveEnrolmentsTab() {
             className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition-all placeholder:text-slate-400"
           />
         </div>
+
+        <DateRangePicker
+          value={enrolledOnRange}
+          onChange={setEnrolledOnRange}
+          presets={DATE_PRESETS}
+          placeholder="Enrolled on"
+        />
 
         <div className="ml-auto flex items-center gap-2">
           {can('export') && (
@@ -950,6 +968,20 @@ function WithdrawalsTab() {
 
   const [reinstateTarget, setReinstateTarget] = useState<Withdrawal | null>(null);
   const [initiateOpen, setInitiateOpen] = useState(false);
+  const [withdrawalDateRange, setWithdrawalDateRange] = useState<DateRange>({ from: null, to: null });
+
+  const displayedWithdrawals = useMemo(() => seedWithdrawals.filter((w) => {
+    if (!withdrawalDateRange.from && !withdrawalDateRange.to) return true;
+    if (w.withdrawalDate === 'Pending') return true;
+    const d = new Date(w.withdrawalDate);
+    if (isNaN(d.getTime())) return true;
+    if (withdrawalDateRange.from && d < withdrawalDateRange.from) return false;
+    if (withdrawalDateRange.to) {
+      const to = new Date(withdrawalDateRange.to); to.setHours(23, 59, 59, 999);
+      if (d > to) return false;
+    }
+    return true;
+  }), [withdrawalDateRange]);
 
   function applyInitiate(data: WithdrawConfirmData) {
     createWithdrawals(data);
@@ -1015,6 +1047,16 @@ function WithdrawalsTab() {
         </div>
       </div>
 
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <DateRangePicker
+          value={withdrawalDateRange}
+          onChange={setWithdrawalDateRange}
+          presets={DATE_PRESETS}
+          placeholder="Withdrawal date"
+        />
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -1029,7 +1071,7 @@ function WithdrawalsTab() {
               </tr>
             </thead>
             <tbody>
-              {seedWithdrawals.map((w) => {
+              {displayedWithdrawals.map((w) => {
                 const palette  = getAvatarPalette(w.student);
                 const initials = getInitials(w.student);
                 const isPending = w.withdrawalDate === "Pending";

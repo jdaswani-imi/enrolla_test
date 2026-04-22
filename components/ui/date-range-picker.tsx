@@ -246,43 +246,53 @@ function MonthGrid({
   )
 }
 
+// Term boundaries: T1 = Sep–Dec, T2 = Jan–Apr, T3 = May–Aug
+function _currentTerm(now: Date): DateRange {
+  const m = now.getMonth(), y = now.getFullYear()
+  if (m >= 8) return { from: new Date(y, 8, 1),   to: new Date(y, 11, 31) }
+  if (m <= 3) return { from: new Date(y, 0, 1),   to: new Date(y, 3, 30)  }
+  return           { from: new Date(y, 4, 1),   to: new Date(y, 7, 31)  }
+}
+function _lastTerm(now: Date): DateRange {
+  const m = now.getMonth(), y = now.getFullYear()
+  if (m >= 8) return { from: new Date(y, 4, 1),    to: new Date(y, 7, 31)   }
+  if (m <= 3) return { from: new Date(y-1, 8, 1),  to: new Date(y-1, 11, 31) }
+  return           { from: new Date(y, 0, 1),    to: new Date(y, 3, 30)   }
+}
+function _thisAY(now: Date): DateRange {
+  const m = now.getMonth(), y = now.getFullYear()
+  if (m >= 8) return { from: new Date(y, 8, 1),   to: new Date(y+1, 7, 31) }
+  return           { from: new Date(y-1, 8, 1), to: new Date(y, 7, 31)  }
+}
+function _lastAY(now: Date): DateRange {
+  const m = now.getMonth(), y = now.getFullYear()
+  if (m >= 8) return { from: new Date(y-1, 8, 1), to: new Date(y, 7, 31)   }
+  return           { from: new Date(y-2, 8, 1), to: new Date(y-1, 7, 31) }
+}
+
 export const DATE_PRESETS: PresetItem[] = [
-  { label: 'Today', getValue: () => ({ from: new Date(), to: new Date() }) },
+  { label: 'Today',     getValue: () => { const d = new Date(); return { from: d, to: d } } },
+  { label: 'Yesterday', getValue: () => { const d = new Date(); d.setDate(d.getDate()-1); return { from: d, to: d } } },
   {
-    label: 'This week',
+    label: 'This Week',
     getValue: () => {
       const now = new Date()
-      const mon = new Date(now)
-      mon.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-      const sun = new Date(mon)
-      sun.setDate(mon.getDate() + 6)
+      const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay()+6)%7))
+      const sun = new Date(mon); sun.setDate(mon.getDate()+6)
       return { from: mon, to: sun }
     },
   },
-  {
-    label: 'This month',
-    getValue: () => {
-      const now = new Date()
-      return {
-        from: new Date(now.getFullYear(), now.getMonth(), 1),
-        to: new Date(now.getFullYear(), now.getMonth() + 1, 0),
-      }
-    },
-  },
-  {
-    label: 'Last month',
-    getValue: () => {
-      const now = new Date()
-      return {
-        from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
-        to: new Date(now.getFullYear(), now.getMonth(), 0),
-      }
-    },
-  },
-  {
-    label: 'This term',
-    getValue: () => ({ from: new Date(2026, 3, 14), to: new Date(2026, 6, 25) }),
-  },
+  { label: 'Last 7 Days',  getValue: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate()-6); return { from, to } } },
+  { label: 'Last Month',   getValue: () => { const n = new Date(); return { from: new Date(n.getFullYear(), n.getMonth()-1, 1), to: new Date(n.getFullYear(), n.getMonth(), 0) } } },
+  { label: 'Last 30 Days', getValue: () => { const to = new Date(); const from = new Date(); from.setDate(from.getDate()-29); return { from, to } } },
+  { separator: true },
+  { label: 'This Term',          getValue: () => _currentTerm(new Date()) },
+  { label: 'Last Term',          getValue: () => _lastTerm(new Date()) },
+  { label: 'This Academic Year', getValue: () => _thisAY(new Date()) },
+  { label: 'Last Academic Year', getValue: () => _lastAY(new Date()) },
+  { separator: true },
+  { label: 'All Time',     getValue: () => ({ from: null, to: null }) },
+  { label: 'Custom Range', getValue: () => ({ from: null, to: null }), keepOpen: true },
 ]
 
 function getDaysInMonth(month: Date): (Date | null)[] {
