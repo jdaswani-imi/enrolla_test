@@ -3,6 +3,7 @@
 import { useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Info,
   MessageSquare,
   Star,
   Users,
@@ -346,6 +347,16 @@ function FeedbackQueueTab() {
 
   return (
     <div className="space-y-4">
+      {/* Template notice */}
+      <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-600">
+        <Info className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+        <span>
+          Feedback templates are configured per subject and year group in{" "}
+          <strong className="font-medium">Settings → Subjects &amp; Catalogue</strong>.
+          The fields and grade ratings shown in each feedback entry reflect the template defined for that subject.
+        </span>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Pending Approval"         value="12"  accent="amber" />
