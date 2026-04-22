@@ -404,6 +404,8 @@ function AnnouncementsTab() {
 
 // ─── Tab 2 — Concerns & Tickets ───────────────────────────────────────────────
 
+const SEVERITY_WEIGHT: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+
 function TicketSlideover({ ticket, onClose }: { ticket: ComplaintTicket; onClose: () => void }) {
   const { can } = usePermission();
   const signedCount = ticket.signOffs.filter((s) => s.timestamp !== null).length;
@@ -584,6 +586,11 @@ function ConcernsTicketsTab() {
       data = [...data].sort((a, b) => {
         const av = (a as unknown as Record<string, unknown>)[sortField];
         const bv = (b as unknown as Record<string, unknown>)[sortField];
+        if (sortField === "severity") {
+          const wa = SEVERITY_WEIGHT[String(av ?? "")] ?? 0;
+          const wb = SEVERITY_WEIGHT[String(bv ?? "")] ?? 0;
+          return sortDir === "asc" ? wb - wa : wa - wb;
+        }
         const cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true });
         return sortDir === "asc" ? cmp : -cmp;
       });
