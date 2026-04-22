@@ -423,7 +423,7 @@ test.describe('guardians', () => {
   test.beforeEach(async ({ page }) => { await page.goto('/guardians') })
 
   test('guardians — page heading is visible', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: 'Guardians' })).toBeVisible()
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Guardians' })).toBeVisible()
   })
 
   test('guardians — Add Guardian button is visible', async ({ page }) => {
@@ -438,11 +438,12 @@ test.describe('guardians', () => {
     await expect(page.locator('input[type="text"], input[type="search"]').first()).toBeVisible()
   })
 
-  test('guardians — table columns NAME, EMAIL, PHONE, FAMILY are visible', async ({ page }) => {
-    await expect(page.getByText('NAME')).toBeVisible()
-    await expect(page.getByText('EMAIL')).toBeVisible()
-    await expect(page.getByText('PHONE')).toBeVisible()
-    await expect(page.getByText('FAMILY')).toBeVisible()
+  test('guardians — table columns GUARDIAN NAME, EMAIL, PHONE, LINKED STUDENTS are visible', async ({ page }) => {
+    const ths = page.locator('thead th')
+    await expect(ths.filter({ hasText: 'Guardian Name' })).toBeVisible()
+    await expect(ths.filter({ hasText: 'Email' })).toBeVisible()
+    await expect(ths.filter({ hasText: 'Phone' })).toBeVisible()
+    await expect(ths.filter({ hasText: 'Linked Students' })).toBeVisible()
   })
 
   test('guardians — first row shows Fatima Rahman G-001', async ({ page }) => {
