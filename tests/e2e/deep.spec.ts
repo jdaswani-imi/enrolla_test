@@ -142,16 +142,16 @@ test.describe('dashboard', () => {
     await expect(page.getByText('Overdue Invoices')).toBeVisible()
     await expect(page.getByText('At-Risk Students')).toBeVisible()
     await expect(page.getByText('Open Concerns')).toBeVisible()
-    await expect(page.getByText('Seat Occupancy')).toBeVisible()
+    await expect(page.getByText('Seat Occupancy').first()).toBeVisible()
   })
 
   test('dashboard — KPI values are correct', async ({ page }) => {
     await expect(page.getByText('1,847')).toBeVisible()
     await expect(page.getByText('143')).toBeVisible()
     await expect(page.getByText('AED 284,500')).toBeVisible()
-    await expect(page.getByText('74%')).toBeVisible()
+    await expect(page.getByText('74%').first()).toBeVisible()
     await expect(page.getByText('23')).toBeVisible()
-    await expect(page.getByText('47')).toBeVisible()
+    await expect(page.getByText('47', { exact: true })).toBeVisible()
     await expect(page.getByText('8').first()).toBeVisible()
   })
 
@@ -179,12 +179,12 @@ test.describe('dashboard', () => {
   })
 
   test('dashboard — Seat Occupancy KPI card navigates to /analytics', async ({ page }) => {
-    await page.getByText('Seat Occupancy').click()
+    await page.getByText('Seat Occupancy').first().click()
     await expect(page).toHaveURL(/analytics/)
   })
 
   test('dashboard — LIVE ACTIVITY section header is visible', async ({ page }) => {
-    await expect(page.getByText('LIVE ACTIVITY')).toBeVisible()
+    await expect(page.getByText('Live Activity', { exact: true })).toBeVisible()
   })
 
   test('dashboard — at least 6 activity feed rows visible', async ({ page }) => {
@@ -197,8 +197,8 @@ test.describe('dashboard', () => {
   })
 
   test('dashboard — activity rows show relative timestamps', async ({ page }) => {
-    await expect(page.getByText('2 min ago')).toBeVisible()
-    await expect(page.getByText('8 min ago')).toBeVisible()
+    await expect(page.getByText('2 min ago', { exact: true })).toBeVisible()
+    await expect(page.getByText('8 min ago', { exact: true })).toBeVisible()
   })
 
   test('dashboard — REPORTS INBOX section is visible', async ({ page }) => {
@@ -206,14 +206,14 @@ test.describe('dashboard', () => {
   })
 
   test('dashboard — reports inbox shows 4+ reports', async ({ page }) => {
-    await expect(page.getByText('Weekly Digest')).toBeVisible()
+    await expect(page.getByText('Weekly Digest', { exact: true })).toBeVisible()
     await expect(page.getByText('Churn Risk Report')).toBeVisible()
     await expect(page.getByText('Term Revenue Summary')).toBeVisible()
     await expect(page.getByText('Academic Alerts Summary')).toBeVisible()
   })
 
   test('dashboard — Open buttons visible in reports inbox', async ({ page }) => {
-    const openButtons = page.getByRole('button', { name: 'Open' })
+    const openButtons = page.getByRole('button', { name: 'Open', exact: true })
     await expect(openButtons.first()).toBeVisible()
     expect(await openButtons.count()).toBeGreaterThanOrEqual(3)
   })
@@ -225,7 +225,7 @@ test.describe('dashboard', () => {
 
   test('dashboard — drag handle icon visible on section header', async ({ page }) => {
     await expect(page.getByText('LIVE ACTIVITY & REPORTS')).toBeVisible()
-    const handle = page.locator('[data-lucide="grip-vertical"], .drag-handle').first()
+    const handle = page.locator('[title="Drag to reorder"]').first()
     await expect(handle).toBeVisible()
   })
 
