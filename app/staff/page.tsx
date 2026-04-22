@@ -16,6 +16,7 @@ import {
   Download,
   Check,
   Ban,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -35,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { staffMembers, type StaffMember, type StaffStatus } from "@/lib/mock-data";
+import { staffMembers, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -268,7 +269,9 @@ const PERF_TREND = [
 
 function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () => void }) {
   const [tab, setTab] = useState<"overview" | "cpd" | "performance">("overview");
+  const { role } = usePermission();
   const pal = getAvatarPalette(staff.name);
+  const canSeePerformance = role !== 'Teacher' && role !== 'TA';
 
   const workloadLabel: Record<string, string> = {
     "Low":      "Low load",
@@ -283,10 +286,10 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
   };
 
   const tabs = [
-    { id: "overview",     label: "Overview"    },
-    { id: "cpd",          label: "CPD Log"     },
-    { id: "performance",  label: "Performance" },
-  ] as const;
+    { id: "overview" as const,    label: "Overview"    },
+    { id: "cpd" as const,         label: "CPD Log"     },
+    ...(canSeePerformance ? [{ id: "performance" as const, label: "Performance" }] : []),
+  ];
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -627,6 +630,10 @@ function StaffPageContent() {
   const { can, role } = usePermission();
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  const myDepartment = ATTENDANCE_ROLE_USER[role]?.department ?? null;
+  const showCpdColumn = role !== 'Teacher' && role !== 'TA';
+  const canSeeHrDashboard = role === 'HR/Finance' || role === 'Admin Head' || role === 'Super Admin';
   const [exportOpen,    setExportOpen]    = useState(false);
   const [statusFilter,  setStatusFilter]  = useState<string[]>([]);
   const [deptFilter,    setDeptFilter]    = useState<string[]>([]);
@@ -754,9 +761,31 @@ function StaffPageContent() {
 
   useEffect(() => { setPage(1); }, [statusFilter, deptFilter, roleFilter, search]);
 
+  // RBAC-scoped staff list based on current role and department
+  const visibleRows = useMemo(() => {
+    if (role === 'Teacher' || role === 'TA') {
+      return rows.filter(s =>
+        s.department === myDepartment &&
+        (s.role === 'Teacher' || s.role === 'TA')
+      );
+    }
+    if (role === 'HOD') {
+      return rows.filter(s =>
+        s.department === myDepartment &&
+        ['Teacher', 'TA', 'HOD'].includes(s.role)
+      );
+    }
+    if (role === 'Academic Head') {
+      return rows.filter(s =>
+        ['Teacher', 'TA', 'HOD', 'Academic Head'].includes(s.role)
+      );
+    }
+    return rows;
+  }, [rows, role, myDepartment]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    let data = rows.filter((s) => {
+    let data = visibleRows.filter((s) => {
       if (statusFilter.length > 0 && !statusFilter.includes(s.status)) return false;
       if (deptFilter.length > 0   && !deptFilter.includes(s.department)) return false;
       if (roleFilter.length > 0   && !roleFilter.includes(s.role)) return false;
@@ -774,7 +803,7 @@ function StaffPageContent() {
       });
     }
     return data;
-  }, [rows, statusFilter, deptFilter, roleFilter, search, sortField, sortDir]);
+  }, [visibleRows, statusFilter, deptFilter, roleFilter, search, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -782,18 +811,19 @@ function StaffPageContent() {
   }, [filtered, page, pageSize]);
 
   const teachingStaff = useMemo(
-    () => [...rows.filter((s) => ["Teacher", "TA", "HOD"].includes(s.role))].sort((a, b) => b.sessionsThisWeek - a.sessionsThisWeek),
-    [rows],
+    () => [...visibleRows.filter((s) => ["Teacher", "TA", "HOD"].includes(s.role))].sort((a, b) => b.sessionsThisWeek - a.sessionsThisWeek),
+    [visibleRows],
   );
 
-  const outerTabs = [
-    { id: "directory",    label: "Staff Directory" },
-    { id: "hr-dashboard", label: "HR Dashboard"    },
-  ] as const;
-
   type OuterTab = "directory" | "hr-dashboard";
+  interface OuterTabItem { id: OuterTab; label: string }
+  const outerTabs: OuterTabItem[] = [
+    { id: "directory",    label: "Staff Directory" },
+    ...(canSeeHrDashboard ? [{ id: "hr-dashboard" as OuterTab, label: "HR Dashboard" }] : []),
+  ];
+
   const raw = searchParams.get('tab');
-  const outerTab: OuterTab = raw === 'hr-dashboard' ? 'hr-dashboard' : 'directory';
+  const outerTab: OuterTab = (raw === 'hr-dashboard' && canSeeHrDashboard) ? 'hr-dashboard' : 'directory';
 
   function handleOuterTabChange(id: OuterTab) {
     router.replace(`?tab=${id}`, { scroll: false });
@@ -804,7 +834,7 @@ function StaffPageContent() {
   return (
     <div className="px-6 py-6 min-h-full">
       {role === 'Academic Head' && (
-        <RoleBanner message="You have full access to staff management, including HR data and access controls." />
+        <RoleBanner message="You can view all teaching staff across departments. HR, finance, and admin staff are not visible at this access level." />
       )}
       {/* Page header */}
       <div className="mb-6">
@@ -834,6 +864,13 @@ function StaffPageContent() {
       {/* ═══════════ STAFF DIRECTORY ═══════════ */}
       {outerTab === "directory" && (
         <div key="directory" className="page-enter space-y-5">
+
+          {(role === 'Teacher' || role === 'TA') && (
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
+              <p>You can view staff in your department only. Contact Admin for full directory access.</p>
+            </div>
+          )}
 
           {/* Summary strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -897,7 +934,7 @@ function StaffPageContent() {
                     <SortableHeader label="Department"    field="department"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} className="hidden md:table-cell" />
                     <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden lg:table-cell">Subjects</th>
                     <SortableHeader label="Sessions/Wk"  field="sessionsThisWeek" sortField={sortField} sortDir={sortDir} onSort={toggleSort} className="hidden lg:table-cell" />
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden xl:table-cell">CPD Progress</th>
+                    {showCpdColumn && <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap hidden xl:table-cell">CPD Progress</th>}
                     <SortableHeader label="Status"        field="status"           sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -963,9 +1000,11 @@ function StaffPageContent() {
                         <td className="px-4 py-3 text-slate-600 text-center tabular-nums hidden lg:table-cell">{s.sessionsThisWeek}</td>
 
                         {/* CPD */}
-                        <td className="px-4 py-3 hidden xl:table-cell">
-                          <CpdBar hours={s.cpdHours} target={s.cpdTarget} />
-                        </td>
+                        {showCpdColumn && (
+                          <td className="px-4 py-3 hidden xl:table-cell">
+                            <CpdBar hours={s.cpdHours} target={s.cpdTarget} />
+                          </td>
+                        )}
 
                         {/* Status */}
                         <td className="px-4 py-3">
@@ -993,7 +1032,7 @@ function StaffPageContent() {
 
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={showCpdColumn ? 8 : 7}>
                         <EmptyState
                           icon={UserCheck}
                           title="No staff found"
