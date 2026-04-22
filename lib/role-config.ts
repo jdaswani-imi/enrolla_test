@@ -29,8 +29,9 @@ const NAV_ACCESS: Record<string, string> = {
   analytics:   'analytics.view',
   reports:     'reports.view',
   settings:    'settings.view',
-  feedback:    'feedback.view',
-  people:      'people.view',
+  feedback:        'feedback.view',
+  communications:  'feedback.view',
+  people:          'people.view',
   automations: 'automations.view',
   inventory:   'inventory.view',
 }

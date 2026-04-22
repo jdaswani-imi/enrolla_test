@@ -19,6 +19,7 @@ import {
   GraduationCap,
   Layers,
   LayoutDashboard,
+  Megaphone,
   MessageSquare,
   Package,
   Receipt,
@@ -135,7 +136,8 @@ const navItems: NavItemDef[] = [
       {
         label: "Communications",
         items: [
-          { label: "Feedback", href: "/feedback", icon: MessageSquare, navId: "feedback" },
+          { label: "Feedback",       href: "/feedback",       icon: MessageSquare, navId: "feedback"       },
+          { label: "Communications", href: "/communications", icon: Megaphone,     navId: "communications" },
         ],
       },
       {

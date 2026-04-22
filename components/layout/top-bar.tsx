@@ -50,8 +50,9 @@ const routeTitles: Record<string, string> = {
   "/settings":   "Settings",
   "/profile":    "My Profile",
   "/automations":"Automations",
-  "/feedback":   "Feedback",
-  "/inventory":  "Inventory",
+  "/feedback":        "Feedback",
+  "/communications":  "Communications",
+  "/inventory":       "Inventory",
 };
 
 const ROLES: Role[] = [
