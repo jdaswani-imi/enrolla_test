@@ -47,6 +47,7 @@ import {
   type PaymentMethod,
   type Payment,
   type Credit,
+  type CreditType,
 } from "@/lib/mock-data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,7 +72,35 @@ const METHOD_CONFIG: Record<PaymentMethod, string> = {
   "Bank Transfer": "bg-blue-100 text-blue-700",
   Cheque:          "bg-violet-100 text-violet-700",
   Card:            "bg-amber-100 text-amber-700",
+  Online:          "bg-cyan-100 text-cyan-700",
 };
+
+const CREDIT_TYPE_LABELS: Record<CreditType, string> = {
+  manual:       "Manual Credit",
+  overpayment:  "Overpayment",
+  refund:       "Refund",
+  promotional:  "Promotional",
+};
+
+const PAYMENT_METHOD_FILTER_OPTIONS = ["Cash", "Card", "Bank Transfer", "Online"];
+const CREDIT_TYPE_FILTER_OPTIONS    = ["Manual Credit", "Overpayment", "Refund", "Promotional"];
+
+function parseDateStr(s: string): Date {
+  const months: Record<string, number> = {
+    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+  };
+  const parts = s.trim().split(" ");
+  return new Date(Number(parts[2]), months[parts[1]], Number(parts[0]));
+}
+
+function fmtDateChip(dateRange: DateRange): string {
+  if (!dateRange.from) return "";
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+  const from = dateRange.from.toLocaleDateString("en-GB", opts);
+  if (!dateRange.to) return from;
+  return `${from} – ${dateRange.to.toLocaleDateString("en-GB", opts)}`;
+}
 
 const STATUS_FILTER_OPTIONS = ["Draft", "Issued", "Part", "Paid", "Overdue", "Cancelled"];
 const DEPT_FILTER_OPTIONS   = ["Primary", "Lower Secondary", "Senior"];
@@ -1272,6 +1301,57 @@ function PaymentsTab() {
   const { can } = usePermission();
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+
+  const [deptFilter, setDeptFilter]     = useState<string[]>([]);
+  const [methodFilter, setMethodFilter] = useState<string[]>([]);
+  const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
+  const [studentFilter, setStudentFilter] = useState<string | null>(null);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentDropOpen, setStudentDropOpen] = useState(false);
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const studentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (studentRef.current && !studentRef.current.contains(e.target as Node)) setStudentDropOpen(false);
+    }
+    if (studentDropOpen) document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [studentDropOpen]);
+
+  const studentMatches = useMemo(() => {
+    if (!studentSearch || studentFilter) return [];
+    const q = studentSearch.toLowerCase();
+    return Array.from(new Set(payments.map((p) => p.student))).filter((n) => n.toLowerCase().includes(q));
+  }, [studentSearch, studentFilter]);
+
+  const hasActiveFilters =
+    deptFilter.length > 0 || methodFilter.length > 0 || dateRange.from != null ||
+    studentFilter != null || minAmount !== "" || maxAmount !== "";
+
+  function clearAll() {
+    setDeptFilter([]); setMethodFilter([]); setDateRange({ from: null, to: null });
+    setStudentFilter(null); setStudentSearch(""); setMinAmount(""); setMaxAmount("");
+  }
+
+  const filtered = useMemo(() => payments.filter((p) => {
+    if (deptFilter.length > 0 && !deptFilter.includes(p.department)) return false;
+    if (methodFilter.length > 0 && !methodFilter.includes(p.method)) return false;
+    if (studentFilter && p.student !== studentFilter) return false;
+    if (minAmount !== "" && p.amount < Number(minAmount)) return false;
+    if (maxAmount !== "" && p.amount > Number(maxAmount)) return false;
+    if (dateRange.from || dateRange.to) {
+      const d = parseDateStr(p.date);
+      if (dateRange.from && d < dateRange.from) return false;
+      if (dateRange.to) {
+        const end = new Date(dateRange.to); end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+    }
+    return true;
+  }), [deptFilter, methodFilter, dateRange, studentFilter, minAmount, maxAmount]);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -1280,15 +1360,107 @@ function PaymentsTab() {
         <SummaryCard label="Bank Transfer"             value="AED 71,800" />
       </div>
 
-      {can('export') && (
-        <div className="flex justify-end">
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <MultiSelectFilter label="Department" options={DEPT_FILTER_OPTIONS}           selected={deptFilter}   onChange={setDeptFilter}   />
+        <MultiSelectFilter label="Method"     options={PAYMENT_METHOD_FILTER_OPTIONS} selected={methodFilter} onChange={setMethodFilter} />
+        <DateRangePicker value={dateRange} onChange={setDateRange} presets={DATE_PRESETS} placeholder="Period" />
+
+        {/* Student combobox */}
+        <div ref={studentRef} className="relative">
+          <input
+            type="text"
+            value={studentFilter ?? studentSearch}
+            onChange={(e) => { setStudentFilter(null); setStudentSearch(e.target.value); setStudentDropOpen(true); }}
+            onFocus={() => setStudentDropOpen(true)}
+            placeholder="Student…"
+            className={cn(
+              "pl-3 pr-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent min-w-[160px]",
+              studentFilter ? "border-amber-400 text-amber-700 bg-amber-50" : "border-slate-200 text-slate-700"
+            )}
+          />
+          {studentMatches.length > 0 && studentDropOpen && (
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-full max-h-48 overflow-y-auto">
+              {studentMatches.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { setStudentFilter(name); setStudentSearch(""); setStudentDropOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 hover:text-amber-700 cursor-pointer border-b border-slate-100 last:border-0"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Amount range */}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            placeholder="Min AED"
+            value={minAmount}
+            onChange={(e) => setMinAmount(e.target.value)}
+            className="w-24 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+          <span className="text-slate-400 text-sm">–</span>
+          <input
+            type="number"
+            placeholder="Max AED"
+            value={maxAmount}
+            onChange={(e) => setMaxAmount(e.target.value)}
+            className="w-24 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+        </div>
+
+        {can('export') && (
           <button
             type="button"
             onClick={() => setExportOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+            className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
           >
             <Download className="w-4 h-4" />
             Export
+          </button>
+        )}
+      </div>
+
+      {/* Active filter chips */}
+      {hasActiveFilters && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {deptFilter.map((d) => (
+            <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {d}
+              <button type="button" onClick={() => setDeptFilter((prev) => prev.filter((x) => x !== d))} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          ))}
+          {methodFilter.map((m) => (
+            <span key={m} className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {m}
+              <button type="button" onClick={() => setMethodFilter((prev) => prev.filter((x) => x !== m))} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          ))}
+          {dateRange.from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {fmtDateChip(dateRange)}
+              <button type="button" onClick={() => setDateRange({ from: null, to: null })} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {studentFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {studentFilter}
+              <button type="button" onClick={() => setStudentFilter(null)} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {(minAmount !== "" || maxAmount !== "") && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              AED {minAmount || "0"} – {maxAmount ? `AED ${maxAmount}` : "∞"}
+              <button type="button" onClick={() => { setMinAmount(""); setMaxAmount(""); }} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          <button type="button" onClick={clearAll} className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700 font-medium cursor-pointer">
+            <X className="w-3.5 h-3.5" />Clear all
           </button>
         </div>
       )}
@@ -1297,7 +1469,7 @@ function PaymentsTab() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Export Payments"
-        recordCount={10}
+        recordCount={filtered.length}
         formats={[
           { id: 'csv-summary', label: 'Payment Summary', description: 'One row per payment. Date, student, invoice, amount, method, reference, recorded by.', icon: 'rows', recommended: true },
           { id: 'csv-reconciliation', label: 'Reconciliation Export', description: 'Formatted for bank reconciliation. Includes transfer references and IBAN details.', icon: 'items' },
@@ -1323,7 +1495,7 @@ function PaymentsTab() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((p, i) => (
+              {filtered.map((p, i) => (
                 <tr
                   key={i}
                   onClick={() => setSelectedPayment(p)}
@@ -1344,6 +1516,13 @@ function PaymentsTab() {
               ))}
             </tbody>
           </table>
+          {filtered.length === 0 && (
+            <EmptyState
+              icon={Banknote}
+              title="No payments found"
+              description="No payments match your current filters."
+            />
+          )}
         </div>
       </div>
 
@@ -1363,6 +1542,57 @@ function CreditsTab() {
   const [exportOpen, setExportOpen] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [selectedCredit, setSelectedCredit] = useState<(Credit & { ref: string }) | null>(null);
+
+  const [deptFilter, setDeptFilter]   = useState<string[]>([]);
+  const [typeFilter, setTypeFilter]   = useState<string[]>([]);
+  const [dateRange, setDateRange]     = useState<DateRange>({ from: null, to: null });
+  const [studentFilter, setStudentFilter] = useState<string | null>(null);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentDropOpen, setStudentDropOpen] = useState(false);
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const studentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (studentRef.current && !studentRef.current.contains(e.target as Node)) setStudentDropOpen(false);
+    }
+    if (studentDropOpen) document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [studentDropOpen]);
+
+  const studentMatches = useMemo(() => {
+    if (!studentSearch || studentFilter) return [];
+    const q = studentSearch.toLowerCase();
+    return Array.from(new Set(creditLedger.map((c) => c.student))).filter((n) => n.toLowerCase().includes(q));
+  }, [studentSearch, studentFilter]);
+
+  const hasActiveFilters =
+    deptFilter.length > 0 || typeFilter.length > 0 || dateRange.from != null ||
+    studentFilter != null || minAmount !== "" || maxAmount !== "";
+
+  function clearAll() {
+    setDeptFilter([]); setTypeFilter([]); setDateRange({ from: null, to: null });
+    setStudentFilter(null); setStudentSearch(""); setMinAmount(""); setMaxAmount("");
+  }
+
+  const filtered = useMemo(() => creditLedger.filter((c) => {
+    if (deptFilter.length > 0 && !deptFilter.includes(c.department)) return false;
+    if (typeFilter.length > 0 && !typeFilter.includes(CREDIT_TYPE_LABELS[c.type])) return false;
+    if (studentFilter && c.student !== studentFilter) return false;
+    if (minAmount !== "" && c.amount < Number(minAmount)) return false;
+    if (maxAmount !== "" && c.amount > Number(maxAmount)) return false;
+    if (dateRange.from || dateRange.to) {
+      const d = parseDateStr(c.date);
+      if (dateRange.from && d < dateRange.from) return false;
+      if (dateRange.to) {
+        const end = new Date(dateRange.to); end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+    }
+    return true;
+  }), [deptFilter, typeFilter, dateRange, studentFilter, minAmount, maxAmount]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
@@ -1392,11 +1622,105 @@ function CreditsTab() {
         )}
       </div>
 
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <MultiSelectFilter label="Department" options={DEPT_FILTER_OPTIONS}        selected={deptFilter} onChange={setDeptFilter} />
+        <MultiSelectFilter label="Type"       options={CREDIT_TYPE_FILTER_OPTIONS} selected={typeFilter} onChange={setTypeFilter} />
+        <DateRangePicker value={dateRange} onChange={setDateRange} presets={DATE_PRESETS} placeholder="Period" />
+
+        {/* Student combobox */}
+        <div ref={studentRef} className="relative">
+          <input
+            type="text"
+            value={studentFilter ?? studentSearch}
+            onChange={(e) => { setStudentFilter(null); setStudentSearch(e.target.value); setStudentDropOpen(true); }}
+            onFocus={() => setStudentDropOpen(true)}
+            placeholder="Student…"
+            className={cn(
+              "pl-3 pr-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent min-w-[160px]",
+              studentFilter ? "border-amber-400 text-amber-700 bg-amber-50" : "border-slate-200 text-slate-700"
+            )}
+          />
+          {studentMatches.length > 0 && studentDropOpen && (
+            <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-full max-h-48 overflow-y-auto">
+              {studentMatches.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { setStudentFilter(name); setStudentSearch(""); setStudentDropOpen(false); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 hover:text-amber-700 cursor-pointer border-b border-slate-100 last:border-0"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Amount range */}
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            placeholder="Min AED"
+            value={minAmount}
+            onChange={(e) => setMinAmount(e.target.value)}
+            className="w-24 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+          <span className="text-slate-400 text-sm">–</span>
+          <input
+            type="number"
+            placeholder="Max AED"
+            value={maxAmount}
+            onChange={(e) => setMaxAmount(e.target.value)}
+            className="w-24 px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+          />
+        </div>
+      </div>
+
+      {/* Active filter chips */}
+      {hasActiveFilters && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {deptFilter.map((d) => (
+            <span key={d} className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {d}
+              <button type="button" onClick={() => setDeptFilter((prev) => prev.filter((x) => x !== d))} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          ))}
+          {typeFilter.map((t) => (
+            <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {t}
+              <button type="button" onClick={() => setTypeFilter((prev) => prev.filter((x) => x !== t))} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          ))}
+          {dateRange.from && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {fmtDateChip(dateRange)}
+              <button type="button" onClick={() => setDateRange({ from: null, to: null })} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {studentFilter && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              {studentFilter}
+              <button type="button" onClick={() => setStudentFilter(null)} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          {(minAmount !== "" || maxAmount !== "") && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">
+              AED {minAmount || "0"} – {maxAmount ? `AED ${maxAmount}` : "∞"}
+              <button type="button" onClick={() => { setMinAmount(""); setMaxAmount(""); }} className="ml-0.5 hover:text-amber-900 cursor-pointer"><X className="w-3 h-3" /></button>
+            </span>
+          )}
+          <button type="button" onClick={clearAll} className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700 font-medium cursor-pointer">
+            <X className="w-3.5 h-3.5" />Clear all
+          </button>
+        </div>
+      )}
+
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Export Credits"
-        recordCount={6}
+        recordCount={filtered.length}
         formats={[
           { id: 'csv-credits', label: 'Credit Ledger', description: 'One row per credit. Date, student, amount, reason, issued by, status.', icon: 'rows', recommended: true },
           { id: 'csv-accounting', label: 'Accounting Export', description: 'Formatted for Zoho Books import. Includes credit note references.', icon: 'items' },
@@ -1408,7 +1732,7 @@ function CreditsTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Date", "Student", "Amount", "Reason", "Issued By", "Status"].map((h) => (
+                {["Date", "Student", "Amount", "Type", "Reason", "Issued By", "Status"].map((h) => (
                   <th
                     key={h}
                     className={cn(
@@ -1422,32 +1746,44 @@ function CreditsTab() {
               </tr>
             </thead>
             <tbody>
-              {creditLedger.map((c, i) => {
-                const ref = `CR-${String(1001 + i)}`;
+              {filtered.map((c, i) => {
+                const ref = `CR-${String(1001 + creditLedger.indexOf(c))}`;
                 return (
-                <tr
-                  key={i}
-                  onClick={() => setSelectedCredit({ ...c, ref })}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{c.date}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{c.student}</td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-800 text-right whitespace-nowrap">{fmt(c.amount)}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500">{c.reason}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{c.issuedBy}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn(
-                      "px-2.5 py-1 rounded-full text-xs font-semibold",
-                      c.status === "Unused" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
-                    )}>
-                      {c.status}
-                    </span>
-                  </td>
-                </tr>
+                  <tr
+                    key={i}
+                    onClick={() => setSelectedCredit({ ...c, ref })}
+                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{c.date}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{c.student}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-800 text-right whitespace-nowrap">{fmt(c.amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 whitespace-nowrap">
+                        {CREDIT_TYPE_LABELS[c.type]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-500 max-w-[200px] truncate">{c.reason}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{c.issuedBy}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-full text-xs font-semibold",
+                        c.status === "Unused" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                      )}>
+                        {c.status}
+                      </span>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
           </table>
+          {filtered.length === 0 && (
+            <EmptyState
+              icon={BookOpen}
+              title="No credits found"
+              description="No credits match your current filters."
+            />
+          )}
         </div>
       </div>
 

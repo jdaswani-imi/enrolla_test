@@ -1121,8 +1121,9 @@ export const leads: Lead[] = [
 // ─── Finance ──────────────────────────────────────────────────────────────────
 
 export type InvoiceStatus = "Draft" | "Issued" | "Part" | "Paid" | "Overdue" | "Cancelled";
-export type PaymentMethod = "Cash" | "Bank Transfer" | "Cheque" | "Card";
+export type PaymentMethod = "Cash" | "Card" | "Bank Transfer" | "Online" | "Cheque";
 export type CreditStatus = "Applied" | "Unused";
+export type CreditType = "manual" | "overpayment" | "refund" | "promotional";
 
 export interface Invoice {
   id: string;
@@ -1141,21 +1142,26 @@ export interface Invoice {
 
 export interface Payment {
   date: string;
+  studentId: string;
   student: string;
   invoice: string;
   amount: number;
   method: PaymentMethod;
   reference: string;
   recordedBy: string;
+  department: string;
 }
 
 export interface Credit {
   date: string;
+  studentId: string;
   student: string;
   amount: number;
   reason: string;
   issuedBy: string;
   status: CreditStatus;
+  department: string;
+  type: CreditType;
 }
 
 export const invoices: Invoice[] = [
@@ -1182,25 +1188,25 @@ export const invoices: Invoice[] = [
 ];
 
 export const payments: Payment[] = [
-  { date: "15 Apr 2026", student: "Hamdan Al-Maktoum", invoice: "INV-1039", amount:  3360, method: "Bank Transfer", reference: "TRF-88421", recordedBy: "Jason Daswani" },
-  { date: "15 Apr 2026", student: "Fatima Al-Shehhi",  invoice: "INV-1038", amount:  3360, method: "Cash",          reference: "",          recordedBy: "Sarah Admin"   },
-  { date: "14 Apr 2026", student: "Layla Hassan",       invoice: "INV-1040", amount:  3780, method: "Bank Transfer", reference: "TRF-88390", recordedBy: "Jason Daswani" },
-  { date: "13 Apr 2026", student: "Khalid Mansoor",     invoice: "INV-1037", amount: 11340, method: "Bank Transfer", reference: "TRF-88301", recordedBy: "Jason Daswani" },
-  { date: "12 Apr 2026", student: "Dana Al-Zaabi",      invoice: "INV-1036", amount:  6720, method: "Cash",          reference: "",          recordedBy: "Sarah Admin"   },
-  { date: "11 Apr 2026", student: "Mariam Al-Suwaidi",  invoice: "INV-1034", amount:  7560, method: "Bank Transfer", reference: "TRF-88201", recordedBy: "Jason Daswani" },
-  { date: "10 Apr 2026", student: "Adam Benali",        invoice: "INV-1033", amount:  7056, method: "Bank Transfer", reference: "TRF-88155", recordedBy: "Jason Daswani" },
-  { date:  "9 Apr 2026", student: "Faris Qasim",        invoice: "INV-1031", amount:  7560, method: "Cheque",        reference: "CHQ-441",   recordedBy: "Sarah Admin"   },
-  { date:  "8 Apr 2026", student: "Nour Ibrahim",       invoice: "INV-1030", amount:  3360, method: "Cash",          reference: "",          recordedBy: "Sarah Admin"   },
-  { date:  "7 Apr 2026", student: "Yousef Salim",       invoice: "INV-1035", amount:  5040, method: "Bank Transfer", reference: "TRF-88010", recordedBy: "Jason Daswani" },
+  { date: "15 Apr 2026", studentId: "IMI-0009", student: "Hamdan Al-Maktoum", invoice: "INV-1039", amount:  3360, method: "Bank Transfer", reference: "TRF-88421", recordedBy: "Jason Daswani", department: "Lower Secondary" },
+  { date: "15 Apr 2026", studentId: "IMI-0010", student: "Fatima Al-Shehhi",  invoice: "INV-1038", amount:  3360, method: "Cash",          reference: "",          recordedBy: "Sarah Admin",   department: "Primary"         },
+  { date: "14 Apr 2026", studentId: "IMI-0003", student: "Layla Hassan",       invoice: "INV-1040", amount:  3780, method: "Bank Transfer", reference: "TRF-88390", recordedBy: "Jason Daswani", department: "Senior"          },
+  { date: "13 Apr 2026", studentId: "IMI-0011", student: "Khalid Mansoor",     invoice: "INV-1037", amount: 11340, method: "Bank Transfer", reference: "TRF-88301", recordedBy: "Jason Daswani", department: "Senior"          },
+  { date: "12 Apr 2026", studentId: "IMI-0012", student: "Dana Al-Zaabi",      invoice: "INV-1036", amount:  6720, method: "Cash",          reference: "",          recordedBy: "Sarah Admin",   department: "Primary"         },
+  { date: "11 Apr 2026", studentId: "IMI-0014", student: "Mariam Al-Suwaidi",  invoice: "INV-1034", amount:  7560, method: "Bank Transfer", reference: "TRF-88201", recordedBy: "Jason Daswani", department: "Senior"          },
+  { date: "10 Apr 2026", studentId: "IMI-0015", student: "Adam Benali",        invoice: "INV-1033", amount:  7056, method: "Bank Transfer", reference: "TRF-88155", recordedBy: "Jason Daswani", department: "Primary"         },
+  { date:  "9 Apr 2026", studentId: "IMI-0007", student: "Faris Qasim",        invoice: "INV-1031", amount:  7560, method: "Online",        reference: "ONL-441",   recordedBy: "Sarah Admin",   department: "Senior"          },
+  { date:  "8 Apr 2026", studentId: "IMI-0008", student: "Nour Ibrahim",       invoice: "INV-1030", amount:  3360, method: "Cash",          reference: "",          recordedBy: "Sarah Admin",   department: "Primary"         },
+  { date:  "7 Apr 2026", studentId: "IMI-0013", student: "Yousef Salim",       invoice: "INV-1035", amount:  5040, method: "Bank Transfer", reference: "TRF-88010", recordedBy: "Jason Daswani", department: "Lower Secondary" },
 ];
 
 export const creditLedger: Credit[] = [
-  { date: "10 Apr 2026", student: "Aisha Rahman",  amount:  800, reason: "Session cancelled by teacher — goodwill credit",     issuedBy: "Jason Daswani", status: "Unused"  },
-  { date:  "8 Apr 2026", student: "Yousef Salim",  amount:  400, reason: "Billing adjustment — session deducted in error",      issuedBy: "Sarah Admin",   status: "Applied" },
-  { date:  "5 Apr 2026", student: "Sara Nasser",   amount: 1200, reason: "Overpayment on INV-1032 — pre-collected credit",      issuedBy: "Jason Daswani", status: "Unused"  },
-  { date:  "1 Apr 2026", student: "Omar Al-Farsi", amount:  800, reason: "Goodwill credit — rescheduling disruption",           issuedBy: "Jason Daswani", status: "Applied" },
-  { date: "28 Mar 2026", student: "Layla Hassan",  amount: 1200, reason: "Credit note — withdrawal mid-package",                issuedBy: "Jason Daswani", status: "Applied" },
-  { date: "25 Mar 2026", student: "Reem Al-Dosari",amount:  400, reason: "Session cancellation — teacher absent",               issuedBy: "Sarah Admin",   status: "Applied" },
+  { date: "10 Apr 2026", studentId: "IMI-0001", student: "Aisha Rahman",   amount:  800, reason: "Session cancelled by teacher — goodwill credit",  issuedBy: "Jason Daswani", status: "Unused",  department: "Lower Secondary", type: "manual"      },
+  { date:  "8 Apr 2026", studentId: "IMI-0013", student: "Yousef Salim",   amount:  400, reason: "Billing adjustment — session deducted in error",   issuedBy: "Sarah Admin",   status: "Applied", department: "Lower Secondary", type: "manual"      },
+  { date:  "5 Apr 2026", studentId: "IMI-0005", student: "Sara Nasser",    amount: 1200, reason: "Overpayment on INV-1032 — pre-collected credit",   issuedBy: "Jason Daswani", status: "Unused",  department: "Lower Secondary", type: "overpayment" },
+  { date:  "1 Apr 2026", studentId: "IMI-0002", student: "Omar Al-Farsi",  amount:  800, reason: "Goodwill credit — rescheduling disruption",        issuedBy: "Jason Daswani", status: "Applied", department: "Primary",         type: "promotional" },
+  { date: "28 Mar 2026", studentId: "IMI-0003", student: "Layla Hassan",   amount: 1200, reason: "Credit note — withdrawal mid-package",             issuedBy: "Jason Daswani", status: "Applied", department: "Senior",          type: "refund"      },
+  { date: "25 Mar 2026", studentId: "IMI-0006", student: "Reem Al-Dosari", amount:  400, reason: "Session cancellation — teacher absent",            issuedBy: "Sarah Admin",   status: "Applied", department: "Primary",         type: "manual"      },
 ];
 
 export const financeStats = {
