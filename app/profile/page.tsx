@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Mail,
   Phone,
@@ -20,11 +20,19 @@ import {
   DollarSign,
   ClipboardList,
   MessageSquare,
+  Camera,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { usePermission } from "@/lib/use-permission";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
 // ─── Mock profile data ────────────────────────────────────────────────────────
 
@@ -159,8 +167,32 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 type TabId = "account" | "preferences" | "activity";
 
 export default function ProfilePage() {
+  const { role } = usePermission();
+  const isSuperAdmin = role === 'Super Admin';
+
   const [tab, setTab] = useState<TabId>("account");
   const [editing, setEditing] = useState(false);
+
+  // Profile photo
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPhotoUrl(reader.result as string);
+      toast.success("Profile photo updated");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function handleRemovePhoto() {
+    setPhotoUrl(null);
+    toast.success("Profile photo removed");
+  }
 
   // Editable account fields
   const [displayName, setDisplayName] = useState(PROFILE.name);
@@ -221,9 +253,39 @@ export default function ProfilePage() {
         {/* ── Left sidebar ── */}
         <aside className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-fit">
           <div className="p-6 flex flex-col items-center text-center border-b border-slate-100">
-            <div className="w-24 h-24 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-3xl font-bold mb-4">
-              {getInitials(PROFILE.name)}
+            <div className="relative mb-4">
+              <div className="w-24 h-24 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-3xl font-bold overflow-hidden">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="Profile photo" className="w-full h-full object-cover" />
+                ) : (
+                  getInitials(PROFILE.name)
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Upload profile photo"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center shadow-sm transition-colors cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoChange}
+              />
             </div>
+            {photoUrl && (
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                className="text-xs text-slate-500 hover:text-red-500 transition-colors cursor-pointer -mt-2 mb-2"
+              >
+                Remove photo
+              </button>
+            )}
             <h2 className="text-lg font-bold text-slate-900 leading-tight">
               {PROFILE.name}
             </h2>
@@ -349,12 +411,26 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <FieldLabel>Email</FieldLabel>
-                      <Input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        disabled={!editing}
-                      />
+                      {isSuperAdmin ? (
+                        <Input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={!editing}
+                        />
+                      ) : (
+                        <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                          <span className="truncate">{email}</span>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-default" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Email can only be changed by a Super Admin
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <FieldLabel>Phone</FieldLabel>
