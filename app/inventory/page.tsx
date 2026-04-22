@@ -11,9 +11,10 @@ import {
 import { cn } from '@/lib/utils';
 import {
   inventoryItems, inventorySuppliers, reorderAlerts, stockLedgerEntries,
-  currentUser,
+  currentUser, staffMembers, tasks,
   type InventoryItem, type AutoDeductRule, type LedgerEntry,
   type ReorderAlert, type StockLedgerEntry, type InventorySupplier,
+  type Task, type TaskType,
 } from '@/lib/mock-data';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -875,13 +876,49 @@ function ReorderAlertsTab() {
   const [receivedAlert, setReceivedAlert] = useState<ReorderAlert | null>(null);
   const [receivedQty, setReceivedQty] = useState(0);
   const [receivedNote, setReceivedNote] = useState('');
-  const [toast, setToast] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+
+  const [assigneeMap, setAssigneeMap] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    reorderAlerts.forEach(a => { if (a.responsibleStaffId) init[a.id] = a.responsibleStaffId; });
+    return init;
+  });
+  const [taskCreatedSet, setTaskCreatedSet] = useState<Set<string>>(new Set());
 
   const { sortField, sortDir, toggleSort, sortData } = useSortState(null);
 
   function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(''), 2000);
+    setStatusMsg(msg);
+    setTimeout(() => setStatusMsg(''), 2000);
+  }
+
+  function createReorderTask(alert: ReorderAlert) {
+    const staffId = assigneeMap[alert.id] || '';
+    const staffMember = staffMembers.find(s => s.id === staffId);
+    const assigneeName = staffMember?.name ?? 'Unassigned';
+    const maxId = Math.max(...tasks.map(t => parseInt(t.id.replace('TK-', ''), 10)));
+    const nextId = `TK-${String(maxId + 1).padStart(3, '0')}`;
+    const d = new Date();
+    d.setDate(d.getDate() + 3);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dueDate = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    const newTask: Task = {
+      id: nextId,
+      title: `Reorder: ${alert.itemName}`,
+      type: 'Admin' as TaskType,
+      priority: alert.currentStock === 0 ? 'High' : 'Medium',
+      status: 'Open',
+      assignee: assigneeName,
+      dueDate,
+      linkedRecord: null,
+      description: `Stock at ${alert.currentStock} — reorder qty ${alert.reorderQty} from ${alert.supplierName}`,
+      subtasks: [],
+      overdue: false,
+      linkedInventoryItemId: alert.id,
+    };
+    tasks.push(newTask);
+    setTaskCreatedSet(prev => new Set([...prev, alert.id]));
+    toast.success(`Reorder task created for ${alert.itemName}`);
   }
 
   function markOrdered(id: string) {
@@ -987,94 +1024,137 @@ function ReorderAlertsTab() {
                   <SortableHeader label="Reorder Point" field="minStock"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
                   <SortableHeader label="Reorder Qty"   field="reorderQty"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
                   <SortableHeader label="Supplier"      field="supplierName" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Responsible Person</th>
                   <SortableHeader label="Status"        field="status"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(alert => (
-                  <tr key={alert.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors" style={{ height: 56 }}>
-                    <td className="px-4 py-2">
-                      <span className="font-medium text-slate-900 text-sm">{alert.itemName}</span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className="text-xs text-slate-500">{alert.category}</span>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className="text-red-600 font-bold text-sm">{alert.currentStock}</span>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className="text-slate-500 text-sm">{alert.minStock}</span>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className="text-slate-500 text-sm">{alert.reorderQty}</span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="text-sm text-slate-700">{alert.supplierName}</div>
-                      {alert.supplierPhone && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Phone className="w-2.5 h-2.5 text-slate-400" />
-                          <span className="text-xs text-slate-400">{alert.supplierPhone}</span>
-                        </div>
-                      )}
-                      {alert.supplierEmail && (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Mail className="w-2.5 h-2.5 text-slate-400" />
-                          <span className="text-xs text-slate-400">{alert.supplierEmail}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <ReorderStatusBadge status={alert.status} />
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center justify-end gap-2 flex-wrap">
-                        {alert.status === 'open' && (
-                          <>
-                            <button
-                              onClick={() => markOrdered(alert.id)}
-                              className="text-xs px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors cursor-pointer whitespace-nowrap"
+                {filtered.map(alert => {
+                  const assignedStaff = staffMembers.find(s => s.id === (assigneeMap[alert.id] || ''));
+                  const taskDone = taskCreatedSet.has(alert.id);
+                  return (
+                    <tr key={alert.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-2">
+                        <span className="font-medium text-slate-900 text-sm">{alert.itemName}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className="text-xs text-slate-500">{alert.category}</span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <span className="text-red-600 font-bold text-sm">{alert.currentStock}</span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <span className="text-slate-500 text-sm">{alert.minStock}</span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <span className="text-slate-500 text-sm">{alert.reorderQty}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="text-sm text-slate-700">{alert.supplierName}</div>
+                        {alert.supplierPhone && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Phone className="w-2.5 h-2.5 text-slate-400" />
+                            <span className="text-xs text-slate-400">{alert.supplierPhone}</span>
+                          </div>
+                        )}
+                        {alert.supplierEmail && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Mail className="w-2.5 h-2.5 text-slate-400" />
+                            <span className="text-xs text-slate-400">{alert.supplierEmail}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {assignedStaff
+                          ? <span className="text-sm text-slate-700 font-medium">{assignedStaff.name}</span>
+                          : <span className="text-sm text-slate-400">Unassigned</span>
+                        }
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <ReorderStatusBadge status={alert.status} />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex flex-col items-end gap-2">
+                          {/* Assign To */}
+                          <div className="relative">
+                            <select
+                              value={assigneeMap[alert.id] || ''}
+                              onChange={e => setAssigneeMap(prev => ({ ...prev, [alert.id]: e.target.value }))}
+                              className="appearance-none bg-white border border-slate-200 text-slate-700 text-xs rounded-lg pl-2.5 pr-7 py-1.5 cursor-pointer hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300 transition-colors min-w-[130px]"
                             >
-                              Mark Ordered
-                            </button>
-                            <button
-                              onClick={() => markIgnored(alert.id)}
-                              className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                            >
-                              Ignore
-                            </button>
-                          </>
-                        )}
-                        {alert.status === 'ordered' && (
-                          <button
-                            onClick={() => openReceived(alert)}
-                            className="text-xs px-2.5 py-1 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 transition-colors cursor-pointer whitespace-nowrap"
-                          >
-                            Mark Received
-                          </button>
-                        )}
-                        {alert.status === 'ignored' && (
-                          <button
-                            onClick={() => reopen(alert.id)}
-                            className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                          >
-                            Reopen
-                          </button>
-                        )}
-                        {alert.amazonLink && (
-                          <a
-                            href={alert.amazonLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:underline cursor-pointer"
-                          >
-                            Amazon <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                              <option value="">Unassigned</option>
+                              {staffMembers.filter(s => s.status === 'Active').map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                          </div>
+                          {/* Existing status actions + Create Task */}
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {alert.status === 'open' && (
+                              <>
+                                <button
+                                  onClick={() => markOrdered(alert.id)}
+                                  className="text-xs px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors cursor-pointer whitespace-nowrap"
+                                >
+                                  Mark Ordered
+                                </button>
+                                <button
+                                  onClick={() => markIgnored(alert.id)}
+                                  className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                                >
+                                  Ignore
+                                </button>
+                              </>
+                            )}
+                            {alert.status === 'ordered' && (
+                              <button
+                                onClick={() => openReceived(alert)}
+                                className="text-xs px-2.5 py-1 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 transition-colors cursor-pointer whitespace-nowrap"
+                              >
+                                Mark Received
+                              </button>
+                            )}
+                            {alert.status === 'ignored' && (
+                              <button
+                                onClick={() => reopen(alert.id)}
+                                className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                              >
+                                Reopen
+                              </button>
+                            )}
+                            {alert.amazonLink && (
+                              <a
+                                href={alert.amazonLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-0.5 text-xs text-blue-600 hover:underline cursor-pointer"
+                              >
+                                Amazon <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                            {taskDone ? (
+                              <button
+                                disabled
+                                className="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 cursor-default whitespace-nowrap"
+                              >
+                                Task Created ✓
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => createReorderTask(alert)}
+                                className="text-xs px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer whitespace-nowrap"
+                              >
+                                Create Reorder Task
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1130,9 +1210,9 @@ function ReorderAlertsTab() {
         </Dialog>
       )}
 
-      {toast && (
+      {statusMsg && (
         <div className="fixed bottom-6 right-6 bg-green-600 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50">
-          {toast}
+          {statusMsg}
         </div>
       )}
     </div>
