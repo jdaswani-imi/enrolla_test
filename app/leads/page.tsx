@@ -85,6 +85,7 @@ const STAGES: LeadStage[] = [
   "Invoice Sent",
   "Paid",
   "Won",
+  "Lost",
 ];
 
 const STAGE_CONFIG: Record<
@@ -157,6 +158,12 @@ const STAGE_CONFIG: Record<
     colBg: "bg-green-50/50",
     headerText: "text-green-700",
   },
+  Lost: {
+    color: "border-l-red-400",
+    badge: "bg-red-100 text-red-700",
+    colBg: "bg-red-50/40",
+    headerText: "text-red-700",
+  },
 };
 
 const SOURCE_CONFIG: Record<LeadSource, string> = {
@@ -210,6 +217,7 @@ function getInitials(name: string): string {
 // ─── Lead action handlers (shared across menus & detail dialog) ───────────────
 
 function nextStageOf(stage: LeadStage): LeadStage | null {
+  if (stage === "Won" || stage === "Lost") return null;
   const idx = STAGES.indexOf(stage);
   if (idx < 0 || idx >= STAGES.length - 1) return null;
   return STAGES[idx + 1];
@@ -362,7 +370,8 @@ function KanbanCard({
       className={cn(
         "rounded-lg border border-slate-200 shadow-sm border-l-4 p-3 cursor-pointer hover:shadow-md transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
         lead.dnc ? "border-l-red-400" : cfg.color,
-        lead.stage === "Won" ? "bg-green-50" : "bg-white"
+        lead.stage === "Won" ? "bg-green-50" : lead.stage === "Lost" ? "bg-red-50/30" : "bg-white",
+        lead.stage === "Lost" && "opacity-85 grayscale-[0.2]",
       )}
     >
       {/* Top row */}
@@ -411,7 +420,29 @@ function KanbanCard({
       </p>
 
       {/* Guardian */}
-      <p className="text-xs text-slate-400 mb-2">{lead.guardian}</p>
+      <p className="text-xs text-slate-400 mb-1.5">{lead.guardian}</p>
+
+      {/* Lost reason + re-engage chip */}
+      {lead.stage === "Lost" && (
+        <div className="mb-2 space-y-1">
+          {lead.lostReason && (
+            <p className="text-xs text-slate-400 italic truncate">{lead.lostReason}</p>
+          )}
+          {lead.reEngage === false ? (
+            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+              Do not re-engage
+            </span>
+          ) : lead.reEngageAfter ? (
+            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
+              Re-engage after {lead.reEngageAfter}
+            </span>
+          ) : (
+            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
+              Re-engage when ready
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Bottom row */}
       <div className="flex items-center justify-between">
@@ -1883,7 +1914,7 @@ function StageFooterActions({
     return null;
   }
 
-  // "Won" — terminal
+  // "Won" / "Lost" — terminal
   return null;
 }
 
@@ -2101,7 +2132,7 @@ function LeadDetailDialog({
   const cfg = STAGE_CONFIG[currentStage];
   const palette = getAvatarPalette(lead.assignedTo);
   const next = nextStageOf(currentStage);
-  const isTerminal = currentStage === "Won";
+  const isTerminal = currentStage === "Won" || currentStage === "Lost";
   const canConvert = currentStage === "Paid";
 
   return (
@@ -2258,7 +2289,7 @@ function LeadDetailDialog({
               )}
             >
               {isTerminal ? (
-                "Converted"
+                currentStage === "Won" ? "Converted" : "Closed — Lost"
               ) : (
                 <>
                   Move to next stage
@@ -2292,6 +2323,40 @@ function LeadDetailDialog({
             ))}
           </div>
         </div>
+
+        {currentStage === "Lost" && (
+          <div className="px-6 pb-4">
+            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Lost Details</p>
+            <div className="rounded-lg border border-red-100 bg-red-50/30 p-4 space-y-3">
+              <div>
+                <p className="text-xs text-slate-400 mb-0.5">Reason</p>
+                <p className="text-sm font-medium text-slate-700">{lead.lostReason ?? "—"}</p>
+              </div>
+              {lead.lostNotes && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Notes</p>
+                  <p className="text-sm text-slate-600">{lead.lostNotes}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs text-slate-400 mb-1">Re-engage</p>
+                {lead.reEngage === false ? (
+                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                    Do not re-engage
+                  </span>
+                ) : lead.reEngageAfter ? (
+                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    Re-engage after {lead.reEngageAfter}
+                  </span>
+                ) : (
+                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                    Re-engage when ready
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {isJourneyLead && (
           <div className="px-6 pb-4">
@@ -2821,6 +2886,173 @@ function ArchiveConfirmDialog({
   );
 }
 
+// ─── Mark as Lost Modal ───────────────────────────────────────────────────────
+
+const LOST_REASON_OPTIONS = [
+  "Price — too expensive",
+  "Chose a competitor",
+  "Location / timing not suitable",
+  "Student not ready",
+  "Parent changed mind",
+  "No response after follow-up",
+  "Enrolled elsewhere",
+  "Other",
+];
+
+type LostData = {
+  lostReason: string;
+  lostNotes: string;
+  reEngage: boolean;
+  reEngageAfter?: string;
+};
+
+function MarkAsLostModal({
+  lead,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  lead: Lead | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onConfirm: (lead: Lead, data: LostData) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [reEngage, setReEngage] = useState(true);
+  const [reEngageAfter, setReEngageAfter] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setReason("");
+      setNotes("");
+      setReEngage(true);
+      setReEngageAfter("");
+      setSubmitted(false);
+    }
+  }, [open]);
+
+  const reasonMissing = !reason;
+  const notesMissing = reason === "Other" && !notes.trim();
+
+  function handleConfirm() {
+    setSubmitted(true);
+    if (reasonMissing || notesMissing || !lead) return;
+    onOpenChange(false);
+    onConfirm(lead, {
+      lostReason: reason,
+      lostNotes: notes,
+      reEngage,
+      reEngageAfter: reEngage && reEngageAfter ? reEngageAfter : undefined,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Mark as Lost</DialogTitle>
+          {lead && <DialogDescription>{lead.childName}</DialogDescription>}
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Reason */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent cursor-pointer"
+            >
+              <option value="">Select a reason…</option>
+              {LOST_REASON_OPTIONS.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+            {submitted && reasonMissing && (
+              <p className="text-xs text-red-500 mt-1">Please select a reason</p>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+              Notes {reason === "Other" && <span className="text-red-500">*</span>}
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Additional context…"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+            />
+            {submitted && notesMissing && (
+              <p className="text-xs text-red-500 mt-1">Notes are required when reason is &ldquo;Other&rdquo;</p>
+            )}
+          </div>
+
+          {/* Re-engage toggle */}
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-sm font-medium text-slate-700">Re-engage in future?</label>
+            <button
+              type="button"
+              onClick={() => setReEngage((v) => !v)}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer",
+                reEngage ? "bg-green-500" : "bg-slate-200",
+              )}
+              role="switch"
+              aria-checked={reEngage}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                  reEngage ? "translate-x-6" : "translate-x-1",
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Re-engage after date */}
+          {reEngage && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                Re-engage after <span className="text-slate-400 font-normal normal-case">(optional)</span>
+              </label>
+              <input
+                type="date"
+                value={reEngageAfter}
+                onChange={(e) => setReEngageAfter(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent cursor-pointer"
+              />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 cursor-pointer shadow-sm transition-colors"
+          >
+            Confirm Lost
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Move Stage Dialog ────────────────────────────────────────────────────────
 
 function MoveStageDialog({
@@ -2926,6 +3158,8 @@ export default function LeadsPage() {
   const [moveStageOpen, setMoveStageOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [addLeadStage, setAddLeadStage] = useState<LeadStage | null>(null);
+  const [lostModalOpen, setLostModalOpen] = useState(false);
+  const [lostModalLead, setLostModalLead] = useState<Lead | null>(null);
 
   // Sort
   const [sortField, setSortField] = useState<string | null>(null);
@@ -2956,6 +3190,7 @@ export default function LeadsPage() {
   // Per-lead stage overrides + activity (for every non-Bilal lead)
   const [leadStageOverrides, setLeadStageOverrides] = useState<Record<string, LeadStage>>({});
   const [leadActivity, setLeadActivity] = useState<Record<string, ActivityEntry[]>>({});
+  const [leadLostData, setLeadLostData] = useState<Record<string, LostData>>({});
   // Per-lead "follow-up task completed" banner, shown once the linked task is Done.
   const [followUpBanners, setFollowUpBanners] = useState<Record<string, { taskTitle: string }>>({});
   const [leadPrefs, setLeadPrefs] = useState<
@@ -2969,13 +3204,18 @@ export default function LeadsPage() {
       const base: Lead = prefs
         ? { ...l, preferredDays: prefs.preferredDays, preferredWindow: prefs.preferredWindow }
         : l;
+      let result: Lead;
       if (l.id === BILAL_LEAD_ID) {
-        return { ...base, stage: journey.leadStage, lastActivity: "Today" };
+        result = { ...base, stage: journey.leadStage, lastActivity: "Today" };
+      } else {
+        const override = leadStageOverrides[l.id];
+        result = override ? { ...base, stage: override, lastActivity: "Today" } : base;
       }
-      const override = leadStageOverrides[l.id];
-      return override ? { ...base, stage: override, lastActivity: "Today" } : base;
+      const lostData = leadLostData[l.id];
+      if (lostData) result = { ...result, ...lostData };
+      return result;
     });
-  }, [journey.leadStage, leadStageOverrides, leadPrefs]);
+  }, [journey.leadStage, leadStageOverrides, leadPrefs, leadLostData]);
 
   const updateLeadPrefs = (
     leadId: string,
@@ -3035,6 +3275,7 @@ export default function LeadsPage() {
     lead: Lead,
     previousStage: LeadStage,
     assessmentIdToCancel: string | undefined,
+    onExtra?: () => void,
   ) {
     dismissUndoToast();
     if (lead.id === BILAL_LEAD_ID) {
@@ -3054,6 +3295,7 @@ export default function LeadsPage() {
       }));
     }
     if (assessmentIdToCancel) cancelAssessment(assessmentIdToCancel);
+    if (onExtra) onExtra();
     toast.custom(
       () => (
         <div className="bg-slate-800 text-white text-sm font-medium rounded-lg shadow-lg px-4 py-2.5 min-w-[220px]">
@@ -3069,6 +3311,7 @@ export default function LeadsPage() {
     newStage: LeadStage,
     previousStage: LeadStage,
     assessmentIdToCancel: string | undefined,
+    onExtra?: () => void,
   ) {
     dismissUndoToast();
     const id = toast.custom(
@@ -3080,7 +3323,7 @@ export default function LeadsPage() {
           </span>
           <button
             type="button"
-            onClick={() => performUndo(lead, previousStage, assessmentIdToCancel)}
+            onClick={() => performUndo(lead, previousStage, assessmentIdToCancel, onExtra)}
             className="text-sm font-semibold text-amber-600 hover:text-amber-700 px-2.5 py-1 rounded cursor-pointer"
           >
             Undo
@@ -3148,6 +3391,9 @@ export default function LeadsPage() {
       setInvoiceBuilderOpen(true);
     } else if (target === "Paid") {
       setRecordPaymentOpen(true);
+    } else if (target === "Lost") {
+      setLostModalLead(lead);
+      setLostModalOpen(true);
     } else {
       applyStageChange(lead, target);
       setPendingGate(null);
@@ -3158,6 +3404,12 @@ export default function LeadsPage() {
   // journey footer actions). Applies the skip-warning rule before routing.
   function commitStageChange(lead: Lead, newStage: LeadStage) {
     if (newStage === lead.stage) return;
+    // Lost is a special terminal action — bypass skip-warn and go straight to modal
+    if (newStage === "Lost") {
+      setLostModalLead(lead);
+      setLostModalOpen(true);
+      return;
+    }
     if (newStage === "Schedule Offered") {
       const hasTrialRecord =
         lead.stage === "Trial Booked" ||
@@ -3175,6 +3427,35 @@ export default function LeadsPage() {
       return;
     }
     routeStageChange(lead, newStage);
+  }
+
+  function applyMarkAsLost(lead: Lead, data: LostData) {
+    const previousStage = lead.stage;
+    setLeadLostData((prev) => ({ ...prev, [lead.id]: data }));
+    if (lead.id === BILAL_LEAD_ID) {
+      journey.setStage("Lost", "Jason Daswani");
+    } else {
+      setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Lost" }));
+      setLeadActivity((prev) => ({
+        ...prev,
+        [lead.id]: [
+          {
+            label: "Just now",
+            text: `Lead marked as Lost — ${data.lostReason}${data.lostNotes ? ` · ${data.lostNotes}` : ""}`,
+            dot: "bg-red-400",
+          },
+          ...(prev[lead.id] ?? []),
+        ],
+      }));
+    }
+    toast.success("Lead marked as lost");
+    showUndoToast(lead, "Lost", previousStage, undefined, () => {
+      setLeadLostData((prev) => {
+        const next = { ...prev };
+        delete next[lead.id];
+        return next;
+      });
+    });
   }
 
   // Reset page when filters/view change
@@ -3545,7 +3826,7 @@ export default function LeadsPage() {
       onBookAssessment: () => handleBookAssessment(lead),
       onBookTrial: () => handleBookTrial(lead),
       onConvertToStudent: () => handleConvert(lead),
-      onMarkLost: () => toast.success("Lead marked as Lost"),
+      onMarkLost: () => { setLostModalLead(lead); setLostModalOpen(true); },
       onArchive: () => openArchive(lead),
     };
   }
@@ -3736,6 +4017,9 @@ export default function LeadsPage() {
       {view === "list" && (
         <div className="flex-1 overflow-auto">
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {(() => {
+              const showLostReasonCol = stageFilter.includes("Lost") || filteredLeads.some(l => l.stage === "Lost");
+              return (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -3745,6 +4029,9 @@ export default function LeadsPage() {
                   <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Subject(s)</th>
                   <SortableHeader label="Source"        field="source"         sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <SortableHeader label="Stage"         field="stage"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                  {showLostReasonCol && (
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Lost Reason</th>
+                  )}
                   <SortableHeader label="Assigned"      field="assignedTo"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <SortableHeader label="Last Activity" field="lastActivity"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <SortableHeader label="Days"          field="daysInPipeline" sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
@@ -3802,6 +4089,30 @@ export default function LeadsPage() {
                           {lead.stage}
                         </span>
                       </td>
+                      {showLostReasonCol && (
+                        <td className="px-4 py-3">
+                          {lead.stage === "Lost" ? (
+                            <div className="space-y-1">
+                              <p className="text-xs text-slate-500">{lead.lostReason ?? "—"}</p>
+                              {lead.reEngage === false ? (
+                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 whitespace-nowrap">
+                                  Do not re-engage
+                                </span>
+                              ) : lead.reEngageAfter ? (
+                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                                  Re-engage after {lead.reEngageAfter}
+                                </span>
+                              ) : (
+                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                                  Re-engage when ready
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <div
                           className={cn(
@@ -3824,6 +4135,8 @@ export default function LeadsPage() {
                 })}
               </tbody>
             </table>
+              );
+            })()}
             {filteredLeads.length === 0 && (
               <EmptyState
                 icon={Filter}
@@ -3886,9 +4199,26 @@ export default function LeadsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-1.5">
-                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap", cfg.badge)}>
-                          {lead.stage}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap", cfg.badge)}>
+                            {lead.stage}
+                          </span>
+                          {lead.stage === "Lost" && (
+                            lead.reEngage === false ? (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 whitespace-nowrap">
+                                Do not re-engage
+                              </span>
+                            ) : lead.reEngageAfter ? (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                                Re-engage after {lead.reEngageAfter}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                                Re-engage when ready
+                              </span>
+                            )
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-1.5">
                         <span className={cn("px-1.5 py-0.5 rounded text-xs font-medium", SOURCE_CONFIG[lead.source])}>
@@ -4193,6 +4523,12 @@ export default function LeadsPage() {
         open={moveStageOpen}
         onOpenChange={setMoveStageOpen}
         onConfirm={(l, s) => commitStageChange(l, s)}
+      />
+      <MarkAsLostModal
+        lead={lostModalLead}
+        open={lostModalOpen}
+        onOpenChange={setLostModalOpen}
+        onConfirm={(l, data) => applyMarkAsLost(l, data)}
       />
     </div>
   );
