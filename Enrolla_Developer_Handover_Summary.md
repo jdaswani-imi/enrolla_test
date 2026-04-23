@@ -1,6 +1,6 @@
 # Enrolla Frontend Prototype — Developer Handover Summary
 
-> **Generated:** 23 April 2026  
+> **Generated:** 23 April 2026 (updated Session 8)  
 > **Source:** Derived entirely from the codebase at the time of writing. No assumptions — everything below is read directly from source files.
 
 ---
@@ -327,7 +327,7 @@ Role-scoped dashboard driven by `lib/dashboard-config.ts`. The `getDashboardConf
 
 ### 6.3 `/students`
 
-**RBAC:** `students.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA.
+**RBAC:** `students.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA, HR/Finance.
 
 **Features:**
 - Search by name, ID, guardian, school
@@ -363,6 +363,8 @@ Role-scoped dashboard driven by `lib/dashboard-config.ts`. The `getDashboardConf
 | **Communication Log** | Static placeholder (not wired to data) |
 
 **RBAC gates:** Edit profile (`students.edit`), financial tab (`students.viewFinancial`), delete (`students.delete`), year group edit (`students.editYearGroup`).
+
+The Personal Details, Academic, and Family section edit pencil buttons are conditionally rendered only when `can('students.edit')` — the `onEdit` prop on `EditableSectionHeader` is passed as `undefined` for unauthorised roles, hiding the button entirely. The "Add Note" and "Dismiss" buttons on the Concerns sub-tab are similarly gated.
 
 **Cross-module linking:** Tasks linked to this student show inline. `?tab=finance` / `?tab=attendance` deep-link from dashboard alerts.
 
@@ -585,7 +587,7 @@ Communications hub — Announcements, Concerns & Tickets, and Surveys. Severity 
 
 ### 6.15 `/finance`
 
-**RBAC:** `finance.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
+**RBAC:** `finance.view` — Super Admin, Admin Head, Admin, HR/Finance. (Academic Head and HOD removed in Session 8.)
 
 **Tabs (4):**
 
@@ -638,7 +640,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ### 6.18 `/tasks`
 
-**RBAC:** `tasks.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
+**RBAC:** `tasks.view` — all 8 roles (Teacher and TA added in Session 8).
 
 **Views:** Kanban (4 columns: Open, In Progress, Blocked, Done) + List view toggle.
 
@@ -702,7 +704,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ### 6.21 `/people`
 
-**RBAC:** `people.view` — Super Admin, Admin Head, Admin, Academic Head, HR/Finance.
+**RBAC:** `people.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance. (HOD added in Session 8.)
 
 **Tabs (6):**
 
@@ -726,16 +728,18 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ### 6.22 `/analytics`
 
-**RBAC:** `analytics.view` — Super Admin, Admin Head, Academic Head, HOD, HR/Finance.
+**RBAC:** `analytics.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance. (Admin added in Session 8.)
 
 **Tabs (4):**
 
-| Tab | Content |
-|---|---|
-| **Revenue** | Revenue bar chart (invoiced vs collected, 6 months), KPI cards |
-| **Occupancy** | Heatmap grid (Mon–Fri × 8 time slots, percentage fill) |
-| **Churn** | Churn risk breakdown, trend data |
-| **Staff** | Staff CPD completion, workload distribution |
+| Tab | Content | Permission |
+|---|---|---|
+| **Revenue** | Revenue bar chart (invoiced vs collected, 6 months), KPI cards | `analytics.view` |
+| **Occupancy** | Heatmap grid (Mon–Fri × 8 time slots, percentage fill) | `analytics.view` |
+| **Churn** | Churn risk breakdown, trend data | `analytics.view` |
+| **Staff** | Staff CPD completion, workload distribution | `analytics.viewStaffPerformance` |
+
+**Staff tab gating (added Session 8):** The Staff tab is only visible to roles with `analytics.viewStaffPerformance` (Super Admin, Admin Head, HR/Finance). Roles without this permission see the tab hidden from the tab bar. If a user navigates directly to `?tab=staff` without permission, a `useEffect` redirects them to `?tab=revenue` (the first visible tab).
 
 All charts use Recharts (`BarChart`, `ResponsiveContainer`, `CartesianGrid`, etc.).
 
@@ -1273,6 +1277,36 @@ interface AssessmentRecord {
 // Utilities: isoToDayKey(), isoToDateLabel()
 ```
 
+### 7.21 Permission Refinements in Session 8 (23 April 2026)
+
+No new data fields were added. This session tightened and broadened the `PERMISSIONS` matrix and added a new sub-permission for analytics tab gating.
+
+| Action | Change |
+|---|---|
+| `students.view` | Added `HR/Finance` |
+| `finance.view` | Removed `Academic Head`, `HOD` |
+| `finance.createInvoice` | Removed `Academic Head`, `HOD` |
+| `finance.voidInvoice` | Removed `Academic Head` |
+| `finance.applyDiscount` | Removed `Academic Head` |
+| `finance.requestRefund` | Removed `Academic Head` |
+| `finance.markBadDebt` | Added `HR/Finance` |
+| `timetable.editSession` | Added `Academic Head` |
+| `feedback.submit` | Added `Admin` |
+| `progress.setTargetGrade` | Added `Teacher` |
+| `concerns.raise` | Added `TA` |
+| `tasks.view` | Added `Teacher`, `TA` |
+| `tasks.editOthers` | Added `Teacher`, `TA` |
+| `tasks.deleteOthers` | Added `Teacher`, `TA` |
+| `tasks.reassign` | Added `Teacher`, `TA` |
+| `people.view` | Added `HOD` |
+| `analytics.view` | Added `Admin` |
+| `analytics.viewStaffPerformance` | **New action** — Super Admin, Admin Head, HR/Finance. Gates the Staff tab on `/analytics`. |
+
+**UI guards also added in Session 8:**
+- Student profile sidebar edit pencil buttons (Personal Details / Academic / Family sections) are now fully hidden when `!can('students.edit')` — achieved by making `EditableSectionHeader`'s `onEdit` prop optional and passing `undefined` for unauthorised roles.
+- "Add Note" and "Dismiss" buttons on the student Concerns sub-tab are now hidden when `!can('students.edit')`.
+- Analytics Staff tab: hidden from tab bar for roles without `analytics.viewStaffPerformance`; direct URL navigation to `?tab=staff` redirects to first visible tab.
+
 ---
 
 ## 8. RBAC Matrix
@@ -1288,7 +1322,7 @@ interface AssessmentRecord {
 | Nav ID | Required Action | Blocked Roles |
 |---|---|---|
 | dashboard | (none — always visible) | — |
-| students | `students.view` | HR/Finance |
+| students | `students.view` | Teacher, TA (HR/Finance now has access — added S8) |
 | guardians | `guardians.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
 | leads | `leads.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
 | enrolment | `enrolment.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
@@ -1296,14 +1330,14 @@ interface AssessmentRecord {
 | attendance | `attendance.view` | HR/Finance |
 | assessments | `assessments.view` | Teacher, TA, HR/Finance |
 | progress | `progress.view` | HR/Finance |
-| finance | `finance.view` | — (all see it) |
+| finance | `finance.view` | Academic Head, HOD, Teacher, TA (tightened S8 — was all roles) |
 | staff | `staff.view` | — (all see it) |
-| tasks | `tasks.view` | Teacher, TA |
-| analytics | `analytics.view` | Admin, Teacher, TA |
+| tasks | `tasks.view` | — (Teacher, TA added S8 — all roles now) |
+| analytics | `analytics.view` | Teacher, TA (Admin added S8) |
 | reports | `reports.view` | Teacher, TA |
 | settings | `settings.view` | Super Admin only |
 | feedback | `feedback.view` | HR/Finance |
-| people | `people.view` | HOD, Teacher, TA |
+| people | `people.view` | Teacher, TA (HOD added S8) |
 | automations | `automations.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
 | inventory | `inventory.view` | Teacher, TA |
 
@@ -1315,9 +1349,21 @@ interface AssessmentRecord {
 | `students.viewFinancial` | Super Admin, Admin Head, Admin, HR/Finance |
 | `leads.delete` | Super Admin, Admin Head |
 | `enrolment.transferSibling` | Super Admin, Admin Head |
+| `finance.view` | Super Admin, Admin Head, Admin, HR/Finance (tightened S8) |
 | `finance.approveRefund` | Super Admin, Admin Head |
 | `finance.finalApproveRefund` | Super Admin only |
+| `finance.applyDiscount` | Super Admin, Admin Head, HR/Finance (Academic Head removed S8) |
+| `finance.markBadDebt` | Super Admin, Admin Head, HR/Finance (HR/Finance added S8) |
 | `finance.viewSalary` | Super Admin, HR/Finance |
+| `timetable.editSession` | Super Admin, Admin Head, Admin, Academic Head, Teacher, TA (Academic Head added S8) |
+| `feedback.submit` | Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher (Admin added S8) |
+| `progress.setTargetGrade` | Super Admin, Admin Head, Academic Head, HOD, Teacher (Teacher added S8) |
+| `concerns.raise` | Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA (TA added S8) |
+| `tasks.view` | All 8 roles (Teacher, TA added S8) |
+| `tasks.editOthers` | Super Admin, Admin Head, Academic Head, HOD, Teacher, TA (Teacher, TA added S8) |
+| `tasks.deleteOthers` | Super Admin, Admin Head, Teacher, TA (Teacher, TA added S8) |
+| `tasks.reassign` | Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA (Teacher, TA added S8) |
+| `analytics.viewStaffPerformance` | Super Admin, Admin Head, HR/Finance (new action S8 — gates Staff tab) |
 | `attendance.unlockWindow` | Super Admin, Admin Head |
 | `staff.assignRole` | Super Admin only |
 | `settings.view` / `.edit` | Super Admin only |
@@ -1707,7 +1753,25 @@ When a lead is converted to a student:
 - The lead detail slide-over shows a green converted banner with a "View Student Profile" link → `/students/[convertedStudentId]`
 - The student profile sidebar shows a "View Original Lead" link that opens the leads page filtered to that lead
 
-### 11.20 Profile Photo Upload
+### 11.20 Analytics Tab Permission Gating
+
+The `/analytics` Staff tab is gated by a sub-permission (`analytics.viewStaffPerformance`) separate from `analytics.view`. This pattern should be reused for any future tab within a page that requires a narrower permission than the page-level access:
+
+```tsx
+const canViewStaff = can("analytics.viewStaffPerformance");
+const visibleTabs = TABS.filter((t) => t.id !== "staff" || canViewStaff);
+
+// Redirect if URL points at a hidden tab
+useEffect(() => {
+  if (raw === "staff" && !canViewStaff) {
+    router.replace(`?tab=${visibleTabs[0]?.id ?? "revenue"}`, { scroll: false });
+  }
+}, [raw, canViewStaff]);
+```
+
+The active tab default also falls back to `visibleTabs[0]` rather than a hardcoded slug, so adding future gated tabs won't break the default.
+
+### 11.22 Profile Photo Upload
 
 The avatar on `/profile` supports photo upload via a hidden `<input type="file">`. A camera button is overlaid at the bottom-right of the avatar. `FileReader` converts the selected image to base64 and renders it as the avatar src. "Remove photo" reverts to initials. Email field is read-only for all roles except Super Admin (lock icon + tooltip shown).
 
