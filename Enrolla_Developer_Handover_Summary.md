@@ -393,11 +393,16 @@ Guardian detail page. Shows linked students, contact info, communication prefere
 This is the most feature-rich page in the prototype.
 
 **Three view modes (toggle):**
-1. **Table view** — paginated list with sortable columns
-2. **Kanban view** — columns per stage, cards with key info (DNC badge, sibling badge, stage message pending indicator)
+1. **Table view** — paginated list with sortable columns; Lost rows show re-engage chip inline with stage badge
+2. **Kanban view** — 12 columns per stage (including Lost); Lost column has red header (`border-l-red-400`), cards rendered at `opacity-85 grayscale-[0.2]` with lost reason as italic grey subtext + re-engage chip
 3. **Lead Detail slide-over** — full-width right panel for selected lead
 
 **Filters:** Stage (multi), Source (multi), Year Group (multi), Assigned Staff, DNC toggle, search
+
+**Lost stage visual treatment:**
+- **Kanban:** Red column header + card opacity/desaturation + lost reason subtext + re-engage chip
+- **List view:** Conditional "Lost Reason" column appears when Lost filter is active or any visible row is in Lost stage; re-engage chip shown in that cell
+- **Table view:** Re-engage chip inline with stage badge for Lost rows
 
 **Lead detail slide-over tabs:**
 - **Overview:** Stage progress bar, key fields, WhatsApp message block, DNC interstitial
@@ -417,8 +422,20 @@ This is the most feature-rich page in the prototype.
 | Schedule Offered | Confirm Schedule |
 | Schedule Confirmed | Convert to Student |
 | Invoice Sent | Record Payment (Paid = Won) |
+| Any active stage | Mark as Lost → `MarkAsLostModal` |
+| Lost | Terminal — `nextStageOf()` returns `null` |
+| Won (Paid) | Terminal — `nextStageOf()` returns `null` |
 
 All journey dialogs are in `components/journey/`. The `JourneyProvider` (context) drives state for Bilal Mahmood (L-0041) — the demo lead that shows a complete journey.
+
+**Mark as Lost flow (`MarkAsLostModal`):**
+- 8 reason options (e.g. "Parent changed mind", "No response", "Chose a competitor", "Other")
+- Optional notes textarea (required when "Other" is selected)
+- Re-engage toggle (default: on)
+- Conditional date picker shown when re-engage is on
+- Validation fires on submit
+- All three stage-change entry points (`commitStageChange`, `routeStageChange`, `makeActions.onMarkLost`) route through this modal before committing
+- Lost is fully independent of DNC — no logic overlap
 
 **RBAC gates:**
 - Create lead: `leads.create`
@@ -898,8 +915,14 @@ interface Lead {
   stageMessagePending: boolean;
   preferredDays?: string[];
   preferredWindow?: PreferredWindow;
+  // Lost stage fields (added Session 6)
+  lostReason?: string;
+  lostNotes?: string;
+  reEngage?: boolean;
+  reEngageDate?: string;      // ISO date — only set when reEngage is true
 }
-// 22 records (L-0041 to L-0062), all 11 stages represented
+// 22 records (L-0041 to L-0062), all 12 stages represented
+// Lost seeds: L-0044 (Parent changed mind, re-engage Sep 2026), L-0053 (No response, re-engage when ready), L-0055 (Chose a competitor, do not re-engage)
 ```
 
 ### 7.6 Invoice / Payment / Credit
@@ -1385,6 +1408,7 @@ All in `components/journey/`. Called from `leads/page.tsx` as the lead progresse
 | `AddStudentDialog` | `/students` |
 | `NewEnrolmentDialog` | `/students/[id]`, `/enrolment` |
 | `TrialActionDialogs` | `/enrolment` |
+| `MarkAsLostModal` | `/leads` | 8 reason options, notes textarea (required for "Other"), re-engage toggle + conditional date picker. Routes all three stage-change entry points before committing. |
 | `AddStaffDialog` | `/staff` |
 | `LeaveHandoverDialog` | `/staff` |
 | `RequestLeaveDialog` | `/staff` |
@@ -1397,40 +1421,54 @@ All in `components/journey/`. Called from `leads/page.tsx` as the lead progresse
 
 ## 10. Lead → Student Workflow
 
-The lead pipeline is an 11-stage state machine. State for the demo lead (Bilal Mahmood, L-0041 / `BILAL_LEAD_ID`) is held in `JourneyProvider` (client context, not persisted).
+The lead pipeline is a **12-stage** state machine (11 active stages + Lost terminal). State for the demo lead (Bilal Mahmood, L-0041 / `BILAL_LEAD_ID`) is held in `JourneyProvider` (client context, not persisted).
 
 ```
 New
   → Book Assessment dialog   → Assessment Booked
   → Skip Assessment dialog   → Assessment Done (skip)
+  → Mark as Lost             → Lost (terminal)
   
 Assessment Booked
   → Log Assessment Outcome   → Assessment Done
+  → Mark as Lost             → Lost (terminal)
 
 Assessment Done
   → Book Trial dialog        → Trial Booked
   → Skip Trial prompt        → Trial Done (skip)
+  → Mark as Lost             → Lost (terminal)
   
 Trial Booked
   → Log Trial Outcome        → Trial Done
+  → Mark as Lost             → Lost (terminal)
 
 Trial Done
   → Schedule Offer dialog    → Schedule Offered
   → Needs More Time dialog   → (re-contact)
+  → Mark as Lost             → Lost (terminal)
   
 Schedule Offered
   → Schedule Confirm dialog  → Schedule Confirmed
+  → Mark as Lost             → Lost (terminal)
   
 Schedule Confirmed
   → Convert to Student       → Student record created (BILAL_STUDENT_ID)
   → Create Enrolment         → Enrolment record created
+  → Mark as Lost             → Lost (terminal)
   
 Enrolment Created
   → Invoice Builder dialog   → Invoice Sent
   
 Invoice Sent
-  → Record Payment           → Paid → Lead stage = "Paid" (= Won)
+  → Record Payment           → Paid → Lead stage = "Paid" (= Won, terminal)
+  → Mark as Lost             → Lost (terminal)
+
+Lost  [terminal — nextStageOf() returns null]
+  reEngage=true  → surfaced for re-contact on reEngageDate
+  reEngage=false → archived, no further action
 ```
+
+**STAGE_CONFIG for Lost:** `border-l-red-400`, badge `bg-red-100 text-red-700`.
 
 **DNC interstitial:** If `lead.dnc === true`, attempting to send a WhatsApp message shows a DNC warning block. The `DNC Interstitial Routing` automation rule (RULE-009, Locked) also intercepts.
 
