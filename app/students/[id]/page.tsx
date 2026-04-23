@@ -28,6 +28,7 @@ import {
   Zap,
   ClipboardCheck,
   X as XIcon,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
@@ -1817,10 +1818,12 @@ function LeftSidebar({
   profile,
   onTabChange,
   onEdit,
+  sourceLeadId,
 }: {
   profile: StudentProfile;
   onTabChange: (tab: string) => void;
   onEdit: (section: EditSection) => void;
+  sourceLeadId?: string;
 }) {
   const primaryGuardian = guardians.find((g) => g.id === profile.primaryGuardianId);
   const secondaryGuardian = guardians.find((g) => g.id === profile.secondaryGuardianId);
@@ -2036,6 +2039,21 @@ function LeftSidebar({
           ))}
         </div>
       </section>
+
+      {sourceLeadId && (
+        <>
+          <div className="border-t border-slate-100" />
+          <section>
+            <Link
+              href="/leads"
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3 shrink-0" />
+              View Original Lead ({sourceLeadId})
+            </Link>
+          </section>
+        </>
+      )}
     </div>
   );
 }
@@ -3480,6 +3498,7 @@ function StudentProfilePageContent() {
   const routeId = (params?.id as string) ?? "";
   const isJourneyStudent = routeId === BILAL_STUDENT_ID;
   const journey = useJourney();
+  const sourceLeadId = students.find(s => s.id === routeId)?.sourceLeadId;
   const searchParams = useSearchParams();
 
   const rawTab = searchParams.get('tab');
@@ -3606,6 +3625,7 @@ function StudentProfilePageContent() {
             profile={profile}
             onTabChange={handleTabChange}
             onEdit={setEditSection}
+            sourceLeadId={sourceLeadId}
           />
         </aside>
 

@@ -63,7 +63,7 @@ function studentStatusClass(s: StudentStatus) {
 }
 
 function leadStageClass(stage: LeadStage) {
-  if (stage === "Won" || stage === "Paid") return "bg-emerald-100 text-emerald-700";
+  if (stage === "Won") return "bg-emerald-100 text-emerald-700";
   if (stage === "New" || stage === "Contacted") return "bg-sky-100 text-sky-700";
   if (stage.startsWith("Assessment")) return "bg-violet-100 text-violet-700";
   if (stage.startsWith("Trial")) return "bg-amber-100 text-amber-700";

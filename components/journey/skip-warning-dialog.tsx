@@ -20,7 +20,6 @@ export const PIPELINE_STAGES: LeadStage[] = [
   "Schedule Offered",
   "Schedule Confirmed",
   "Invoice Sent",
-  "Paid",
   "Won",
 ];
 

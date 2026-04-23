@@ -54,13 +54,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useJourney, BILAL_LEAD_ID, formatDate, type ActivityEntry } from "@/lib/journey-store";
+import { useJourney, BILAL_LEAD_ID, departmentFor, formatDate, type ActivityEntry } from "@/lib/journey-store";
 import { useAssessments } from "@/lib/assessment-store";
 import { BookAssessmentDialog } from "@/components/journey/book-assessment-dialog";
 import { LogAssessmentOutcomeDialog } from "@/components/journey/log-assessment-outcome-dialog";
 import { BookTrialDialog } from "@/components/journey/book-trial-dialog";
 import { LogTrialOutcomeDialog } from "@/components/journey/log-trial-outcome-dialog";
-import { ConvertToStudentDialog } from "@/components/journey/convert-to-student-dialog";
+import { ConvertToStudentDialog, type ConvertFormData } from "@/components/journey/convert-to-student-dialog";
 import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
 import { ScheduleOfferDialog } from "@/components/journey/schedule-offer-dialog";
 import { ScheduleConfirmDialog } from "@/components/journey/schedule-confirm-dialog";
@@ -83,7 +83,6 @@ const STAGES: LeadStage[] = [
   "Schedule Offered",
   "Schedule Confirmed",
   "Invoice Sent",
-  "Paid",
   "Won",
   "Lost",
 ];
@@ -145,12 +144,6 @@ const STAGE_CONFIG: Record<
     badge: "bg-teal-100 text-teal-700",
     colBg: "bg-teal-50/40",
     headerText: "text-teal-700",
-  },
-  Paid: {
-    color: "border-l-lime-500",
-    badge: "bg-lime-100 text-lime-700",
-    colBg: "bg-lime-50/40",
-    headerText: "text-lime-700",
   },
   Won: {
     color: "border-l-green-400",
@@ -283,7 +276,7 @@ function LeadActionMenu({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const canConvert = lead.stage === "Paid";
+  const canConvert = lead.stage === "Won" && lead.status !== "converted";
 
   const items: { icon: React.ElementType; label: string; onClick: () => void; hidden?: boolean; danger?: boolean }[] = [
     { icon: Eye, label: "View", onClick: actions.onView },
@@ -460,6 +453,21 @@ function KanbanCard({
         </div>
         <span className="text-xs text-slate-400 font-medium">{lead.daysInStage}d</span>
       </div>
+
+      {/* Convert to Student CTA — only on Won cards */}
+      {lead.stage === "Won" && lead.status !== "converted" && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            actions.onConvertToStudent();
+          }}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold rounded-md bg-amber-500 text-white hover:bg-amber-600 cursor-pointer transition-colors shadow-sm"
+        >
+          <UserPlus className="w-3 h-3" />
+          Convert to Student
+        </button>
+      )}
     </div>
   );
 }
@@ -1866,7 +1874,7 @@ function StageFooterActions({
     return (
       <div className="w-full flex flex-col gap-2">
         <button type="button" onClick={() => onRecordPayment(lead)} className={primaryClass}>
-          Mark as Paid →
+          Record Payment →
         </button>
         <div className="flex">
           <button
@@ -1881,27 +1889,12 @@ function StageFooterActions({
     );
   }
 
-  if (stage === "Paid") {
-    if (canConvert && !isJourneyLead) {
+  if (stage === "Won") {
+    if (lead.status === "converted") {
       return (
-        <div className="w-full">
-          <button
-            type="button"
-            onClick={() => onConvert(lead)}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 cursor-pointer transition-colors"
-          >
-            Convert to Student
-          </button>
-        </div>
-      );
-    }
-    if (isJourneyLead && !journey.student) {
-      return (
-        <div className="w-full">
-          <button type="button" onClick={() => onConvert(lead)} className={primaryClass}>
-            Convert to Student
-          </button>
-        </div>
+        <span className="inline-flex px-3 py-2 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
+          ✓ Converted to student
+        </span>
       );
     }
     if (isJourneyLead && journey.student) {
@@ -1911,10 +1904,20 @@ function StageFooterActions({
         </span>
       );
     }
-    return null;
+    return (
+      <div className="w-full">
+        <button
+          type="button"
+          onClick={() => onConvert(lead)}
+          className={primaryClass}
+        >
+          Convert to Student →
+        </button>
+      </div>
+    );
   }
 
-  // "Won" / "Lost" — terminal
+  // "Lost" — terminal
   return null;
 }
 
@@ -2133,7 +2136,8 @@ function LeadDetailDialog({
   const palette = getAvatarPalette(lead.assignedTo);
   const next = nextStageOf(currentStage);
   const isTerminal = currentStage === "Won" || currentStage === "Lost";
-  const canConvert = currentStage === "Paid";
+  const isConverted = lead.status === "converted";
+  const canConvert = currentStage === "Won" && !isConverted && !(isJourneyLead && journey.student);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2144,6 +2148,26 @@ function LeadDetailDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto">
+
+        {isConverted && lead.convertedStudentId && (
+          <div className="px-6 pt-4">
+            <div className="flex items-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-emerald-900 font-semibold">
+                  Converted to student — {lead.convertedStudentId}
+                  {lead.convertedOn ? ` · ${lead.convertedOn}` : ""}
+                </p>
+              </div>
+              <a
+                href={`/students/${lead.convertedStudentId}`}
+                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 cursor-pointer whitespace-nowrap"
+              >
+                View Student Profile →
+              </a>
+            </div>
+          </div>
+        )}
 
         {followUpBanner && (
           <div className="px-6 pt-4">
@@ -2289,7 +2313,7 @@ function LeadDetailDialog({
               )}
             >
               {isTerminal ? (
-                currentStage === "Won" ? "Converted" : "Closed — Lost"
+                currentStage === "Won" ? (isConverted ? "Converted ✓" : "Awaiting conversion") : "Closed — Lost"
               ) : (
                 <>
                   Move to next stage
@@ -3139,6 +3163,7 @@ export default function LeadsPage() {
     return "kanban";
   });
   const [stageFilter, setStageFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);
   const [deptFilter, setDeptFilter] = useState<string[]>([]);
   const [assignedFilter, setAssignedFilter] = useState<string[]>([]);
@@ -3174,7 +3199,7 @@ export default function LeadsPage() {
   const [savePopoverOpen, setSavePopoverOpen] = useState(false);
 
   const hasActiveFilters =
-    stageFilter.length > 0 || sourceFilter.length > 0 ||
+    stageFilter.length > 0 || statusFilter.length > 0 || sourceFilter.length > 0 ||
     deptFilter.length > 0 || assignedFilter.length > 0 || myLeads || searchQuery !== "" ||
     createdOnRange.from !== null || createdOnRange.to !== null;
 
@@ -3191,6 +3216,8 @@ export default function LeadsPage() {
   const [leadStageOverrides, setLeadStageOverrides] = useState<Record<string, LeadStage>>({});
   const [leadActivity, setLeadActivity] = useState<Record<string, ActivityEntry[]>>({});
   const [leadLostData, setLeadLostData] = useState<Record<string, LostData>>({});
+  const [leadConvertedData, setLeadConvertedData] = useState<Record<string, { studentId: string; studentName: string; convertedOn: string }>>({});
+  const [convertTargetLead, setConvertTargetLead] = useState<Lead | null>(null);
   // Per-lead "follow-up task completed" banner, shown once the linked task is Done.
   const [followUpBanners, setFollowUpBanners] = useState<Record<string, { taskTitle: string }>>({});
   const [leadPrefs, setLeadPrefs] = useState<
@@ -3213,9 +3240,11 @@ export default function LeadsPage() {
       }
       const lostData = leadLostData[l.id];
       if (lostData) result = { ...result, ...lostData };
+      const converted = leadConvertedData[l.id];
+      if (converted) result = { ...result, status: "converted" as const, convertedStudentId: converted.studentId, convertedOn: converted.convertedOn };
       return result;
     });
-  }, [journey.leadStage, leadStageOverrides, leadPrefs, leadLostData]);
+  }, [journey.leadStage, leadStageOverrides, leadPrefs, leadLostData, leadConvertedData]);
 
   const updateLeadPrefs = (
     leadId: string,
@@ -3389,8 +3418,6 @@ export default function LeadsPage() {
       setScheduleConfirmOpen(true);
     } else if (target === "Invoice Sent") {
       setInvoiceBuilderOpen(true);
-    } else if (target === "Paid") {
-      setRecordPaymentOpen(true);
     } else if (target === "Lost") {
       setLostModalLead(lead);
       setLostModalOpen(true);
@@ -3459,7 +3486,7 @@ export default function LeadsPage() {
   }
 
   // Reset page when filters/view change
-  useEffect(() => { setPage(1); }, [stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view, createdOnRange]);
+  useEffect(() => { setPage(1); }, [stageFilter, statusFilter, sourceFilter, deptFilter, assignedFilter, myLeads, view, createdOnRange]);
 
   // Keep the open detail lead in sync with journey overrides (Bilal's stage)
   useEffect(() => {
@@ -3496,6 +3523,7 @@ export default function LeadsPage() {
 
   const filteredLeads = useMemo(() => {
     let data = leads.filter((l) => {
+      if (l.status === "converted" && !statusFilter.includes("Converted")) return false;
       if (stageFilter.length > 0 && !stageFilter.includes(l.stage)) return false;
       if (sourceFilter.length > 0 && !sourceFilter.includes(l.source)) return false;
       if (deptFilter.length > 0 && !deptFilter.includes(l.department)) return false;
@@ -3531,7 +3559,7 @@ export default function LeadsPage() {
       });
     }
     return data;
-  }, [leads, stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, searchQuery, sortField, sortDir, createdOnRange]);
+  }, [leads, statusFilter, stageFilter, sourceFilter, deptFilter, assignedFilter, myLeads, searchQuery, sortField, sortDir, createdOnRange]);
 
   const paginatedLeads = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -3540,6 +3568,7 @@ export default function LeadsPage() {
 
   function clearFilters() {
     setStageFilter([]);
+    setStatusFilter([]);
     setSourceFilter([]);
     setDeptFilter([]);
     setAssignedFilter([]);
@@ -3607,7 +3636,8 @@ export default function LeadsPage() {
   }
 
   function handleRecordPayment(lead: Lead) {
-    commitStageChange(lead, "Paid");
+    setPendingGate({ lead, target: "Won" });
+    setRecordPaymentOpen(true);
   }
 
   // Record an activity entry against any lead — routes to the journey store
@@ -3811,11 +3841,8 @@ export default function LeadsPage() {
   }, [journey]);
 
   function handleConvert(lead: Lead) {
-    if (lead.id === BILAL_LEAD_ID) {
-      setConvertOpen(true);
-    } else {
-      toast("Converting lead to student — coming soon");
-    }
+    setConvertTargetLead(lead);
+    setConvertOpen(true);
   }
 
   function makeActions(lead: Lead): LeadActions {
@@ -3925,6 +3952,7 @@ export default function LeadsPage() {
             )}
           </div>
           <MultiSelectFilter label="Stage"       options={STAGE_FILTER_OPTIONS}    selected={stageFilter}    onChange={setStageFilter}    />
+          <MultiSelectFilter label="Status"      options={["Converted"]}           selected={statusFilter}   onChange={setStatusFilter}   />
           <MultiSelectFilter label="Source"      options={SOURCE_FILTER_OPTIONS}   selected={sourceFilter}   onChange={setSourceFilter}   />
           <MultiSelectFilter label="Department"  options={DEPT_FILTER_OPTIONS}     selected={deptFilter}     onChange={setDeptFilter}     />
           <MultiSelectFilter label="Assigned to" options={ASSIGNED_FILTER_OPTIONS} selected={assignedFilter} onChange={setAssignedFilter} />
@@ -4019,6 +4047,7 @@ export default function LeadsPage() {
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             {(() => {
               const showLostReasonCol = stageFilter.includes("Lost") || filteredLeads.some(l => l.stage === "Lost");
+              const showConvertedCol = statusFilter.includes("Converted") || filteredLeads.some(l => l.status === "converted");
               return (
             <table className="w-full text-sm">
               <thead>
@@ -4032,6 +4061,9 @@ export default function LeadsPage() {
                   {showLostReasonCol && (
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Lost Reason</th>
                   )}
+                  {showConvertedCol && (
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Converted Student</th>
+                  )}
                   <SortableHeader label="Assigned"      field="assignedTo"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <SortableHeader label="Last Activity" field="lastActivity"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
                   <SortableHeader label="Days"          field="daysInPipeline" sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
@@ -4042,6 +4074,10 @@ export default function LeadsPage() {
                 {paginatedLeads.map((lead) => {
                   const cfg = STAGE_CONFIG[lead.stage];
                   const palette = getAvatarPalette(lead.assignedTo);
+                  const isConverted = lead.status === "converted";
+                  const convertedStudentName = lead.convertedStudentId
+                    ? studentsStore.find(s => s.id === lead.convertedStudentId)?.name ?? lead.convertedStudentId
+                    : null;
                   return (
                     <tr
                       key={lead.id}
@@ -4085,9 +4121,16 @@ export default function LeadsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap", cfg.badge)}>
-                          {lead.stage}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap self-start", cfg.badge)}>
+                            {lead.stage}
+                          </span>
+                          {isConverted && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 self-start whitespace-nowrap">
+                              Converted ✓
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {showLostReasonCol && (
                         <td className="px-4 py-3">
@@ -4106,6 +4149,26 @@ export default function LeadsPage() {
                                 <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
                                   Re-engage when ready
                                 </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
+                        </td>
+                      )}
+                      {showConvertedCol && (
+                        <td className="px-4 py-3">
+                          {isConverted && lead.convertedStudentId ? (
+                            <div className="space-y-0.5">
+                              <a
+                                href={`/students/${lead.convertedStudentId}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 cursor-pointer block"
+                              >
+                                {lead.convertedStudentId} — {convertedStudentName}
+                              </a>
+                              {lead.convertedOn && (
+                                <p className="text-[10px] text-slate-400">{lead.convertedOn}</p>
                               )}
                             </div>
                           ) : (
@@ -4433,11 +4496,6 @@ export default function LeadsPage() {
           if (pendingGate) applyStageChange(pendingGate.lead, pendingGate.target);
           setPendingGate(null);
         }}
-        onAutoConvert={(lead, payment) => {
-          const result = handlePaidAutoConvert(lead, payment);
-          setPendingGate(null);
-          return result;
-        }}
       />
       <SkipWarningDialog
         open={skipWarningOpen}
@@ -4498,9 +4556,60 @@ export default function LeadsPage() {
       />
       <ConvertToStudentDialog
         open={convertOpen}
-        onOpenChange={setConvertOpen}
-        lead={detailLead}
-        onOpenCreateEnrolment={() => setCreateEnrolmentOpen(true)}
+        onOpenChange={(o) => {
+          setConvertOpen(o);
+          if (!o) setConvertTargetLead(null);
+        }}
+        lead={convertTargetLead}
+        onConverted={(data) => {
+          const lead = convertTargetLead;
+          if (!lead) return;
+          const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+          let studentId: string;
+          let studentName: string;
+          if (lead.id === BILAL_LEAD_ID) {
+            const created = journey.convertToStudent({
+              firstName: data.firstName,
+              lastName: data.lastName,
+              yearGroup: data.yearGroup,
+              guardianName: data.guardianName,
+              guardianPhone: data.guardianPhone,
+              school: data.school,
+            });
+            studentId = created.id;
+            studentName = created.name;
+          } else {
+            studentId = nextStudentIdForNonBilal();
+            studentName = `${data.firstName} ${data.lastName}`.trim();
+            const newStudent: Student = {
+              id: studentId,
+              name: studentName,
+              yearGroup: data.yearGroup,
+              department: departmentFor(data.yearGroup),
+              school: data.school,
+              guardian: data.guardianName,
+              guardianPhone: data.guardianPhone,
+              enrolments: 1,
+              churnScore: null,
+              status: "Active",
+              lastContact: "Today",
+              createdOn: new Date().toISOString().slice(0, 10),
+              sourceLeadId: lead.id,
+            };
+            studentsStore.push(newStudent);
+            createdStudentsRef.current[lead.id] = newStudent;
+            setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Won" }));
+            setLeadConvertedData((prev) => ({ ...prev, [lead.id]: { studentId, studentName, convertedOn: today } }));
+            setLeadActivity((prev) => ({
+              ...prev,
+              [lead.id]: [
+                { label: "Just now", text: `Converted to student — ${studentId} · ${studentName}`, dot: "bg-emerald-500" },
+                ...(prev[lead.id] ?? []),
+              ],
+            }));
+          }
+          toast.success(`Student record created — ${studentId}`);
+        }}
       />
       <CreateEnrolmentDialog open={createEnrolmentOpen} onOpenChange={setCreateEnrolmentOpen} />
       <ReminderDialog

@@ -37,6 +37,7 @@ export interface Student {
   status: StudentStatus;
   lastContact: string;
   createdOn: string;
+  sourceLeadId?: string;
 }
 
 export const students: Student[] = [
@@ -60,6 +61,8 @@ export const students: Student[] = [
   { id: "IMI-0018", name: "Lina Farouk", yearGroup: "Y11", department: "Senior", school: "Jumeirah College", guardian: "Walid Farouk", guardianPhone: "+971 52 888 9900", enrolments: 0, churnScore: null, status: "Graduated", lastContact: "60 days ago", createdOn: "1 Sep 2020" },
   { id: "IMI-0019", name: "Saif Al-Otaibi", yearGroup: "Y13", department: "Senior", school: "GEMS Winchester", guardian: "Wafa Al-Otaibi", guardianPhone: "+971 50 999 0011", enrolments: 0, churnScore: null, status: "Graduated", lastContact: "90 days ago", createdOn: "1 Sep 2018" },
   { id: "IMI-0020", name: "Raya Khouri", yearGroup: "Y3", department: "Primary", school: "GEMS Modern Academy", guardian: "Elias Khouri", guardianPhone: "+971 55 100 2020", enrolments: 2, churnScore: 41, status: "Active", lastContact: "8 days ago", createdOn: "5 Sep 2023" },
+  { id: "IMI-0021", name: "Mariam Jassim", yearGroup: "Y6", department: "Primary", school: "Dubai British School", guardian: "Jassim Al-Mansoori", guardianPhone: "+971 50 881 2200", enrolments: 1, churnScore: null, status: "Active", lastContact: "10 Mar 2026", createdOn: "10 Mar 2026", sourceLeadId: "L-0061" },
+  { id: "IMI-0022", name: "Khalfan Al-Qubaisi", yearGroup: "Y10", department: "Senior", school: "GEMS Winchester", guardian: "Sarah Al-Qubaisi", guardianPhone: "+971 55 993 4411", enrolments: 1, churnScore: null, status: "Active", lastContact: "22 Feb 2026", createdOn: "22 Feb 2026", sourceLeadId: "L-0062" },
 ];
 
 // ─── Guardians ────────────────────────────────────────────────────────────────
@@ -1064,7 +1067,6 @@ export type LeadStage =
   | "Schedule Offered"
   | "Schedule Confirmed"
   | "Invoice Sent"
-  | "Paid"
   | "Won"
   | "Lost";
 
@@ -1097,6 +1099,9 @@ export interface Lead {
   lostNotes?: string;
   reEngage?: boolean;
   reEngageAfter?: string;
+  status?: 'active' | 'converted' | 'lost' | 'archived';
+  convertedStudentId?: string;
+  convertedOn?: string;
 }
 
 export const leads: Lead[] = [
@@ -1120,8 +1125,10 @@ export const leads: Lead[] = [
   { id: "L-0058", ref: "IMI-L-0058", childName: "Sara Al-Shamsi", yearGroup: "Y6", department: "Primary", subjects: ["Science", "Maths", "English"], guardian: "Eisa Al-Shamsi", guardianPhone: "+971 52 900 0100", source: "Website", stage: "Schedule Offered", assignedTo: "Sarah Admin", lastActivity: "2 days ago", daysInStage: 3, daysInPipeline: 18, dnc: false, sibling: false, stageMessagePending: false, createdOn: "15 Nov 2025" },
   { id: "L-0058b", ref: "IMI-L-0058b", childName: "Zayed Al-Muhairi", yearGroup: "Y5", department: "Primary", subjects: ["Maths", "English"], guardian: "Salama Al-Muhairi", guardianPhone: "+971 50 123 4567", source: "Referral", stage: "Schedule Confirmed", assignedTo: "Sarah Admin", lastActivity: "Today", daysInStage: 1, daysInPipeline: 19, dnc: false, sibling: false, stageMessagePending: false, createdOn: "1 Nov 2025" },
   { id: "L-0059", ref: "IMI-L-0059", childName: "Hamdan Al-Mazrouei", yearGroup: "Y10", department: "Senior", subjects: ["Physics"], guardian: "Hessa Al-Mazrouei", guardianPhone: "+971 50 010 0200", source: "Event", stage: "Invoice Sent", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 20, dnc: false, sibling: false, stageMessagePending: false, createdOn: "15 Oct 2025" },
-  { id: "L-0059b", ref: "IMI-L-0059b", childName: "Layla Al-Dhaheri", yearGroup: "Y8", department: "Lower Secondary", subjects: ["Science"], guardian: "Ahmed Al-Dhaheri", guardianPhone: "+971 55 321 7654", source: "Website", stage: "Paid", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 21, dnc: false, sibling: false, stageMessagePending: false, createdOn: "1 Oct 2025" },
+  { id: "L-0059b", ref: "IMI-L-0059b", childName: "Layla Al-Dhaheri", yearGroup: "Y8", department: "Lower Secondary", subjects: ["Science"], guardian: "Ahmed Al-Dhaheri", guardianPhone: "+971 55 321 7654", source: "Website", stage: "Won", assignedTo: "Jason Daswani", lastActivity: "Today", daysInStage: 1, daysInPipeline: 21, dnc: false, sibling: false, stageMessagePending: false, createdOn: "1 Oct 2025" },
   { id: "L-0060", ref: "IMI-L-0060", childName: "Amna Al-Qubaisi", yearGroup: "Y3", department: "Primary", subjects: ["English", "Maths"], guardian: "Saeed Al-Qubaisi", guardianPhone: "+971 55 020 0300", source: "Referral", stage: "Won", assignedTo: "Sarah Admin", lastActivity: "Yesterday", daysInStage: 0, daysInPipeline: 22, dnc: false, sibling: false, stageMessagePending: false, createdOn: "1 Sep 2025" },
+  { id: "L-0061", ref: "IMI-L-0061", childName: "Mariam Jassim", yearGroup: "Y6", department: "Primary", subjects: ["Maths"], guardian: "Jassim Al-Mansoori", guardianPhone: "+971 50 881 2200", source: "Referral", stage: "Won", assignedTo: "Sarah Admin", lastActivity: "10 Mar 2026", daysInStage: 0, daysInPipeline: 30, dnc: false, sibling: false, stageMessagePending: false, createdOn: "1 Feb 2026", status: "converted", convertedStudentId: "IMI-0021", convertedOn: "10 Mar 2026" },
+  { id: "L-0062", ref: "IMI-L-0062", childName: "Khalfan Al-Qubaisi", yearGroup: "Y10", department: "Senior", subjects: ["Physics", "Maths"], guardian: "Sarah Al-Qubaisi", guardianPhone: "+971 55 993 4411", source: "Website", stage: "Won", assignedTo: "Jason Daswani", lastActivity: "22 Feb 2026", daysInStage: 0, daysInPipeline: 28, dnc: false, sibling: false, stageMessagePending: false, createdOn: "15 Jan 2026", status: "converted", convertedStudentId: "IMI-0022", convertedOn: "22 Feb 2026" },
 ];
 
 // ─── Finance ──────────────────────────────────────────────────────────────────

@@ -492,8 +492,8 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
         ? { ...prev, status: "Paid", amountPaid: prev.amount }
         : { id: "INV-0099", amount: 0, amountPaid: 0, status: "Paid" },
     );
-    setLeadStage("Paid");
-    setBilalStage("Paid");
+    setLeadStage("Won");
+    setBilalStage("Won");
     addActivity({
       label: "Just now",
       text: "Payment received — invoice marked paid",
