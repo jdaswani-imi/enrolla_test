@@ -1,6 +1,6 @@
 # Enrolla Frontend Prototype — Developer Handover Summary
 
-> **Generated:** 21 April 2026  
+> **Generated:** 23 April 2026  
 > **Source:** Derived entirely from the codebase at the time of writing. No assumptions — everything below is read directly from source files.
 
 ---
@@ -393,9 +393,9 @@ Guardian detail page. Shows linked students, contact info, communication prefere
 This is the most feature-rich page in the prototype.
 
 **Three view modes (toggle):**
-1. **Table view** — paginated list with sortable columns; Lost rows show re-engage chip inline with stage badge
-2. **Kanban view** — 12 columns per stage (including Lost); Lost column has red header (`border-l-red-400`), cards rendered at `opacity-85 grayscale-[0.2]` with lost reason as italic grey subtext + re-engage chip
-3. **Lead Detail slide-over** — full-width right panel for selected lead
+1. **Table view** — paginated list with sortable columns; Lost rows show re-engage chip inline with stage badge; converted leads hidden by default (shown only when "Status: Converted" filter is active — green badge + student link + converted-on date)
+2. **Kanban view** — 11 columns per stage (including Lost; "Paid" removed); Lost column has red header (`border-l-red-400`), cards rendered at `opacity-85 grayscale-[0.2]` with lost reason as italic grey subtext + re-engage chip; converted leads hidden by default
+3. **Lead Detail slide-over** — full-width right panel for selected lead; converted leads show a green converted banner with "View Student Profile" link
 
 **Filters:** Stage (multi), Source (multi), Year Group (multi), Assigned Staff, DNC toggle, search
 
@@ -420,13 +420,14 @@ This is the most feature-rich page in the prototype.
 | Trial Booked | Log Trial Outcome |
 | Trial Done | Offer Schedule / Needs More Time |
 | Schedule Offered | Confirm Schedule |
-| Schedule Confirmed | Convert to Student |
-| Invoice Sent | Record Payment (Paid = Won) |
+| Schedule Confirmed | (invoice builder in journey) |
+| Invoice Sent | Record Payment → advances to Won |
+| Won | Convert to Student → `ConvertToStudentDialog` (3-step) |
 | Any active stage | Mark as Lost → `MarkAsLostModal` |
 | Lost | Terminal — `nextStageOf()` returns `null` |
-| Won (Paid) | Terminal — `nextStageOf()` returns `null` |
+| Converted | Terminal — lead archived, green banner shown in slide-over |
 
-All journey dialogs are in `components/journey/`. The `JourneyProvider` (context) drives state for Bilal Mahmood (L-0041) — the demo lead that shows a complete journey.
+All journey dialogs are in `components/journey/`. The `JourneyProvider` (context) drives state for Bilal Mahmood (L-0041) — the demo lead that shows a complete journey. `ConvertToStudentDialog` now works for **all** Won leads: Bilal's conversion goes through the journey store; all other leads push a new `Student` record to `studentsStore` (module-level array in `leads/page.tsx`).
 
 **Mark as Lost flow (`MarkAsLostModal`):**
 - 8 reason options (e.g. "Parent changed mind", "No response", "Chose a competitor", "Other")
@@ -801,6 +802,13 @@ currentUser: {
   avatarUrl: string
   org: string           // "IMI"
 }
+```
+
+### 7.1a Students Store
+
+`leads/page.tsx` maintains a module-level `studentsStore: Student[]` array (initialised from `students`). `ConvertToStudentDialog` pushes new student records to this store for non-Bilal leads, so conversions persist within the browser session without touching `lib/mock-data.ts`.
+
+```typescript
 
 // Org settings
 orgSettings: {
@@ -831,8 +839,10 @@ interface Student {
   status: StudentStatus;
   lastContact: string;
   createdOn: string;
+  sourceLeadId?: string; // set when student was converted from a lead — drives "View Original Lead" link
 }
-// 20 records: IMI-0001 through IMI-0020
+// 22 records: IMI-0001 through IMI-0022
+// IMI-0021 (Mariam Jassim, sourceLeadId: "L-0061") and IMI-0022 (Khalfan Al-Qubaisi, sourceLeadId: "L-0062") are converted leads seeded for demo
 ```
 
 ### 7.3 Student Detail (extended, IMI-0001)
@@ -891,7 +901,7 @@ interface ExtendedGuardian {
 type LeadStage =
   | "New" | "Contacted" | "Assessment Booked" | "Assessment Done"
   | "Trial Booked" | "Trial Done" | "Schedule Offered"
-  | "Schedule Confirmed" | "Invoice Sent" | "Paid" | "Lost";
+  | "Schedule Confirmed" | "Invoice Sent" | "Won" | "Lost";
 
 type LeadSource = "Website" | "Referral" | "WhatsApp" | "Walk-in" | "Instagram" | "Social";
 
@@ -919,10 +929,15 @@ interface Lead {
   lostReason?: string;
   lostNotes?: string;
   reEngage?: boolean;
-  reEngageDate?: string;      // ISO date — only set when reEngage is true
+  reEngageAfter?: string;     // ISO date — only set when reEngage is true
+  // Conversion fields (added Session 7)
+  status?: 'active' | 'converted' | 'lost' | 'archived';
+  convertedStudentId?: string; // student ID created at conversion
+  convertedOn?: string;        // ISO date of conversion
 }
-// 22 records (L-0041 to L-0062), all 12 stages represented
+// 24 records (L-0041 to L-0062 including L-0058b, L-0059b, L-0061, L-0062), all 11 stages represented
 // Lost seeds: L-0044 (Parent changed mind, re-engage Sep 2026), L-0053 (No response, re-engage when ready), L-0055 (Chose a competitor, do not re-engage)
+// Converted seeds: L-0061 (Mariam Jassim → IMI-0021, 10 Mar 2026), L-0062 (Khalfan Al-Qubaisi → IMI-0022, 22 Feb 2026)
 ```
 
 ### 7.6 Invoice / Payment / Credit
@@ -1226,7 +1241,18 @@ The following fields were added to existing interfaces in `lib/mock-data.ts`:
 | `Credit` | `studentId`, `department`, `type` |
 | `InventoryItem` / `ReorderAlert` | `responsibleStaffId?` |
 
-### 7.19 Assessment Store Types (`lib/assessment-store.tsx`)
+### 7.19 New Fields Added in Session 7 (23 April 2026)
+
+| Type | New Fields |
+|---|---|
+| `Student` | `sourceLeadId?: string` — links a student back to the lead they were converted from |
+| `Lead` | `status?: 'active' \| 'converted' \| 'lost' \| 'archived'` — explicit status separate from `stage` |
+| `Lead` | `convertedStudentId?: string` — student ID created at conversion |
+| `Lead` | `convertedOn?: string` — ISO date when lead was converted |
+
+**Stage change:** `"Paid"` removed from `LeadStage` union. The pipeline now ends at `"Won"` (after Record Payment) followed by a manual Convert to Student step.
+
+### 7.20 Assessment Store Types (`lib/assessment-store.tsx`)
 
 
 
@@ -1421,7 +1447,7 @@ All in `components/journey/`. Called from `leads/page.tsx` as the lead progresse
 
 ## 10. Lead → Student Workflow
 
-The lead pipeline is a **12-stage** state machine (11 active stages + Lost terminal). State for the demo lead (Bilal Mahmood, L-0041 / `BILAL_LEAD_ID`) is held in `JourneyProvider` (client context, not persisted).
+The lead pipeline is an **11-stage** state machine (10 active stages + Lost terminal). The former "Paid" stage has been removed — Record Payment now advances a lead directly to "Won", and conversion to a student is a separate manual step from the Won stage. State for the demo lead (Bilal Mahmood, L-0041 / `BILAL_LEAD_ID`) is held in `JourneyProvider` (client context, not persisted).
 
 ```
 New
@@ -1460,15 +1486,25 @@ Enrolment Created
   → Invoice Builder dialog   → Invoice Sent
   
 Invoice Sent
-  → Record Payment           → Paid → Lead stage = "Paid" (= Won, terminal)
+  → Record Payment           → Won (payment recorded, lead stage advances to "Won")
   → Mark as Lost             → Lost (terminal)
 
+Won
+  → Convert to Student       → ConvertToStudentDialog (3-step: confirm details → create record → done)
+                               Lead status set to "converted", convertedStudentId + convertedOn written
+                               Lead hidden from kanban/list by default; green banner in slide-over with student link
+
 Lost  [terminal — nextStageOf() returns null]
-  reEngage=true  → surfaced for re-contact on reEngageDate
+  reEngage=true  → surfaced for re-contact on reEngageAfter date
   reEngage=false → archived, no further action
+
+Converted  [terminal — status="converted"]
+  Lead hidden from all views by default
+  Revealed by "Status: Converted" filter — shows green badge, student link, converted-on date
 ```
 
 **STAGE_CONFIG for Lost:** `border-l-red-400`, badge `bg-red-100 text-red-700`.
+**STAGE_CONFIG for Won:** Terminal — "Convert to Student" button shown; no further stage progression.
 
 **DNC interstitial:** If `lead.dnc === true`, attempting to send a WhatsApp message shows a DNC warning block. The `DNC Interstitial Routing` automation rule (RULE-009, Locked) also intercepts.
 
@@ -1663,7 +1699,15 @@ Creating an assignment auto-creates a task titled `Mark: [Assignment Title]` wit
 - Assigned to the session teacher (if a linked session was selected)
 - `linkedAssignmentId` set on the task record
 
-### 11.19 Profile Photo Upload
+### 11.19 Lead ↔ Student Cross-Links
+
+When a lead is converted to a student:
+- The `Lead` record gets `status: "converted"`, `convertedStudentId`, and `convertedOn` set
+- The `Student` record gets `sourceLeadId` set to the originating lead ID
+- The lead detail slide-over shows a green converted banner with a "View Student Profile" link → `/students/[convertedStudentId]`
+- The student profile sidebar shows a "View Original Lead" link that opens the leads page filtered to that lead
+
+### 11.20 Profile Photo Upload
 
 The avatar on `/profile` supports photo upload via a hidden `<input type="file">`. A camera button is overlaid at the bottom-right of the avatar. `FileReader` converts the selected image to base64 and renders it as the avatar src. "Remove photo" reverts to initials. Email field is read-only for all roles except Super Admin (lock icon + tooltip shown).
 
