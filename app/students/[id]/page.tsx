@@ -1795,21 +1795,23 @@ function EditableSectionHeader({
   onEdit,
 }: {
   label: string;
-  onEdit: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between mb-2">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
         {label}
       </p>
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={`Edit ${label}`}
-        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 -m-1 rounded hover:bg-slate-100 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-      >
-        <Pencil className="w-3.5 h-3.5 text-slate-400" />
-      </button>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Edit ${label}`}
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 -m-1 rounded hover:bg-slate-100 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        >
+          <Pencil className="w-3.5 h-3.5 text-slate-400" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1825,6 +1827,7 @@ function LeftSidebar({
   onEdit: (section: EditSection) => void;
   sourceLeadId?: string;
 }) {
+  const { can } = usePermission();
   const primaryGuardian = guardians.find((g) => g.id === profile.primaryGuardianId);
   const secondaryGuardian = guardians.find((g) => g.id === profile.secondaryGuardianId);
   const department = yearGroupToDepartment(profile.yearGroup);
@@ -1889,7 +1892,7 @@ function LeftSidebar({
 
       {/* Personal Details */}
       <section className="group">
-        <EditableSectionHeader label="Personal Details" onEdit={() => onEdit("personal")} />
+        <EditableSectionHeader label="Personal Details" onEdit={can('students.edit') ? () => onEdit("personal") : undefined} />
         <dl className="space-y-1.5">
           {[
             { label: "Date of Birth", value: formatDob(profile.dob) },
@@ -1911,7 +1914,7 @@ function LeftSidebar({
 
       {/* Academic Context */}
       <section className="group">
-        <EditableSectionHeader label="Academic" onEdit={() => onEdit("academic")} />
+        <EditableSectionHeader label="Academic" onEdit={can('students.edit') ? () => onEdit("academic") : undefined} />
         <dl className="space-y-1.5">
           <div>
             <dt className="text-[10px] text-slate-400">Year Group</dt>
@@ -1940,7 +1943,7 @@ function LeftSidebar({
 
       {/* Family */}
       <section className="group">
-        <EditableSectionHeader label="Family" onEdit={() => onEdit("family")} />
+        <EditableSectionHeader label="Family" onEdit={can('students.edit') ? () => onEdit("family") : undefined} />
         <div className="space-y-2">
           <div>
             <p className="text-[10px] text-slate-400">
@@ -3147,6 +3150,7 @@ function DismissConcernDialog({
 }
 
 function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToast: FireToast }) {
+  const { can } = usePermission();
   const [openDialog, setOpenDialog] = useState<"note" | "dismiss" | null>(null);
   return (
     <div className="space-y-4">
@@ -3183,14 +3187,16 @@ function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToa
             </div>
           </dl>
           <div className="flex items-center gap-2 pt-2 border-t border-amber-100">
-            <button
-              type="button"
-              onClick={() => setOpenDialog("note")}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
-            >
-              <PenLine className="w-3 h-3" />
-              Add Note
-            </button>
+            {can('students.edit') && (
+              <button
+                type="button"
+                onClick={() => setOpenDialog("note")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-amber-300 hover:text-amber-700 transition-colors cursor-pointer"
+              >
+                <PenLine className="w-3 h-3" />
+                Add Note
+              </button>
+            )}
             {canEscalate && (
               <button
                 type="button"
@@ -3201,14 +3207,16 @@ function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToa
                 Escalate to L2
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setOpenDialog("dismiss")}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-600 transition-colors cursor-pointer ml-auto"
-            >
-              <XCircle className="w-3 h-3" />
-              Dismiss
-            </button>
+            {can('students.edit') && (
+              <button
+                type="button"
+                onClick={() => setOpenDialog("dismiss")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-600 transition-colors cursor-pointer ml-auto"
+              >
+                <XCircle className="w-3 h-3" />
+                Dismiss
+              </button>
+            )}
           </div>
         </div>
       ))}

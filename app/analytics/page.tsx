@@ -1268,8 +1268,17 @@ function AnalyticsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  const canViewStaff = can("analytics.viewStaffPerformance");
+  const visibleTabs = TABS.filter((t) => t.id !== "staff" || canViewStaff);
+
   const raw = searchParams.get("tab");
-  const activeTab: Tab = raw && TABS.some((t) => t.id === raw) ? (raw as Tab) : "revenue";
+  const activeTab: Tab = raw && visibleTabs.some((t) => t.id === raw) ? (raw as Tab) : (visibleTabs[0]?.id ?? "revenue");
+
+  useEffect(() => {
+    if (raw === "staff" && !canViewStaff) {
+      router.replace(`?tab=${visibleTabs[0]?.id ?? "revenue"}`, { scroll: false });
+    }
+  }, [raw, canViewStaff, router, visibleTabs]);
 
   function handleTabChange(id: Tab) {
     router.replace(`?tab=${id}`, { scroll: false });
@@ -1285,7 +1294,7 @@ function AnalyticsPageContent() {
       </div>
 
       <div className="flex gap-1 border-b border-slate-200 -mb-1">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}

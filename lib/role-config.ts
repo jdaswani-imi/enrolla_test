@@ -49,7 +49,7 @@ export function canAccess(role: Role, navId: string): boolean {
 export const PERMISSIONS: Record<string, Role[]> = {
 
   // ── Students ──
-  'students.view':            ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
+  'students.view':            ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'students.create':          ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'students.edit':            ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'students.delete':          ['Super Admin'],
@@ -82,26 +82,26 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'enrolment.transferSibling':['Super Admin','Admin Head'],
 
   // ── Finance ──
-  'finance.view':             ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
-  'finance.createInvoice':    ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
+  'finance.view':             ['Super Admin','Admin Head','Admin','HR/Finance'],
+  'finance.createInvoice':    ['Super Admin','Admin Head','Admin','HR/Finance'],
   'finance.editInvoice':      ['Super Admin','Admin Head','Admin','HR/Finance'],
-  'finance.voidInvoice':      ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
+  'finance.voidInvoice':      ['Super Admin','Admin Head','Admin','HR/Finance'],
   'finance.logPayment':       ['Super Admin','Admin Head','Admin','HR/Finance'],
-  'finance.applyDiscount':    ['Super Admin','Admin Head','Academic Head','HR/Finance'],
+  'finance.applyDiscount':    ['Super Admin','Admin Head','HR/Finance'],
   'finance.requestDiscount':  ['Super Admin','Admin Head','Admin','HR/Finance'],
   'finance.issueCredit':      ['Super Admin','Admin Head','Admin','HR/Finance'],
-  'finance.requestRefund':    ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
+  'finance.requestRefund':    ['Super Admin','Admin Head','Admin','HR/Finance'],
   'finance.approveRefund':    ['Super Admin','Admin Head'],
   'finance.finalApproveRefund':['Super Admin'],
   'finance.waiveFee':         ['Super Admin','Admin Head','Admin','HR/Finance'],
-  'finance.markBadDebt':      ['Super Admin','Admin Head'],
+  'finance.markBadDebt':      ['Super Admin','Admin Head','HR/Finance'],
   'finance.export':           ['Super Admin','Admin Head','Admin','HR/Finance'],
   'finance.viewSalary':       ['Super Admin','HR/Finance'],
 
   // ── Timetable / Sessions ──
   'timetable.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
   'timetable.createSession':  ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
-  'timetable.editSession':    ['Super Admin','Admin Head','Admin','Teacher','TA'],
+  'timetable.editSession':    ['Super Admin','Admin Head','Admin','Academic Head','Teacher','TA'],
   'timetable.cancelSession':  ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'timetable.assignTeacher':  ['Super Admin','Admin Head','Admin'],
 
@@ -115,7 +115,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
 
   // ── Feedback ──
   'feedback.view':            ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
-  'feedback.submit':          ['Super Admin','Admin Head','Academic Head','HOD','Teacher'],
+  'feedback.submit':          ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher'],
   'feedback.approve':         ['Super Admin','Admin Head','Academic Head','HOD'],
   'feedback.raiseComplaint':  ['Super Admin','Admin Head','Admin','Academic Head'],
   'feedback.resolveComplaint':['Super Admin','Admin Head','Academic Head'],
@@ -128,21 +128,21 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'progress.approveReport':   ['Super Admin','Admin Head','Academic Head','HOD'],
   'progress.generateReport':  ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'progress.dismissAlert':    ['Super Admin','Admin Head','Academic Head','HOD'],
-  'progress.setTargetGrade':  ['Super Admin','Admin Head','Academic Head','HOD'],
+  'progress.setTargetGrade':  ['Super Admin','Admin Head','Academic Head','HOD','Teacher'],
 
   // ── Concerns ──
-  'concerns.raise':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher'],
+  'concerns.raise':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
   'concerns.dismissL1':       ['Super Admin','Admin Head','Academic Head','HOD'],
   'concerns.dismissL2plus':   ['Super Admin','Admin Head','Academic Head','HOD'],
 
   // ── Tasks ──
-  'tasks.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
+  'tasks.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'tasks.create':             ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'tasks.editOwn':            ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
-  'tasks.editOthers':         ['Super Admin','Admin Head','Academic Head','HOD'],
+  'tasks.editOthers':         ['Super Admin','Admin Head','Academic Head','HOD','Teacher','TA'],
   'tasks.deleteOwn':          ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
-  'tasks.deleteOthers':       ['Super Admin','Admin Head'],
-  'tasks.reassign':           ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
+  'tasks.deleteOthers':       ['Super Admin','Admin Head','Teacher','TA'],
+  'tasks.reassign':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
 
   // ── Staff ──
   'staff.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
@@ -166,7 +166,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'templates.editOrgWide':    ['Super Admin','Admin Head'],
 
   // ── People / Segments ──
-  'people.view':              ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
+  'people.view':              ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
   'people.export':            ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
   'people.createSegment':     ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher'],
   'people.createOrgSegment':  ['Super Admin','Admin Head','Academic Head'],
@@ -180,7 +180,8 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'assessments.manageSlots':  ['Super Admin','Admin Head','Admin'],
 
   // ── Analytics / Reports ──
-  'analytics.view':           ['Super Admin','Admin Head','Academic Head','HOD','HR/Finance'],
+  'analytics.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
+  'analytics.viewStaffPerformance': ['Super Admin','Admin Head','HR/Finance'],
   'reports.view':             ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
   'reports.generate':         ['Super Admin','Admin Head','Admin'],
   'reports.schedule':         ['Super Admin','Admin Head'],
