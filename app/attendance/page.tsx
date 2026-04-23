@@ -36,6 +36,7 @@ import {
   staffMembers,
   ATTENDANCE_ROLE_USER,
   type TimetableSession,
+  type UnmarkedSession,
 } from "@/lib/mock-data";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -140,6 +141,23 @@ const TODAY_HEADER_LABEL = (() => {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${days[d.getDay()]} ${String(d.getDate()).padStart(2, "0")} ${months[d.getMonth()]} ${d.getFullYear()}`;
 })();
+
+// ─── Banner helpers ───────────────────────────────────────────────────────────
+
+function getHoursElapsed(session: UnmarkedSession): number {
+  if (!session.overdue) return 48 - session.hoursRemaining;
+  // Estimate from date string; prototype today = Mon 21 Apr
+  const dayMatch = session.date.match(/(\d+) Apr/);
+  if (dayMatch) return (21 - parseInt(dayMatch[1])) * 24;
+  return 48;
+}
+
+function getBannerTier(hoursElapsed: number): "none" | "yellow" | "amber" | "red" {
+  if (hoursElapsed < 24) return "none";
+  if (hoursElapsed < 48) return "yellow";
+  if (hoursElapsed < 72) return "amber";
+  return "red";
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -395,6 +413,42 @@ function AttendancePageContent() {
           { id: 'csv-summary', label: 'Attendance Summary', description: 'One row per student. Overall attendance rate and session counts.', icon: 'items' },
         ]}
       />
+
+      {/* ── Attendance reminder banners ─────────────────────────────────────── */}
+      {roleUnmarked
+        .map(session => ({ session, tier: getBannerTier(getHoursElapsed(session)) }))
+        .filter(({ tier }) => tier !== "none")
+        .map(({ session, tier }) => (
+          <div
+            key={session.id}
+            className={cn(
+              "mx-6 mt-3 flex items-start gap-3 rounded-xl px-4 py-3 border",
+              tier === "yellow" && "bg-amber-50 border-amber-200",
+              tier === "amber"  && "bg-orange-50 border-orange-300",
+              tier === "red"    && "bg-red-50 border-red-300",
+            )}
+          >
+            <AlertTriangle className={cn(
+              "w-4 h-4 shrink-0 mt-0.5",
+              tier === "yellow" && "text-amber-500",
+              tier === "amber"  && "text-orange-600",
+              tier === "red"    && "text-red-600",
+            )} />
+            <p className={cn(
+              "text-sm",
+              tier === "yellow" && "text-amber-800",
+              tier === "amber"  && "text-orange-800",
+              tier === "red"    && "text-red-800",
+            )}>
+              Attendance not yet marked for{" "}
+              <span className="font-semibold">{session.subject}</span> on{" "}
+              <span className="font-semibold">{session.date}</span>.{" "}
+              {tier === "red"
+                ? <span className="font-semibold">This session is significantly overdue — please mark it immediately.</span>
+                : <span>Please mark it as soon as possible.</span>}
+            </p>
+          </div>
+        ))}
 
       {/* Main tab bar */}
       <div className="px-6 mt-4">
@@ -734,17 +788,6 @@ function AttendancePageContent() {
                       </div>
                     )}
 
-                    {/* 48-hour deadline banner */}
-                    <div className={cn("flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3", hasUnmarkedStudents ? "mt-2" : "mt-4")}>
-                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-amber-700">
-                        Attendance must be marked within 48 working hours. Session closes{" "}
-                        <span className="font-semibold">
-                          Wed 23 Apr at {selectedSession.startTime}
-                        </span>.
-                      </p>
-                    </div>
-
                     {/* Save & Confirm — disabled until all students are marked */}
                     <button
                       onClick={() => confirmSession(selectedSession.id)}
@@ -873,10 +916,10 @@ function AttendancePageContent() {
                             <Bell className="w-3.5 h-3.5" />
                             Send Reminder
                           </button>
-                          {can('attendance.unlockWindow') && (
+                          {can('attendance.mark') && (
                             <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
                               <BookOpen className="w-3.5 h-3.5" />
-                              Unlock &amp; Mark
+                              Mark Attendance
                             </button>
                           )}
                         </div>

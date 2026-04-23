@@ -1,6 +1,6 @@
 # Enrolla Frontend Prototype — Developer Handover Summary
 
-> **Generated:** 23 April 2026 (updated Session 8)  
+> **Generated:** 23 April 2026 (updated Session 9)  
 > **Source:** Derived entirely from the codebase at the time of writing. No assumptions — everything below is read directly from source files.
 
 ---
@@ -323,6 +323,8 @@ Role-scoped dashboard driven by `lib/dashboard-config.ts`. The `getDashboardConf
 
 **Features:** Skeleton loaders on initial mount (200ms delay), drag-to-reorder for Super Admin/Admin Head, `?tab=` deep links from KPI cards and alert rows.
 
+**Inventory Summary Cards (added Session 9):** An `InventorySummaryCards` component is rendered below the KPI grid on all dashboard views. It shows two cards — "Low Stock Items" (count of items with `health === 'below'`, amber accent) and "Recently Ordered" (count of reorder alerts opened in the last 14 days). Each card links to `/inventory` and `/inventory?tab=reorder-alerts` respectively. Gated by `inventory.view` — returns `null` for roles without access (Teacher, TA).
+
 ---
 
 ### 6.3 `/students`
@@ -348,7 +350,7 @@ Role-scoped dashboard driven by `lib/dashboard-config.ts`. The `getDashboardConf
 
 ### 6.4 `/students/[id]`
 
-**RBAC:** `students.view`. Hardcoded to Aisha Rahman (IMI-0001) for prototype — `useParams()` reads the ID but data is always `studentDetail`.
+**RBAC:** `students.view`. A full `<AccessDenied />` guard was added in Session 9 — `!can('students.view')` short-circuits the entire page render. Hardcoded to Aisha Rahman (IMI-0001) for prototype — `useParams()` reads the ID but data is always `studentDetail`.
 
 **Tabs (7):**
 
@@ -372,7 +374,7 @@ The Personal Details, Academic, and Family section edit pencil buttons are condi
 
 ### 6.5 `/guardians`
 
-**RBAC:** `guardians.view` — Super Admin, Admin Head, Admin.
+**RBAC:** `guardians.view` — Super Admin, Admin Head, Admin, Academic Head, HR/Finance (Academic Head and HR/Finance added Session 9).
 
 **Features:**
 - Table with search + filter (DNC status, preferred channel, unsubscribed)
@@ -390,7 +392,20 @@ Guardian detail page. Shows linked students, contact info, communication prefere
 
 ### 6.7 `/leads`
 
-**RBAC:** `leads.view` — Super Admin, Admin Head, Admin.
+**RBAC:** `leads.view` — all 8 roles (all added Session 9; previously only Super Admin, Admin Head, Admin). Write actions are gated by separate permissions:
+
+| Permission | Roles |
+|---|---|
+| `leads.create` | Super Admin, Admin Head, Admin |
+| `leads.edit` | Super Admin, Admin Head, Admin |
+| `leads.delete` | Super Admin, Admin Head |
+| `leads.assignStaff` | Super Admin, Admin Head, Admin |
+| `leads.advancePipeline` | Super Admin, Admin Head, Admin, HR/Finance (new S9) |
+| `leads.advanceBeyondScheduled` | Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance (new S9) |
+| `leads.convertToStudent` | Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance (new S9) |
+| `delete.records` (archive) | Super Admin, Admin Head |
+
+**Pipeline stage gating (added Session 9):** The `StageFooterActions` component checks `leads.advanceBeyondScheduled` at the "Schedule Confirmed", "Invoice Sent", and "Won" stages. Roles without this permission see an amber info box ("To proceed to invoicing, please speak to Admin or Admin Head.") instead of the action button. The "Convert to Student" CTA on Won kanban cards and in the action menu is gated by `leads.convertToStudent`. The "Archive Lead" button in the slide-over is gated by `delete.records`.
 
 This is the most feature-rich page in the prototype.
 
@@ -445,12 +460,15 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 - Delete lead: `leads.delete`
 - Assign staff: `leads.assignStaff`
 - Convert: `leads.convert`
+- Convert to student (CTA + action menu): `leads.convertToStudent` (added S9)
+- Advance to invoicing stages: `leads.advanceBeyondScheduled` (added S9)
+- Archive lead button: `delete.records` (added S9)
 
 ---
 
 ### 6.8 `/enrolment`
 
-**RBAC:** `enrolment.view` — Super Admin, Admin Head, Admin.
+**RBAC:** `enrolment.view` — Super Admin, Admin Head, Admin, Academic Head, Teacher, TA (Academic Head, Teacher, TA added Session 9).
 
 **Three tabs (via toggle buttons, not URL tabs):**
 
@@ -468,7 +486,7 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 
 ### 6.9 `/timetable`
 
-**RBAC:** `timetable.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA.
+**RBAC:** `timetable.view` — all 8 roles. HR/Finance has view access only — `timetable.createSession`, `timetable.editSession`, and `timetable.cancelSession` are not granted to HR/Finance.
 
 **Weekly grid:** Mon–Sat columns, 09:00–20:00 rows, 37 mock sessions. Colour-coded by subject department. Session card shows: subject, teacher, room, student count, status badge.
 
@@ -483,7 +501,7 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 
 ### 6.10 `/attendance`
 
-**RBAC:** `attendance.view` — all roles except HR/Finance.
+**RBAC:** `attendance.view` — all 8 roles. HR/Finance has view access only — `attendance.mark`, `attendance.unlockWindow`, `attendance.bookMakeup`, `attendance.correct`, and `attendance.overrideMakeup` are not granted to HR/Finance.
 
 **Tabs:**
 
@@ -491,6 +509,13 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 |---|---|
 | **Today** | Sessions happening today, attendance marking (Present/Absent/Late per student), 48-hour lock indicator |
 | **Overview** | Historical attendance by subject, absence records, makeup log |
+
+**Attendance reminder banners (added Session 9):** Dynamic colour-coded banners are rendered above the tab bar for any session where attendance has not been marked for more than 24 hours. Tier logic:
+- 24–47 hrs elapsed → yellow (`bg-amber-50`) — "Please mark it as soon as possible"
+- 48–71 hrs elapsed → amber (`bg-orange-50`)
+- 72+ hrs elapsed → red (`bg-red-50`) — "significantly overdue" warning
+
+The old hardcoded 48-hour banner inside the session detail panel has been removed. The "Unlock & Mark" button (previously gated `attendance.unlockWindow`) was corrected to "Mark Attendance" gated by `attendance.mark`.
 
 **Actions:**
 - Mark attendance: `attendance.mark`
@@ -503,7 +528,7 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 
 ### 6.11 `/assessments`
 
-**RBAC:** `assessments.view` — Super Admin, Admin Head, Admin, Academic Head, HOD.
+**RBAC:** `assessments.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA (Teacher and TA added Session 9). HR/Finance does not have access. Teacher and TA additionally have `assessments.enterOutcome` (also expanded in Session 9) — they do not have `assessments.book` or `assessments.manageSlots`.
 
 **Tabs:**
 
@@ -553,6 +578,8 @@ Feedback queue (Draft→Approved→Sent flow) and Class Discussion. Two tabs onl
 |---|---|
 | **Feedback Queue** | 12 feedback items — score badge, status (Draft→Pending Approval→Approved→Sent/Rejected), AI summary, teacher notes, selectors. Template placeholder notice shown. |
 | **Class Discussion** | 4 class groups with threaded posts (Announcement/Discussion/Question types) |
+
+**Feedback approval auto-task (added Session 9):** When a feedback item is approved (`handleApprove`), a new `Task` is pushed to the `tasks` array: title `Share feedback with parent — [student name]`, type Admin, priority Medium, status Open, assigned to Omar Farhat, with subtasks "Contact guardian via WhatsApp" and "Confirm receipt". The toast message includes the task creation confirmation. Linked to the student record via `linkedRecord`.
 
 **Actions:**
 - Submit feedback: `feedback.submit`
@@ -612,6 +639,12 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 **Features:** Student search autocomplete, line item builder, due date picker, live invoice preview panel (updates in real-time as fields change), status badge (Draft until saved).
 
+**Linked Lead feature (added Session 9):** An optional "Linked Lead" search block appears in the left panel (block 1B). Staff can search active leads by child name or lead ref. When a lead is linked:
+- Issuing the invoice advances the lead's `stage` to `"Invoice Sent"` and writes `leadId` on the `Invoice` object
+- A "Record Payment" button appears on the top toolbar (instead of redirecting to `/finance`)
+- `RecordPaymentDialog` accepts a `lead` prop and `onCommit` callback — on commit, the lead's stage advances to `"Won"` and a `linkedLeadPaid` flag is set, replacing the button with a "Paid" badge
+- After issuing a linked invoice the user stays on the invoice page (no auto-redirect to `/finance`)
+
 ---
 
 ### 6.17 `/staff`
@@ -625,6 +658,8 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 | **Directory** | 12 staff records — role badge, department, sessions this week, CPD progress bar, contract type, workload level |
 | **HR Dashboard** | CPD completion rates, leave log, staff status overview |
 
+**CPD detail gating (added Session 9):** The `StaffSlideOver` CPD tab is split into two tiers. The annual progress bar and hours-outstanding are visible to all roles with `staff.view`. The full CPD activity log entries and "Log CPD" button are gated by `staff.viewCPDDetail` (Super Admin, Admin Head, HR/Finance). Roles without this permission see a grey placeholder: "Full CPD activity log is visible to Admin Head and HR/Finance only."
+
 **Actions:**
 - Add Staff → `add-staff-dialog.tsx` (gated `staff.create`)
 - Edit staff: `staff.edit`
@@ -635,6 +670,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 - Emergency leave → `leave-handover-dialog.tsx` (gated `staff.activateEmergencyLeave`)
 - Request leave → `request-leave-dialog.tsx`
 - Verify CPD: `staff.verifyCPD`
+- Log CPD (slide-over): `staff.viewCPDDetail` (added S9)
 
 ---
 
@@ -685,7 +721,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ### 6.20 `/inventory`
 
-**RBAC:** `inventory.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance.
+**RBAC:** `inventory.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, TA, HR/Finance (TA added Session 9). An `<AccessDenied />` guard was also added at the page level (Session 9) — if `!can('inventory.view')` the full page is replaced with the access-denied component.
 
 **Tabs (4):**
 
@@ -728,7 +764,7 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 ### 6.22 `/analytics`
 
-**RBAC:** `analytics.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance. (Admin added in Session 8.)
+**RBAC:** `analytics.view` — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance. Teacher and TA do not have access. Note: the Staff Performance tab within Analytics is further gated to `analytics.viewStaffPerformance` — Super Admin, Admin Head, and HR/Finance only.
 
 **Tabs (4):**
 
@@ -959,6 +995,7 @@ interface Invoice {
   amount: number;       // AED
   amountPaid: number;
   status: InvoiceStatus;
+  leadId?: string;      // set when invoice was created from invoice builder with a linked lead (added S9)
 }
 // 23 records
 
@@ -1256,7 +1293,13 @@ The following fields were added to existing interfaces in `lib/mock-data.ts`:
 
 **Stage change:** `"Paid"` removed from `LeadStage` union. The pipeline now ends at `"Won"` (after Record Payment) followed by a manual Convert to Student step.
 
-### 7.20 Assessment Store Types (`lib/assessment-store.tsx`)
+### 7.20 New Fields Added in Session 9 (23 April 2026)
+
+| Type | New Fields |
+|---|---|
+| `Invoice` | `leadId?: string` — links an invoice back to the lead it was raised from (set by invoice builder linked-lead flow) |
+
+### 7.21 Assessment Store Types (`lib/assessment-store.tsx`)
 
 
 
@@ -1277,7 +1320,7 @@ interface AssessmentRecord {
 // Utilities: isoToDayKey(), isoToDateLabel()
 ```
 
-### 7.21 Permission Refinements in Session 8 (23 April 2026)
+### 7.22 Permission Refinements in Session 8 (23 April 2026)
 
 No new data fields were added. This session tightened and broadened the `PERMISSIONS` matrix and added a new sub-permission for analytics tab gating.
 
@@ -1307,6 +1350,38 @@ No new data fields were added. This session tightened and broadened the `PERMISS
 - "Add Note" and "Dismiss" buttons on the student Concerns sub-tab are now hidden when `!can('students.edit')`.
 - Analytics Staff tab: hidden from tab bar for roles without `analytics.viewStaffPerformance`; direct URL navigation to `?tab=staff` redirects to first visible tab.
 
+### 7.23 Permission Refinements in Session 9 (23 April 2026)
+
+| Action | Change |
+|---|---|
+| `guardians.view` | Added Academic Head, HR/Finance |
+| `guardians.create` | Added HR/Finance |
+| `guardians.edit` | Added HR/Finance |
+| `leads.view` | Now all 8 roles (added Academic Head, HOD, Teacher, TA, HR/Finance) |
+| `leads.advancePipeline` | **New action** — Super Admin, Admin Head, Admin, HR/Finance |
+| `leads.advanceBeyondScheduled` | **New action** — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance. Gates "Send Invoice", "Record Payment", and "Convert to Student" in slide-over footer. |
+| `leads.convertToStudent` | **New action** — Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance. Gates "Convert to Student" kanban CTA and action menu item. |
+| `enrolment.view` | Added Academic Head, Teacher, TA |
+| `staff.viewCPDDetail` | **New action** — Super Admin, Admin Head, HR/Finance. Gates CPD log entries and "Log CPD" button in StaffSlideOver. |
+| `assessments.view` | Added Teacher, TA |
+| `assessments.enterOutcome` | Added Teacher, TA |
+| `reports.generate` | Added Academic Head, HOD, HR/Finance |
+| `reports.schedule` | Added Academic Head, HOD, HR/Finance |
+| `reports.export` | **New action** — Super Admin, Admin Head, Admin, Academic Head, HOD |
+| `reports.viewFinancial` | **New action** — Super Admin, Admin Head, Admin, HR/Finance |
+| `export.all` | Added HR/Finance |
+| `inventory.view` | Added TA |
+
+**UI guards also added in Session 9:**
+- `leads/page.tsx` `KanbanCard`: "Convert to Student" CTA hidden when `!can('leads.convertToStudent')`.
+- `leads/page.tsx` `LeadActionMenu`: "Convert to Student" hidden when `!can('leads.convertToStudent')`.
+- `leads/page.tsx` `StageFooterActions`: invoicing action buttons at Schedule Confirmed / Invoice Sent / Won replaced with amber info box for roles without `leads.advanceBeyondScheduled`.
+- `leads/page.tsx` `LeadDetailDialog`: "Archive Lead" button gated by `can('delete.records')`.
+- `inventory/page.tsx`: full `<AccessDenied />` guard if `!can('inventory.view')`.
+- `students/[id]/page.tsx`: full `<AccessDenied />` guard if `!can('students.view')`.
+- `staff/page.tsx` `StaffSlideOver` CPD tab: CPD log entries and "Log CPD" button gated by `can('staff.viewCPDDetail')`.
+- `automations/page.tsx` template edit sheet: "Org-Wide" ownership button permission corrected from `automations.createOrgTemplate` to `templates.approveOrgWide`.
+
 ---
 
 ## 8. RBAC Matrix
@@ -1322,18 +1397,18 @@ No new data fields were added. This session tightened and broadened the `PERMISS
 | Nav ID | Required Action | Blocked Roles |
 |---|---|---|
 | dashboard | (none — always visible) | — |
-| students | `students.view` | Teacher, TA (HR/Finance now has access — added S8) |
-| guardians | `guardians.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
-| leads | `leads.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
-| enrolment | `enrolment.view` | Academic Head, HOD, Teacher, TA, HR/Finance |
-| timetable | `timetable.view` | HR/Finance |
-| attendance | `attendance.view` | HR/Finance |
-| assessments | `assessments.view` | Teacher, TA, HR/Finance |
+| students | `students.view` | Teacher, TA (HR/Finance added S8) |
+| guardians | `guardians.view` | HOD, Teacher, TA (Academic Head and HR/Finance added S9) |
+| leads | `leads.view` | — (all 8 roles — Academic Head, HOD, Teacher, TA, HR/Finance added S9) |
+| enrolment | `enrolment.view` | HOD, HR/Finance (Academic Head, Teacher, TA added S9) |
+| timetable | `timetable.view` | — (all 8 roles; HR/Finance view only) |
+| attendance | `attendance.view` | — (all 8 roles; HR/Finance view only) |
+| assessments | `assessments.view` | HR/Finance (Teacher, TA added S9) |
 | progress | `progress.view` | HR/Finance |
-| finance | `finance.view` | Academic Head, HOD, Teacher, TA (tightened S8 — was all roles) |
+| finance | `finance.view` | Academic Head, HOD, Teacher, TA (tightened S8) |
 | staff | `staff.view` | — (all see it) |
-| tasks | `tasks.view` | — (Teacher, TA added S8 — all roles now) |
-| analytics | `analytics.view` | Teacher, TA (Admin added S8) |
+| tasks | `tasks.view` | — (all 8 roles) |
+| analytics | `analytics.view` | Teacher, TA |
 | reports | `reports.view` | Teacher, TA |
 | settings | `settings.view` | Super Admin only |
 | feedback | `feedback.view` | HR/Finance |
@@ -1348,6 +1423,9 @@ No new data fields were added. This session tightened and broadened the `PERMISS
 | `students.delete` | Super Admin only |
 | `students.viewFinancial` | Super Admin, Admin Head, Admin, HR/Finance |
 | `leads.delete` | Super Admin, Admin Head |
+| `leads.advancePipeline` | Super Admin, Admin Head, Admin, HR/Finance (new S9) |
+| `leads.advanceBeyondScheduled` | Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance (new S9) |
+| `leads.convertToStudent` | Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance (new S9) |
 | `enrolment.transferSibling` | Super Admin, Admin Head |
 | `finance.view` | Super Admin, Admin Head, Admin, HR/Finance (tightened S8) |
 | `finance.approveRefund` | Super Admin, Admin Head |
@@ -1364,13 +1442,20 @@ No new data fields were added. This session tightened and broadened the `PERMISS
 | `tasks.deleteOthers` | Super Admin, Admin Head, Teacher, TA (Teacher, TA added S8) |
 | `tasks.reassign` | Super Admin, Admin Head, Admin, Academic Head, HOD, Teacher, TA (Teacher, TA added S8) |
 | `analytics.viewStaffPerformance` | Super Admin, Admin Head, HR/Finance (new action S8 — gates Staff tab) |
+| `staff.viewCPDDetail` | Super Admin, Admin Head, HR/Finance (new S9 — gates CPD log in staff slide-over) |
+| `assessments.enterOutcome` | Super Admin, Admin Head, Admin, HOD, Teacher, TA (Teacher, TA added S9) |
+| `reports.generate` | Super Admin, Admin Head, Admin, Academic Head, HOD, HR/Finance (expanded S9) |
+| `reports.schedule` | Super Admin, Admin Head, Academic Head, HOD, HR/Finance (expanded S9) |
+| `reports.export` | Super Admin, Admin Head, Admin, Academic Head, HOD (new S9) |
+| `reports.viewFinancial` | Super Admin, Admin Head, Admin, HR/Finance (new S9) |
 | `attendance.unlockWindow` | Super Admin, Admin Head |
 | `staff.assignRole` | Super Admin only |
 | `settings.view` / `.edit` | Super Admin only |
 | `catalogue.edit` | Super Admin, Admin Head |
 | `topic.edit` / `grades.edit` | Super Admin, Academic Head, HOD |
 | `import` | Super Admin only |
-| `export.all` | Super Admin only |
+| `export.all` | Super Admin, HR/Finance (HR/Finance added S9) |
+| `inventory.view` | Super Admin, Admin Head, Admin, Academic Head, HOD, TA, HR/Finance (TA added S9) |
 
 Full permissions matrix is in `lib/role-config.ts` — `PERMISSIONS` object, 50+ action keys.
 

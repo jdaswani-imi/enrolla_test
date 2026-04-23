@@ -32,6 +32,7 @@ import {
   Clock,
   Calendar,
   CheckCircle2,
+  Package,
 } from "lucide-react";
 import {
   BarChart,
@@ -75,6 +76,8 @@ import {
   hodPendingApprovals,
   invoiceStatusBreakdown,
   staffCpdProgress,
+  inventoryItems,
+  reorderAlerts,
   type KpiCard,
   type ChurnRiskStudent,
   type OperationalThreshold,
@@ -85,6 +88,7 @@ import {
   type AcademicAlertRow,
 } from "@/lib/mock-data";
 import { useRole } from "@/lib/role-context";
+import { usePermission } from "@/lib/use-permission";
 import { getDashboardConfig, type DashboardSectionId } from "@/lib/dashboard-config";
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
@@ -1142,6 +1146,55 @@ function StaffCpdPanel() {
   );
 }
 
+// ─── Inventory Summary Cards ──────────────────────────────────────────────────
+
+function InventorySummaryCards() {
+  const { can } = usePermission();
+  if (!can('inventory.view')) return null;
+
+  const lowStockCount = inventoryItems.filter(item => item.health === 'below').length;
+
+  // Prototype today: 21 Apr 2026. "Last 14 days" = Apr 7-21.
+  const recentlyOrderedCount = reorderAlerts.filter(alert => {
+    const match = alert.openedAt.match(/^(\d+) Apr 2026/);
+    if (!match) return false;
+    const day = parseInt(match[1]);
+    return day >= 7 && day <= 21;
+  }).length;
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <Link href="/inventory" className="flex flex-col">
+        <Card className={cn(
+          "flex flex-col justify-between h-[120px] cursor-pointer hover:shadow-md hover:border-amber-200 hover:-translate-y-px transition-all duration-200",
+          lowStockCount > 0 && "border-l-4 border-l-amber-400",
+        )}>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500 leading-tight">Low Stock Items</p>
+            <Package className="w-4 h-4 text-amber-500 shrink-0" />
+          </div>
+          <p className={cn("font-bold leading-none", lowStockCount > 0 ? "text-2xl text-amber-600" : "text-2xl text-slate-900")}>
+            {lowStockCount}
+          </p>
+          <p className="text-xs text-slate-400">Items below reorder threshold</p>
+        </Card>
+      </Link>
+      <Link href="/inventory?tab=reorder-alerts" className="flex flex-col">
+        <Card className="flex flex-col justify-between h-[120px] cursor-pointer hover:shadow-md hover:border-amber-200 hover:-translate-y-px transition-all duration-200">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500 leading-tight">Recently Ordered</p>
+            <ClipboardList className="w-4 h-4 text-amber-500 shrink-0" />
+          </div>
+          <p className="font-bold text-2xl text-slate-900 leading-none">
+            {recentlyOrderedCount}
+          </p>
+          <p className="text-xs text-slate-400">Reorder alerts in last 14 days</p>
+        </Card>
+      </Link>
+    </div>
+  );
+}
+
 // ─── Section renderer ─────────────────────────────────────────────────────────
 
 function renderSection(id: DashboardSectionId): { label: string; node: React.ReactNode } {
@@ -1416,6 +1469,9 @@ export default function DashboardPage() {
             <KpiCardItem key={card.id} card={card} />
           ))}
       </div>
+
+      {/* Inventory summary cards — visible to roles with inventory.view */}
+      <InventorySummaryCards />
 
       {/* Sections */}
       {config.draggable ? (

@@ -2422,14 +2422,14 @@ function TemplateEditSheet({
                 <button
                   key={o}
                   type="button"
-                  onClick={() => { if (o === 'Org-Wide' && !can('automations.createOrgTemplate')) return; setOwner(o); }}
-                  disabled={o === 'Org-Wide' && !can('automations.createOrgTemplate')}
+                  onClick={() => { if (o === 'Org-Wide' && !can('templates.approveOrgWide')) return; setOwner(o); }}
+                  disabled={o === 'Org-Wide' && !can('templates.approveOrgWide')}
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors cursor-pointer',
                     owner === o
                       ? 'bg-amber-500 text-white border-amber-500'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300',
-                    o === 'Org-Wide' && !can('automations.createOrgTemplate') && 'opacity-40 cursor-not-allowed'
+                    o === 'Org-Wide' && !can('templates.approveOrgWide') && 'opacity-40 cursor-not-allowed'
                   )}
                 >
                   {o}

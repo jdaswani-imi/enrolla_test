@@ -20,9 +20,13 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import {
   feedbackItems,
   classGroups,
+  tasks,
+  students,
+  currentUser,
   type FeedbackItem,
   type FeedbackStatus,
   type PostType,
+  type Task,
 } from "@/lib/mock-data";
 import {
   Dialog,
@@ -325,9 +329,33 @@ function FeedbackQueueTab() {
   }, [rows, subjectFilter, teacherFilter, deptFilter, statusFilter, sortField, sortDir]);
 
   function handleApprove(id: string) {
+    const item = rows.find(r => r.id === id);
     setStatusOverrides((prev) => ({ ...prev, [id]: "Approved" }));
     setSelected(null);
-    toast.success("Feedback approved");
+
+    if (item) {
+      const student = students.find(s => s.name === item.studentName);
+      const newTask: Task = {
+        id: `TK-FB-${Date.now()}`,
+        title: `Share feedback with parent — ${item.studentName}`,
+        type: "Admin",
+        priority: "Medium",
+        status: "Open",
+        assignee: "Omar Farhat",
+        dueDate: "22 Apr 2026",
+        linkedRecord: student
+          ? { type: "student", name: item.studentName, id: student.id }
+          : null,
+        description: `Feedback for ${item.studentName} has been approved by ${currentUser.name}. Please share it with the parent via WhatsApp or their preferred channel.`,
+        subtasks: ["Contact guardian via WhatsApp", "Confirm receipt"],
+        overdue: false,
+        createdOn: "21 Apr 2026",
+      };
+      tasks.push(newTask);
+      toast.success(`Feedback approved — task created: Share feedback with ${item.studentName}'s parent`);
+    } else {
+      toast.success("Feedback approved");
+    }
   }
 
   function handleRejectConfirm(id: string) {

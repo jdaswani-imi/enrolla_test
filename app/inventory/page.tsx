@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { MultiSelectFilter } from '@/components/ui/multi-select-filter';
 import { SortableHeader, useSortState } from '@/components/ui/sortable-header';
 import { usePermission } from '@/lib/use-permission';
+import { AccessDenied } from '@/components/ui/access-denied';
 import { DateRangePicker, DATE_PRESETS, type DateRange } from '@/components/ui/date-range-picker';
 import { PaginationBar } from '@/components/ui/pagination-bar';
 
@@ -1915,6 +1916,7 @@ function CatalogueTab({
 
 function InventoryPageContent() {
   const { can } = usePermission();
+  if (!can('inventory.view')) return <AccessDenied />;
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);

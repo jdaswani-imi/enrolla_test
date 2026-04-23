@@ -284,7 +284,7 @@ function LeadActionMenu({
     { icon: MoveRight, label: "Move Stage", onClick: actions.onMoveStage },
     { icon: BookOpen, label: "Book Assessment", onClick: actions.onBookAssessment },
     { icon: BookOpen, label: "Book Trial Session", onClick: actions.onBookTrial },
-    { icon: UserPlus, label: "Convert to Student", onClick: actions.onConvertToStudent, hidden: !canConvert },
+    { icon: UserPlus, label: "Convert to Student", onClick: actions.onConvertToStudent, hidden: !canConvert || !can('leads.convertToStudent') },
     { icon: XCircle, label: "Mark as Lost", onClick: actions.onMarkLost, hidden: !can("delete.records"), danger: true },
     { icon: Archive, label: "Archive", onClick: actions.onArchive, hidden: !can("delete.records"), danger: true },
   ];
@@ -348,6 +348,7 @@ function KanbanCard({
 }) {
   const cfg = STAGE_CONFIG[lead.stage];
   const palette = getAvatarPalette(lead.assignedTo);
+  const { can } = usePermission();
 
   return (
     <div
@@ -454,8 +455,8 @@ function KanbanCard({
         <span className="text-xs text-slate-400 font-medium">{lead.daysInStage}d</span>
       </div>
 
-      {/* Convert to Student CTA — only on Won cards */}
-      {lead.stage === "Won" && lead.status !== "converted" && (
+      {/* Convert to Student CTA — only on Won cards, gated by permission */}
+      {lead.stage === "Won" && lead.status !== "converted" && can('leads.convertToStudent') && (
         <button
           type="button"
           onClick={(e) => {
@@ -1750,6 +1751,10 @@ function StageFooterActions({
   const linkClass =
     "text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer underline-offset-2 hover:underline";
 
+  const { can } = usePermission();
+  const canAdvance = can('leads.advancePipeline');
+  const canAdvanceBeyondScheduled = can('leads.advanceBeyondScheduled');
+
   const stage = lead.stage;
 
   if (stage === "New") {
@@ -1854,9 +1859,15 @@ function StageFooterActions({
   if (stage === "Schedule Confirmed") {
     return (
       <div className="w-full flex flex-col gap-2">
-        <button type="button" onClick={() => onSendInvoice(lead)} className={primaryClass}>
-          Send Invoice →
-        </button>
+        {canAdvanceBeyondScheduled ? (
+          <button type="button" onClick={() => onSendInvoice(lead)} className={primaryClass}>
+            Send Invoice →
+          </button>
+        ) : (
+          <div className="w-full rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            To proceed to invoicing, please speak to Admin or Admin Head.
+          </div>
+        )}
         <div className="flex">
           <button
             type="button"
@@ -1871,6 +1882,13 @@ function StageFooterActions({
   }
 
   if (stage === "Invoice Sent") {
+    if (!canAdvanceBeyondScheduled) {
+      return (
+        <div className="w-full rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          To proceed to invoicing, please speak to Admin or Admin Head.
+        </div>
+      );
+    }
     return (
       <div className="w-full flex flex-col gap-2">
         <button type="button" onClick={() => onRecordPayment(lead)} className={primaryClass}>
@@ -1902,6 +1920,13 @@ function StageFooterActions({
         <span className="inline-flex px-3 py-2 text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
           Student record created — {journey.student.id}
         </span>
+      );
+    }
+    if (!canAdvanceBeyondScheduled) {
+      return (
+        <div className="w-full rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          To proceed to invoicing, please speak to Admin or Admin Head.
+        </div>
       );
     }
     return (
@@ -2119,6 +2144,7 @@ function LeadDetailDialog({
   followUpBanner: { taskTitle: string } | null;
   onDismissFollowUpBanner: () => void;
 }) {
+  const { can } = usePermission();
   const journey = useJourney();
   const isJourneyLead = lead?.id === BILAL_LEAD_ID;
   const stageFooterRef = useRef<HTMLDivElement>(null);
@@ -2507,13 +2533,15 @@ function LeadDetailDialog({
           />
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => onArchive(lead)}
-              className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
-            >
-              Archive Lead
-            </button>
+            {can('delete.records') && (
+              <button
+                type="button"
+                onClick={() => onArchive(lead)}
+                className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
+              >
+                Archive Lead
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onOpenChange(false)}

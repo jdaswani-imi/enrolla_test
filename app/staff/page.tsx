@@ -270,7 +270,7 @@ const PERF_TREND = [
 
 function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () => void }) {
   const [tab, setTab] = useState<"overview" | "cpd" | "performance">("overview");
-  const { role } = usePermission();
+  const { role, can } = usePermission();
   const pal = getAvatarPalette(staff.name);
   const canSeePerformance = role !== 'Teacher' && role !== 'TA';
 
@@ -412,16 +412,18 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
             <div className="px-6 py-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm font-semibold text-slate-700">CPD Activities</p>
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Log CPD
-                </button>
+                {can('staff.viewCPDDetail') && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Log CPD
+                  </button>
+                )}
               </div>
 
-              {/* Annual progress */}
+              {/* Annual progress — visible to all roles with staff.view */}
               <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between text-sm mb-1.5">
                   <span className="text-slate-600 font-medium">Annual progress</span>
@@ -435,29 +437,43 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
                     style={{ width: `${Math.min((staff.cpdHours / staff.cpdTarget) * 100, 100)}%` }}
                   />
                 </div>
+                <p className="text-xs text-slate-500 mt-1.5">
+                  {staff.cpdTarget - staff.cpdHours > 0
+                    ? `${staff.cpdTarget - staff.cpdHours} hrs outstanding`
+                    : "Target complete"}
+                </p>
               </div>
 
-              <div className="space-y-2">
-                {CPD_LOG.map((entry) => (
-                  <div key={entry.activity} className="border border-slate-200 rounded-lg p-3 bg-white">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 leading-snug">{entry.activity}</p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-xs text-slate-400">{entry.date}</span>
-                          <span className="text-slate-300">·</span>
-                          <span className="text-xs text-slate-500">{entry.hours} hrs</span>
-                          <span className="text-slate-300">·</span>
-                          <span className="text-xs text-slate-500">{entry.type}</span>
+              {/* CPD log entries — restricted to staff.viewCPDDetail */}
+              {can('staff.viewCPDDetail') ? (
+                <div className="space-y-2">
+                  {CPD_LOG.map((entry) => (
+                    <div key={entry.activity} className="border border-slate-200 rounded-lg p-3 bg-white">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 leading-snug">{entry.activity}</p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-xs text-slate-400">{entry.date}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-xs text-slate-500">{entry.hours} hrs</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-xs text-slate-500">{entry.type}</span>
+                          </div>
                         </div>
+                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium shrink-0 whitespace-nowrap", CPD_STATUS_BADGE[entry.status])}>
+                          {CPD_STATUS_LABEL[entry.status]}
+                        </span>
                       </div>
-                      <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium shrink-0 whitespace-nowrap", CPD_STATUS_BADGE[entry.status])}>
-                        {CPD_STATUS_LABEL[entry.status]}
-                      </span>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <p className="text-xs text-slate-500">
+                    Full CPD activity log is visible to Admin Head and HR/Finance only.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

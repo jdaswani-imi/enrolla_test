@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
+import { AccessDenied } from "@/components/ui/access-denied";
 import {
   studentDetail,
   guardians,
@@ -3501,6 +3502,7 @@ function JourneyStudentBanner({
 
 function StudentProfilePageContent() {
   const { can } = usePermission();
+  if (!can('students.view')) return <AccessDenied />;
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const routeId = (params?.id as string) ?? "";

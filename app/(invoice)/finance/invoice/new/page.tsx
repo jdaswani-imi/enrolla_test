@@ -7,7 +7,7 @@ import {
   Building2, AlertCircle, CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { students, staffMembers, invoices, type Student, type Invoice } from '@/lib/mock-data';
+import { students, staffMembers, invoices, leads, type Student, type Invoice, type Lead } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
 import { useJourney, BILAL_STUDENT_ID, enrolmentRateFor } from '@/lib/journey-store';
@@ -403,6 +403,11 @@ export default function NewInvoicePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLDivElement>(null);
 
+  const [linkedLeadId, setLinkedLeadId] = useState('');
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [linkedLeadPaid, setLinkedLeadPaid] = useState(false);
+  const leadSearchRef = useRef<HTMLDivElement>(null);
+
   const [issueDate, setIssueDate] = useState(today);
   const [dueDate, setDueDate] = useState(addDays(today, 7));
   const [invoicedBy, setInvoicedBy] = useState('Jason Daswani');
@@ -487,6 +492,9 @@ export default function NewInvoicePage() {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setSearchQuery('');
       }
+      if (leadSearchRef.current && !leadSearchRef.current.contains(e.target as Node)) {
+        setLeadSearchQuery('');
+      }
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -496,6 +504,24 @@ export default function NewInvoicePage() {
     if (!searchQuery || selectedStudent) return [];
     return students.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8);
   }, [searchQuery, selectedStudent]);
+
+  const linkedLead = useMemo<Lead | null>(
+    () => (linkedLeadId ? (leads.find((l) => l.id === linkedLeadId) ?? null) : null),
+    [linkedLeadId],
+  );
+
+  const filteredLeads = useMemo<Lead[]>(() => {
+    if (!leadSearchQuery || linkedLeadId) return [];
+    const q = leadSearchQuery.toLowerCase();
+    return leads
+      .filter(
+        (l) =>
+          l.status !== 'lost' &&
+          l.status !== 'archived' &&
+          (l.childName.toLowerCase().includes(q) || l.ref.toLowerCase().includes(q)),
+      )
+      .slice(0, 8);
+  }, [leadSearchQuery, linkedLeadId]);
 
   function handleConfirmIssue() {
     const subjects = lineItems.filter((i) => i.subject).map((i) => i.subject).join(' + ');
@@ -515,6 +541,7 @@ export default function NewInvoicePage() {
       amount: totals.totalDue,
       amountPaid: 0,
       status: 'Issued',
+      ...(linkedLeadId ? { leadId: linkedLeadId } : {}),
     };
     invoices.unshift(newInvoice);
     setConfirmOpen(false);
@@ -522,8 +549,12 @@ export default function NewInvoicePage() {
     if (isJourneyInvoice) {
       journey.setInvoiceIssued(invoiceNo, totals.totalDue);
     }
+    if (linkedLeadId) {
+      const lead = leads.find((l) => l.id === linkedLeadId);
+      if (lead) lead.stage = 'Invoice Sent';
+    }
     toast.success(`Invoice ${invoiceNo} issued successfully`);
-    setTimeout(() => router.push('/finance'), 800);
+    if (!linkedLeadId) setTimeout(() => router.push('/finance'), 800);
   }
 
   function handleStudentSelect(s: Student) {
@@ -678,13 +709,37 @@ export default function NewInvoicePage() {
               Paid
             </span>
           )}
+          {!isJourneyInvoice && linkedLeadId && status === 'Issued' && !linkedLeadPaid && (
+            <button
+              type="button"
+              onClick={() => setPaymentOpen(true)}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors cursor-pointer shadow-sm"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Record Payment
+            </button>
+          )}
+          {!isJourneyInvoice && linkedLeadId && linkedLeadPaid && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CreditCard className="w-3.5 h-3.5" />
+              Paid
+            </span>
+          )}
         </div>
       </div>
 
       <RecordPaymentDialog
         open={paymentOpen}
         onOpenChange={setPaymentOpen}
-        defaultAmount={journey.invoice?.amount ?? totals.totalDue}
+        lead={linkedLead}
+        defaultAmount={isJourneyInvoice ? (journey.invoice?.amount ?? totals.totalDue) : totals.totalDue}
+        onCommit={() => {
+          if (linkedLead && !isJourneyInvoice) {
+            linkedLead.stage = 'Won';
+            setLinkedLeadPaid(true);
+            toast.success(`Lead ${linkedLead.ref} moved to Won`);
+          }
+        }}
       />
 
       {/* ── Body ── */}
@@ -765,6 +820,60 @@ export default function NewInvoicePage() {
                   Please select a student before issuing the invoice
                 </p>
               )}
+
+              {/* BLOCK 1B — LINKED LEAD (optional) */}
+              <div className="mb-8">
+                <p className={labelCls}>Linked lead <span className="normal-case tracking-normal font-normal text-slate-400">(optional)</span></p>
+                {linkedLead ? (
+                  <div className="rounded-xl border border-slate-200 p-4 flex items-center justify-between bg-white">
+                    <div>
+                      <p className="font-semibold text-slate-900 text-sm">{linkedLead.childName}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{linkedLead.ref} · {linkedLead.stage}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setLinkedLeadId(''); setLinkedLeadPaid(false); }}
+                      className="text-xs text-amber-500 hover:text-amber-600 font-medium cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div ref={leadSearchRef} className="relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search by child name or lead ref..."
+                        value={leadSearchQuery}
+                        onChange={(e) => setLeadSearchQuery(e.target.value)}
+                        className="w-full h-12 pl-10 pr-4 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                      />
+                    </div>
+                    {leadSearchQuery.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-slate-200 z-50 max-h-56 overflow-y-auto">
+                        {filteredLeads.length === 0 ? (
+                          <p className="text-sm text-slate-400 text-center py-4">No active leads found</p>
+                        ) : (
+                          filteredLeads.map((l) => (
+                            <button
+                              key={l.id}
+                              type="button"
+                              onClick={() => { setLinkedLeadId(l.id); setLeadSearchQuery(''); }}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-slate-50 last:border-0 text-left transition-colors"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-slate-900">{l.childName}</p>
+                                <p className="text-xs text-slate-400">{l.ref} · {l.stage}</p>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* BLOCK 2 — INVOICE DETAILS */}
               <div className="mb-8">

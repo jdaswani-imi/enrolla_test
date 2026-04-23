@@ -60,21 +60,24 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'students.bulkProgress':    ['Super Admin','Admin Head','Admin'],
 
   // ── Guardians ──
-  'guardians.view':           ['Super Admin','Admin Head','Admin'],
-  'guardians.create':         ['Super Admin','Admin Head','Admin'],
-  'guardians.edit':           ['Super Admin','Admin Head','Admin'],
+  'guardians.view':           ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
+  'guardians.create':         ['Super Admin','Admin Head','Admin','HR/Finance'],
+  'guardians.edit':           ['Super Admin','Admin Head','Admin','HR/Finance'],
   'guardians.setDNC':         ['Super Admin','Admin Head','Admin'],
 
   // ── Leads ──
-  'leads.view':               ['Super Admin','Admin Head','Admin'],
+  'leads.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'leads.create':             ['Super Admin','Admin Head','Admin'],
   'leads.edit':               ['Super Admin','Admin Head','Admin'],
   'leads.delete':             ['Super Admin','Admin Head'],
   'leads.convert':            ['Super Admin','Admin Head','Admin'],
   'leads.assignStaff':        ['Super Admin','Admin Head','Admin'],
+  'leads.advancePipeline':    ['Super Admin','Admin Head','Admin','HR/Finance'],
+  'leads.advanceBeyondScheduled': ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
+  'leads.convertToStudent':   ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
 
   // ── Enrolment ──
-  'enrolment.view':           ['Super Admin','Admin Head','Admin'],
+  'enrolment.view':           ['Super Admin','Admin Head','Admin','Academic Head','Teacher','TA'],
   'enrolment.create':         ['Super Admin','Admin Head','Admin'],
   'enrolment.edit':           ['Super Admin','Admin Head','Admin'],
   'enrolment.withdraw':       ['Super Admin','Admin Head','Admin'],
@@ -154,6 +157,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'staff.initiateOffboarding':['Super Admin','Admin Head','HR/Finance'],
   'staff.verifyCPD':          ['Super Admin','HR/Finance'],
   'staff.activateEmergencyLeave':['Super Admin','Admin Head'],
+  'staff.viewCPDDetail':         ['Super Admin','Admin Head','HR/Finance'],
 
   // ── Automations / Templates ──
   'automations.view':         ['Super Admin','Admin Head','Admin'],
@@ -174,17 +178,19 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'people.manageBroadcasts':  ['Super Admin','Admin Head','Admin'],
 
   // ── Assessments ──
-  'assessments.view':         ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
+  'assessments.view':         ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
   'assessments.book':         ['Super Admin','Admin Head','Admin'],
-  'assessments.enterOutcome': ['Super Admin','Admin Head','Admin','HOD'],
+  'assessments.enterOutcome': ['Super Admin','Admin Head','Admin','HOD','Teacher','TA'],
   'assessments.manageSlots':  ['Super Admin','Admin Head','Admin'],
 
   // ── Analytics / Reports ──
   'analytics.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
   'analytics.viewStaffPerformance': ['Super Admin','Admin Head','HR/Finance'],
   'reports.view':             ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
-  'reports.generate':         ['Super Admin','Admin Head','Admin'],
-  'reports.schedule':         ['Super Admin','Admin Head'],
+  'reports.generate':         ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
+  'reports.schedule':         ['Super Admin','Admin Head','Academic Head','HOD','HR/Finance'],
+  'reports.export':           ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
+  'reports.viewFinancial':    ['Super Admin','Admin Head','Admin','HR/Finance'],
 
   // ── Export (bulk data export button shown on list pages) ──
   'export':                   ['Super Admin','Admin Head','Admin','HR/Finance'],
@@ -211,12 +217,12 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'offboard.staff':           ['Super Admin','HR/Finance'],
   'manage.roles':             ['Super Admin'],
   'merge.duplicates':         ['Super Admin','Admin Head','Admin'],
-  'export.all':               ['Super Admin'],
+  'export.all':               ['Super Admin','HR/Finance'],
   'bulk.generate.invoices':   ['Super Admin','Admin Head','Admin'],
   'stock.take':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
 
   // ── Inventory ──
-  'inventory.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
+  'inventory.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','TA','HR/Finance'],
 }
 
 export function canDo(role: Role, action: string): boolean {

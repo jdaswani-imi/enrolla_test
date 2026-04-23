@@ -1151,6 +1151,7 @@ export interface Invoice {
   amount: number;
   amountPaid: number;
   status: InvoiceStatus;
+  leadId?: string;
 }
 
 export interface Payment {
