@@ -83,7 +83,7 @@ export default function LoginPage() {
               The operating system for modern education centres.
             </h1>
             <p className="mt-5 text-base lg:text-lg text-slate-300 leading-relaxed">
-              Improve ME Institute · Gold &amp; Diamond Park, Dubai
+              Enrolla — Education Management Platform
             </p>
           </div>
 

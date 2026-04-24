@@ -183,7 +183,7 @@ export function ConvertToStudentDialog({
           {step === 2 && (
             <div className="px-6 py-5 space-y-4">
               <p className="text-xs text-slate-500">
-                Fill in on the parent's behalf for this prototype. In production, parents complete this via a secure link.
+                Fill in on the parent&apos;s behalf for this prototype. In production, parents complete this via a secure link.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -237,7 +237,7 @@ export function ConvertToStudentDialog({
                     className="mt-0.5 w-4 h-4 accent-amber-500 cursor-pointer"
                   />
                   <span className="text-sm text-slate-700 leading-snug group-hover:text-slate-900">
-                    I consent to my child's data being stored and processed in accordance with IMI's privacy policy.
+                    I consent to my child&apos;s data being stored and processed in accordance with IMI&apos;s privacy policy.
                     <span className="text-red-500 ml-0.5">*</span>
                   </span>
                 </label>

@@ -35,32 +35,16 @@ const YEAR_GROUPS = [
 ];
 
 const CATALOGUE_RATES: Record<string, number> = {
-  KG1: 160, KG2: 160,
-  Y1: 170, Y2: 170, Y3: 170,
-  Y4: 180, Y5: 180, Y6: 180,
+  KG1: 0, KG2: 0,
+  Y1: 0, Y2: 0, Y3: 0,
+  Y4: 0, Y5: 0, Y6: 0,
   Y7: 0, Y8: 0, Y9: 0,
   Y10: 0, Y11: 0, Y12: 0, Y13: 0,
 };
 
 const SECONDARY_GROUPS = new Set(['Y7', 'Y8', 'Y9', 'Y10', 'Y11', 'Y12', 'Y13']);
 
-const BANK_ROUTING: Record<string, { name: string; account: string; iban: string }> = {
-  Primary: {
-    name: 'ADCB KBW',
-    account: '10464418124001',
-    iban: 'AE230030010464418124001',
-  },
-  'Lower Secondary': {
-    name: 'ADCB KBW',
-    account: '10464418920002',
-    iban: 'AE920030010464418920002',
-  },
-  Senior: {
-    name: 'ADCB KBW',
-    account: '10464418920001',
-    iban: 'AE220030010464418920001',
-  },
-};
+const BANK_ROUTING: Record<string, { name: string; account: string; iban: string }> = {};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

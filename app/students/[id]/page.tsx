@@ -67,8 +67,8 @@ import {
 
 type FireToast = (msg: string, tone?: "default" | "warning") => void;
 
-const STUDENT_NAME = "Aisha Rahman";
-const STUDENT_ID = "IMI-0001";
+const STUDENT_NAME = "";
+const STUDENT_ID = "";
 
 // ─── Student Profile (editable) ───────────────────────────────────────────────
 
@@ -103,29 +103,25 @@ interface StudentProfile {
 }
 
 const INITIAL_PROFILE: StudentProfile = {
-  firstName: "Aisha",
-  lastName: "Rahman",
+  firstName: "",
+  lastName: "",
   preferredName: "",
-  dob: "2011-03-12",
-  gender: "Female",
-  nationality: "Emirati",
-  phone: "+971 50 123 4567",
+  dob: "",
+  gender: "Prefer not to say",
+  nationality: "",
+  phone: "",
   whatsappSame: true,
-  whatsapp: "+971 50 123 4567",
-  email: "fatima.rahman@gmail.com",
+  whatsapp: "",
+  email: "",
   studentId: STUDENT_ID,
-  dateEnrolled: "12 Sep 2022",
-  yearGroup: "Y8",
-  school: "GEMS Wellington Academy",
-  targetGrades: [
-    { subject: "Maths",   grade: "A*" },
-    { subject: "English", grade: "A"  },
-    { subject: "Science", grade: "B+" },
-  ],
-  enrolledCoursesCount: 3,
-  attendanceThisTerm: "87%",
-  sessionsRemaining: "34",
-  primaryGuardianId: "G-001",
+  dateEnrolled: "",
+  yearGroup: "",
+  school: "",
+  targetGrades: [],
+  enrolledCoursesCount: 0,
+  attendanceThisTerm: "—",
+  sessionsRemaining: "—",
+  primaryGuardianId: "",
   primaryGuardianRelationship: "Mother",
   secondaryGuardianId: null,
   secondaryGuardianRelationship: "Father",
@@ -763,8 +759,6 @@ function NewTaskDialog({
             <select className={FIELD_INPUT} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
               <option value="">Select assignee…</option>
               <option>Jason Daswani</option>
-              <option>Sarah Thompson</option>
-              <option>Ahmed Khalil</option>
             </select>
           </div>
         </div>
@@ -2011,7 +2005,7 @@ function LeftSidebar({
         <dl className="space-y-1.5">
           <div>
             <dt className="text-[10px] text-slate-400">Referred by</dt>
-            <dd className="text-xs text-slate-700 font-medium mt-0.5">Omar Al-Farsi (Jan 2024)</dd>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">—</dd>
           </div>
           <div>
             <dt className="text-[10px] text-slate-400">Referrals made</dt>
@@ -2309,13 +2303,7 @@ const CAL_DAYS = [
 ];
 const CAL_HOURS = [13, 14, 15, 16, 17, 18, 19, 20];
 
-const CAL_SESSIONS: Record<string, Record<number, { subject: string; teacher: string; color: string }>> = {
-  Mon: { 15: { subject: "Y8 Maths",   teacher: "Mr Ahmed Khalil",  color: "bg-amber-100 border-amber-300 text-amber-900" } },
-  Tue: { 16: { subject: "Y8 English", teacher: "Ms Sarah Mitchell", color: "bg-teal-100 border-teal-300 text-teal-900"   } },
-  Wed: { 15: { subject: "Y8 Maths",   teacher: "Mr Ahmed Khalil",  color: "bg-amber-100 border-amber-300 text-amber-900" } },
-  Thu: { 16: { subject: "Y8 English", teacher: "Ms Sarah Mitchell", color: "bg-teal-100 border-teal-300 text-teal-900"   } },
-  Fri: { 14: { subject: "Y8 Science", teacher: "Mr Tariq Al-Amin", color: "bg-blue-100 border-blue-300 text-blue-900"    } },
-};
+const CAL_SESSIONS: Record<string, Record<number, { subject: string; teacher: string; color: string }>> = {};
 
 function CalendarTab({ canExport, fireToast }: { canExport: boolean; fireToast: FireToast }) {
   return (
@@ -3399,12 +3387,7 @@ function TicketsTab({ fireToast }: { fireToast: FireToast }) {
 
 // ─── Tab 11 — Files ──────────────────────────────────────────────────────────
 
-const STUDENT_FILES = [
-  { name: "Term 3 Enrolment Contract.pdf",   uploadedOn: "6 Jan 2026",  uploadedBy: "Jason Daswani"  },
-  { name: "Assessment Report — Jan 2026.pdf", uploadedOn: "15 Jan 2026", uploadedBy: "Jason Daswani"  },
-  { name: "Guardian ID — Fatima Rahman.pdf",  uploadedOn: "12 Sep 2022", uploadedBy: "System"         },
-  { name: "Medical Note — Mar 2026.pdf",      uploadedOn: "3 Mar 2026",  uploadedBy: "Sarah Thompson" },
-];
+const STUDENT_FILES: { name: string; uploadedOn: string; uploadedBy: string }[] = [];
 
 function FilesTab({
   canDelete,
@@ -3536,7 +3519,6 @@ function JourneyStudentBanner({
 
 function StudentProfilePageContent() {
   const { can } = usePermission();
-  if (!can('students.view')) return <AccessDenied />;
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const routeId = (params?.id as string) ?? "";
@@ -3631,6 +3613,8 @@ function StudentProfilePageContent() {
   function handleTabChange(tab: string) {
     router.replace(`?tab=${tab}`, { scroll: false });
   }
+
+  if (!can('students.view')) return <AccessDenied />;
 
   const canExport = can("export");
   const canDelete = can("delete.records");

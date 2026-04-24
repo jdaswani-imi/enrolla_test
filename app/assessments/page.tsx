@@ -16,34 +16,11 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { assessments, type AssessmentStatus } from "@/lib/mock-data";
+import { assessments, AVATAR_PALETTES, getAvatarPalette, getInitials, type AssessmentStatus } from "@/lib/mock-data";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
-
-// ─── Shared helpers ───────────────────────────────────────────────────────────
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100",   text: "text-amber-700"   },
-  { bg: "bg-teal-100",    text: "text-teal-700"     },
-  { bg: "bg-blue-100",    text: "text-blue-700"     },
-  { bg: "bg-violet-100",  text: "text-violet-700"   },
-  { bg: "bg-rose-100",    text: "text-rose-700"     },
-  { bg: "bg-emerald-100", text: "text-emerald-700"  },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
 
 // ─── Status / type pill classes ───────────────────────────────────────────────
 
@@ -194,10 +171,10 @@ function UpcomingTab() {
     <div className="space-y-4">
       {/* Stat strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Assessments This Week" value={8} />
-        <StatCard label="Awaiting Booking"       value={5} amber />
-        <StatCard label="Links Sent (Unused)"    value={3} amber />
-        <StatCard label="Outcomes Pending"        value={6} />
+        <StatCard label="Assessments This Week" value={0} />
+        <StatCard label="Awaiting Booking"       value={0} amber />
+        <StatCard label="Links Sent (Unused)"    value={0} amber />
+        <StatCard label="Outcomes Pending"        value={0} />
       </div>
 
       {/* Filter bar */}
@@ -384,25 +361,16 @@ function UpcomingTab() {
 // Tab 2 — Outcomes
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OUTCOMES_DATA = [
-  { name: "Amna Al-Qubaisi",   type: "Lead" as const, yearGroup: "Y3",  subjects: ["English", "Maths"],  assessor: "Ms Sarah Mitchell", completedDate: "15 Apr 2026", recommendedPlacement: "Y3 English — Group",               outcome: "Recommended" },
-  { name: "Hamdan Al-Maktoum", type: "Lead" as const, yearGroup: "Y7",  subjects: ["Maths"],             assessor: "Mr Ahmed Khalil",   completedDate: "12 Apr 2026", recommendedPlacement: "Y7 Maths — Group",                 outcome: "Recommended" },
-  { name: "Rashid Al-Ketbi",   type: "Lead" as const, yearGroup: "Y12", subjects: ["Maths", "Physics"],  assessor: "Mr Faris Al-Amin",  completedDate: "10 Apr 2026", recommendedPlacement: "Y12 Maths — Private, Y12 Physics", outcome: "Recommended" },
-  { name: "Mira Al-Suwaidi",   type: "Lead" as const, yearGroup: "Y7",  subjects: ["English"],           assessor: "Ms Sarah Mitchell", completedDate: "8 Apr 2026",  recommendedPlacement: "Y7 English — Group",               outcome: "Recommended" },
-  { name: "Obaid Al-Falasi",   type: "Lead" as const, yearGroup: "Y9",  subjects: ["Science", "Maths"],  assessor: "Mr Tariq Al-Amin",  completedDate: "5 Apr 2026",  recommendedPlacement: "Y9 Science — Group",               outcome: "Parent to decide" },
-  { name: "Shaikha Bin Saeed", type: "Lead" as const, yearGroup: "Y1",  subjects: ["English"],           assessor: "Ms Sarah Mitchell", completedDate: "3 Apr 2026",  recommendedPlacement: "Y1 English — Group",               outcome: "Recommended" },
-  { name: "Talal Mansouri",    type: "Lead" as const, yearGroup: "Y11", subjects: ["Chemistry"],         assessor: "Ms Hana Yusuf",     completedDate: "1 Apr 2026",  recommendedPlacement: "Y11 Chemistry — Group",            outcome: "Not recommended" },
-  { name: "Rawan Al-Zarooni",  type: "Lead" as const, yearGroup: "Y4",  subjects: ["Maths"],             assessor: "Mr Ahmed Khalil",   completedDate: "28 Mar 2026", recommendedPlacement: "Y4 Maths — Group",                 outcome: "Recommended" },
-];
+const OUTCOMES_DATA: { name: string; type: "Lead" | "Student"; yearGroup: string; subjects: string[]; assessor: string; completedDate: string; recommendedPlacement: string; outcome: string }[] = [];
 
 function OutcomesTab() {
   return (
     <div className="space-y-4">
       {/* Stat strip */}
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Assessments Completed"     value={24} />
-        <StatCard label="Recommended for Enrolment" value={19} />
-        <StatCard label="Conversion Rate"            value="79%" />
+        <StatCard label="Assessments Completed"     value={0} />
+        <StatCard label="Recommended for Enrolment" value={0} />
+        <StatCard label="Conversion Rate"            value="—" />
       </div>
 
       {/* Table */}
@@ -520,66 +488,9 @@ interface DaySlots {
   slots: Slot[];
 }
 
-const THIS_WEEK: DaySlots[] = [
-  {
-    day: "Sat 19 Apr",
-    slots: [
-      { time: "10:15", room: "Room 2B", assessor: "Mr Ahmed Khalil",   student: "Bilal Mahmood" },
-      { time: "10:30", room: "Room 1A", assessor: "Ms Sarah Mitchell", student: "Hessa Al-Blooshi" },
-      { time: "11:15", room: "Room 2A", assessor: "Mr Faris Al-Amin",  student: "Ahmed Saleh" },
-      { time: "11:30", room: "Room 2B", assessor: "Mr Ahmed Khalil",   student: null },
-      { time: "12:15", room: "Room 1A", assessor: "Ms Sarah Mitchell", student: null },
-    ],
-  },
-  {
-    day: "Wed 23 Apr",
-    slots: [
-      { time: "10:15", room: "Room 2B", assessor: "Mr Ahmed Khalil",   student: "Nour Ibrahim" },
-    ],
-  },
-  {
-    day: "Thu 24 Apr",
-    slots: [
-      { time: "10:30", room: "Room 1A", assessor: "Ms Sarah Mitchell", student: null },
-    ],
-  },
-  {
-    day: "Fri 25 Apr",
-    slots: [
-      { time: "11:15", room: "Room 2A", assessor: "Mr Faris Al-Amin",  student: null },
-    ],
-  },
-];
+const THIS_WEEK: DaySlots[] = [];
 
-const NEXT_WEEK: DaySlots[] = [
-  {
-    day: "Sat 26 Apr",
-    slots: [
-      { time: "10:30", room: "Room 1A", assessor: "Ms Sarah Mitchell", student: "Rana Farouk" },
-      { time: "11:15", room: "Room 2B", assessor: "Mr Ahmed Khalil",   student: null },
-      { time: "11:30", room: "Room 2A", assessor: "Mr Faris Al-Amin",  student: null },
-      { time: "12:15", room: "Room 1A", assessor: "Ms Sarah Mitchell", student: null },
-    ],
-  },
-  {
-    day: "Mon 28 Apr",
-    slots: [
-      { time: "10:15", room: "Room 2B", assessor: "Mr Ahmed Khalil",   student: null },
-    ],
-  },
-  {
-    day: "Tue 29 Apr",
-    slots: [
-      { time: "11:00", room: "Room 1A", assessor: "Ms Sarah Mitchell", student: null },
-    ],
-  },
-  {
-    day: "Thu 1 May",
-    slots: [
-      { time: "10:30", room: "Room 2A", assessor: "Mr Faris Al-Amin",  student: null },
-    ],
-  },
-];
+const NEXT_WEEK: DaySlots[] = [];
 
 function SlotCard({ slot }: { slot: Slot }) {
   const booked = slot.student !== null;
@@ -697,7 +608,7 @@ function AssessmentsPageContent() {
     <div className="flex flex-col gap-4">
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">10 assessments in pipeline · 3 slots available this week</p>
+        <p className="text-sm text-slate-500">0 assessments in pipeline · 0 slots available this week</p>
       </div>
 
       {/* Tabs */}

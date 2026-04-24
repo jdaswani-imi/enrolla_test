@@ -1473,7 +1473,7 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
       <div className="flex items-start gap-4 mb-4">
         <div className="flex gap-4 flex-1">
           <StatCard label="Total Suppliers"  value={inventorySuppliers.length} color="slate" />
-          <StatCard label="Active Items"     value={113}                       color="blue"  />
+          <StatCard label="Active Items"     value={0}                         color="blue"  />
           <StatCard label="Have Amazon Link" value={amazonSupplierCount}       color="amber" />
         </div>
         <button
@@ -1916,12 +1916,12 @@ function CatalogueTab({
 
 function InventoryPageContent() {
   const { can } = usePermission();
-  if (!can('inventory.view')) return <AccessDenied />;
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [stockTakeOpen, setStockTakeOpen] = useState(false);
+  if (!can('inventory.view')) return <AccessDenied />;
 
   const raw = searchParams.get('tab');
   const activeTab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : 'catalogue';
@@ -1955,10 +1955,10 @@ function InventoryPageContent() {
 
       {/* Stat bar */}
       <div className="flex gap-4">
-        <StatCard label="Total Items"          value={113} color="slate" />
-        <StatCard label="Below Reorder Point"  value={7}   color="red"   />
-        <StatCard label="Auto-Deduct Active"   value={34}  color="amber" />
-        <StatCard label="Suppliers"            value={14}  color="blue"  />
+        <StatCard label="Total Items"          value={inventoryItems.length}     color="slate" />
+        <StatCard label="Below Reorder Point"  value={inventoryItems.filter(i => i.health === 'below').length} color="red"   />
+        <StatCard label="Auto-Deduct Active"   value={inventoryItems.filter(i => i.autoDeduct).length}        color="amber" />
+        <StatCard label="Suppliers"            value={inventorySuppliers.length} color="blue"  />
       </div>
 
       {/* Tab strip */}

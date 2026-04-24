@@ -34,6 +34,11 @@ import {
   churnRiskStudents,
   staffMembers,
   occupancyHeatmap,
+  revenueDeptData,
+  revenueWeeklyData,
+  revenueTermlyData,
+  revenueBySubject,
+  YEAR_GROUPS as BASE_YEAR_GROUPS,
   type ChurnRiskStudent,
 } from "@/lib/mock-data";
 
@@ -43,128 +48,17 @@ type Tab = "revenue" | "occupancy" | "churn" | "staff";
 
 // ─── Analytics date presets (extends base presets with term/academic year) ────
 
-const ANALYTICS_PRESETS: PresetItem[] = [
-  ...DATE_PRESETS,
-  { separator: true },
-  {
-    label: "Term 1 '25",
-    getValue: () => ({ from: new Date(2025, 8, 1), to: new Date(2025, 11, 20) }),
-  },
-  {
-    label: "Term 2 '26",
-    getValue: () => ({ from: new Date(2026, 0, 5), to: new Date(2026, 3, 3) }),
-  },
-  {
-    label: "Term 3 '26",
-    getValue: () => ({ from: new Date(2026, 3, 14), to: new Date(2026, 6, 25) }),
-  },
-  { separator: true },
-  {
-    label: "Academic Year 25/26",
-    getValue: () => ({ from: new Date(2025, 8, 1), to: new Date(2026, 6, 25) }),
-  },
-];
+const ANALYTICS_PRESETS = DATE_PRESETS;
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Local constants ──────────────────────────────────────────────────────────
 
-const revenueDeptDataRaw = [
-  { month: "Nov", date: new Date(2025, 10, 1), Primary: 82000, LowerSec: 58000, Senior: 58000 },
-  { month: "Dec", date: new Date(2025, 11, 1), Primary: 98000, LowerSec: 72000, Senior: 71000 },
-  { month: "Jan", date: new Date(2026, 0, 1),  Primary: 109000, LowerSec: 81000, Senior: 77000 },
-  { month: "Feb", date: new Date(2026, 1, 1),  Primary: 104000, LowerSec: 78000, Senior: 73000 },
-  { month: "Mar", date: new Date(2026, 2, 1),  Primary: 112000, LowerSec: 84000, Senior: 75000 },
-  { month: "Apr", date: new Date(2026, 3, 1),  Primary: 118000, LowerSec: 91000, Senior: 75000 },
-];
-
-const revenueWeeklyData = [
-  { week: "Wk 14", Primary: 28000, LowerSec: 20500, Senior: 17500 },
-  { week: "Wk 15", Primary: 30500, LowerSec: 23000, Senior: 19000 },
-  { week: "Wk 16", Primary: 29500, LowerSec: 22500, Senior: 18500 },
-  { week: "Wk 17", Primary: 30000, LowerSec: 25000, Senior: 20000 },
-];
-
-const revenueTermlyData = [
-  { term: "Term 1", Primary: 280000, LowerSec: 198000, Senior: 187000 },
-  { term: "Term 2", Primary: 315000, LowerSec: 232000, Senior: 218000 },
-  { term: "Term 3", Primary: 284500, LowerSec: 209000, Senior: 195000 },
-];
-
-const revenueBySubject = [
-  { subject: "Y12 Maths", revenue: 48200 },
-  { subject: "Y10 Physics", revenue: 41600 },
-  { subject: "Y11 Chemistry", revenue: 38900 },
-  { subject: "Y8 Maths", revenue: 36400 },
-  { subject: "Y9 Science", revenue: 31200 },
-  { subject: "Y6 Maths", revenue: 28800 },
-];
-
-const revenueByTeacher = [
-  { teacher: "Mr Faris Al-Amin",   dept: "Senior",          sessions: 64, actual: 91200, expected: 96000, variance: -4800 },
-  { teacher: "Mr Ahmed Khalil",    dept: "Lower Secondary", sessions: 56, actual: 79400, expected: 81600, variance: -2200 },
-  { teacher: "Ms Sarah Mitchell",  dept: "Primary",         sessions: 48, actual: 68200, expected: 70400, variance: -2200 },
-  { teacher: "Mr Tariq Al-Amin",   dept: "Senior",          sessions: 44, actual: 62400, expected: 64000, variance: -1600 },
-  { teacher: "Ms Hana Yusuf",      dept: "Primary",         sessions: 40, actual: 56800, expected: 58000, variance: -1200 },
-];
-
-const occupancyRooms = [
-  { room: "Room 3A", capacity: 8, sessions: 8, avgUtil: 81, peakUtil: 100, status: "On Target"   },
-  { room: "Room 1A", capacity: 6, sessions: 7, avgUtil: 77, peakUtil: 100, status: "Near Target" },
-  { room: "Room 2A", capacity: 6, sessions: 6, avgUtil: 72, peakUtil: 83,  status: "Near Target" },
-  { room: "Room 2B", capacity: 4, sessions: 5, avgUtil: 65, peakUtil: 75,  status: "Near Target" },
-  { room: "Room 1C", capacity: 4, sessions: 4, avgUtil: 58, peakUtil: 75,  status: "Monitor"     },
-];
-
-const staffFeedbackBase = [
-  { teacher: "Ms Hana Yusuf",      score: 4.7 },
-  { teacher: "Mr Ahmed Khalil",    score: 4.5 },
-  { teacher: "Ms Sarah Mitchell",  score: 4.4 },
-  { teacher: "Mr Faris Al-Amin",   score: 4.2 },
-  { teacher: "Mr Tariq Al-Amin",   score: 4.0 },
-  { teacher: "Nadia Al-Hassan",    score: 3.8 },
-];
-
-const roomUtilisationBase = [
-  { room: "Room 1A", util: 77 },
-  { room: "Room 1B", util: 64 },
-  { room: "Room 1C", util: 58 },
-  { room: "Room 2A", util: 72 },
-  { room: "Room 2B", util: 65 },
-  { room: "Room 3A", util: 81 },
-  { room: "Room 3B", util: 88 },
-  { room: "Room 4A", util: 54 },
-];
-
-const peakHoursData = [
-  { hour: "08:00", Primary: 12, "Lower Sec": 8,  Senior: 6  },
-  { hour: "09:00", Primary: 18, "Lower Sec": 12, Senior: 10 },
-  { hour: "10:00", Primary: 24, "Lower Sec": 18, Senior: 14 },
-  { hour: "11:00", Primary: 28, "Lower Sec": 22, Senior: 18 },
-  { hour: "12:00", Primary: 32, "Lower Sec": 26, Senior: 22 },
-  { hour: "13:00", Primary: 38, "Lower Sec": 32, Senior: 28 },
-  { hour: "14:00", Primary: 58, "Lower Sec": 42, Senior: 34 },
-  { hour: "15:00", Primary: 82, "Lower Sec": 74, Senior: 68 },
-  { hour: "16:00", Primary: 88, "Lower Sec": 92, Senior: 85 },
-  { hour: "17:00", Primary: 76, "Lower Sec": 95, Senior: 94 },
-  { hour: "18:00", Primary: 62, "Lower Sec": 88, Senior: 91 },
-  { hour: "19:00", Primary: 40, "Lower Sec": 72, Senior: 83 },
-  { hour: "20:00", Primary: 18, "Lower Sec": 42, Senior: 58 },
-];
-
-const churnRateData = [
-  { month: "Nov", rate: 3.2 },
-  { month: "Dec", rate: 3.8 },
-  { month: "Jan", rate: 4.4 },
-  { month: "Feb", rate: 5.1 },
-  { month: "Mar", rate: 4.6 },
-  { month: "Apr", rate: 4.1 },
-];
-
-const retentionActions = [
-  { name: "Re-enrol offer",  value: 14 },
-  { name: "Credit offered",  value: 9  },
-  { name: "Schedule change", value: 7  },
-  { name: "Review meeting",  value: 5  },
-];
+const revenueByTeacher: { teacher: string; dept: string; sessions: number; actual: number; expected: number; variance: number }[] = [];
+const occupancyRooms: { room: string; capacity: number; sessions: number; avgUtil: number; peakUtil: number; status: string }[] = [];
+const staffFeedbackBase: { teacher: string; score: number }[] = [];
+const roomUtilisationBase: { room: string; util: number }[] = [];
+const peakHoursData: { hour: string; Primary: number; "Lower Sec": number; Senior: number }[] = [];
+const churnRateData: { month: string; rate: number }[] = [];
+const retentionActions: { name: string; value: number }[] = [];
 
 const RETENTION_COLORS = ["#f59e0b", "#10b981", "#6366f1", "#f43f5e"];
 
@@ -174,21 +68,9 @@ const WORKLOAD_FILL: Record<string, string> = {
   Low:      "#10b981",
 };
 
-const staffMetaByName: Record<string, { feedback: number; attendance: number; compliance: number }> = {
-  "Hana Yusuf":      { feedback: 4.7, attendance: 98, compliance: 100 },
-  "Ahmed Khalil":    { feedback: 4.5, attendance: 96, compliance: 93  },
-  "Sarah Mitchell":  { feedback: 4.4, attendance: 97, compliance: 95  },
-  "Faris Al-Amin":   { feedback: 4.2, attendance: 94, compliance: 88  },
-  "Tariq Al-Amin":   { feedback: 4.0, attendance: 95, compliance: 91  },
-  "Nadia Al-Hassan": { feedback: 3.8, attendance: 99, compliance: 97  },
-  "Khalil Mansouri": { feedback: 3.6, attendance: 93, compliance: 85  },
-};
+const staffMetaByName: Record<string, { feedback: number; attendance: number; compliance: number }> = {};
 
-const YEAR_GROUPS = [
-  "All", "KG1", "KG2",
-  "Y1", "Y2", "Y3", "Y4", "Y5", "Y6",
-  "Y7", "Y8", "Y9", "Y10", "Y11", "Y12", "Y13",
-];
+const YEAR_GROUPS = ["All", ...BASE_YEAR_GROUPS];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -382,14 +264,14 @@ function RevenueTab() {
   const [department, setDepartment] = useState("All");
   const [viewBy, setViewBy]         = useState("Monthly");
 
-  const revChartData = useMemo((): Record<string, unknown>[] => {
-    if (viewBy === "Weekly") return revenueWeeklyData;
-    if (viewBy === "Termly") return revenueTermlyData;
+  const revChartData = useMemo(() => {
+    if (viewBy === "Weekly") return revenueWeeklyData as unknown as Record<string, unknown>[];
+    if (viewBy === "Termly") return revenueTermlyData as unknown as Record<string, unknown>[];
     const { from, to } = dateRange;
-    let data = revenueDeptDataRaw;
+    let data = revenueDeptData;
     if (from) data = data.filter((d) => d.date >= from);
     if (to)   data = data.filter((d) => d.date <= to);
-    return data;
+    return data as unknown as Record<string, unknown>[];
   }, [viewBy, dateRange]);
 
   const revXKey = viewBy === "Weekly" ? "week" : viewBy === "Termly" ? "term" : "month";
@@ -449,13 +331,6 @@ function RevenueTab() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Term 3 Revenue"          value="AED 284,500" />
-            <StatCard label="Collected"               value="AED 241,200" />
-            <StatCard label="Outstanding"             value="AED 43,300" />
-            <StatCard label="Predicted Month-End"     value="AED 312,000" accent />
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <Card>
               <CardTitle>Revenue by Department — {viewBy}</CardTitle>
@@ -614,9 +489,9 @@ function OccupancyTab() {
       </FilterBar>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Overall Occupancy"            value="74%" />
-        <StatCard label="Peak Hours Avg (15:00–19:00)" value="88%" />
-        <StatCard label="Low Occupancy Sessions"       value="6"   />
+        <StatCard label="Overall Occupancy"            value="—" />
+        <StatCard label="Peak Hours Avg (15:00–19:00)" value="—" />
+        <StatCard label="Low Occupancy Sessions"       value="0"   />
       </div>
       <p className="text-xs text-slate-400 -mt-2">
         Target: <span className="font-medium text-slate-600">80%</span> · Threshold:{" "}
@@ -1127,9 +1002,9 @@ function StaffTab() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard label="Avg Feedback Score"       value="4.3 / 5" />
-            <StatCard label="48h Marking Compliance"   value="91%"     />
-            <StatCard label="CPD Completion Rate"      value="68%"     />
+            <StatCard label="Avg Feedback Score"       value="—" />
+            <StatCard label="48h Marking Compliance"   value="—" />
+            <StatCard label="CPD Completion Rate"      value="—" />
           </div>
 
           <Card>

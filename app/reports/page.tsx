@@ -86,30 +86,9 @@ function mkDate(day: number, month: number, year: number): Date {
   return new Date(year, month - 1, day);
 }
 
-const initialReports: Report[] = [
-  { id: "R-001", name: "Weekly Digest — 14 Apr 2026",          reportType: "Academic Alerts",        format: "PDF", size: "1.2 MB",  generatedAt: "14 Apr 2026, 07:00", generatedDate: mkDate(14,4,2026), generatedBy: "System",         department: "All",            status: "ready",      read: false },
-  { id: "R-002", name: "Churn Risk Report — Term 3",           reportType: "Churn Report",           format: "PDF", size: "2.4 MB",  generatedAt: "13 Apr 2026, 00:00", generatedDate: mkDate(13,4,2026), generatedBy: "Jason Daswani",  department: "Senior",         status: "ready",      read: false },
-  { id: "R-003", name: "Term 3 Revenue Summary",               reportType: "Revenue Summary",        format: "CSV", size: "84 KB",   generatedAt: "12 Apr 2026, 00:00", generatedDate: mkDate(12,4,2026), generatedBy: "Rania Aziz",     department: "All",            status: "ready",      read: false },
-  { id: "R-004", name: "Academic Alerts Summary — Week 3",     reportType: "Academic Alerts",        format: "PDF", size: "980 KB",  generatedAt: "10 Apr 2026, 07:00", generatedDate: mkDate(10,4,2026), generatedBy: "Sarah Thompson", department: "Lower Secondary",status: "ready",      read: true  },
-  { id: "R-005", name: "Staff Attendance Report — Mar 2026",   reportType: "Staff Report",           format: "CSV", size: "56 KB",   generatedAt: "8 Apr 2026, 07:00",  generatedDate: mkDate(8,4,2026),  generatedBy: "System",         department: "Primary",        status: "failed",     read: true  },
-  { id: "R-006", name: "Payment Reconciliation — Term 3",      reportType: "Payment Reconciliation", format: "PDF", size: "1.8 MB",  generatedAt: "5 Apr 2026, 00:00",  generatedDate: mkDate(5,4,2026),  generatedBy: "Rania Aziz",     department: "All",            status: "ready",      read: true  },
-  { id: "R-007", name: "Attendance Summary — March 2026",      reportType: "Attendance Summary",     format: "PDF", size: "1.4 MB",  generatedAt: "1 Apr 2026, 07:00",  generatedDate: mkDate(1,4,2026),  generatedBy: "System",         department: "Primary",        status: "ready",      read: true  },
-  { id: "R-008", name: "Revenue by Teacher — Term 2",          reportType: "Revenue Summary",        format: "CSV", size: "44 KB",   generatedAt: "28 Mar 2026, 00:00", generatedDate: mkDate(28,3,2026), generatedBy: "Jason Daswani",  department: "Lower Secondary",status: "processing", read: true  },
-  { id: "R-009", name: "CPD Progress Report — All Staff",      reportType: "Staff Report",           format: "PDF", size: "760 KB",  generatedAt: "25 Mar 2026, 07:00", generatedDate: mkDate(25,3,2026), generatedBy: "Sarah Thompson", department: "Senior",         status: "ready",      read: true  },
-  { id: "R-010", name: "Weekly Digest — 24 Mar 2026",          reportType: "Academic Alerts",        format: "PDF", size: "1.1 MB",  generatedAt: "24 Mar 2026, 07:00", generatedDate: mkDate(24,3,2026), generatedBy: "System",         department: "All",            status: "ready",      read: true  },
-  { id: "R-011", name: "Overdue Invoice Report — Mar 2026",    reportType: "Payment Reconciliation", format: "CSV", size: "38 KB",   generatedAt: "20 Mar 2026, 00:00", generatedDate: mkDate(20,3,2026), generatedBy: "Rania Aziz",     department: "All",            status: "failed",     read: true  },
-  { id: "R-012", name: "Academic Alerts Summary — Week 2",     reportType: "Academic Alerts",        format: "PDF", size: "890 KB",  generatedAt: "14 Mar 2026, 07:00", generatedDate: mkDate(14,3,2026), generatedBy: "System",         department: "Lower Secondary",status: "ready",      read: true  },
-];
+const initialReports: Report[] = [];
 
-const initialScheduledReports: ScheduledReport[] = [
-  { id: "SR-001", name: "Weekly Digest",          reportType: "Academic Alerts",        cadence: "Weekly — Monday 07:00",  frequency: "Weekly",  nextRun: "21 Apr 2026", recipients: "Jason Daswani",                 format: "PDF", status: "active" },
-  { id: "SR-002", name: "Churn Risk Report",      reportType: "Churn Report",           cadence: "Weekly — Sunday 00:00",  frequency: "Weekly",  nextRun: "20 Apr 2026", recipients: "Jason Daswani, Sarah Thompson", format: "PDF", status: "active" },
-  { id: "SR-003", name: "Revenue Summary",        reportType: "Revenue Summary",        cadence: "Monthly — 1st",          frequency: "Monthly", nextRun: "1 May 2026",  recipients: "Jason Daswani",                 format: "CSV", status: "active" },
-  { id: "SR-004", name: "Academic Alerts",        reportType: "Academic Alerts",        cadence: "Weekly — Monday 07:00",  frequency: "Weekly",  nextRun: "21 Apr 2026", recipients: "Jason Daswani",                 format: "PDF", status: "paused" },
-  { id: "SR-005", name: "Attendance Summary",     reportType: "Attendance Summary",     cadence: "Monthly — 1st",          frequency: "Monthly", nextRun: "1 May 2026",  recipients: "Sarah Thompson",                format: "PDF", status: "active" },
-  { id: "SR-006", name: "Payment Reconciliation", reportType: "Payment Reconciliation", cadence: "Termly",                 frequency: "Termly",  nextRun: "1 Jul 2026",  recipients: "Rania Aziz",                    format: "CSV", status: "active" },
-  { id: "SR-007", name: "Staff CPD Report",       reportType: "Staff Report",           cadence: "Daily — 06:00",          frequency: "Daily",   nextRun: "22 Apr 2026", recipients: "Jason Daswani, Sarah Thompson", format: "PDF", status: "paused" },
-];
+const initialScheduledReports: ScheduledReport[] = [];
 
 // ─── Config & constants ─────────────────────────────────────────────────────────
 

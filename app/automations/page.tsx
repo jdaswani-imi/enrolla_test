@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
 import { AccessDenied } from '@/components/ui/access-denied';
 import {
+  currentUser,
   automationTemplates,
   automationRules,
   dispatchQueueItems,
@@ -362,7 +363,7 @@ function DispatchQueueTab() {
 
   function handleCopy(item: DispatchQueueItem) {
     setItems(prev => prev.map(i =>
-      i.id === item.id ? { ...i, claimedBy: 'Jason Daswani', claimedUntil: '19:30', status: 'Claimed' } : i
+      i.id === item.id ? { ...i, claimedBy: currentUser.name, claimedUntil: '19:30', status: 'Claimed' } : i
     ));
     setExpandedId(item.id);
     navigator.clipboard?.writeText(item.renderedBody).catch(() => {});
@@ -391,7 +392,7 @@ function DispatchQueueTab() {
   }), [items, search, unclaimedOnly]);
 
   const unclaimed = items.filter(i => i.status === 'Unclaimed').length;
-  const claimedByMe = items.filter(i => i.claimedBy === 'Jason Daswani').length;
+  const claimedByMe = items.filter(i => i.claimedBy === currentUser.name).length;
   const sent = sentToday.length;
 
   return (
@@ -599,19 +600,14 @@ type IMDirectMessage = {
 };
 
 const IM_CHANNELS: IMChannel[] = [
-  { id: 'general',         name: 'general',         memberCount: 12, unread: true },
-  { id: 'leads-pipeline',  name: 'leads-pipeline',  memberCount: 6 },
-  { id: 'academic-team',   name: 'academic-team',   memberCount: 9 },
-  { id: 'finance-admin',   name: 'finance-admin',   memberCount: 4 },
-  { id: 'hr-notices',      name: 'hr-notices',      memberCount: 12 },
+  { id: 'general',         name: 'general',         memberCount: 0, unread: false },
+  { id: 'leads-pipeline',  name: 'leads-pipeline',  memberCount: 0 },
+  { id: 'academic-team',   name: 'academic-team',   memberCount: 0 },
+  { id: 'finance-admin',   name: 'finance-admin',   memberCount: 0 },
+  { id: 'hr-notices',      name: 'hr-notices',      memberCount: 0 },
 ];
 
-const IM_DMS: IMDirectMessage[] = [
-  { id: 'dm-sarah',  name: 'Sarah Thompson', initials: 'ST', color: 'bg-blue-500',   online: true  },
-  { id: 'dm-ahmed',  name: 'Ahmed Khalil',   initials: 'AK', color: 'bg-purple-500', online: false },
-  { id: 'dm-tariq',  name: 'Tariq Al-Amin',  initials: 'TA', color: 'bg-green-500',  online: true  },
-  { id: 'dm-hana',   name: 'Hana Yusuf',     initials: 'HY', color: 'bg-pink-500',   online: false },
-];
+const IM_DMS: IMDirectMessage[] = [];
 
 const IM_THREAD_TYPES: { icon: string; label: string }[] = [
   { icon: '📋', label: 'General' },
@@ -626,158 +622,23 @@ const IM_THREAD_TYPES: { icon: string; label: string }[] = [
 const EMOJI_PALETTE = ['👍','✅','👀','🎉','❤️','😂','🙏','💪'];
 
 const CURRENT_USER = {
-  id: 'jason',
-  name: 'Jason Daswani',
-  initials: 'JD',
+  id: currentUser.name.toLowerCase().replace(/\s+/g, '-'),
+  name: currentUser.name,
+  initials: currentUser.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
   color: 'bg-amber-500',
 };
 
-const IM_GENERAL_SEED: IMMessage[] = [
-  {
-    id: 'g-1',
-    senderId: 'jason',
-    senderName: 'Jason Daswani',
-    initials: 'JD', color: 'bg-amber-500',
-    day: 'Today', time: '09:14',
-    body: 'Good morning team 👋 Just a reminder — Term 3 invoices need to go out by end of week. @Sarah can you handle the Lower Secondary batch?',
-  },
-  {
-    id: 'g-2',
-    senderId: 'sarah',
-    senderName: 'Sarah Thompson',
-    initials: 'ST', color: 'bg-blue-500',
-    day: 'Today', time: '09:16',
-    body: "On it! I'll start with Y7–Y9 this morning.",
-    reactions: [{ emoji: '👍', count: 2 }],
-  },
-  {
-    id: 'g-3',
-    senderId: 'ahmed',
-    senderName: 'Ahmed Khalil',
-    initials: 'AK', color: 'bg-purple-500',
-    day: 'Today', time: '09:31',
-    body: "Quick heads up — Aisha Rahman missed her Y8 Maths session yesterday. I've logged it but her mum hasn't responded to my message.",
-    chips: [{ type: 'Student', name: 'Aisha Rahman', detail: 'IMI-0001', id: 'IMI-0001' }],
-  },
-  {
-    id: 'g-4',
-    senderId: 'jason',
-    senderName: 'Jason Daswani',
-    initials: 'JD', color: 'bg-amber-500',
-    day: 'Today', time: '09:33',
-    body: "Thanks Ahmed. @Sarah can you follow up with the guardian? There's already an overdue invoice on the account.",
-    chips: [{ type: 'Invoice', name: 'INV-1042', detail: 'AED 3,360 Overdue' }],
-  },
-  {
-    id: 'g-5',
-    senderId: 'sarah',
-    senderName: 'Sarah Thompson',
-    initials: 'ST', color: 'bg-blue-500',
-    day: 'Today', time: '09:45',
-    body: "I'll call her now. Also — new lead Bilal Mahmood has confirmed his assessment for Saturday.",
-    chips: [{ type: 'Lead', name: 'Bilal Mahmood', detail: 'Assessment Booked' }],
-  },
-  {
-    id: 'g-6',
-    senderId: 'tariq',
-    senderName: 'Tariq Al-Amin',
-    initials: 'TA', color: 'bg-green-500',
-    day: 'Today', time: '10:02',
-    body: "Just saw the churn risk report — Omar Al-Farsi is flagged. He's been missing sessions. Should I raise a concern?",
-  },
-  {
-    id: 'g-7',
-    senderId: 'jason',
-    senderName: 'Jason Daswani',
-    initials: 'JD', color: 'bg-amber-500',
-    day: 'Today', time: '10:05',
-    body: 'Yes please raise L1 concern. Tag me and his HOD.',
-    chips: [{ type: 'Task', name: 'Follow up Omar Al-Farsi attendance', detail: 'High' }],
-  },
-];
+const IM_GENERAL_SEED: IMMessage[] = [];
 
-const IM_LEADS_PIPELINE_SEED: IMMessage[] = [
-  {
-    id: 'lp-1',
-    senderId: 'sarah',
-    senderName: 'Sarah Thompson',
-    initials: 'ST', color: 'bg-blue-500',
-    day: 'Today', time: '08:52',
-    body: 'Pipeline check: 4 new leads from the weekend campaign. Prioritising Bilal Mahmood — parent sounded very keen on the call.',
-    chips: [{ type: 'Lead', name: 'Bilal Mahmood', detail: 'Assessment Booked' }],
-  },
-  {
-    id: 'lp-2',
-    senderId: 'ahmed',
-    senderName: 'Ahmed Khalil',
-    initials: 'AK', color: 'bg-purple-500',
-    day: 'Today', time: '09:05',
-    body: 'Saturday assessment booked for Bilal — Maths + English, 10:00am with Ms Priya.',
-  },
-  {
-    id: 'lp-3',
-    senderId: 'tariq',
-    senderName: 'Tariq Al-Amin',
-    initials: 'TA', color: 'bg-green-500',
-    day: 'Today', time: '09:40',
-    body: '@Sarah nudge on Fatima Al-Suwaidi? She went quiet after the tour last week.',
-    reactions: [{ emoji: '👀', count: 1 }],
-  },
-];
+const IM_LEADS_PIPELINE_SEED: IMMessage[] = [];
 
-const IM_ACADEMIC_TEAM_SEED: IMMessage[] = [
-  {
-    id: 'at-1',
-    senderId: 'ahmed',
-    senderName: 'Ahmed Khalil',
-    initials: 'AK', color: 'bg-purple-500',
-    day: 'Today', time: '08:30',
-    body: 'Y8 Maths cohort assessment results are in — averages are up 6% on last term. Nice work team.',
-    reactions: [{ emoji: '🎉', count: 3 }],
-  },
-  {
-    id: 'at-2',
-    senderId: 'hana',
-    senderName: 'Hana Yusuf',
-    initials: 'HY', color: 'bg-pink-500',
-    day: 'Today', time: '08:47',
-    body: 'Progress reports due Friday. Please flag any students needing additional intervention.',
-  },
-];
+const IM_ACADEMIC_TEAM_SEED: IMMessage[] = [];
 
-const IM_FINANCE_ADMIN_SEED: IMMessage[] = [
-  {
-    id: 'fa-1',
-    senderId: 'sarah',
-    senderName: 'Sarah Thompson',
-    initials: 'ST', color: 'bg-blue-500',
-    day: 'Today', time: '08:20',
-    body: 'Aisha Rahman invoice is 14 days overdue. Second reminder sent, escalating to Jason.',
-    chips: [{ type: 'Invoice', name: 'INV-1042', detail: 'AED 3,360 Overdue' }],
-  },
-];
+const IM_FINANCE_ADMIN_SEED: IMMessage[] = [];
 
-const IM_HR_NOTICES_SEED: IMMessage[] = [
-  {
-    id: 'hr-1',
-    senderId: 'jason',
-    senderName: 'Jason Daswani',
-    initials: 'JD', color: 'bg-amber-500',
-    day: 'Yesterday', time: '16:10',
-    body: 'Reminder: term-break staff roster is due by Thursday. Please submit your availability in the shared sheet.',
-  },
-];
+const IM_HR_NOTICES_SEED: IMMessage[] = [];
 
-const IM_DM_SARAH_SEED: IMMessage[] = [
-  {
-    id: 'dms-1',
-    senderId: 'sarah',
-    senderName: 'Sarah Thompson',
-    initials: 'ST', color: 'bg-blue-500',
-    day: 'Today', time: '09:50',
-    body: 'Called Aisha\'s mum — she\'s going to come in Thursday to sort the invoice.',
-  },
-];
+const IM_DM_SARAH_SEED: IMMessage[] = [];
 
 const IM_CHANNEL_SEEDS: Record<string, IMMessage[]> = {
   'general':          IM_GENERAL_SEED,
@@ -791,43 +652,12 @@ const IM_CHANNEL_SEEDS: Record<string, IMMessage[]> = {
   'dm-hana':          [],
 };
 
-// Seed mock records for the record picker.
 const IM_RECORD_LIBRARY: Record<ChipRecordType, RecordChip[]> = {
-  Student: [
-    { type: 'Student', name: 'Aisha Rahman',   detail: 'IMI-0001', id: 'IMI-0001' },
-    { type: 'Student', name: 'Omar Al-Farsi',  detail: 'IMI-0002', id: 'IMI-0002' },
-    { type: 'Student', name: 'Layla Hassan',   detail: 'IMI-0003', id: 'IMI-0003' },
-    { type: 'Student', name: 'Yousef Mahmoud', detail: 'IMI-0004', id: 'IMI-0004' },
-    { type: 'Student', name: 'Noura Saleh',    detail: 'IMI-0005', id: 'IMI-0005' },
-  ],
-  Lead: [
-    { type: 'Lead', name: 'Bilal Mahmood',      detail: 'Assessment Booked' },
-    { type: 'Lead', name: 'Fatima Al-Suwaidi',  detail: 'Awaiting Callback' },
-    { type: 'Lead', name: 'Kareem Ibrahim',     detail: 'Tour Completed' },
-    { type: 'Lead', name: 'Maya Othman',        detail: 'New Enquiry' },
-    { type: 'Lead', name: 'Zayd Hussein',       detail: 'Trial Booked' },
-  ],
-  Invoice: [
-    { type: 'Invoice', name: 'INV-1042', detail: 'AED 3,360 Overdue' },
-    { type: 'Invoice', name: 'INV-1058', detail: 'AED 2,100 Due Apr 24' },
-    { type: 'Invoice', name: 'INV-1061', detail: 'AED 4,200 Paid' },
-    { type: 'Invoice', name: 'INV-1073', detail: 'AED 1,680 Draft' },
-    { type: 'Invoice', name: 'INV-1082', detail: 'AED 5,040 Due Apr 30' },
-  ],
-  Task: [
-    { type: 'Task', name: 'Follow up Omar Al-Farsi attendance', detail: 'High' },
-    { type: 'Task', name: 'Confirm Bilal Mahmood assessment',   detail: 'Medium' },
-    { type: 'Task', name: 'Send Term 3 invoices (Y7-Y9)',       detail: 'High' },
-    { type: 'Task', name: 'Review Y8 Maths progress',           detail: 'Low' },
-    { type: 'Task', name: 'Collect term-break roster',          detail: 'Medium' },
-  ],
-  Concern: [
-    { type: 'Concern', name: 'Omar Al-Farsi attendance', detail: 'L1 Churn Risk' },
-    { type: 'Concern', name: 'Aisha Rahman fees',        detail: 'L2 Financial' },
-    { type: 'Concern', name: 'Y9 English engagement',    detail: 'L1 Academic' },
-    { type: 'Concern', name: 'Noura Saleh homework',     detail: 'L1 Academic' },
-    { type: 'Concern', name: 'Kareem lead cold',         detail: 'L1 Pipeline' },
-  ],
+  Student: [],
+  Lead: [],
+  Invoice: [],
+  Task: [],
+  Concern: [],
 };
 
 function IMAvatar({ initials, color, size = 32 }: { initials: string; color: string; size?: number }) {
@@ -971,7 +801,7 @@ function CreateTaskDialogInner({
 }) {
   const [title,    setTitle]    = useState('');
   const [priority, setPriority] = useState<'Low'|'Medium'|'High'>('Medium');
-  const [assignee, setAssignee] = useState('Jason Daswani');
+  const [assignee, setAssignee] = useState(currentUser.name);
   const [dueDate,  setDueDate]  = useState('');
 
   const valid = title.trim() && priority && assignee && dueDate;
@@ -1023,11 +853,7 @@ function CreateTaskDialogInner({
               onChange={e => setAssignee(e.target.value)}
               className="mt-1 w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer bg-white"
             >
-              <option>Jason Daswani</option>
-              <option>Sarah Thompson</option>
-              <option>Ahmed Khalil</option>
-              <option>Tariq Al-Amin</option>
-              <option>Hana Yusuf</option>
+              <option>{currentUser.name}</option>
             </select>
           </div>
         </div>
@@ -1111,16 +937,7 @@ function InternalMessagesTab() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
-  const [threadReplies, setThreadReplies] = useState<Record<string, IMMessage[]>>({
-    'g-1': [{
-      id: 'g-1-r1',
-      senderId: 'ahmed',
-      senderName: 'Ahmed Khalil',
-      initials: 'AK', color: 'bg-purple-500',
-      day: 'Today', time: '09:18',
-      body: 'Concern raised — L1. HOD has been notified.',
-    }],
-  });
+  const [threadReplies, setThreadReplies] = useState<Record<string, IMMessage[]>>({});
   const [threadDraft, setThreadDraft] = useState('');
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
@@ -2034,9 +1851,9 @@ function ExecutionLogTab() {
     <>
       <div className="flex gap-3 mb-4">
         {[
-          { label: 'Total Executions', value: '1,247', color: 'slate' as const },
-          { label: 'Success Rate',     value: '94.2%', color: 'green' as const },
-          { label: 'Failed (last 24h)',value: '3',      color: 'amber' as const },
+          { label: 'Total Executions', value: '0',   color: 'slate' as const },
+          { label: 'Success Rate',     value: '—',   color: 'green' as const },
+          { label: 'Failed (last 24h)',value: '0',   color: 'amber' as const },
         ].map(s => <StatCard key={s.label} label={s.label} value={s.value} color={s.color} />)}
       </div>
 
@@ -3358,10 +3175,10 @@ function AutomationsPageContent() {
 
       {/* Stat bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Active Rules"       value={24} color="green" />
-        <StatCard label="Triggered Today"    value={47} color="blue"  />
-        <StatCard label="Pending in Queue"   value={12} color="amber" />
-        <StatCard label="System-Locked"      value={8}  color="slate" />
+        <StatCard label="Active Rules"       value={0} color="green" />
+        <StatCard label="Triggered Today"    value={0} color="blue"  />
+        <StatCard label="Pending in Queue"   value={0} color="amber" />
+        <StatCard label="System-Locked"      value={0} color="slate" />
       </div>
 
       {/* Tab strip */}

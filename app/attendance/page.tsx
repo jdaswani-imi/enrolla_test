@@ -36,6 +36,9 @@ import {
   staffMembers,
   unbilledSessions,
   ATTENDANCE_ROLE_USER,
+  AVATAR_PALETTES,
+  getAvatarPalette,
+  getInitials,
   type TimetableSession,
   type UnmarkedSession,
 } from "@/lib/mock-data";
@@ -105,27 +108,6 @@ const ADMIN_ROLES = ['Super Admin', 'Admin Head', 'Admin', 'Academic Head', 'HOD
 
 // ─── Avatar helpers ───────────────────────────────────────────────────────────
 
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100",   text: "text-amber-700"   },
-  { bg: "bg-teal-100",    text: "text-teal-700"    },
-  { bg: "bg-blue-100",    text: "text-blue-700"    },
-  { bg: "bg-violet-100",  text: "text-violet-700"  },
-  { bg: "bg-rose-100",    text: "text-rose-700"    },
-  { bg: "bg-emerald-100", text: "text-emerald-700" },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string) {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
 // Build name → year group map from all students
 const STUDENT_YEAR: Record<string, string> = {};
 allStudents.forEach(s => { STUDENT_YEAR[s.name] = s.yearGroup; });
@@ -169,11 +151,7 @@ function AttendancePageContent() {
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState("s001");
   const [completed, setCompleted]   = useState<Set<string>>(new Set());
-  const [attendance, setAttState]   = useState<Record<string, Record<string, AttendanceStatus>>>({
-    // s002 (Y4 English) pre-seeded: all students marked → demonstrates enabled Save button
-    s002: { "Nour Ibrahim": "Present", "Dana Al-Zaabi": "Late" },
-    // s001 (Y8 Maths) intentionally empty → demonstrates blocked Save button
-  });
+  const [attendance, setAttState]   = useState<Record<string, Record<string, AttendanceStatus>>>({});
   const [notes, setNotes]           = useState<Record<string, string>>({});
   const [openNote, setOpenNote]     = useState<string | null>(null);
   const [openMenu, setOpenMenu]     = useState<string | null>(null);

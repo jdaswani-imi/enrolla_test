@@ -10,7 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Enrolla** is an Education Management Platform for IMI (Improve ME Institute). Next.js 16 + React 19 admin dashboard covering student/lead management, guardians, enrolment, timetable, attendance, assessments, progress, finance, staff, tasks, automations, inventory, people/segments, analytics, and reporting. This is a frontend prototype — all data is mocked in-memory; there is no backend.
+**Enrolla** is an Education Management Platform for IMI (Improve ME Institute). Next.js 16 + React 19 admin dashboard covering student/lead management, guardians, enrolment, timetable, attendance, assessments, progress, finance, staff, tasks, automations, inventory, people/segments, analytics, and reporting.
+
+The project is transitioning from a frontend prototype (all data mocked in-memory) to a fullstack app backed by **Supabase** (PostgreSQL + Auth + Storage). Mock data in `lib/mock-data.ts` is the source of truth for the data model — new database tables and API routes should mirror it. Replace mock reads with real Supabase queries incrementally, module by module.
 
 ## Commands
 
@@ -65,9 +67,37 @@ When adding a new gated action: add the action ID to `PERMISSIONS`, then `const 
 
 [lib/journey-store.tsx](lib/journey-store.tsx) is a client-side state machine for the conversion funnel: Lead → Assessment → Trial → Enrolment → Student → Invoice. It exposes `JourneyProvider` (mounted in root layout) and typed actions for booking/logging each step. Dialog components that drive this flow live in [components/journey/](components/journey/) — `book-assessment-dialog`, `log-trial-outcome-dialog`, `convert-to-student-dialog`, `record-payment-dialog`, etc.
 
+### Backend — Supabase
+
+The backend is **Supabase** (hosted PostgreSQL + Auth + Edge Functions). Project URL: `https://yqqdzrsaiwvjgbqsqptc.supabase.co`.
+
+**Supabase client helpers** (always use these, never instantiate the client directly):
+
+| File | Use when |
+|------|----------|
+| [lib/supabase/client.ts](lib/supabase/client.ts) | Client components (`'use client'`) — uses anon key, respects RLS |
+| [lib/supabase/server.ts](lib/supabase/server.ts) | Server components, Route Handlers, Server Actions — uses anon key + cookie session |
+
+For privileged/admin operations (bypassing RLS), use `createClient(url, SUPABASE_SERVICE_ROLE_KEY)` directly in Route Handlers only — never expose the service role key to the browser.
+
+**API routes** live in `app/api/` as Next.js Route Handlers (`route.ts`). The only one so far is `app/api/test/route.ts` which queries the `departments` table as a connectivity test.
+
+**Pattern for a new data module:**
+1. Create/migrate the table in Supabase (match the shape in `lib/mock-data.ts`)
+2. Add a Route Handler at `app/api/<resource>/route.ts` for GET/POST/PATCH/DELETE
+3. Update the page/component to fetch from the API route instead of importing from `lib/mock-data.ts`
+4. Keep mock-data as fallback during transition — don't delete it until the module is fully wired
+
+**Auth**: Supabase Auth (email + password) will replace the current mock `currentUser`. The server client in `lib/supabase/server.ts` already handles cookie-based sessions for SSR.
+
+**Environment variables** (set in `.env.local`, never commit):
+- `NEXT_PUBLIC_SUPABASE_URL` — public, safe in browser
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — public, safe in browser (RLS enforced)
+- `SUPABASE_SERVICE_ROLE_KEY` — **server-only**, bypasses RLS — never expose to client
+
 ### Mock data
 
-[lib/mock-data.ts](lib/mock-data.ts) (~2900 lines) is the single source of seed data: `currentUser`, `orgSettings`, `notificationCount`, plus typed collections for students, guardians, leads, enrolments, sessions, invoices, payments, staff, tasks, KPIs, etc. Prefer extending this file over creating new mock sources.
+[lib/mock-data.ts](lib/mock-data.ts) (~2900 lines) is the authoritative data model reference: `currentUser`, `orgSettings`, `notificationCount`, plus typed collections for students, guardians, leads, enrolments, sessions, invoices, payments, staff, tasks, KPIs, etc. Use it as the schema blueprint when creating Supabase tables. As modules migrate to Supabase, their mock exports become deprecated but should remain until the real data layer is verified.
 
 ### Component conventions
 

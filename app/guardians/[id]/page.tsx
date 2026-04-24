@@ -148,205 +148,9 @@ interface GuardianDetail {
 
 // ─── Seeded guardian profiles ────────────────────────────────────────────────
 
-const FATIMA_PROFILE: GuardianProfile = {
-  id: "G-001",
-  firstName: "Fatima",
-  lastName: "Rahman",
-  relationship: "Mother",
-  phone: "+971 50 123 4567",
-  whatsappSame: true,
-  whatsapp: "+971 50 123 4567",
-  email: "fatima.rahman@gmail.com",
-  nationality: "Emirati",
-  homeArea: "Jumeirah 2, Dubai",
-  preferredChannel: "WhatsApp",
-  dnc: false,
-  dncReason: "",
-  unsubscribed: false,
-  mediaOptOut: false,
-  linkedStudents: [{ id: "IMI-0001", relationship: "Mother" }],
-  coParentId: null,
-  referralCode: "IMI-REF-001",
-  totalReferrals: 1,
-  creditBalance: 0,
-  outstandingBalance: 1800,
-  totalPaid: 5400,
-  lastContact: "3 days ago",
-  dateAdded: "12 Sep 2022",
-};
 
-const KHALID_PROFILE: GuardianProfile = {
-  id: "G-002",
-  firstName: "Khalid",
-  lastName: "Al-Farsi",
-  relationship: "Father",
-  phone: "+971 55 234 5678",
-  whatsappSame: true,
-  whatsapp: "+971 55 234 5678",
-  email: "khalid.alfarsi@gmail.com",
-  nationality: "Emirati",
-  homeArea: "Mirdif, Dubai",
-  preferredChannel: "WhatsApp",
-  dnc: false,
-  dncReason: "",
-  unsubscribed: false,
-  mediaOptOut: false,
-  linkedStudents: [{ id: "IMI-0002", relationship: "Father" }],
-  coParentId: null,
-  referralCode: "IMI-REF-002",
-  totalReferrals: 2,
-  creditBalance: 300,
-  outstandingBalance: 0,
-  totalPaid: 7200,
-  lastContact: "7 days ago",
-  dateAdded: "03 Mar 2023",
-};
+const GUARDIAN_DETAILS: Record<string, GuardianDetail> = {};
 
-const NADIA_PROFILE: GuardianProfile = {
-  id: "G-003",
-  firstName: "Nadia",
-  lastName: "Hassan",
-  relationship: "Mother",
-  phone: "+971 52 345 6789",
-  whatsappSame: false,
-  whatsapp: "+971 52 345 6700",
-  email: "nadia.hassan@gmail.com",
-  nationality: "Lebanese",
-  homeArea: "Al Barsha, Dubai",
-  preferredChannel: "Email",
-  dnc: true,
-  dncReason: "Requested no phone calls — email only",
-  unsubscribed: false,
-  mediaOptOut: true,
-  linkedStudents: [{ id: "IMI-0003", relationship: "Mother" }],
-  coParentId: null,
-  referralCode: "IMI-REF-003",
-  totalReferrals: 0,
-  creditBalance: 0,
-  outstandingBalance: 3780,
-  totalPaid: 11600,
-  lastContact: "3 days ago",
-  dateAdded: "01 Sep 2021",
-};
-
-const FATIMA_DETAIL: GuardianDetail = {
-  profile: FATIMA_PROFILE,
-  activity: [
-    { type: "invoice",    description: "Invoice issued — INV-1042, AED 3,200 (Aisha Rahman)",           timeAgo: "3 days ago"  },
-    { type: "payment",    description: "Payment received — AED 1,800, Bank Transfer",                   timeAgo: "8 days ago"  },
-    { type: "message",    description: "Message sent — WhatsApp, payment reminder",                      timeAgo: "15 days ago" },
-    { type: "session",    description: "Aisha attended — Y8 English, Tue 8 Apr",                         timeAgo: "12 days ago" },
-    { type: "concern",    description: "Concern raised — L1, Aisha Rahman, Y8 Maths attendance",         timeAgo: "10 days ago" },
-    { type: "assessment", description: "Assessment booked — Y8 Maths diagnostic, 22 Apr",                timeAgo: "6 days ago"  },
-    { type: "enrolment",  description: "Enrolment added — Y8 Science for Aisha Rahman",                  timeAgo: "14 days ago" },
-    { type: "lead",       description: "Lead created — Noor Rahman (Y6 Maths enquiry)",                  timeAgo: "30 days ago" },
-  ],
-  upcomingSessions: [
-    { date: "Mon 21 Apr", time: "15:00", subject: "Y8 Maths",   studentName: "Aisha Rahman", teacher: "Mr Ahmed Khalil",    room: "Room 3A" },
-    { date: "Tue 22 Apr", time: "16:00", subject: "Y8 English", studentName: "Aisha Rahman", teacher: "Ms Sarah Mitchell",  room: "Room 2B" },
-    { date: "Wed 23 Apr", time: "15:00", subject: "Y8 Maths",   studentName: "Aisha Rahman", teacher: "Mr Ahmed Khalil",    room: "Room 3A" },
-    { date: "Thu 24 Apr", time: "16:00", subject: "Y8 English", studentName: "Aisha Rahman", teacher: "Ms Sarah Mitchell",  room: "Room 2B" },
-    { date: "Fri 25 Apr", time: "14:00", subject: "Y8 Science", studentName: "Aisha Rahman", teacher: "Mr Tariq Al-Amin",   room: "Room 1C" },
-  ],
-  invoices: [
-    { id: "INV-1042", studentName: "Aisha Rahman", amount: "AED 3,200", status: "Overdue", dueDate: "20 Apr 2026" },
-    { id: "INV-0998", studentName: "Aisha Rahman", amount: "AED 2,880", status: "Paid",    dueDate: "29 Mar 2026" },
-    { id: "INV-0967", studentName: "Aisha Rahman", amount: "AED 1,440", status: "Paid",    dueDate: "29 Mar 2026" },
-    { id: "INV-0821", studentName: "Aisha Rahman", amount: "AED 3,200", status: "Paid",    dueDate: "17 Jan 2026" },
-  ],
-  messages: [
-    { channel: "WhatsApp", date: "17 Apr 2026, 10:12", preview: "Thanks for the reminder — will transfer tomorrow morning.", direction: "Received" },
-    { channel: "WhatsApp", date: "17 Apr 2026, 09:45", preview: "Friendly reminder: INV-1042 (AED 3,200) is due 20 Apr.",    direction: "Sent"     },
-    { channel: "Email",    date: "15 Apr 2026, 18:00", preview: "Re: Term 3 schedule confirmation — all looks good.",         direction: "Received" },
-    { channel: "WhatsApp", date: "12 Apr 2026, 14:30", preview: "Aisha's attendance report attached.",                        direction: "Sent"     },
-    { channel: "Email",    date: "08 Apr 2026, 09:00", preview: "Y8 Maths progress update — end of March.",                   direction: "Sent"     },
-  ],
-  referrals: [
-    { name: "Noor Rahman (cousin)", status: "Won",     creditEarned: 200 },
-  ],
-  concerns: [
-    { date: "10 days ago", studentName: "Aisha Rahman", subject: "Y8 Maths — Inconsistent attendance",  level: "L1", status: "Active",   raisedBy: "Ahmed Khalil"   },
-    { date: "30 days ago", studentName: "Aisha Rahman", subject: "Y8 English — Missed homework",        level: "L1", status: "Resolved", raisedBy: "Sarah Mitchell" },
-  ],
-  tickets: [
-    { date: "3 days ago",  subject: "Invoice query — INV-1042",              status: "Open",     assignedTo: "Jason Daswani"  },
-    { date: "14 days ago", subject: "Schedule change request — Y8 Maths",    status: "Resolved", assignedTo: "Sarah Thompson" },
-  ],
-};
-
-const KHALID_DETAIL: GuardianDetail = {
-  profile: KHALID_PROFILE,
-  activity: [
-    { type: "invoice",    description: "Invoice issued — INV-1021, AED 1,440 (Omar Al-Farsi)",    timeAgo: "5 days ago"  },
-    { type: "payment",    description: "Payment received — AED 1,440, Card",                      timeAgo: "4 days ago"  },
-    { type: "session",    description: "Omar attended — Y5 Maths, Sat 12 Apr",                     timeAgo: "8 days ago"  },
-    { type: "message",    description: "Message sent — WhatsApp, Term 3 welcome",                  timeAgo: "20 days ago" },
-    { type: "enrolment",  description: "Enrolment added — Y5 English for Omar Al-Farsi",          timeAgo: "25 days ago" },
-    { type: "lead",       description: "Lead created — Maya Al-Farsi (Y2 English enquiry)",       timeAgo: "45 days ago" },
-    { type: "assessment", description: "Assessment booked — Y5 English diagnostic",               timeAgo: "50 days ago" },
-    { type: "concern",    description: "Minor concern logged — Y5 Maths homework completion",     timeAgo: "60 days ago" },
-  ],
-  upcomingSessions: [
-    { date: "Sat 19 Apr", time: "10:00", subject: "Y5 Maths",   studentName: "Omar Al-Farsi", teacher: "Ms Leila Hassan", room: "Room 1B" },
-    { date: "Sat 19 Apr", time: "11:30", subject: "Y5 English", studentName: "Omar Al-Farsi", teacher: "Ms Sarah Mitchell", room: "Room 2A" },
-    { date: "Wed 23 Apr", time: "17:00", subject: "Y5 Maths",   studentName: "Omar Al-Farsi", teacher: "Ms Leila Hassan", room: "Room 1B" },
-  ],
-  invoices: [
-    { id: "INV-1021", studentName: "Omar Al-Farsi", amount: "AED 1,440", status: "Paid",    dueDate: "15 Apr 2026" },
-    { id: "INV-0956", studentName: "Omar Al-Farsi", amount: "AED 2,400", status: "Paid",    dueDate: "28 Mar 2026" },
-    { id: "INV-0874", studentName: "Omar Al-Farsi", amount: "AED 3,360", status: "Paid",    dueDate: "15 Feb 2026" },
-  ],
-  messages: [
-    { channel: "WhatsApp", date: "15 Apr 2026, 09:00", preview: "Thanks — transfer done.",                    direction: "Received" },
-    { channel: "WhatsApp", date: "14 Apr 2026, 16:00", preview: "INV-1021 reminder — due tomorrow.",          direction: "Sent"     },
-    { channel: "WhatsApp", date: "02 Apr 2026, 10:00", preview: "Welcome to Term 3! Omar's schedule attached.", direction: "Sent"   },
-  ],
-  referrals: [
-    { name: "Aisha Nasser",     status: "Won",     creditEarned: 200 },
-    { name: "Rashid Al-Kaabi",  status: "Pending", creditEarned: 0   },
-  ],
-  concerns: [],
-  tickets: [],
-};
-
-const NADIA_DETAIL: GuardianDetail = {
-  profile: NADIA_PROFILE,
-  activity: [
-    { type: "invoice",    description: "Invoice issued — INV-1055, AED 3,780 (Layla Hassan)",   timeAgo: "2 days ago"   },
-    { type: "concern",    description: "Concern raised — L2, Layla Hassan, Y10 Physics grades", timeAgo: "4 days ago"   },
-    { type: "message",    description: "Email sent — grade report",                              timeAgo: "6 days ago"   },
-    { type: "session",    description: "Layla attended — Y10 Chemistry, Thu 10 Apr",             timeAgo: "9 days ago"   },
-    { type: "assessment", description: "Assessment booked — Y10 Physics mock, 5 May",           timeAgo: "11 days ago"  },
-    { type: "payment",    description: "Payment received — AED 4,200, Bank Transfer",            timeAgo: "18 days ago" },
-    { type: "enrolment",  description: "Enrolment added — Y10 Physics for Layla Hassan",         timeAgo: "22 days ago" },
-    { type: "lead",       description: "Lead created — Youssef Hassan (Y7 Science enquiry)",     timeAgo: "40 days ago" },
-  ],
-  upcomingSessions: [
-    { date: "Mon 21 Apr", time: "17:00", subject: "Y10 Physics",   studentName: "Layla Hassan", teacher: "Mr Tariq Al-Amin", room: "Room 4A" },
-    { date: "Wed 23 Apr", time: "17:00", subject: "Y10 Chemistry", studentName: "Layla Hassan", teacher: "Dr Aaliya Khan",   room: "Room 4B" },
-    { date: "Fri 25 Apr", time: "18:00", subject: "Y10 Maths",     studentName: "Layla Hassan", teacher: "Mr Ahmed Khalil",  room: "Room 3A" },
-  ],
-  invoices: [
-    { id: "INV-1055", studentName: "Layla Hassan", amount: "AED 3,780", status: "Overdue", dueDate: "18 Apr 2026" },
-    { id: "INV-0989", studentName: "Layla Hassan", amount: "AED 4,200", status: "Paid",    dueDate: "25 Mar 2026" },
-    { id: "INV-0865", studentName: "Layla Hassan", amount: "AED 3,600", status: "Paid",    dueDate: "28 Feb 2026" },
-    { id: "INV-0792", studentName: "Layla Hassan", amount: "AED 3,600", status: "Paid",    dueDate: "18 Jan 2026" },
-  ],
-  messages: [
-    { channel: "Email", date: "14 Apr 2026, 10:00", preview: "Layla's March grade report attached.",                direction: "Sent"     },
-    { channel: "Email", date: "10 Apr 2026, 16:20", preview: "Could we reschedule Friday's Physics session?",        direction: "Received" },
-    { channel: "Email", date: "02 Apr 2026, 09:00", preview: "Term 3 Physics enrolment confirmation.",               direction: "Sent"     },
-  ],
-  referrals: [],
-  concerns: [],
-  tickets: [],
-};
-
-const GUARDIAN_DETAILS: Record<string, GuardianDetail> = {
-  "G-001": FATIMA_DETAIL,
-  "G-002": KHALID_DETAIL,
-  "G-003": NADIA_DETAIL,
-};
 
 function buildFallbackDetail(g: Guardian): GuardianDetail {
   const parts = g.name.split(" ");
@@ -1142,8 +946,6 @@ function NewTaskDialog({
             <select className={FIELD_INPUT} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
               <option value="">Select assignee…</option>
               <option>Jason Daswani</option>
-              <option>Sarah Thompson</option>
-              <option>Ahmed Khalil</option>
             </select>
           </div>
         </div>
@@ -1857,7 +1659,7 @@ export default function GuardianProfilePage() {
     if (GUARDIAN_DETAILS[id]) return GUARDIAN_DETAILS[id];
     const raw = guardians.find((g) => g.id === id);
     if (raw) return buildFallbackDetail(raw);
-    return FATIMA_DETAIL;
+    return buildFallbackDetail({ id, name: "Unknown", email: "", phone: "", students: [], status: "active", linkedStudents: [], communicationPreference: "whatsapp", createdOn: "", department: "primary" });
   }, [id]);
 
   const [profile, setProfile] = useState<GuardianProfile>(baseDetail.profile);

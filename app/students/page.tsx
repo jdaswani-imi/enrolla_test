@@ -41,6 +41,9 @@ import {
   tasks as tasksStore,
   staffMembers,
   currentUser,
+  AVATAR_PALETTES,
+  getAvatarPalette,
+  getInitials,
   type Student,
   type Task,
   type TaskPriority,
@@ -64,31 +67,6 @@ function getNextStudentId(): string {
 function formatCreatedOn(d: Date): string {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-// ─── Avatar ───────────────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100", text: "text-amber-700" },
-  { bg: "bg-teal-100", text: "text-teal-700" },
-  { bg: "bg-blue-100", text: "text-blue-700" },
-  { bg: "bg-violet-100", text: "text-violet-700" },
-  { bg: "bg-rose-100", text: "text-rose-700" },
-  { bg: "bg-emerald-100", text: "text-emerald-700" },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
 }
 
 function getGuardianEmail(guardianName: string): string {
@@ -256,36 +234,6 @@ function SaveSegmentPopover({
 
 // ─── Stat cards ───────────────────────────────────────────────────────────────
 
-const studentStats = [
-  {
-    label: "Total Students",
-    value: "1,847",
-    icon: Users,
-    iconColor: "text-slate-500",
-    sub: "All time",
-    trend: null,
-    trendUp: false,
-  },
-  {
-    label: "Active Students",
-    value: "1,634",
-    icon: UserCheck,
-    iconColor: "text-green-500",
-    sub: "88.5% of total",
-    trend: null,
-    trendUp: false,
-  },
-  {
-    label: "New This Week",
-    value: "12",
-    icon: UserPlus,
-    iconColor: "text-amber-500",
-    sub: "Last 7 days",
-    trend: "+12",
-    trendUp: true,
-  },
-];
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS    = ["Active", "Withdrawn", "Graduated", "Alumni"];
@@ -411,6 +359,18 @@ export default function StudentsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [studentsVersion, setStudentsVersion] = useState(0);
+
+  const studentStats = useMemo(() => {
+    const total = studentsStore.length;
+    const active = studentsStore.filter((s) => s.status === "Active").length;
+    const withdrawn = studentsStore.filter((s) => s.status === "Withdrawn").length;
+    return [
+      { label: "Total Students", value: total, icon: Users, iconColor: "text-slate-500", sub: "All time", trend: null, trendUp: false },
+      { label: "Active Students", value: active, icon: UserCheck, iconColor: "text-green-500", sub: total > 0 ? `${Math.round((active / total) * 100)}% of total` : "—", trend: null, trendUp: false },
+      { label: "Withdrawn", value: withdrawn, icon: UserX, iconColor: "text-amber-500", sub: total > 0 ? `${Math.round((withdrawn / total) * 100)}% of total` : "—", trend: null, trendUp: false },
+    ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentsVersion]);
 
   // Filters
   const [statusFilter,     setStatusFilter]     = useState<string[]>([]);
@@ -619,7 +579,7 @@ export default function StudentsPage() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Export Students"
-        recordCount={1847}
+        recordCount={studentsStore.length}
         formats={[
           { id: 'csv-summary', label: 'Student Summary', description: 'One row per student. Name, year, subjects, status, guardian contact.', icon: 'rows', recommended: true },
           { id: 'csv-full', label: 'Full Export', description: 'All fields including enrolment history and notes.', icon: 'items' },

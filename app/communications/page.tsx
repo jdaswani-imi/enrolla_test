@@ -603,9 +603,9 @@ function ConcernsTicketsTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Open Tickets"        value="4"  accent="red"   />
-        <StatCard label="Under Investigation" value="2"  accent="amber" />
-        <StatCard label="Resolved This Term"  value="11" accent="green" />
+        <StatCard label="Open Tickets"        value="0" accent="red"   />
+        <StatCard label="Under Investigation" value="0" accent="amber" />
+        <StatCard label="Resolved This Term"  value="0" accent="green" />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -819,10 +819,10 @@ function SurveysTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-1">
-          <StatCard label="Sent This Term"          value="34"    accent="slate" />
-          <StatCard label="Response Rate"            value="71%"   accent="green" />
-          <StatCard label="Average Score"            value="4.2★"  accent="amber" />
-          <StatCard label="Detractors (score ≤ 2)"  value="3"     accent="red"   />
+          <StatCard label="Sent This Term"          value="0"  accent="slate" />
+          <StatCard label="Response Rate"            value="—"  accent="green" />
+          <StatCard label="Average Score"            value="—"  accent="amber" />
+          <StatCard label="Detractors (score ≤ 2)"  value="0"  accent="red"   />
         </div>
         {can('feedback.sendSurvey') && (
           <button

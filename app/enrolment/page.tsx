@@ -38,6 +38,9 @@ import {
   trials,
   withdrawals as seedWithdrawals,
   students,
+  AVATAR_PALETTES,
+  getAvatarPalette,
+  getInitials,
   type Enrolment,
   type EnrolmentStatus,
   type EnrolmentInvoiceStatus,
@@ -66,31 +69,6 @@ const RETENTION_OPTIONS = [
   "Spoke with guardian",
   "Offered trial pause",
 ] as const;
-
-// ─── Avatar helpers ───────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100", text: "text-amber-700" },
-  { bg: "bg-teal-100",  text: "text-teal-700"  },
-  { bg: "bg-blue-100",  text: "text-blue-700"  },
-  { bg: "bg-violet-100",text: "text-violet-700"},
-  { bg: "bg-rose-100",  text: "text-rose-700"  },
-  { bg: "bg-emerald-100",text:"text-emerald-700"},
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
 
 // ─── Badge classes ────────────────────────────────────────────────────────────
 
@@ -407,8 +385,8 @@ function EnrolmentSlideOver({
               <div className="flex items-center gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-700">INV-1042</span>
-                    <span className="text-sm text-slate-600">— AED 3,360</span>
+                    <span className="text-sm font-semibold text-slate-700">—</span>
+                    <span className="text-sm text-slate-600"></span>
                     <span
                       className={cn(
                         "text-xs px-2 py-0.5 rounded-full font-medium",
@@ -563,10 +541,10 @@ function ActiveEnrolmentsTab() {
     <div className="space-y-5">
       {/* Summary strip */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Active Enrolments" value="3,847" />
-        <StatCard label="New This Term"      value="143"   />
-        <StatCard label="Pending Payment"    value="12"    accent="amber" />
-        <StatCard label="Expiring This Week" value="8"     accent="red"   />
+        <StatCard label="Active Enrolments" value="0" />
+        <StatCard label="New This Term"      value="0" />
+        <StatCard label="Pending Payment"    value="0" accent="amber" />
+        <StatCard label="Expiring This Week" value="0" accent="red"   />
       </div>
 
       {/* Filter bar */}
@@ -852,9 +830,9 @@ function TrialsTab() {
     <div className="space-y-5">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Trials This Term"        value="18" />
-        <StatCard label="Pending Outcome"         value="3"  accent="amber" />
-        <StatCard label="Converted to Enrolment"  value="14" />
+        <StatCard label="Trials This Term"        value="0" />
+        <StatCard label="Pending Outcome"         value="0" accent="amber" />
+        <StatCard label="Converted to Enrolment"  value="0" />
       </div>
 
       {/* Table */}
@@ -1032,8 +1010,8 @@ function WithdrawalsTab() {
       {/* Summary */}
       <div className="flex items-start justify-between gap-4">
         <div className="grid grid-cols-2 gap-4 flex-1">
-          <StatCard label="Withdrawn This Term" value="31" />
-          <StatCard label="Pending Withdrawal"  value="2"  accent="amber" />
+          <StatCard label="Withdrawn This Term" value="0" />
+          <StatCard label="Pending Withdrawal"  value="0" accent="amber" />
         </div>
         <div className="pt-1">
           <button

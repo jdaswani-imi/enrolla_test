@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { guardians as seedGuardians, type Guardian } from "@/lib/mock-data";
+import { guardians as seedGuardians, AVATAR_PALETTES, getAvatarPalette, getInitials, type Guardian } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
@@ -149,33 +149,6 @@ function buildAddedOnPresets(): PresetItem[] {
     { separator: true } as const,
     { label: "Custom Range", getValue: () => ({ from: null, to: null }), keepOpen: true },
   ];
-}
-
-// ─── Avatar palette ───────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100",   text: "text-amber-700"   },
-  { bg: "bg-teal-100",    text: "text-teal-700"     },
-  { bg: "bg-blue-100",    text: "text-blue-700"     },
-  { bg: "bg-violet-100",  text: "text-violet-700"   },
-  { bg: "bg-rose-100",    text: "text-rose-700"     },
-  { bg: "bg-emerald-100", text: "text-emerald-700"  },
-  { bg: "bg-sky-100",     text: "text-sky-700"      },
-  { bg: "bg-orange-100",  text: "text-orange-700"   },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
 }
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -541,7 +514,7 @@ export default function GuardiansPage() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Export Guardians"
-        recordCount={198}
+        recordCount={visibleGuardians.length}
         formats={[
           { id: 'csv-contacts', label: 'Contact List', description: 'Name, email, phone, WhatsApp status, linked students.', icon: 'rows', recommended: true },
           { id: 'csv-full', label: 'Full Export', description: 'All fields including DNC status, communication history.', icon: 'items' },

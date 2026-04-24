@@ -23,32 +23,17 @@ import { normaliseSubject } from "./subjects";
 
 type TeacherOption = { name: string; department: string };
 
-const TEACHER_POOL: Record<string, TeacherOption> = {
-  "Sarah Mitchell": { name: "Sarah Mitchell", department: "Primary" },
-  "Ahmed Khalil": { name: "Ahmed Khalil", department: "Lower Secondary" },
-  "Nadia Al-Hassan": { name: "Nadia Al-Hassan", department: "Primary" },
-  "Khalil Mansouri": { name: "Khalil Mansouri", department: "Senior" },
-  "Tariq Al-Amin": { name: "Tariq Al-Amin", department: "Lower Secondary" },
-  "Hana Yusuf": { name: "Hana Yusuf", department: "Senior" },
-  "Faris Al-Amin": { name: "Faris Al-Amin", department: "Senior" },
-};
+const TEACHER_POOL: Record<string, TeacherOption> = {};
 const ALL_TEACHERS = Object.keys(TEACHER_POOL);
 
-const MORNING_POOL = ["Sarah Mitchell", "Ahmed Khalil", "Nadia Al-Hassan", "Khalil Mansouri"];
-const AFTERNOON_POOL = ["Ahmed Khalil", "Tariq Al-Amin", "Hana Yusuf", "Faris Al-Amin"];
-const EVENING_POOL = ["Tariq Al-Amin", "Hana Yusuf", "Faris Al-Amin", "Khalil Mansouri"];
+const MORNING_POOL: string[] = [];
+const AFTERNOON_POOL: string[] = [];
+const EVENING_POOL: string[] = [];
 
 type Block = { teacher: string; start: string; end: string; label: string };
-const MOCK_BLOCKS: Block[] = [
-  { teacher: "Ahmed Khalil", start: "09:00", end: "10:00", label: "Y8 Maths session" },
-  { teacher: "Ahmed Khalil", start: "14:00", end: "15:00", label: "Y9 Science session" },
-  { teacher: "Tariq Al-Amin", start: "16:00", end: "17:00", label: "Y7 English session" },
-  { teacher: "Sarah Mitchell", start: "09:30", end: "10:30", label: "Y6 English session" },
-  { teacher: "Sarah Mitchell", start: "11:00", end: "11:15", label: "Assessment — already booked" },
-  { teacher: "Hana Yusuf", start: "18:00", end: "19:00", label: "Y10 Physics session" },
-];
+const MOCK_BLOCKS: Block[] = [];
 
-const ROOMS = ["Room 1A", "Room 1B", "Room 2A", "Room 2B", "Room 3A"];
+const ROOMS: string[] = [];
 const ROOM_OPTIONS = [...ROOMS, "TBC"];
 
 const WINDOW_RANGES: Record<Exclude<PreferredWindow, "Any">, { start: number; end: number; label: string }> = {

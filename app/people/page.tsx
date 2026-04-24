@@ -846,16 +846,7 @@ function ViewSegmentSheet({
   onAction: (msg: string) => void;
 }) {
   const router = useRouter();
-  const previewMembers = [
-    { name: "Aisha Rahman",      type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Omar Al-Farsi",     type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Layla Hassan",      type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Faris Qasim",       type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Khalid Mansoor",    type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Sara Nasser",       type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Hamdan Al-Maktoum", type: "Student" as PersonType, status: "Enrolled" },
-    { name: "Dana Al-Zaabi",     type: "Student" as PersonType, status: "Enrolled" },
-  ];
+  const previewMembers: { name: string; type: PersonType; status: string }[] = [];
   const preview = previewMembers.slice(0, Math.min(10, seg.members));
   const criteriaTags = seg.filterSummary.split(/\s+AND\s+|\s*,\s*/).filter(Boolean);
 
@@ -2169,7 +2160,7 @@ function ExportsTab() {
     <div className="space-y-4">
       <div className="flex gap-3">
         <InlineStatCard label="Exports This Month" value={exportHistory.length} color="slate" />
-        <InlineStatCard label="Last Export"        value="Today 09:14"          color="blue"  />
+        <InlineStatCard label="Last Export"        value="—"          color="blue"  />
       </div>
 
       {exported && (
@@ -2384,10 +2375,10 @@ function PeoplePageContent() {
 
       {/* Stat bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Total Contacts" value="487" accent="slate" />
-        <StatCard label="Students"       value="312" accent="blue"  />
-        <StatCard label="Guardians"      value="198" accent="green" />
-        <StatCard label="Staff"          value="41"  accent="amber" />
+        <StatCard label="Total Contacts" value="0" accent="slate" />
+        <StatCard label="Students"       value="0" accent="blue"  />
+        <StatCard label="Guardians"      value="0" accent="green" />
+        <StatCard label="Staff"          value="0" accent="amber" />
       </div>
 
       {/* Tab strip */}

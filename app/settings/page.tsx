@@ -373,20 +373,20 @@ function OrganisationSection() {
 
       <Card className="p-6 mb-5">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Organisation Name" defaultValue="Improve ME Institute" />
-          <FormField label="Legal Name" defaultValue="Improve ME Institute LLC" />
-          <FormField label="Student ID Format" defaultValue="IMI-####" />
-          <FormField label="VAT Registration Number" defaultValue="100123456700003" />
-          <FormSelect label="Currency" value="AED" options={["AED", "USD", "GBP", "EUR"]} />
+          <FormField label="Organisation Name" defaultValue="" />
+          <FormField label="Legal Name" defaultValue="" />
+          <FormField label="Student ID Format" defaultValue="" />
+          <FormField label="VAT Registration Number" defaultValue="" />
+          <FormSelect label="Currency" value="" options={["", "AED", "USD", "GBP", "EUR"]} />
           <FormSelect
             label="Timezone"
-            value="UTC+4 (Gulf Standard Time)"
-            options={["UTC+4 (Gulf Standard Time)", "UTC+0 (GMT)", "UTC+3 (AST)"]}
+            value=""
+            options={["", "UTC+4 (Gulf Standard Time)", "UTC+0 (GMT)", "UTC+3 (AST)"]}
           />
-          <FormSelect label="Default Language" value="English" options={["English", "Arabic"]} />
-          <FormSelect label="Start Day of Week" value="Monday" options={["Monday", "Sunday"]} />
-          <FormField label="Weekly Closure Days" defaultValue="Sunday" />
-          <FormField label="Office Hours" defaultValue="Mon–Sat: 08:00 – 20:00" />
+          <FormSelect label="Default Language" value="" options={["", "English", "Arabic"]} />
+          <FormSelect label="Start Day of Week" value="" options={["", "Monday", "Sunday"]} />
+          <FormField label="Weekly Closure Days" defaultValue="" />
+          <FormField label="Office Hours" defaultValue="" />
         </div>
         <SaveButton />
       </Card>
@@ -545,14 +545,7 @@ function ArchiveConfirmDialog({
 }
 
 function BranchesSection() {
-  const [branches, setBranches] = useState<Branch[]>([
-    {
-      id: "b1",
-      name: "Gold & Diamond Park",
-      address: "Gold & Diamond Park, Al Quoz, Dubai",
-      phone: "+971 4 123 4567",
-    },
-  ]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Branch | null>(null);
   const [archiving, setArchiving] = useState<Branch | null>(null);
@@ -1278,13 +1271,7 @@ function RoomDialog({
 }
 
 function RoomsSection() {
-  const [rooms, setRooms] = useState<Room[]>([
-    { id: "r1", name: "Room 1A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom", active: true },
-    { id: "r2", name: "Room 2B", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom", active: true },
-    { id: "r3", name: "Room 3A", branch: "Gold & Diamond Park", capacity: 8, soft: 7, hard: 8, type: "Classroom", active: true },
-    { id: "r4", name: "Room 1C", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom", active: true },
-    { id: "r5", name: "Room 2A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom", active: true },
-  ]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [dialogOpen, setDialogOpen]   = useState(false);
   const [editing, setEditing]         = useState<Room | null>(null);
   const [archiving, setArchiving]     = useState<Room | null>(null);
@@ -1437,23 +1424,7 @@ function RoomsSection() {
 // ─── Section 5: Billing & Invoicing ───────────────────────────────────────────
 
 function BillingSection() {
-  const revenue = [
-    {
-      dept: "Primary",
-      account: "Emirates NBD — Primary",
-      iban: "AE07 0331 234567890123456",
-    },
-    {
-      dept: "Lower Secondary",
-      account: "Emirates NBD — Secondary",
-      iban: "AE07 0331 234567890123457",
-    },
-    {
-      dept: "Senior",
-      account: "Emirates NBD — Senior",
-      iban: "AE07 0331 234567890123458",
-    },
-  ];
+  const revenue: { dept: string; account: string; iban: string }[] = [];
   return (
     <div>
       <SectionHeader
@@ -1462,15 +1433,16 @@ function BillingSection() {
       />
       <Card className="p-6 mb-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Invoice Number Prefix" defaultValue="INV-" />
-          <FormField label="Invoice Number Format" defaultValue="INV-#### (sequential)" />
-          <FormField label="VAT Rate" defaultValue="5%" />
-          <FormField label="Default Payment Terms" defaultValue="7 days" />
-          <FormField label="Enrolment Fee" defaultValue="AED 300" />
+          <FormField label="Invoice Number Prefix" defaultValue="" />
+          <FormField label="Invoice Number Format" defaultValue="" />
+          <FormField label="VAT Rate" defaultValue="" />
+          <FormField label="Default Payment Terms" defaultValue="" />
+          <FormField label="Enrolment Fee" defaultValue="" />
           <FormSelect
             label="Enrolment Fee Type"
-            value="Lifetime (charged once per student)"
+            value=""
             options={[
+              "",
               "Lifetime (charged once per student)",
               "Annual",
               "Per Enrolment",
@@ -1478,7 +1450,7 @@ function BillingSection() {
           />
           <FormTextarea
             label="Invoice Footer Text"
-            defaultValue="Thank you for choosing Improve ME Institute."
+            defaultValue=""
           />
         </div>
         <SaveButton />
@@ -1514,18 +1486,18 @@ function PaymentPlansSection() {
       />
       <Card className="p-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Minimum First Instalment" defaultValue="50% of invoice total" />
+          <FormField label="Minimum First Instalment" defaultValue="" />
           <FormSelect
             label="Late Payment Fee"
-            value="None"
-            options={["None", "AED 50 flat", "5% of outstanding"]}
+            value=""
+            options={["", "None", "AED 50 flat", "5% of outstanding"]}
           />
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Payment Plan Splits Available
             </label>
             <div className="flex flex-wrap gap-2">
-              {["Full", "60-40", "50-50", "Monthly"].map((plan) => (
+              {([] as string[]).map((plan) => (
                 <span
                   key={plan}
                   className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200"
@@ -1540,7 +1512,7 @@ function PaymentPlansSection() {
               Overdue Auto-Reminder Schedule
             </label>
             <div className="flex flex-wrap gap-2">
-              {["7 days before", "3 days before", "Due date", "3 days after", "7 days after"].map(
+              {([] as string[]).map(
                 (r) => (
                   <span
                     key={r}
@@ -2065,7 +2037,7 @@ function PeriodCard({
       {deleteConfirm && (
         <div className="border-t border-rose-100 bg-rose-50 px-4 py-3 flex items-center justify-between gap-4">
           <p className="text-xs text-rose-700 font-medium">
-            Delete "{period.name}"? This cannot be undone.
+            Delete &quot;{period.name}&quot;? This cannot be undone.
           </p>
           <div className="flex gap-2">
             <button
@@ -2137,7 +2109,7 @@ function AddPublicHolidayModal({
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
-          <p className="text-xs text-slate-400">Source will be set to "Custom".</p>
+          <p className="text-xs text-slate-400">Source will be set to &quot;Custom&quot;.</p>
         </div>
         <FormActions
           onCancel={() => onOpenChange(false)}
@@ -2641,7 +2613,7 @@ function AcademicCalendarSection() {
   const [selectedYearId, setSelectedYearId] = useState(
     seedAcademicYears.find((y) => y.isCurrent)?.id ?? seedAcademicYears[0]?.id ?? ""
   );
-  const [useUaeTemplate, setUseUaeTemplate] = useState(true);
+  const [useUaeTemplate, setUseUaeTemplate] = useState(false);
   const [addYearOpen, setAddYearOpen]       = useState(false);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
   const [editingPeriod, setEditingPeriod]   = useState<CalendarPeriod | null>(null);
@@ -2911,18 +2883,18 @@ function StaffHRSection() {
       />
       <Card className="p-6 mb-5">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="CPD Annual Target" defaultValue="20 hours" />
+          <FormField label="CPD Annual Target" defaultValue="" />
           <FormSelect
             label="Performance Review Cadence"
-            value="Annual"
-            options={["Annual", "Bi-annual", "Quarterly"]}
+            value=""
+            options={["", "Annual", "Bi-annual", "Quarterly"]}
           />
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Off-boarding Notification Lead Times
             </label>
             <div className="flex flex-wrap gap-2">
-              {["7 days", "3 days", "1 day"].map((d) => (
+              {([] as string[]).map((d) => (
                 <span
                   key={d}
                   className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full"
@@ -2937,7 +2909,7 @@ function StaffHRSection() {
               Mandatory Staff Profile Fields
             </label>
             <div className="flex flex-wrap gap-2">
-              {["Work email", "Home address", "Emergency contact"].map((f) => (
+              {([] as string[]).map((f) => (
                 <span
                   key={f}
                   className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200"
@@ -2955,7 +2927,7 @@ function StaffHRSection() {
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Staff Milestones</label>
             <div className="flex flex-wrap gap-2">
-              {["6 months", "1 year"].map((m) => (
+              {([] as string[]).map((m) => (
                 <span
                   key={m}
                   className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full"
@@ -3465,13 +3437,13 @@ const SYSTEM_NOTIFICATIONS = [
 function NotificationsSection() {
   const [activeTab, setActiveTab] = useState<"system" | "configurable">("system");
   const [toggles, setToggles] = useState({
-    "New lead captured": true,
-    "Overdue invoice alert": true,
-    "Absence recorded": true,
-    "Session reminder": true,
-    "Concern raised (L1)": true,
-    "Makeup expiring (7 days)": true,
-    "Re-enrolment reminder": true,
+    "New lead captured": false,
+    "Overdue invoice alert": false,
+    "Absence recorded": false,
+    "Session reminder": false,
+    "Concern raised (L1)": false,
+    "Makeup expiring (7 days)": false,
+    "Re-enrolment reminder": false,
     "Weekly digest": false,
   });
 
@@ -3565,15 +3537,7 @@ function NotificationsSection() {
 // ─── Section 12: Templates ────────────────────────────────────────────────────
 
 function TemplatesSection() {
-  const templates = [
-    { name: "New Lead Welcome", trigger: "Lead: New", edited: "10 Mar 2026" },
-    { name: "Assessment Booking Confirmation", trigger: "Lead: Assessment Booked", edited: "8 Mar 2026" },
-    { name: "Trial Booking Confirmation", trigger: "Lead: Trial Booked", edited: "8 Mar 2026" },
-    { name: "Invoice Issued", trigger: "Finance: Invoice Issued", edited: "1 Mar 2026" },
-    { name: "Payment Reminder", trigger: "Finance: Invoice Overdue", edited: "1 Mar 2026" },
-    { name: "Absence Notification", trigger: "Attendance: Absence Marked", edited: "15 Feb 2026" },
-    { name: "Session Cancellation", trigger: "Timetable: Session Cancelled", edited: "10 Feb 2026" },
-  ];
+  const templates: { name: string; trigger: string; edited: string }[] = [];
   return (
     <div>
       <SectionHeader
@@ -3789,13 +3753,13 @@ function ChurnSection() {
       />
       <Card className="p-6 mb-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Churn High-Risk Threshold" defaultValue="70" />
-          <FormField label="Churn Medium-Risk Threshold" defaultValue="40" />
-          <FormField label="Churn Alert Cooldown" defaultValue="7 days" />
-          <FormField label="Seat Occupancy Target" defaultValue="80%" />
-          <FormField label="Low Occupancy Alert Threshold" defaultValue="50%" />
-          <FormField label="Activity Feed Max Depth" defaultValue="500 entries" />
-          <FormField label="Peak Hours" defaultValue="15:00 – 19:00" />
+          <FormField label="Churn High-Risk Threshold" defaultValue="" />
+          <FormField label="Churn Medium-Risk Threshold" defaultValue="" />
+          <FormField label="Churn Alert Cooldown" defaultValue="" />
+          <FormField label="Seat Occupancy Target" defaultValue="" />
+          <FormField label="Low Occupancy Alert Threshold" defaultValue="" />
+          <FormField label="Activity Feed Max Depth" defaultValue="" />
+          <FormField label="Peak Hours" defaultValue="" />
         </div>
         <SaveButton />
       </Card>
@@ -3852,18 +3816,7 @@ function ChurnSection() {
 
 // ─── Section 16: Audit Log ────────────────────────────────────────────────────
 
-const AUDIT_ENTRIES = [
-  { ts: "16 Apr 2026, 09:14", user: "Jason Daswani", action: "Settings changed", module: "M20", detail: "VAT rate updated: 5% → 5% (no change)" },
-  { ts: "15 Apr 2026, 17:32", user: "Jason Daswani", action: "Invoice created", module: "M08", detail: "INV-1042 issued to Fatima Rahman" },
-  { ts: "15 Apr 2026, 16:45", user: "Sarah Thompson", action: "Attendance marked", module: "M06", detail: "Y8 Maths — Mon 14 Apr — 3 students" },
-  { ts: "15 Apr 2026, 14:20", user: "Jason Daswani", action: "Staff role updated", module: "M09/PL02", detail: "Mariam Saleh — Access Revoked" },
-  { ts: "14 Apr 2026, 11:05", user: "Jason Daswani", action: "Lead stage changed", module: "M01", detail: "L-0060 → Won" },
-  { ts: "14 Apr 2026, 10:30", user: "Sarah Thompson", action: "Student created", module: "M02", detail: "IMI-1847 — Amna Al-Qubaisi" },
-  { ts: "13 Apr 2026, 16:20", user: "Jason Daswani", action: "Credit issued", module: "M08", detail: "AED 800 — Aisha Rahman — goodwill" },
-  { ts: "13 Apr 2026, 09:00", user: "Jason Daswani", action: "Concern raised", module: "M06.A", detail: "Y8 Maths — Aisha Rahman — L1" },
-  { ts: "12 Apr 2026, 14:15", user: "Sarah Thompson", action: "Payment recorded", module: "M08", detail: "AED 3,360 — INV-1039 — Bank Transfer" },
-  { ts: "11 Apr 2026, 11:45", user: "Jason Daswani", action: "Staff added", module: "M09", detail: "Khalil Mansouri — Teacher — Primary" },
-];
+const AUDIT_ENTRIES: { ts: string; user: string; action: string; module: string; detail: string }[] = [];
 
 function AuditLogSection() {
   return (

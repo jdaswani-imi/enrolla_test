@@ -58,6 +58,7 @@ import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
 import { OccupancyDetailModal } from "@/components/dashboard/occupancy-detail-modal";
 import { SkeletonKpi, SkeletonTable, SkeletonCard } from "@/components/ui/skeleton-loader";
 import {
+  currentUser,
   churnRiskStudents,
   operationalThresholds,
   revenueData,
@@ -591,185 +592,99 @@ function ReportDialog({ report, onClose }: { report: ReportItem; onClose: () => 
     switch (report.title) {
       case "Weekly Digest":
         return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Total invoiced this week", value: "AED 18,400" },
-                { label: "Sessions this week",       value: "47" },
-                { label: "New enrolments",           value: "3" },
-              ].map((k) => (
-                <div key={k.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{k.label}</p>
-                  <p className="text-lg font-bold text-slate-900 mt-1">{k.value}</p>
-                </div>
-              ))}
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Activity highlights</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-slate-700">
-                <li>Aisha Rahman flagged as high churn risk after missing 3 sessions</li>
-                <li>2 invoices overdue by more than 14 days (AED 3,200 total)</li>
-                <li>Year 10 Physics averaged 82% on weekly quiz — above threshold</li>
-                <li>Trial booked for 4 new leads via Dubai Marina campaign</li>
-                <li>1 concern raised by parent regarding Y9 Math pace</li>
-              </ul>
-            </div>
-          </div>
+          <p className="text-sm text-slate-500 py-4">No digest data available yet.</p>
         );
 
-      case "Churn Risk Report":
-        return (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold">18 students</span> at high churn risk this term.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Score</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Signal</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Last Session</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { name: "Aisha Rahman",   year: "Y8",  score: 84, signal: "Missed 3+ sessions",  days: 12 },
-                    { name: "Omar Khalid",    year: "Y10", score: 79, signal: "Declining grades",     days: 8  },
-                    { name: "Fatima Hassan",  year: "Y9",  score: 76, signal: "Attendance dropping",  days: 6  },
-                    { name: "Yusuf Ahmad",    year: "Y7",  score: 72, signal: "Parent complaint",     days: 4  },
-                    { name: "Layla Mansour",  year: "Y11", score: 68, signal: "Invoice overdue",      days: 10 },
-                  ].map((s) => (
-                    <tr key={s.name} className="border-b border-slate-50">
-                      <td className="py-2 font-medium text-slate-800">{s.name}</td>
-                      <td className="py-2 text-slate-500">{s.year}</td>
-                      <td className="py-2"><span className="inline-flex rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold">{s.score}</span></td>
-                      <td className="py-2 text-slate-500 text-xs">{s.signal}</td>
-                      <td className="py-2 text-slate-400 text-xs">{s.days}d ago</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      case "Churn Risk Report": {
+        const highRisk = churnRiskStudents.filter(
+          (s) => s.churnLevel === "High" || s.churnLevel === "Critical"
         );
-
-      case "Term Revenue Summary": {
-        const collected   = 241200;
-        const outstanding = 43300;
-        const total       = collected + outstanding;
-        const collectedPct = (collected / total) * 100;
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Total",       value: "AED 284,500" },
-                { label: "Collected",   value: "AED 241,200" },
-                { label: "Outstanding", value: "AED 43,300" },
-              ].map((k) => (
-                <div key={k.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{k.label}</p>
-                  <p className="text-lg font-bold text-slate-900 mt-1">{k.value}</p>
+            {highRisk.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">No high-risk students at this time.</p>
+            ) : (
+              <>
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold">{highRisk.length} student{highRisk.length !== 1 ? "s" : ""}</span> at high churn risk this term.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</th>
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Score</th>
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Signal</th>
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Last Contact</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {highRisk.map((s) => (
+                        <tr key={s.id} className="border-b border-slate-50">
+                          <td className="py-2 font-medium text-slate-800">{s.name}</td>
+                          <td className="py-2 text-slate-500">{s.yearGroup}</td>
+                          <td className="py-2"><span className="inline-flex rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold">{s.churnScore}</span></td>
+                          <td className="py-2 text-slate-500 text-xs">{s.topSignal}</td>
+                          <td className="py-2 text-slate-400 text-xs">{s.daysSinceContact}d ago</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
-            <div>
-              <div className="flex justify-between text-xs text-slate-500 mb-1">
-                <span>Collected vs Outstanding</span>
-                <span className="tabular-nums">{Math.round(collectedPct)}% collected</span>
-              </div>
-              <div className="flex h-3 rounded-full overflow-hidden bg-slate-100">
-                <div className="bg-emerald-500" style={{ width: `${collectedPct}%` }} />
-                <div className="bg-amber-400"   style={{ width: `${100 - collectedPct}%` }} />
-              </div>
-            </div>
+              </>
+            )}
           </div>
         );
       }
 
+      case "Term Revenue Summary":
+        return (
+          <p className="text-sm text-slate-500 py-4">No revenue data available yet.</p>
+        );
+
       case "Academic Alerts Summary":
         return (
           <div className="space-y-4">
-            <p className="text-sm text-slate-700">
-              <span className="font-semibold">8 students</span> below pass threshold this week.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Avg Score</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tier</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { name: "Omar Khalid",   subj: "Mathematics", avg: "42%", tier: "Amber" },
-                    { name: "Fatima Hassan", subj: "Physics",     avg: "38%", tier: "Red"   },
-                    { name: "Yusuf Ahmad",   subj: "English",     avg: "44%", tier: "Amber" },
-                    { name: "Noor Saleh",    subj: "Chemistry",   avg: "36%", tier: "Red"   },
-                  ].map((r) => (
-                    <tr key={r.name} className="border-b border-slate-50">
-                      <td className="py-2 font-medium text-slate-800">{r.name}</td>
-                      <td className="py-2 text-slate-500">{r.subj}</td>
-                      <td className="py-2 text-slate-700 tabular-nums">{r.avg}</td>
-                      <td className="py-2">
-                        <span className={cn(
-                          "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold",
-                          r.tier === "Red" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
-                        )}>
-                          {r.tier}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {academicAlerts.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">No academic alerts at this time.</p>
+            ) : (
+              <>
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold">{academicAlerts.length} alert{academicAlerts.length !== 1 ? "s" : ""}</span> this week.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject</th>
+                        <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Level</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {academicAlerts.map((a) => (
+                        <tr key={a.id} className="border-b border-slate-50">
+                          <td className="py-2 font-medium text-slate-800">{a.student}</td>
+                          <td className="py-2 text-slate-500">{a.subject}</td>
+                          <td className="py-2">
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
+                              {a.level}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         );
 
       case "Staff Attendance Report":
         return (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-700">
-              <span><span className="font-semibold">Present</span> 38/41</span>
-              <span className="text-slate-300">·</span>
-              <span><span className="font-semibold">On Leave</span> 1</span>
-              <span className="text-slate-300">·</span>
-              <span><span className="font-semibold">Absent</span> 2</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Staff Name</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sessions</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Attended</th>
-                    <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { name: "Sarah Al Maktoum",  sessions: 22, attended: 22, rate: "100%" },
-                    { name: "David Chen",        sessions: 18, attended: 17, rate: "94%"  },
-                    { name: "Priya Sharma",      sessions: 20, attended: 19, rate: "95%"  },
-                    { name: "Ahmed Al Farsi",    sessions: 16, attended: 14, rate: "88%"  },
-                  ].map((r) => (
-                    <tr key={r.name} className="border-b border-slate-50">
-                      <td className="py-2 font-medium text-slate-800">{r.name}</td>
-                      <td className="py-2 text-slate-700 tabular-nums">{r.sessions}</td>
-                      <td className="py-2 text-slate-700 tabular-nums">{r.attended}</td>
-                      <td className="py-2 text-slate-700 tabular-nums">{r.rate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <p className="text-sm text-slate-500 py-4">No staff attendance data available yet.</p>
         );
 
       default:
@@ -1469,7 +1384,7 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {getGreeting()}, Jason 👋
+            {getGreeting()}, {currentUser.name.split(" ")[0]}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {config.subtitle}

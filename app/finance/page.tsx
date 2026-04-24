@@ -1066,10 +1066,10 @@ function InvoicesTab() {
     <div className="space-y-4">
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Total Invoiced This Term" value="AED 284,500" />
-        <SummaryCard label="Collected This Term"      value="AED 241,200" accent="green" />
-        <SummaryCard label="Outstanding"              value="AED 43,300" />
-        <SummaryCard label="Overdue"                  value="AED 18,400" sub="23 invoices" accent="red" />
+        <SummaryCard label="Total Invoiced This Term" value="AED 0" />
+        <SummaryCard label="Collected This Term"      value="AED 0" accent="green" />
+        <SummaryCard label="Outstanding"              value="AED 0" />
+        <SummaryCard label="Overdue"                  value="AED 0" sub="0 invoices" accent="red" />
       </div>
 
       {/* Saved segments */}
@@ -1363,9 +1363,9 @@ function PaymentsTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Total Received This Month" value="AED 84,200" accent="green" />
-        <SummaryCard label="Cash"                      value="AED 12,400" />
-        <SummaryCard label="Bank Transfer"             value="AED 71,800" />
+        <SummaryCard label="Total Received This Month" value="AED 0" accent="green" />
+        <SummaryCard label="Cash"                      value="AED 0" />
+        <SummaryCard label="Bank Transfer"             value="AED 0" />
       </div>
 
       {/* Filter bar */}
@@ -1605,8 +1605,8 @@ function CreditsTab() {
     <div className="space-y-4">
       <div className="flex items-start gap-3">
         <div className="grid grid-cols-2 gap-3 flex-1">
-          <SummaryCard label="Total Credits Issued This Term" value="AED 4,800" accent="amber" />
-          <SummaryCard label="Applied / Unused" value="AED 3,200 applied" sub="AED 1,600 unused" />
+          <SummaryCard label="Total Credits Issued This Term" value="AED 0" accent="amber" />
+          <SummaryCard label="Applied / Unused" value="AED 0 applied" sub="AED 0 unused" />
         </div>
         {can('export') && (
           <button
@@ -2192,13 +2192,7 @@ const REPORT_CARDS = [
   },
 ];
 
-const REPORT_HISTORY = [
-  { name: "Revenue Summary",        generatedBy: "Jason Daswani", datetime: "Today, 08:00"     },
-  { name: "Overdue Invoice Report", generatedBy: "Jason Daswani", datetime: "Yesterday, 17:30" },
-  { name: "Payment Reconciliation", generatedBy: "Sarah Admin",   datetime: "14 Apr, 09:15"    },
-  { name: "Revenue Summary",        generatedBy: "Jason Daswani", datetime: "12 Apr, 08:00"    },
-  { name: "Credit Ledger Export",   generatedBy: "Sarah Admin",   datetime: "11 Apr, 14:40"    },
-];
+const REPORT_HISTORY: { name: string; generatedBy: string; datetime: string }[] = [];
 
 function ReportsTab() {
   const { can } = usePermission();

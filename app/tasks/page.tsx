@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { tasks as allTasks, currentUser, type Task, type TaskStatus } from "@/lib/mock-data";
+import { tasks as allTasks, currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -39,39 +39,14 @@ const TODAY_DATE = "21 Apr 2026";
 const TODAY_DAY = 21;
 const MONTH_YEAR = "April 2026";
 
-const ASSIGNEE_OPTIONS = ["Jason Daswani", "Sarah Thompson", "Ahmed Khalil", "Sarah Mitchell"];
+const ASSIGNEE_OPTIONS: string[] = [];
 const TYPE_OPTIONS     = ["Admin", "Academic", "Finance", "HR", "Student Follow-up", "Cover", "Personal"];
 const PRIORITY_OPTIONS = ["Urgent", "High", "Medium", "Low"];
 const STATUS_OPTIONS   = ["Open", "In Progress", "Blocked", "Done"];
 
-const ACTIVITY_LOG = [
-  { text: "Task created by Jason Daswani", date: "14 Apr" },
-  { text: "Assigned to Jason Daswani", date: "14 Apr" },
-  { text: "Priority changed to High", date: "15 Apr" },
-];
+const ACTIVITY_LOG: { text: string; date: string }[] = [];
 
 // ─── Avatar helpers ───────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100",   text: "text-amber-700"   },
-  { bg: "bg-teal-100",    text: "text-teal-700"    },
-  { bg: "bg-blue-100",    text: "text-blue-700"    },
-  { bg: "bg-violet-100",  text: "text-violet-700"  },
-  { bg: "bg-rose-100",    text: "text-rose-700"    },
-  { bg: "bg-emerald-100", text: "text-emerald-700" },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -772,7 +747,7 @@ export default function TasksPage() {
 
   const filtered = useMemo(() => {
     return allTasks.filter((t) => {
-      if (myTasksOnly && t.assignee !== "Jason Daswani") return false;
+      if (myTasksOnly && t.assignee !== currentUser.name) return false;
       if (fromLeadsOnly && !t.sourceLeadId) return false;
       if (assigneeFilter.length > 0 && !assigneeFilter.includes(t.assignee)) return false;
       if (typeFilter.length > 0 && !typeFilter.includes(t.type)) return false;

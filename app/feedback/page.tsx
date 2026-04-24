@@ -341,7 +341,7 @@ function FeedbackQueueTab() {
         type: "Admin",
         priority: "Medium",
         status: "Open",
-        assignee: "Omar Farhat",
+        assignee: "",
         dueDate: "22 Apr 2026",
         linkedRecord: student
           ? { type: "student", name: item.studentName, id: student.id }
@@ -387,10 +387,10 @@ function FeedbackQueueTab() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Pending Approval"         value="12"  accent="amber" />
-        <StatCard label="Sent This Week"            value="47"  accent="green" />
-        <StatCard label="Overdue (window closing)"  value="3"   accent="red"   />
-        <StatCard label="AI-Generated"              value="89%" accent="slate" />
+        <StatCard label="Pending Approval"         value="0"  accent="amber" />
+        <StatCard label="Sent This Week"            value="0"  accent="green" />
+        <StatCard label="Overdue (window closing)"  value="0"  accent="red"   />
+        <StatCard label="AI-Generated"              value="—"  accent="slate" />
       </div>
 
       {/* Filters */}

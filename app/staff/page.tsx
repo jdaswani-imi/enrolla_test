@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { staffMembers, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
+import { staffMembers, currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -52,32 +52,6 @@ import {
   RequestLeaveDialog,
   type LeaveRequestSubmission,
 } from "@/components/staff/request-leave-dialog";
-import { currentUser } from "@/lib/mock-data";
-
-// ─── Avatar helpers ────────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100",   text: "text-amber-700"   },
-  { bg: "bg-teal-100",    text: "text-teal-700"     },
-  { bg: "bg-blue-100",    text: "text-blue-700"     },
-  { bg: "bg-violet-100",  text: "text-violet-700"   },
-  { bg: "bg-rose-100",    text: "text-rose-700"     },
-  { bg: "bg-emerald-100", text: "text-emerald-700"  },
-  { bg: "bg-indigo-100",  text: "text-indigo-700"   },
-  { bg: "bg-orange-100",  text: "text-orange-700"   },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
 
 // ─── Role badge config ─────────────────────────────────────────────────────────
 
@@ -636,12 +610,7 @@ interface LeaveRequest {
   coverTotalCount?: number;
 }
 
-const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
-  { id: "LR-01", staffId: "ST-003", name: "Ahmed Khalil",   type: "Annual leave",   range: "5–9 May",  days: 5, submitted: "18 Apr 2026", status: "Pending" },
-  { id: "LR-02", staffId: "ST-006", name: "Hana Yusuf",     type: "Personal",       range: "29 Apr",   days: 1, submitted: "17 Apr 2026", status: "Pending" },
-  { id: "LR-03", staffId: "ST-012", name: "Khalil Mansouri",type: "Medical",        range: "22 Apr",   days: 1, submitted: "19 Apr 2026", status: "Pending" },
-  { id: "LR-04", staffId: "ST-004", name: "Sarah Mitchell", type: "Annual leave",   range: "12–14 May",days: 3, submitted: "16 Apr 2026", status: "Pending" },
-];
+const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [];
 
 function StaffPageContent() {
   const { can, role } = usePermission();
@@ -892,10 +861,10 @@ function StaffPageContent() {
 
           {/* Summary strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={UserCheck} label="Total Staff"        value={18} accent="slate" />
-            <StatCard icon={UserCheck} label="Active"             value={16} accent="green" />
-            <StatCard icon={Clock}     label="On Leave"           value={1}  accent="amber" />
-            <StatCard icon={UserX}     label="Pending Onboarding" value={1}  accent="slate" />
+            <StatCard icon={UserCheck} label="Total Staff"        value={staffMembers.length}                                         accent="slate" />
+            <StatCard icon={UserCheck} label="Active"             value={staffMembers.filter(s => s.status === 'Active').length}    accent="green" />
+            <StatCard icon={Clock}     label="On Leave"           value={staffMembers.filter(s => s.status === 'On Leave').length}  accent="amber" />
+            <StatCard icon={UserX}     label="Pending Onboarding" value={0}                                                         accent="slate" />
           </div>
 
           {/* Filter bar */}
@@ -1106,27 +1075,6 @@ function StaffPageContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td className="px-3 py-3 font-medium text-slate-800 whitespace-nowrap">Khalil Mansouri</td>
-                      <td className="px-3 py-3 text-xs text-slate-500">Home address, Emergency contact</td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-amber-400" style={{ width: "60%" }} />
-                          </div>
-                          <span className="text-xs text-slate-500 tabular-nums">60%</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
-                        >
-                          <Send className="w-3 h-3" />
-                          Send Reminder
-                        </button>
-                      </td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1138,9 +1086,9 @@ function StaffPageContent() {
               <p className="text-xs text-slate-400 mt-0.5 mb-4">Average CPD progress by department</p>
               <div className="space-y-4">
                 {[
-                  { dept: "Primary",         count: 4, avg: 12 },
-                  { dept: "Lower Secondary", count: 3, avg: 8  },
-                  { dept: "Senior",          count: 3, avg: 17 },
+                  { dept: "Primary",         count: 0, avg: 0 },
+                  { dept: "Lower Secondary", count: 0, avg: 0 },
+                  { dept: "Senior",          count: 0, avg: 0 },
                 ].map(({ dept, count, avg }) => (
                   <div key={dept}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1168,11 +1116,7 @@ function StaffPageContent() {
               <h3 className="text-sm font-bold text-slate-800">Upcoming Milestones</h3>
               <p className="text-xs text-slate-400 mt-0.5 mb-4">Staff events and achievements</p>
               <div className="space-y-2">
-                {[
-                  { name: "Hana Yusuf",     event: "3-year anniversary",  whenLabel: "1 Sep 2026"  },
-                  { name: "Ahmed Khalil",    event: "CPD 100% complete",   whenLabel: "Today"       },
-                  { name: "Sarah Mitchell",  event: "CPD 90% reached",     whenLabel: "3 days ago"  },
-                ].map(({ name, event, whenLabel }) => {
+                {([] as { name: string; event: string; whenLabel: string }[]).map(({ name, event, whenLabel }) => {
                   const pal = getAvatarPalette(name);
                   return (
                     <div key={name} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-amber-200 hover:bg-amber-50/40 transition-colors">
@@ -1203,32 +1147,7 @@ function StaffPageContent() {
               <h3 className="text-sm font-bold text-slate-800">HR Actions Pending</h3>
               <p className="text-xs text-slate-400 mt-0.5 mb-4">Active flags requiring attention</p>
               <div className="space-y-2">
-                {[
-                  {
-                    dotCls:      "bg-red-500",
-                    name:        "Mariam Saleh",
-                    label:       "Access Revoked",
-                    detail:      "15 Apr 2026",
-                    action:      "View Details",
-                    actionCls:   "text-red-600 hover:bg-red-50 border-red-200",
-                  },
-                  {
-                    dotCls:      "bg-amber-400",
-                    name:        "Rania Aziz",
-                    label:       "Emergency Leave active",
-                    detail:      "Since 10 Apr 2026 · 12 sessions need cover",
-                    action:      "Assign Cover",
-                    actionCls:   "text-amber-700 hover:bg-amber-50 border-amber-200",
-                  },
-                  {
-                    dotCls:      "bg-slate-300",
-                    name:        "Khalil Mansouri",
-                    label:       "Onboarding incomplete",
-                    detail:      "Day 25",
-                    action:      "Complete Profile",
-                    actionCls:   "text-slate-600 hover:bg-slate-50 border-slate-200",
-                  },
-                ].map(({ dotCls, name, label, detail, action, actionCls }) => (
+                {([] as { dotCls: string; name: string; label: string; detail: string; action: string; actionCls: string }[]).map(({ dotCls, name, label, detail, action, actionCls }) => (
                   <div key={name} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200">
                     <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", dotCls)} />
                     <div className="flex-1 min-w-0">

@@ -24,6 +24,9 @@ import {
   timetableSessions,
   assignments as seedAssignments,
   tasks,
+  AVATAR_PALETTES,
+  getAvatarPalette,
+  getInitials,
   type Assignment,
   type AssignmentStatus,
   type AssignmentType,
@@ -89,44 +92,11 @@ interface Alert {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const TRACKERS: Tracker[] = [
-  { student: "Aisha Rahman",       year: "Y8",  subject: "Y8 Maths",     topicsCovered: "8 / 12",  avgScore: 82, predictedGrade: "B+", targetGrade: "A*", tier: "Pass",             reportStatus: "Draft"         },
-  { student: "Aisha Rahman",       year: "Y8",  subject: "Y8 English",   topicsCovered: "9 / 10",  avgScore: 78, predictedGrade: "A-", targetGrade: "A",  tier: "Pass",             reportStatus: "Approved"      },
-  { student: "Omar Al-Farsi",      year: "Y5",  subject: "Y5 Maths",     topicsCovered: "5 / 12",  avgScore: 61, predictedGrade: "C+", targetGrade: "B",  tier: "Requires Support", reportStatus: "Not Generated" },
-  { student: "Layla Hassan",       year: "Y10", subject: "Y10 Physics",  topicsCovered: "7 / 14",  avgScore: 74, predictedGrade: "B",  targetGrade: "A",  tier: "Pass",             reportStatus: "Pending HOD"   },
-  { student: "Layla Hassan",       year: "Y10", subject: "Y10 Maths",    topicsCovered: "9 / 14",  avgScore: 88, predictedGrade: "A",  targetGrade: "A*", tier: "Pass",             reportStatus: "Draft"         },
-  { student: "Khalid Mansoor",     year: "Y12", subject: "Y12 Maths",    topicsCovered: "11 / 18", avgScore: 91, predictedGrade: "A*", targetGrade: "A*", tier: "Pass",             reportStatus: "Approved"      },
-  { student: "Sara Nasser",        year: "Y9",  subject: "Y9 Maths",     topicsCovered: "6 / 12",  avgScore: 55, predictedGrade: "D",  targetGrade: "B+", tier: "Requires Support", reportStatus: "Not Generated" },
-  { student: "Faris Qasim",        year: "Y11", subject: "Y11 Physics",  topicsCovered: "8 / 14",  avgScore: 70, predictedGrade: "B-", targetGrade: "A",  tier: "Pass",             reportStatus: "Draft"         },
-  { student: "Hamdan Al-Maktoum",  year: "Y7",  subject: "Y7 Maths",     topicsCovered: "7 / 10",  avgScore: 83, predictedGrade: "B+", targetGrade: "B",  tier: "Pass",             reportStatus: "Approved"      },
-  { student: "Mariam Al-Suwaidi",  year: "Y13", subject: "Y13 Maths",    topicsCovered: "14 / 18", avgScore: 79, predictedGrade: "B",  targetGrade: "A",  tier: "Pass",             reportStatus: "Pending HOD"   },
-  { student: "Nour Ibrahim",       year: "Y4",  subject: "Y4 Maths",     topicsCovered: "3 / 10",  avgScore: 48, predictedGrade: "E",  targetGrade: "C",  tier: "Requires Support", reportStatus: "Not Generated" },
-  { student: "Ziad Khalil",        year: "Y3",  subject: "Y3 English",   topicsCovered: "6 / 8",   avgScore: 86, predictedGrade: "A",  targetGrade: "A",  tier: "Pass",             reportStatus: "Approved"      },
-];
+const TRACKERS: Tracker[] = [];
 
-const REPORTS: Report[] = [
-  { student: "Aisha Rahman",       subject: "Y8 Maths",    teacher: "Mr Ahmed Khalil",   draftReady: "15 Apr 2026", status: "Draft"       },
-  { student: "Layla Hassan",       subject: "Y10 Physics", teacher: "Mr Faris Al-Amin",  draftReady: "14 Apr 2026", status: "Pending HOD" },
-  { student: "Layla Hassan",       subject: "Y10 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "14 Apr 2026", status: "Draft"       },
-  { student: "Faris Qasim",        subject: "Y11 Physics", teacher: "Mr Faris Al-Amin",  draftReady: "13 Apr 2026", status: "Draft"       },
-  { student: "Mariam Al-Suwaidi",  subject: "Y13 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "12 Apr 2026", status: "Pending HOD" },
-  { student: "Hamdan Al-Maktoum",  subject: "Y7 Maths",    teacher: "Mr Tariq Al-Amin",  draftReady: "10 Apr 2026", status: "Approved"    },
-  { student: "Khalid Mansoor",     subject: "Y12 Maths",   teacher: "Mr Faris Al-Amin",  draftReady: "8 Apr 2026",  status: "Approved"    },
-  { student: "Aisha Rahman",       subject: "Y8 English",  teacher: "Ms Sarah Mitchell", draftReady: "8 Apr 2026",  status: "Approved"    },
-  { student: "Hamdan Al-Maktoum",  subject: "Y7 English",  teacher: "Ms Sarah Mitchell", draftReady: "7 Apr 2026",  status: "Approved"    },
-  { student: "Ziad Khalil",        subject: "Y3 English",  teacher: "Ms Sarah Mitchell", draftReady: "5 Apr 2026",  status: "Approved"    },
-];
+const REPORTS: Report[] = [];
 
-const ALERTS: Alert[] = [
-  { student: "Nour Ibrahim",      year: "Y4",  subject: "Y4 Maths",    alertType: "Below Pass Threshold",      signal: "3 consecutive Requires Support",          raised: "14 Apr 2026", severity: "Critical", status: "Open",                 level: "L1" },
-  { student: "Sara Nasser",       year: "Y9",  subject: "Y9 Maths",    alertType: "Below Pass Threshold",      signal: "Avg score 55% — below 80% threshold",     raised: "12 Apr 2026", severity: "Critical", status: "Open",                 level: "L1" },
-  { student: "Omar Al-Farsi",     year: "Y5",  subject: "Y5 Maths",    alertType: "Predicted Grade Gap",       signal: "Predicted C+, target B — gap widening",   raised: "10 Apr 2026", severity: "High",     status: "Open",                 level: "L1" },
-  { student: "Aisha Rahman",      year: "Y8",  subject: "Y8 Maths",    alertType: "Assignment Non-submission", signal: "30%+ non-submission rate this term",       raised: "8 Apr 2026",  severity: "Medium",   status: "Escalated to Concern", level: "L2" },
-  { student: "Faris Qasim",       year: "Y11", subject: "Y11 Physics", alertType: "Predicted Grade Gap",       signal: "Predicted B-, target A — 2 grade gap",    raised: "6 Apr 2026",  severity: "Medium",   status: "Open",                 level: "L1" },
-  { student: "Mariam Al-Suwaidi", year: "Y13", subject: "Y13 Maths",   alertType: "Predicted Grade Gap",       signal: "Predicted B, target A — monitored",        raised: "4 Apr 2026",  severity: "Low",      status: "Acknowledged",         level: "L1" },
-  { student: "Reem Al-Dosari",    year: "Y6",  subject: "Y6 Science",  alertType: "Attendance Impact",         signal: "Attendance below 80% affecting progress",  raised: "2 Apr 2026",  severity: "Medium",   status: "Open",                 level: "L1" },
-  { student: "Dana Al-Zaabi",     year: "Y2",  subject: "Y2 English",  alertType: "Topic Gap",                 signal: "2 topics not yet assessed this term",       raised: "1 Apr 2026",  severity: "Low",      status: "Resolved",             level: "L1" },
-];
+const ALERTS: Alert[] = [];
 
 type TopicStatus = "Not Started" | "In Progress" | "Complete";
 
@@ -137,14 +107,7 @@ interface TrackerTopic {
   notes: string;
 }
 
-const MOCK_TOPICS: TrackerTopic[] = [
-  { topic: "Algebra",      status: "Complete",    lastUpdated: "14 Apr 2026", notes: "Strong grasp of linear equations"               },
-  { topic: "Quadratics",   status: "Complete",    lastUpdated: "10 Apr 2026", notes: "Completing the square — practice paper issued"  },
-  { topic: "Geometry",     status: "Complete",    lastUpdated: "07 Apr 2026", notes: "Excellent spatial reasoning"                    },
-  { topic: "Statistics",   status: "In Progress", lastUpdated: "02 Apr 2026", notes: "Struggling with probability trees"              },
-  { topic: "Calculus",     status: "In Progress", lastUpdated: "28 Mar 2026", notes: "Introduction only — needs reinforcement"        },
-  { topic: "Trigonometry", status: "Not Started", lastUpdated: "—",           notes: "Scheduled for next half-term"                   },
-];
+const MOCK_TOPICS: TrackerTopic[] = [];
 
 function getTopicStatusClass(s: TopicStatus): string {
   switch (s) {
@@ -154,14 +117,8 @@ function getTopicStatusClass(s: TopicStatus): string {
   }
 }
 
-function getTeacherForSubject(subject: string): string {
-  if (subject.includes("English")) return "Ms Sarah Mitchell";
-  if (subject.includes("Physics")) return "Mr Faris Al-Amin";
-  const yearMatch = subject.match(/Y(\d+)/);
-  const yearNum = yearMatch ? parseInt(yearMatch[1]) : 0;
-  if (yearNum >= 10) return "Mr Faris Al-Amin";
-  if (yearNum === 8) return "Mr Ahmed Khalil";
-  return "Mr Tariq Al-Amin";
+function getTeacherForSubject(_subject: string): string {
+  return "";
 }
 
 function hashSeed(seed: string): number {
@@ -210,31 +167,6 @@ function gradeCompare(predicted: string, target: string): "above" | "equal" | "b
   if (p < t)  return "above";  // lower index = better grade
   if (p === t) return "equal";
   return "below";
-}
-
-// ─── Avatar helpers ───────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100",   text: "text-amber-700"   },
-  { bg: "bg-teal-100",    text: "text-teal-700"     },
-  { bg: "bg-blue-100",    text: "text-blue-700"     },
-  { bg: "bg-violet-100",  text: "text-violet-700"   },
-  { bg: "bg-rose-100",    text: "text-rose-700"     },
-  { bg: "bg-emerald-100", text: "text-emerald-700"  },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
 }
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
@@ -615,10 +547,10 @@ function TrackersTab() {
     <div className="space-y-5">
       {/* Summary strip */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Active Trackers"        value="3,847" />
-        <StatCard label="Below Pass Threshold"   value="94"    accent="red"   />
-        <StatCard label="Reports Due This Cycle" value="47"    />
-        <StatCard label="Pending Approval"       value="12"    accent="amber" />
+        <StatCard label="Active Trackers"        value="0" />
+        <StatCard label="Below Pass Threshold"   value="0" accent="red"   />
+        <StatCard label="Reports Due This Cycle" value="0" />
+        <StatCard label="Pending Approval"       value="0" accent="amber" />
       </div>
 
       {/* Filter bar */}
@@ -803,9 +735,9 @@ function ReportsTab() {
     <div className="space-y-5">
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Reports Generated This Term" value="142" />
-        <StatCard label="Pending Approval"            value="12"  accent="amber" />
-        <StatCard label="Delivered to Parents"        value="108" />
+        <StatCard label="Reports Generated This Term" value="0" />
+        <StatCard label="Pending Approval"            value="0" accent="amber" />
+        <StatCard label="Delivered to Parents"        value="0" />
       </div>
 
       {/* Filter bar */}
@@ -1142,16 +1074,7 @@ function ReportsTab() {
 
 // ─── Alert student ID lookup ──────────────────────────────────────────────────
 
-const ALERT_STUDENT_IDS: Record<string, string> = {
-  "Nour Ibrahim":      "IMI-0008",
-  "Sara Nasser":       "IMI-0005",
-  "Omar Al-Farsi":     "IMI-0002",
-  "Aisha Rahman":      "IMI-0001",
-  "Faris Qasim":       "IMI-0007",
-  "Mariam Al-Suwaidi": "IMI-0014",
-  "Reem Al-Dosari":    "IMI-0006",
-  "Dana Al-Zaabi":     "IMI-0012",
-};
+const ALERT_STUDENT_IDS: Record<string, string> = {};
 
 // ─── Tab 3 — Academic Alerts ──────────────────────────────────────────────────
 
@@ -1389,9 +1312,9 @@ function AlertsTab({ onNavigateToTrackers }: { onNavigateToTrackers: () => void 
     <div className="space-y-5">
       {/* Summary strip */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Active Alerts"       value="11" />
-        <StatCard label="Critical"            value="2"  accent="red" />
-        <StatCard label="Resolved This Week"  value="4"  />
+        <StatCard label="Active Alerts"       value="0" />
+        <StatCard label="Critical"            value="0" accent="red" />
+        <StatCard label="Resolved This Week"  value="0" />
       </div>
 
       {/* Toolbar */}
@@ -2107,9 +2030,9 @@ function AssignmentsTab() {
       {/* Summary strip + Create button */}
       <div className="flex items-start justify-between gap-4">
         <div className="grid grid-cols-3 gap-4 flex-1">
-          <StatCard label="Assignments Set This Term" value="284" />
-          <StatCard label="Pending Marking"           value="43"  accent="amber" />
-          <StatCard label="Overdue Submissions"       value="28"  accent="red"   />
+          <StatCard label="Assignments Set This Term" value="0" />
+          <StatCard label="Pending Marking"           value="0" accent="amber" />
+          <StatCard label="Overdue Submissions"       value="0" accent="red"   />
         </div>
         <div className="pt-1">
           <button

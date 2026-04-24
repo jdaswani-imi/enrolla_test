@@ -39,35 +39,13 @@ import {
 const PROFILE = {
   name: "Jason Daswani",
   role: "Super Admin",
-  email: "j.daswani@improvemeinstitute.com",
-  phone: "+971 50 185 2505",
-  memberSince: "September 2023",
-  lastLogin: "Today at 11:24 AM",
+  email: "",
+  phone: "",
+  memberSince: "—",
+  lastLogin: "—",
 };
 
-const SESSIONS = [
-  {
-    id: "s1",
-    device: "Chrome, Dubai",
-    icon: Monitor,
-    activity: "Active now",
-    current: true,
-  },
-  {
-    id: "s2",
-    device: "Safari, iPhone · Dubai",
-    icon: Smartphone,
-    activity: "2 hours ago",
-    current: false,
-  },
-  {
-    id: "s3",
-    device: "Firefox · Abu Dhabi",
-    icon: Monitor,
-    activity: "Yesterday at 6:42 PM",
-    current: false,
-  },
-];
+const SESSIONS: { id: string; device: string; icon: typeof Monitor; activity: string; current: boolean }[] = [];
 
 type ActivityModule = "People" | "Finance" | "Tasks" | "Academic" | "Staff" | "Comms";
 
@@ -93,18 +71,7 @@ const ACTIVITY_LOG: Array<{
   timestamp: string;
   action: string;
   module: ActivityModule;
-}> = [
-  { timestamp: "Today, 11:24 AM",     action: "Signed in from Chrome, Dubai",                        module: "Staff" },
-  { timestamp: "Today, 10:58 AM",     action: "Approved report — Aisha Rahman · Y8 Maths",           module: "Academic" },
-  { timestamp: "Today, 10:12 AM",     action: "Created task — Follow up on overdue invoice",         module: "Tasks" },
-  { timestamp: "Today, 9:47 AM",      action: "Recorded payment — AED 2,400 · INV-2026-0142",        module: "Finance" },
-  { timestamp: "Yesterday, 4:33 PM",  action: "Withdrew student — Layla Hassan",                     module: "People" },
-  { timestamp: "Yesterday, 2:15 PM",  action: "Posted announcement — Term 3 schedule update",        module: "Comms" },
-  { timestamp: "Yesterday, 11:02 AM", action: "Updated timetable — Y10 Physics Wednesday slot",      module: "Academic" },
-  { timestamp: "19 Apr, 3:28 PM",     action: "Converted lead — Omar Al-Farsi to student",           module: "People" },
-  { timestamp: "19 Apr, 1:14 PM",     action: "Issued credit note — AED 800 · CN-2026-0031",         module: "Finance" },
-  { timestamp: "18 Apr, 5:09 PM",     action: "Assigned task to Sarah Thompson — Prepare T3 briefs", module: "Tasks" },
-];
+}> = [];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

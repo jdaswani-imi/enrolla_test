@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { leads as leadsData, tasks as taskStore, students as studentsStore, type Lead, type LeadStage, type LeadSource, type PreferredWindow, type Task, type Student } from "@/lib/mock-data";
+import { currentUser, leads as leadsData, tasks as taskStore, students as studentsStore, AVATAR_PALETTES, getAvatarPalette, getInitials, LEAD_STAGES, type Lead, type LeadStage, type LeadSource, type PreferredWindow, type Task, type Student } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -73,19 +73,7 @@ import { SkipAssessmentDialog } from "@/components/journey/skip-assessment-dialo
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STAGES: LeadStage[] = [
-  "New",
-  "Contacted",
-  "Assessment Booked",
-  "Assessment Done",
-  "Trial Booked",
-  "Trial Done",
-  "Schedule Offered",
-  "Schedule Confirmed",
-  "Invoice Sent",
-  "Won",
-  "Lost",
-];
+const STAGES = LEAD_STAGES;
 
 const STAGE_CONFIG: Record<
   LeadStage,
@@ -170,7 +158,7 @@ const SOURCE_CONFIG: Record<LeadSource, string> = {
 const STAGE_FILTER_OPTIONS: string[] = [...STAGES];
 const SOURCE_FILTER_OPTIONS: string[] = ["Website", "Phone", "Walk-in", "Referral", "Event"];
 const DEPT_FILTER_OPTIONS = ["Primary", "Lower Secondary", "Senior"];
-const ASSIGNED_FILTER_OPTIONS = ["Jason Daswani", "Sarah Admin"];
+const ASSIGNED_FILTER_OPTIONS: string[] = [];
 
 const ADD_LEAD_YEAR_OPTIONS = [
   "KG1", "KG2", "Y1", "Y2", "Y3", "Y4", "Y5", "Y6",
@@ -181,31 +169,6 @@ const ADD_LEAD_SUBJECT_OPTIONS = [
   "Chemistry", "Biology", "Business", "Economics",
 ];
 const ADD_LEAD_SOURCE_OPTIONS: LeadSource[] = ["Website", "Referral", "Event", "Phone", "Walk-in"];
-
-// ─── Avatar helpers ───────────────────────────────────────────────────────────
-
-const AVATAR_PALETTES = [
-  { bg: "bg-amber-100", text: "text-amber-700" },
-  { bg: "bg-teal-100", text: "text-teal-700" },
-  { bg: "bg-blue-100", text: "text-blue-700" },
-  { bg: "bg-violet-100", text: "text-violet-700" },
-  { bg: "bg-rose-100", text: "text-rose-700" },
-  { bg: "bg-emerald-100", text: "text-emerald-700" },
-];
-
-function getAvatarPalette(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
 
 // ─── Lead action handlers (shared across menus & detail dialog) ───────────────
 
@@ -540,22 +503,12 @@ function KanbanColumn({
 
 // ─── Lead Detail Dialog ───────────────────────────────────────────────────────
 
-const DETAIL_TIMELINE = [
-  { label: "Today", text: "Lead created via website form", dot: "bg-amber-400" },
-  { label: "Yesterday", text: "Contacted by Sarah Thompson", dot: "bg-blue-400" },
-  { label: "2 days ago", text: "Assessment booked for Sat 19 Apr", dot: "bg-purple-400" },
-];
+const DETAIL_TIMELINE: { label: string; text: string; dot: string }[] = [];
 
 // ─── Embedded Team Chat (types, seed, component) ──────────────────────────────
 
-const CHAT_STAFF = [
-  "Jason Daswani",
-  "Sarah Thompson",
-  "Ahmed Khalil",
-  "Tariq Al Nasser",
-  "Hana Malik",
-];
-const CHAT_CURRENT_USER = "Jason Daswani";
+const CHAT_STAFF: string[] = [];
+const CHAT_CURRENT_USER = currentUser.name;
 const CHAT_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "🔥", "✅", "👀"];
 
 type ChatChipKind = "student" | "invoice" | "task";
@@ -582,79 +535,9 @@ type ChatMessage = {
   reactions: ChatReactionMap;
 };
 
-const CHAT_LINK_CATALOGUE: { kind: ChatChipKind; label: string; ref: string; targetId?: string }[] = [
-  { kind: "student", label: "Aisha Rahman", ref: "IMI-0001", targetId: "IMI-0001" },
-  { kind: "student", label: "Omar Al-Farsi", ref: "IMI-0002", targetId: "IMI-0002" },
-  { kind: "student", label: "Layla Hassan", ref: "IMI-0003", targetId: "IMI-0003" },
-  { kind: "student", label: "Bilal Mahmood", ref: "IMI-L-0041", targetId: "IMI-0001" },
-  { kind: "invoice", label: "Rahman · Term 3 Maths", ref: "INV-2416" },
-  { kind: "invoice", label: "Al-Farsi · Assessment Pack", ref: "INV-2418" },
-  { kind: "invoice", label: "Mahmood · Sibling Offer", ref: "INV-2422" },
-  { kind: "task", label: "Prep Y7 Maths rubric", ref: "T-0112" },
-  { kind: "task", label: "Confirm Sat assessment slot", ref: "T-0113" },
-  { kind: "task", label: "Follow up on sibling discount", ref: "T-0114" },
-];
+const CHAT_LINK_CATALOGUE: { kind: ChatChipKind; label: string; ref: string; targetId?: string }[] = [];
 
-const INITIAL_CHAT_BY_LEAD: Record<string, ChatMessage[]> = {
-  "L-0041": [
-    {
-      id: "c-0041-1",
-      author: "Jason Daswani",
-      day: "17 Apr",
-      time: "09:12",
-      text: "Guardian called — very keen, looking for Y7 Maths starting this term. Mentioned sibling at another centre.",
-      chips: [],
-      reactions: { "👍": ["Sarah Thompson"] },
-    },
-    {
-      id: "c-0041-2",
-      author: "Sarah Thompson",
-      day: "Yesterday",
-      time: "14:30",
-      text: "Sent intro WhatsApp. She replied, assessment confirmed for Saturday. Dad will attend too.",
-      chips: [],
-      reactions: {},
-    },
-    {
-      id: "c-0041-3",
-      author: "Jason Daswani",
-      day: "Today",
-      time: "08:05",
-      text: "Reminder: bring assessment rubric for Y7 Maths. Check if sibling discount applies.",
-      chips: [],
-      reactions: {},
-    },
-  ],
-  "L-0045": [
-    {
-      id: "c-0045-1",
-      author: "Sarah Thompson",
-      day: "17 Apr",
-      time: "10:22",
-      text: "Saif's mum prefers evening slots — Tues/Thurs ideally. Year 9 Science.",
-      chips: [],
-      reactions: {},
-    },
-    {
-      id: "c-0045-2",
-      author: "Jason Daswani",
-      day: "Yesterday",
-      time: "11:45",
-      text: "@Sarah Thompson check Tariq Al Nasser's availability — he mentioned he could do Tues 17:00.",
-      chips: [],
-      reactions: { "✅": ["Sarah Thompson"] },
-    },
-    {
-      id: "c-0045-3",
-      author: "Ahmed Khalil",
-      day: "Today",
-      time: "09:00",
-      text: "Intake form still pending. Will chase the guardian today.",
-      chips: [],
-      reactions: {},
-    },
-  ],
-};
+const INITIAL_CHAT_BY_LEAD: Record<string, ChatMessage[]> = {};
 
 function getInitialChat(leadId: string): ChatMessage[] {
   return INITIAL_CHAT_BY_LEAD[leadId] ?? [];
@@ -846,11 +729,7 @@ function formatDueDateLabel(iso: string): string {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-const STAFF_GROUPS: { label: string; members: string[] }[] = [
-  { label: "All Admins", members: ["Jason Daswani", "Sarah Thompson"] },
-  { label: "Academic Team", members: ["Ahmed Khalil", "Tariq Al Nasser", "Hana Malik"] },
-  { label: "All Staff", members: [...CHAT_STAFF] },
-];
+const STAFF_GROUPS: { label: string; members: string[] }[] = [];
 
 function CreateTaskDialogBody({
   lead,
@@ -1074,7 +953,7 @@ function CreateTaskDialogBody({
               </div>
               <div className="max-h-56 overflow-y-auto py-1">
                 {filteredStaff.length === 0 ? (
-                  <p className="px-3 py-2 text-xs text-slate-400">No staff match "{assigneeQuery}"</p>
+                  <p className="px-3 py-2 text-xs text-slate-400">No staff match &quot;{assigneeQuery}&quot;</p>
                 ) : (
                   filteredStaff.map((name) => {
                     const palette = getAvatarPalette(name);
@@ -3336,7 +3215,7 @@ export default function LeadsPage() {
   ) {
     dismissUndoToast();
     if (lead.id === BILAL_LEAD_ID) {
-      journey.setStage(previousStage, "Jason Daswani");
+      journey.setStage(previousStage, currentUser.name);
     } else {
       setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: previousStage }));
       setLeadActivity((prev) => ({
@@ -3415,7 +3294,7 @@ export default function LeadsPage() {
     }
 
     if (lead.id === BILAL_LEAD_ID) {
-      journey.setStage(newStage, "Jason Daswani");
+      journey.setStage(newStage, currentUser.name);
     } else {
       setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: newStage }));
       setLeadActivity((prev) => ({
@@ -3488,7 +3367,7 @@ export default function LeadsPage() {
     const previousStage = lead.stage;
     setLeadLostData((prev) => ({ ...prev, [lead.id]: data }));
     if (lead.id === BILAL_LEAD_ID) {
-      journey.setStage("Lost", "Jason Daswani");
+      journey.setStage("Lost", currentUser.name);
     } else {
       setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Lost" }));
       setLeadActivity((prev) => ({
@@ -3556,7 +3435,7 @@ export default function LeadsPage() {
       if (sourceFilter.length > 0 && !sourceFilter.includes(l.source)) return false;
       if (deptFilter.length > 0 && !deptFilter.includes(l.department)) return false;
       if (assignedFilter.length > 0 && !assignedFilter.includes(l.assignedTo)) return false;
-      if (myLeads && l.assignedTo !== "Jason Daswani") return false;
+      if (myLeads && l.assignedTo !== currentUser.name) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (
