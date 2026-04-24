@@ -8,8 +8,9 @@ const supabase = createClient(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const { data, error } = await supabase
     .from('students')
     .select(
@@ -27,7 +28,7 @@ export async function GET(
         )
       )`
     )
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error) {
@@ -42,8 +43,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const body = await request.json()
 
   delete body.id
@@ -55,7 +57,7 @@ export async function PATCH(
   const { data, error } = await supabase
     .from('students')
     .update({ ...body, updated_at: new Date().toISOString() })
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 
@@ -71,9 +73,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  // Soft delete only — set status to Withdrawn, never hard delete
+  const { id } = await params
   const { data, error } = await supabase
     .from('students')
     .update({
@@ -81,7 +83,7 @@ export async function DELETE(
       withdrawn_at: new Date().toISOString().split('T')[0],
       updated_at: new Date().toISOString(),
     })
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 

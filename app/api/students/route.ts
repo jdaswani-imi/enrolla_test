@@ -8,13 +8,11 @@ const supabase = createClient(
 
 const TENANT_ID = 'b2000000-0000-0000-0000-000000000001'
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status')
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('students')
     .select(`
       *,
@@ -31,75 +29,39 @@ export async function GET(
         )
       )
     `)
-    .eq('id', id)
     .eq('tenant_id', TENANT_ID)
-    .single()
+    .order('last_name', { ascending: true })
+
+  if (status) {
+    query = query.eq('status', status)
+  }
+
+  const { data, error } = await query
 
   if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json({ data })
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
+export async function POST(request: NextRequest) {
   const body = await request.json()
 
   delete body.id
-  delete body.tenant_id
-  delete body.branch_id
   delete body.student_ref
   delete body.created_at
+  delete body.updated_at
 
   const { data, error } = await supabase
     .from('students')
-    .update({ ...body, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('tenant_id', TENANT_ID)
+    .insert({ ...body, tenant_id: TENANT_ID })
     .select()
     .single()
 
   if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ data })
-}
-
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
-
-  const { data, error } = await supabase
-    .from('students')
-    .update({
-      status: 'Withdrawn',
-      withdrawn_at: new Date().toISOString().split('T')[0],
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .eq('tenant_id', TENANT_ID)
-    .select()
-    .single()
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ data })
+  return NextResponse.json({ data }, { status: 201 })
 }
