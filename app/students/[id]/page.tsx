@@ -36,7 +36,6 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import {
   studentDetail,
   guardians,
-  students,
   staffMembers,
   trials,
   assessments,
@@ -1587,48 +1586,30 @@ function SiblingSelector({
   currentStudentId: string;
 }) {
   const [query, setQuery] = useState("");
-  const matches = query.trim()
-    ? students
-        .filter(
-          (s) =>
-            s.id !== currentStudentId &&
-            !siblingIds.includes(s.id) &&
-            s.name.toLowerCase().includes(query.trim().toLowerCase()),
-        )
-        .slice(0, 6)
-    : [];
+  const matches: { id: string; name: string; yearGroup: string }[] = [];
+  void query; void currentStudentId;
 
   return (
     <div className="space-y-2">
       <FieldLabel>Siblings</FieldLabel>
       {siblingIds.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {siblingIds.map((sid) => {
-            const s = students.find((st) => st.id === sid);
-            if (!s) return null;
-            return (
-              <div
-                key={sid}
-                className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 pl-1 pr-2 py-0.5"
+          {siblingIds.map((sid) => (
+            <div
+              key={sid}
+              className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 pl-1 pr-2 py-0.5"
+            >
+              <span className="text-xs font-medium text-amber-800">{sid}</span>
+              <button
+                type="button"
+                onClick={() => onChange(siblingIds.filter((id) => id !== sid))}
+                aria-label="Remove sibling"
+                className="p-0.5 rounded-full hover:bg-amber-100 cursor-pointer"
               >
-                <span className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-                  <span className="text-[9px] font-bold text-white leading-none">
-                    {studentInitials(s.name)}
-                  </span>
-                </span>
-                <span className="text-xs font-medium text-amber-800">{s.name}</span>
-                <span className="text-[10px] text-amber-700/70">{s.yearGroup}</span>
-                <button
-                  type="button"
-                  onClick={() => onChange(siblingIds.filter((id) => id !== sid))}
-                  aria-label={`Remove ${s.name}`}
-                  className="p-0.5 rounded-full hover:bg-amber-100 cursor-pointer"
-                >
-                  <XIcon className="w-3 h-3 text-amber-700" />
-                </button>
-              </div>
-            );
-          })}
+                <XIcon className="w-3 h-3 text-amber-700" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
       <input
@@ -1977,20 +1958,16 @@ function LeftSidebar({
               <p className="text-xs text-slate-500 italic">None linked</p>
             ) : (
               <ul className="space-y-0.5">
-                {profile.siblingIds.map((sid) => {
-                  const s = students.find((st) => st.id === sid);
-                  if (!s) return null;
-                  return (
-                    <li key={sid}>
-                      <Link
-                        href={`/students/${sid}`}
-                        className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
-                      >
-                        {s.name} →
-                      </Link>
-                    </li>
-                  );
-                })}
+                {profile.siblingIds.map((sid) => (
+                  <li key={sid}>
+                    <Link
+                      href={`/students/${sid}`}
+                      className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+                    >
+                      {sid} →
+                    </Link>
+                  </li>
+                ))}
               </ul>
             )}
           </div>
@@ -3524,7 +3501,6 @@ function StudentProfilePageContent() {
   const routeId = (params?.id as string) ?? "";
   const isJourneyStudent = routeId === BILAL_STUDENT_ID;
   const journey = useJourney();
-  const sourceLeadId = students.find(s => s.id === routeId)?.sourceLeadId;
   const searchParams = useSearchParams();
 
   const rawTab = searchParams.get('tab');
@@ -3558,6 +3534,30 @@ function StudentProfilePageContent() {
     }
     return INITIAL_PROFILE;
   });
+
+  useEffect(() => {
+    if (!routeId || routeId === BILAL_STUDENT_ID) return;
+    fetch(`/api/students/${routeId}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(({ data }) => {
+        setProfile((prev) => ({
+          ...prev,
+          firstName: data.first_name ?? "",
+          lastName: data.last_name ?? "",
+          dob: data.date_of_birth ?? "",
+          gender: (data.gender as "Male" | "Female" | "Prefer not to say") ?? "Prefer not to say",
+          nationality: data.nationality ?? "",
+          studentId: data.student_ref ?? routeId,
+          dateEnrolled: data.enrolled_at ?? "",
+          yearGroup: data.year_group ?? "",
+          school: data.school_other ?? "",
+          enrolledCoursesCount:
+            (data.enrolments as { status: string }[])?.filter((e) => e.status === "Active").length ?? 0,
+          primaryGuardianId: data.primary_guardian_id ?? "",
+        }));
+      })
+      .catch(() => {});
+  }, [routeId]);
   const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [journeyEnrolmentOpen, setJourneyEnrolmentOpen] = useState(false);
   const [journeyPaymentOpen, setJourneyPaymentOpen] = useState(false);
@@ -3653,7 +3653,6 @@ function StudentProfilePageContent() {
             profile={profile}
             onTabChange={handleTabChange}
             onEdit={setEditSection}
-            sourceLeadId={sourceLeadId}
           />
         </aside>
 
