@@ -1,9 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('tenants').select('*')
+  // Use service role key to bypass RLS for this test
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const { data, error } = await supabase
+    .from('departments')
+    .select('*')
+
   if (error) return NextResponse.json({ error }, { status: 500 })
   return NextResponse.json({ data })
 }
