@@ -42,12 +42,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  invoices,
-  payments,
-  creditLedger,
   students,
   departments,
-  unbilledSessions,
   currentUser,
   type Invoice,
   type InvoiceStatus,
@@ -57,6 +53,8 @@ import {
   type CreditType,
   type UnbilledSession,
 } from "@/lib/mock-data";
+
+type ApiInvoice = Invoice & { uuid: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -458,10 +456,23 @@ function RecordPaymentDialog({
           </button>
           <button
             type="button"
-            onClick={() => {
-              toast.success(`Payment recorded for ${invoice.id}`);
-              onSaved(invoice.id);
-              onClose();
+            onClick={async () => {
+              const uuid = (invoice as ApiInvoice).uuid
+              const res = await fetch('/api/finance/payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  invoiceId: uuid,
+                  amount: Number(payAmount),
+                  method: payMethod,
+                  reference: payRef || null,
+                  paid_at: payDate,
+                }),
+              })
+              if (!res.ok) { toast.error('Failed to record payment'); return; }
+              toast.success(`Payment recorded for ${invoice.id}`)
+              onSaved(invoice.id)
+              onClose()
             }}
             className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
           >
@@ -506,7 +517,19 @@ function VoidConfirmDialog({
           </button>
           <button
             type="button"
-            onClick={() => { onConfirm(invoice.id); onClose(); }}
+            onClick={async () => {
+              const uuid = (invoice as ApiInvoice).uuid
+              if (uuid) {
+                const res = await fetch(`/api/finance/invoices/${uuid}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ status: 'Cancelled' }),
+                })
+                if (!res.ok) { toast.error('Failed to void invoice'); return; }
+              }
+              onConfirm(invoice.id)
+              onClose()
+            }}
             className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
           >
             Void Invoice
@@ -1017,6 +1040,17 @@ function InvoicesTab() {
 
   const hasActiveFilters = statusFilter.length > 0 || deptFilter.length > 0 || dateRange.from != null;
 
+  const [invoiceData, setInvoiceData] = useState<ApiInvoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+  useEffect(() => {
+    setLoadingInvoices(true);
+    fetch('/api/finance/invoices')
+      .then((r) => r.json())
+      .then((d) => setInvoiceData(d ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingInvoices(false));
+  }, []);
+
   useEffect(() => { setPage(1); }, [statusFilter, deptFilter, dateRange, search]);
 
   function toggleSort(field: string) {
@@ -1031,7 +1065,7 @@ function InvoicesTab() {
   }
 
   const filtered = useMemo(() => {
-    let data = invoices.filter((inv) => {
+    let data = invoiceData.filter((inv) => {
       if (statusFilter.length > 0 && !statusFilter.includes(inv.status)) return false;
       if (deptFilter.length > 0 && !deptFilter.includes(inv.department)) return false;
       if (search) {
@@ -1055,7 +1089,7 @@ function InvoicesTab() {
       });
     }
     return data;
-  }, [statusFilter, deptFilter, search, sortField, sortDir]);
+  }, [invoiceData, statusFilter, deptFilter, search, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -1253,7 +1287,10 @@ function InvoicesTab() {
               })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {loadingInvoices && (
+            <div className="flex items-center justify-center py-12 text-slate-400 text-sm">Loading invoices…</div>
+          )}
+          {!loadingInvoices && filtered.length === 0 && (
             <EmptyState
               icon={Receipt}
               title="No invoices found"
@@ -1310,6 +1347,14 @@ function PaymentsTab() {
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
+  const [paymentData, setPaymentData] = useState<Payment[]>([]);
+  useEffect(() => {
+    fetch('/api/finance/payments')
+      .then((r) => r.json())
+      .then((d) => setPaymentData(d ?? []))
+      .catch(() => {});
+  }, []);
+
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [methodFilter, setMethodFilter] = useState<string[]>([]);
   const [dateRange, setDateRange]       = useState<DateRange>({ from: null, to: null });
@@ -1331,7 +1376,7 @@ function PaymentsTab() {
   const studentMatches = useMemo(() => {
     if (!studentSearch || studentFilter) return [];
     const q = studentSearch.toLowerCase();
-    return Array.from(new Set(payments.map((p) => p.student))).filter((n) => n.toLowerCase().includes(q));
+    return Array.from(new Set(paymentData.map((p) => p.student))).filter((n) => n.toLowerCase().includes(q));
   }, [studentSearch, studentFilter]);
 
   const hasActiveFilters =
@@ -1343,7 +1388,7 @@ function PaymentsTab() {
     setStudentFilter(null); setStudentSearch(""); setMinAmount(""); setMaxAmount("");
   }
 
-  const filtered = useMemo(() => payments.filter((p) => {
+  const filtered = useMemo(() => paymentData.filter((p) => {
     if (deptFilter.length > 0 && !deptFilter.includes(p.department)) return false;
     if (methodFilter.length > 0 && !methodFilter.includes(p.method)) return false;
     if (studentFilter && p.student !== studentFilter) return false;
@@ -1358,7 +1403,7 @@ function PaymentsTab() {
       }
     }
     return true;
-  }), [deptFilter, methodFilter, dateRange, studentFilter, minAmount, maxAmount]);
+  }), [paymentData, deptFilter, methodFilter, dateRange, studentFilter, minAmount, maxAmount]);
 
   return (
     <div className="space-y-4">
@@ -1551,6 +1596,14 @@ function CreditsTab() {
   const [issueOpen, setIssueOpen] = useState(false);
   const [selectedCredit, setSelectedCredit] = useState<(Credit & { ref: string }) | null>(null);
 
+  const [creditData, setCreditData] = useState<Credit[]>([]);
+  useEffect(() => {
+    fetch('/api/finance/credits')
+      .then((r) => r.json())
+      .then((d) => setCreditData(d ?? []))
+      .catch(() => {});
+  }, []);
+
   const [deptFilter, setDeptFilter]   = useState<string[]>([]);
   const [typeFilter, setTypeFilter]   = useState<string[]>([]);
   const [dateRange, setDateRange]     = useState<DateRange>({ from: null, to: null });
@@ -1572,7 +1625,7 @@ function CreditsTab() {
   const studentMatches = useMemo(() => {
     if (!studentSearch || studentFilter) return [];
     const q = studentSearch.toLowerCase();
-    return Array.from(new Set(creditLedger.map((c) => c.student))).filter((n) => n.toLowerCase().includes(q));
+    return Array.from(new Set(creditData.map((c) => c.student))).filter((n) => n.toLowerCase().includes(q));
   }, [studentSearch, studentFilter]);
 
   const hasActiveFilters =
@@ -1584,7 +1637,7 @@ function CreditsTab() {
     setStudentFilter(null); setStudentSearch(""); setMinAmount(""); setMaxAmount("");
   }
 
-  const filtered = useMemo(() => creditLedger.filter((c) => {
+  const filtered = useMemo(() => creditData.filter((c) => {
     if (deptFilter.length > 0 && !deptFilter.includes(c.department)) return false;
     if (typeFilter.length > 0 && !typeFilter.includes(CREDIT_TYPE_LABELS[c.type])) return false;
     if (studentFilter && c.student !== studentFilter) return false;
@@ -1599,7 +1652,7 @@ function CreditsTab() {
       }
     }
     return true;
-  }), [deptFilter, typeFilter, dateRange, studentFilter, minAmount, maxAmount]);
+  }), [creditData, deptFilter, typeFilter, dateRange, studentFilter, minAmount, maxAmount]);
 
   return (
     <div className="space-y-4">
@@ -1755,7 +1808,7 @@ function CreditsTab() {
             </thead>
             <tbody>
               {filtered.map((c, i) => {
-                const ref = `CR-${String(1001 + creditLedger.indexOf(c))}`;
+                const ref = `CR-${String(1001 + i)}`;
                 return (
                   <tr
                     key={i}
@@ -1935,9 +1988,16 @@ function WriteOffModal({
 function UnbilledTab() {
   const { can } = usePermission();
   const router = useRouter();
-  const [records, setRecords] = useState<UnbilledSession[]>(() => [...unbilledSessions]);
+  const [records, setRecords] = useState<UnbilledSession[]>([]);
   const [writeOffTarget, setWriteOffTarget] = useState<UnbilledSession | null>(null);
   const [writtenOffOpen, setWrittenOffOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/finance/unbilled')
+      .then((r) => r.json())
+      .then((d) => setRecords(d ?? []))
+      .catch(() => {});
+  }, []);
 
   const openRecords    = records.filter((r) => r.status === "open");
   const writtenOff     = records.filter((r) => r.status === "written_off");
@@ -1947,12 +2007,18 @@ function UnbilledTab() {
     ? openRecords.reduce((a, b) => a.sessionDate < b.sessionDate ? a : b).sessionDate
     : null;
 
-  function handleWriteOff(id: string, reason: string, _notes: string) {
-    const today = "2026-04-23";
+  async function handleWriteOff(id: string, reason: string, _notes: string) {
+    const res = await fetch(`/api/finance/unbilled/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'written_off', write_off_reason: reason }),
+    });
+    if (!res.ok) { toast.error('Failed to write off session'); return; }
+    const today = new Date().toISOString().slice(0, 10);
     setRecords((prev) =>
       prev.map((r) =>
         r.id === id
-          ? { ...r, status: "written_off", writeOffReason: reason, writeOffBy: currentUser.name, writeOffAt: today }
+          ? { ...r, status: "written_off" as const, writeOffReason: reason, writeOffBy: '—', writeOffAt: today }
           : r
       )
     );
@@ -2291,13 +2357,11 @@ function ReportsTab() {
 
 type Tab = "invoices" | "payments" | "credits" | "unbilled" | "reports";
 
-const openUnbilledCount = unbilledSessions.filter((r) => r.status === "open").length;
-
 const TABS: { key: Tab; label: string; badge?: number }[] = [
   { key: "invoices", label: "Invoices"  },
   { key: "payments", label: "Payments"  },
   { key: "credits",  label: "Credits"   },
-  { key: "unbilled", label: "Unbilled", badge: openUnbilledCount },
+  { key: "unbilled", label: "Unbilled"  },
   { key: "reports",  label: "Reports"   },
 ];
 
