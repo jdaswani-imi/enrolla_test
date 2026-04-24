@@ -146,6 +146,15 @@ interface GuardianDetail {
   tickets: GuardianTicketRow[];
 }
 
+interface ApiLinkedStudent {
+  id: string;
+  first_name: string;
+  last_name: string;
+  year_group: string | null;
+  status: string | null;
+  departments: { id: string; name: string; colour: string } | null;
+}
+
 // ─── Seeded guardian profiles ────────────────────────────────────────────────
 
 
@@ -556,12 +565,14 @@ function EditLinkedStudentsDialog({
   onOpenChange,
   profile,
   setProfile,
+  studentCache,
   fireToast,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: GuardianProfile;
   setProfile: (p: GuardianProfile) => void;
+  studentCache: ApiLinkedStudent[];
   fireToast: FireToast;
 }) {
   const [links, setLinks] = useState<LinkedStudentRef[]>(profile.linkedStudents);
@@ -608,18 +619,22 @@ function EditLinkedStudentsDialog({
             ) : (
               <ul className="space-y-2">
                 {links.map((l) => {
-                  const student = students.find((s) => s.id === l.id);
-                  if (!student) return null;
+                  const cached = studentCache.find((s) => s.id === l.id);
+                  const mock = students.find((s) => s.id === l.id);
+                  const name = cached
+                    ? `${cached.first_name} ${cached.last_name}`.trim()
+                    : mock?.name ?? l.id;
+                  const yearGroup = cached?.year_group ?? mock?.yearGroup ?? "—";
                   return (
                     <li key={l.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
                       <span className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
                         <span className="text-[10px] font-bold text-white leading-none">
-                          {studentInitials(student.name)}
+                          {studentInitials(name)}
                         </span>
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{student.name}</p>
-                        <p className="text-[11px] text-slate-400 leading-none mt-0.5">{student.id} · {student.yearGroup}</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate">{name}</p>
+                        <p className="text-[11px] text-slate-400 leading-none mt-0.5">{l.id} · {yearGroup}</p>
                       </div>
                       <select
                         className="rounded-md border border-slate-300 bg-white text-xs px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -631,7 +646,7 @@ function EditLinkedStudentsDialog({
                       <button
                         type="button"
                         onClick={() => setLinks(links.filter((x) => x.id !== l.id))}
-                        aria-label={`Remove ${student.name}`}
+                        aria-label={`Remove ${name}`}
                         className="p-1 rounded-full hover:bg-slate-100 cursor-pointer"
                       >
                         <XIcon className="w-3.5 h-3.5 text-slate-500" />
@@ -1109,9 +1124,11 @@ type EditSection = "comm" | "personal" | "linked" | "coParent";
 
 function LeftSidebar({
   profile,
+  linkedStudentData,
   onEdit,
 }: {
   profile: GuardianProfile;
+  linkedStudentData: ApiLinkedStudent[];
   onEdit: (s: EditSection) => void;
 }) {
   const coParent = profile.coParentId ? guardians.find((g) => g.id === profile.coParentId) : null;
@@ -1152,25 +1169,21 @@ function LeftSidebar({
       {/* Linked Students */}
       <section className="group">
         <EditableSectionHeader label="Linked Students" onEdit={() => onEdit("linked")} />
-        {profile.linkedStudents.length === 0 ? (
+        {linkedStudentData.length === 0 ? (
           <p className="text-xs text-slate-500 italic">None linked</p>
         ) : (
           <ul className="space-y-1">
-            {profile.linkedStudents.map((l) => {
-              const s = students.find((st) => st.id === l.id);
-              if (!s) return null;
-              return (
-                <li key={l.id} className="flex items-center justify-between gap-2">
-                  <Link
-                    href={`/students/${s.id}`}
-                    className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors truncate"
-                  >
-                    {s.name} →
-                  </Link>
-                  <span className="text-[10px] text-slate-400 shrink-0">{s.yearGroup}</span>
-                </li>
-              );
-            })}
+            {linkedStudentData.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-2">
+                <Link
+                  href={`/students/${s.id}`}
+                  className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors truncate"
+                >
+                  {s.first_name} {s.last_name} →
+                </Link>
+                <span className="text-[10px] text-slate-400 shrink-0">{s.year_group ?? "—"}</span>
+              </li>
+            ))}
           </ul>
         )}
       </section>
@@ -1321,13 +1334,10 @@ function OverviewTab({ detail }: { detail: GuardianDetail }) {
   );
 }
 
-function StudentsTab({ profile }: { profile: GuardianProfile }) {
+function StudentsTab({ linkedStudentData }: { linkedStudentData: ApiLinkedStudent[] }) {
   const router = useRouter();
-  const rows = profile.linkedStudents
-    .map((l) => students.find((s) => s.id === l.id))
-    .filter((s): s is NonNullable<typeof s> => Boolean(s));
 
-  if (rows.length === 0) {
+  if (linkedStudentData.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-10 text-center">
         <p className="text-sm text-slate-500">No students linked to this guardian.</p>
@@ -1340,50 +1350,48 @@ function StudentsTab({ profile }: { profile: GuardianProfile }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50">
-            {["Name", "Year", "Department", "Status", "Attendance", "Outstanding", ""].map((h) => (
+            {["Name", "Year", "Department", "Status", ""].map((h) => (
               <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((s) => (
-            <tr
-              key={s.id}
-              onClick={() => router.push(`/students/${s.id}`)}
-              className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
-            >
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-                    <span className="text-[10px] font-bold text-white leading-none">
-                      {studentInitials(s.name)}
+          {linkedStudentData.map((s) => {
+            const name = `${s.first_name} ${s.last_name}`.trim();
+            return (
+              <tr
+                key={s.id}
+                onClick={() => router.push(`/students/${s.id}`)}
+                className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
+              >
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-bold text-white leading-none">
+                        {studentInitials(name)}
+                      </span>
                     </span>
-                  </span>
-                  <div>
-                    <p className="font-semibold text-slate-800 leading-tight">{s.name}</p>
-                    <p className="text-[11px] text-slate-400 leading-none mt-0.5">{s.id}</p>
+                    <p className="font-semibold text-slate-800 leading-tight">{name}</p>
                   </div>
-                </div>
-              </td>
-              <td className="px-4 py-3 text-slate-600">{s.yearGroup}</td>
-              <td className="px-4 py-3 text-slate-600">{s.department}</td>
-              <td className="px-4 py-3">
-                <span className={cn(
-                  "px-2 py-0.5 rounded-full text-xs font-semibold",
-                  s.status === "Active"    ? "bg-emerald-100 text-emerald-700" :
-                  s.status === "Withdrawn" ? "bg-red-100 text-red-700"         :
-                                             "bg-slate-200 text-slate-600",
-                )}>
-                  {s.status}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-slate-600">87%</td>
-              <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">AED 0</td>
-              <td className="px-4 py-3 text-right">
-                <ChevronRight className="w-4 h-4 text-slate-300 inline-block" />
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-4 py-3 text-slate-600">{s.year_group ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-600">{s.departments?.name ?? "—"}</td>
+                <td className="px-4 py-3">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-xs font-semibold",
+                    s.status === "Active"    ? "bg-emerald-100 text-emerald-700" :
+                    s.status === "Withdrawn" ? "bg-red-100 text-red-700"         :
+                                               "bg-slate-200 text-slate-600",
+                  )}>
+                    {s.status ?? "—"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <ChevronRight className="w-4 h-4 text-slate-300 inline-block" />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1666,11 +1674,57 @@ export default function GuardianProfilePage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [toast, setToast] = useState<{ msg: string; tone: "default" | "warning" } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [linkedStudentData, setLinkedStudentData] = useState<ApiLinkedStudent[]>([]);
 
   useEffect(() => {
     setProfile(baseDetail.profile);
     setActiveTab("overview");
   }, [baseDetail]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/guardians/${id}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(({ data }) => {
+        const linked = (data.students ?? []) as ApiLinkedStudent[];
+        setLinkedStudentData(linked);
+        setProfile({
+          id: data.id,
+          firstName: data.first_name ?? "",
+          lastName: data.last_name ?? "",
+          relationship: "Mother",
+          phone: data.phone ?? "",
+          whatsappSame: Boolean(data.phone) && data.phone === data.whatsapp_number,
+          whatsapp: data.whatsapp_number ?? "",
+          email: data.email ?? "",
+          nationality: data.nationality ?? "",
+          homeArea: data.home_area ?? "",
+          preferredChannel: (data.preferred_channel as Channel) ?? "WhatsApp",
+          dnc: Boolean(data.is_dnc),
+          dncReason: data.dnc_reason ?? "",
+          unsubscribed: Boolean(data.is_unsubscribed),
+          mediaOptOut: false,
+          linkedStudents: linked.map((s) => ({ id: s.id, relationship: "Mother" as Relationship })),
+          coParentId: null,
+          referralCode: data.referral_code ?? `IMI-REF-${data.id.slice(0, 6).toUpperCase()}`,
+          totalReferrals: 0,
+          creditBalance: Number(data.credit_balance ?? 0),
+          outstandingBalance: 0,
+          totalPaid: 0,
+          lastContact: "—",
+          dateAdded: data.created_at
+            ? new Date(data.created_at).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : "—",
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
 
   function fireToast(msg: string, tone: "default" | "warning" = "default") {
     setToast({ msg, tone });
@@ -1678,6 +1732,34 @@ export default function GuardianProfilePage() {
   }
 
   if (!can("guardians.view")) return <AccessDenied />;
+
+  if (loading) {
+    return (
+      <div
+        className="-m-6 flex flex-col overflow-hidden animate-pulse"
+        style={{ height: "calc(100dvh - 56px)" }}
+      >
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 h-[116px]">
+          <div className="h-3 w-24 bg-slate-100 rounded mb-4" />
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-slate-100" />
+            <div className="space-y-2">
+              <div className="h-5 w-48 bg-slate-100 rounded" />
+              <div className="h-3 w-32 bg-slate-100 rounded" />
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-1 min-h-0">
+          <div className="w-[260px] shrink-0 border-r border-slate-200 bg-white p-4 space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-3 bg-slate-100 rounded w-3/4" />
+            ))}
+          </div>
+          <div className="flex-1 bg-[#F8FAFC]" />
+        </div>
+      </div>
+    );
+  }
 
   const detail: GuardianDetail = { ...baseDetail, profile };
 
@@ -1687,7 +1769,7 @@ export default function GuardianProfilePage() {
 
       <div className="flex flex-1 min-h-0">
         <aside className="w-[260px] shrink-0 border-r border-slate-200 overflow-y-auto bg-white">
-          <LeftSidebar profile={profile} onEdit={setEditSection} />
+          <LeftSidebar profile={profile} linkedStudentData={linkedStudentData} onEdit={setEditSection} />
         </aside>
 
         <div className="flex-1 flex flex-col min-h-0">
@@ -1695,7 +1777,7 @@ export default function GuardianProfilePage() {
 
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6">
             {activeTab === "overview"  && <OverviewTab  detail={detail} />}
-            {activeTab === "students"  && <StudentsTab  profile={profile} />}
+            {activeTab === "students"  && <StudentsTab  linkedStudentData={linkedStudentData} />}
             {activeTab === "invoices"  && <InvoicesTab  detail={detail} fireToast={fireToast} />}
             {activeTab === "messages"  && <MessagesTab  detail={detail} />}
             {activeTab === "concerns"  && <ConcernsTab  detail={detail} />}
@@ -1724,6 +1806,7 @@ export default function GuardianProfilePage() {
         onOpenChange={(o) => !o && setEditSection(null)}
         profile={profile}
         setProfile={setProfile}
+        studentCache={linkedStudentData}
         fireToast={fireToast}
       />
       <EditCoParentDialog

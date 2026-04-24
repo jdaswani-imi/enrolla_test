@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { guardians as seedGuardians, AVATAR_PALETTES, getAvatarPalette, getInitials, type Guardian } from "@/lib/mock-data";
+import { getAvatarPalette, getInitials, type Guardian } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
@@ -35,6 +35,48 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+
+// ─── API types & mapper ───────────────────────────────────────────────────────
+
+interface ApiGuardian {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  preferred_channel: string | null;
+  created_at: string;
+  students: Array<{ id: string; first_name: string; last_name: string }>;
+}
+
+function mapChannel(ch: string | null): Guardian["communicationPreference"] {
+  switch (ch?.toLowerCase()) {
+    case "whatsapp": return "whatsapp";
+    case "email":    return "email";
+    case "both":     return "both";
+    default:         return "none";
+  }
+}
+
+function toGuardian(raw: ApiGuardian): Guardian {
+  const linked = raw.students ?? [];
+  return {
+    id: raw.id,
+    name: `${raw.first_name} ${raw.last_name}`.trim(),
+    email: raw.email ?? "",
+    phone: raw.phone ?? "",
+    students: linked.map((s) => ({
+      id: s.id,
+      name: `${s.first_name} ${s.last_name}`.trim(),
+      initials: `${s.first_name[0] ?? ""}${s.last_name[0] ?? ""}`.toUpperCase(),
+    })),
+    status: "active",
+    linkedStudents: linked.map((s) => s.id),
+    communicationPreference: mapChannel(raw.preferred_channel),
+    createdOn: raw.created_at,
+    department: "mixed",
+  };
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -314,6 +356,8 @@ export default function GuardiansPage() {
   const { can } = usePermission();
   const router = useRouter();
 
+  const [guardians,        setGuardians]        = useState<Guardian[]>([]);
+  const [isLoading,        setIsLoading]        = useState(true);
   const [exportOpen,       setExportOpen]       = useState(false);
   const [searchQuery,      setSearchQuery]      = useState("");
   const [searchExpanded,   setSearchExpanded]   = useState(false);
@@ -327,6 +371,18 @@ export default function GuardiansPage() {
   const [archiveTarget,    setArchiveTarget]    = useState<Guardian | null>(null);
   const [deleteTarget,     setDeleteTarget]     = useState<Guardian | null>(null);
   const [addStudentTarget, setAddStudentTarget] = useState<Guardian | null>(null);
+
+  const fetchGuardians = useCallback(async () => {
+    try {
+      const res = await fetch("/api/guardians");
+      const { data } = await res.json();
+      setGuardians((data as ApiGuardian[]).map(toGuardian));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchGuardians(); }, [fetchGuardians]);
 
   // Filters
   const [statusFilter,          setStatusFilter]          = useState<string[]>([]);
@@ -382,8 +438,8 @@ export default function GuardiansPage() {
   }
 
   const visibleGuardians = useMemo(
-    () => seedGuardians.filter((g) => !removedIds.has(g.id)),
-    [removedIds],
+    () => guardians.filter((g) => !removedIds.has(g.id)),
+    [guardians, removedIds],
   );
 
   const filtered = useMemo(() => {
@@ -678,7 +734,12 @@ export default function GuardiansPage() {
 
       {/* ── Table ────────────────────────────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20 text-sm text-slate-400">
+            Loading guardians…
+          </div>
+        ) : null}
+        <div className={isLoading ? "hidden" : "overflow-x-auto"}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
