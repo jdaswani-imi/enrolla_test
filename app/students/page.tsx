@@ -616,6 +616,9 @@ export default function StudentsPage() {
         existingStudents={students}
         onCreated={async (data: NewStudentData) => {
           const fullName = `${data.firstName} ${data.lastName}`.trim();
+          const pg = data.primaryGuardian;
+          const phone = pg ? `${pg.dialCode} ${pg.phone}`.trim() : null;
+          const whatsapp = pg?.isWhatsApp ? phone : (pg?.whatsAppNumber ? `${pg.whatsAppDialCode ?? pg.dialCode} ${pg.whatsAppNumber}`.trim() : null);
           try {
             const res = await fetch("/api/students", {
               method: "POST",
@@ -623,10 +626,25 @@ export default function StudentsPage() {
               body: JSON.stringify({
                 first_name: data.firstName,
                 last_name: data.lastName,
+                date_of_birth: data.dob || null,
+                gender: data.gender || null,
+                nationality: data.nationality || null,
                 year_group: data.yearGroup,
                 school_other: data.school,
                 status: "Active",
                 enrolled_at: new Date().toISOString().slice(0, 10),
+                ...(pg ? {
+                  primaryGuardian: {
+                    first_name: pg.firstName,
+                    last_name: pg.lastName,
+                    email: pg.email || null,
+                    phone,
+                    whatsapp_number: whatsapp,
+                    preferred_channel: pg.preferredChannel,
+                    home_area: pg.homeArea || null,
+                    nationality: pg.nationality || null,
+                  },
+                } : {}),
               }),
             });
             if (!res.ok) throw new Error();

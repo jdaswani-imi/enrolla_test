@@ -95,6 +95,7 @@ interface StudentProfile {
   attendanceThisTerm: string;
   sessionsRemaining: string;
   primaryGuardianId: string;
+  primaryGuardianName: string;
   primaryGuardianRelationship: Relationship;
   secondaryGuardianId: string | null;
   secondaryGuardianRelationship: Relationship;
@@ -121,6 +122,7 @@ const INITIAL_PROFILE: StudentProfile = {
   attendanceThisTerm: "—",
   sessionsRemaining: "—",
   primaryGuardianId: "",
+  primaryGuardianName: "",
   primaryGuardianRelationship: "Mother",
   secondaryGuardianId: null,
   secondaryGuardianRelationship: "Father",
@@ -1798,14 +1800,18 @@ function LeftSidebar({
   onTabChange,
   onEdit,
   sourceLeadId,
+  isApiStudent,
 }: {
   profile: StudentProfile;
   onTabChange: (tab: string) => void;
   onEdit: (section: EditSection) => void;
   sourceLeadId?: string;
+  isApiStudent: boolean;
 }) {
   const { can } = usePermission();
-  const primaryGuardian = guardians.find((g) => g.id === profile.primaryGuardianId);
+  const primaryGuardian = profile.primaryGuardianName
+    ? { id: profile.primaryGuardianId, name: profile.primaryGuardianName }
+    : guardians.find((g) => g.id === profile.primaryGuardianId);
   const secondaryGuardian = guardians.find((g) => g.id === profile.secondaryGuardianId);
   const department = yearGroupToDepartment(profile.yearGroup);
   const targetGradeText = profile.targetGrades
@@ -1821,10 +1827,10 @@ function LeftSidebar({
         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Quick Stats</p>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Attendance This Term", value: "87%"  },
-            { label: "Sessions Remaining",   value: "34"   },
+            { label: "Attendance This Term", value: isApiStudent ? (profile.attendanceThisTerm || "—") : "87%"  },
+            { label: "Sessions Remaining",   value: isApiStudent ? (profile.sessionsRemaining || "—") : "34"   },
             { label: "Credit Balance",        value: "AED 0" },
-            { label: "Open Tasks",            value: "2"    },
+            { label: "Open Tasks",            value: isApiStudent ? "0" : "2"    },
           ].map(({ label, value }) => (
             <div key={label} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
               <p className="text-[10px] text-slate-500 leading-tight">{label}</p>
@@ -1835,35 +1841,37 @@ function LeftSidebar({
       </section>
 
       {/* Active Flags */}
-      <section>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Active Flags</p>
-        <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={() => onTabChange("invoices")}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-          >
-            <AlertCircle className="w-3 h-3 shrink-0" />
-            1 Overdue Invoice
-          </button>
-          <button
-            type="button"
-            onClick={() => onTabChange("concerns")}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
-          >
-            <AlertTriangle className="w-3 h-3 shrink-0" />
-            L1 Concern Active
-          </button>
-          <button
-            type="button"
-            onClick={() => onTabChange("attendance")}
-            className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
-          >
-            <Clock className="w-3 h-3 shrink-0" />
-            Makeup Expiring
-          </button>
-        </div>
-      </section>
+      {!isApiStudent && (
+        <section>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Active Flags</p>
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => onTabChange("invoices")}
+              className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+            >
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              1 Overdue Invoice
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange("concerns")}
+              className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+            >
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              L1 Concern Active
+            </button>
+            <button
+              type="button"
+              onClick={() => onTabChange("attendance")}
+              className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+            >
+              <Clock className="w-3 h-3 shrink-0" />
+              Makeup Expiring
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="border-t border-slate-100" />
 
@@ -1928,7 +1936,7 @@ function LeftSidebar({
             </p>
             {primaryGuardian ? (
               <Link
-                href="/students"
+                href={`/guardians/${primaryGuardian.id}`}
                 className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
               >
                 {primaryGuardian.name} →
@@ -1943,7 +1951,7 @@ function LeftSidebar({
             </p>
             {secondaryGuardian ? (
               <Link
-                href="/students"
+                href={`/guardians/${secondaryGuardian.id}`}
                 className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
               >
                 {secondaryGuardian.name} →
@@ -1986,35 +1994,39 @@ function LeftSidebar({
           </div>
           <div>
             <dt className="text-[10px] text-slate-400">Referrals made</dt>
-            <dd className="text-xs text-slate-700 font-medium mt-0.5">1</dd>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{isApiStudent ? "0" : "1"}</dd>
           </div>
-          <div>
-            <dt className="text-[10px] text-slate-400">Tier</dt>
-            <dd className="mt-0.5">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 text-slate-600">
-                Silver
-              </span>
-            </dd>
-          </div>
+          {!isApiStudent && (
+            <div>
+              <dt className="text-[10px] text-slate-400">Tier</dt>
+              <dd className="mt-0.5">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 text-slate-600">
+                  Silver
+                </span>
+              </dd>
+            </div>
+          )}
         </dl>
       </section>
 
       <div className="border-t border-slate-100" />
 
       {/* Batches */}
-      <section>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Batches</p>
-        <div className="flex flex-wrap gap-1.5">
-          {["Y8 Maths Mon/Wed", "Y8 English Tue/Thu", "Y8 Science Fri"].map((batch) => (
-            <span
-              key={batch}
-              className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200"
-            >
-              {batch}
-            </span>
-          ))}
-        </div>
-      </section>
+      {!isApiStudent && (
+        <section>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Batches</p>
+          <div className="flex flex-wrap gap-1.5">
+            {["Y8 Maths Mon/Wed", "Y8 English Tue/Thu", "Y8 Science Fri"].map((batch) => (
+              <span
+                key={batch}
+                className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200"
+              >
+                {batch}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       {sourceLeadId && (
         <>
@@ -2102,79 +2114,83 @@ const ACTIVITY_ICON: Record<string, { Icon: React.ElementType; color: string; bg
   message:    { Icon: MessageSquare, color: "text-blue-600",  bg: "bg-blue-50"    },
 };
 
-function OverviewTab({ onTabChange }: { onTabChange: (tab: string) => void }) {
+function OverviewTab({ onTabChange, isApiStudent }: { onTabChange: (tab: string) => void; isApiStudent: boolean }) {
   const [churnModalOpen, setChurnModalOpen] = useState(false);
-  const churnStudent = churnRiskStudents.find((s) => s.studentId === STUDENT_ID) ?? null;
+  const churnStudent = isApiStudent ? null : (churnRiskStudents.find((s) => s.studentId === STUDENT_ID) ?? null);
 
   return (
     <div className="space-y-5">
-      {/* Flags Strip */}
-      <div className="flex gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => onTabChange("invoices")}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-        >
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          1 Overdue Invoice — AED 3,200
-        </button>
-        <button
-          type="button"
-          onClick={() => onTabChange("concerns")}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
-        >
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          L1 Concern — Y8 Maths
-        </button>
-        <button
-          type="button"
-          onClick={() => onTabChange("attendance")}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
-        >
-          <Clock className="w-3.5 h-3.5 shrink-0" />
-          1 Makeup Expiring in 5 days
-        </button>
-      </div>
+      {/* Flags Strip — only for demo/journey students */}
+      {!isApiStudent && (
+        <div className="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onTabChange("invoices")}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+          >
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            1 Overdue Invoice — AED 3,200
+          </button>
+          <button
+            type="button"
+            onClick={() => onTabChange("concerns")}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            L1 Concern — Y8 Maths
+          </button>
+          <button
+            type="button"
+            onClick={() => onTabChange("attendance")}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            1 Makeup Expiring in 5 days
+          </button>
+        </div>
+      )}
 
       {/* Churn + Retention Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button
-          type="button"
-          onClick={() => churnStudent && setChurnModalOpen(true)}
-          className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Churn Risk</p>
-          <div className="flex items-end gap-3">
-            <span className="text-4xl font-black text-red-500 group-hover:text-red-600 transition-colors">
-              {churnStudent?.churnScore ?? 84}
-            </span>
-            <div className="mb-1">
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                {churnStudent?.churnLevel ?? "Critical"}
+      {!isApiStudent && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => churnStudent && setChurnModalOpen(true)}
+            className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
+          >
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Churn Risk</p>
+            <div className="flex items-end gap-3">
+              <span className="text-4xl font-black text-red-500 group-hover:text-red-600 transition-colors">
+                {churnStudent?.churnScore ?? 84}
               </span>
-              <p className="text-xs text-slate-500 mt-1">{churnStudent?.topSignal ?? "Missed 3+ sessions"}</p>
+              <div className="mb-1">
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                  {churnStudent?.churnLevel ?? "Critical"}
+                </span>
+                <p className="text-xs text-slate-500 mt-1">{churnStudent?.topSignal ?? "Missed 3+ sessions"}</p>
+              </div>
             </div>
-          </div>
-          <p className="text-[10px] text-amber-600 font-medium mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to see full breakdown →</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => churnStudent && setChurnModalOpen(true)}
-          className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
-        >
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Retention Confidence</p>
-          <div className="flex items-end gap-3">
-            <span className="text-4xl font-black text-red-500 group-hover:text-red-600 transition-colors">
-              {churnStudent?.retentionConfidence ?? 32}
-            </span>
-            <div className="mb-1">
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">Low</span>
-              <p className="text-xs text-slate-500 mt-1">No re-enrolment confirmed</p>
+            <p className="text-[10px] text-amber-600 font-medium mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to see full breakdown →</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => churnStudent && setChurnModalOpen(true)}
+            className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group"
+          >
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Retention Confidence</p>
+            <div className="flex items-end gap-3">
+              <span className="text-4xl font-black text-red-500 group-hover:text-red-600 transition-colors">
+                {churnStudent?.retentionConfidence ?? 32}
+              </span>
+              <div className="mb-1">
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">Low</span>
+                <p className="text-xs text-slate-500 mt-1">No re-enrolment confirmed</p>
+              </div>
             </div>
-          </div>
-          <p className="text-[10px] text-amber-600 font-medium mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to see full breakdown →</p>
-        </button>
-      </div>
+            <p className="text-[10px] text-amber-600 font-medium mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to see full breakdown →</p>
+          </button>
+        </div>
+      )}
 
       <ChurnDetailModal
         student={churnStudent}
@@ -2185,6 +2201,9 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: string) => void }) {
       {/* Enrolment Cards */}
       <div>
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Active Enrolments</p>
+        {isApiStudent ? (
+          <p className="text-sm text-slate-500 italic">No enrolments yet. Use &quot;Add Enrolment&quot; to enrol this student in a course.</p>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {studentDetail.enrolments.map((enr) => {
             const cls = ENROLMENT_COLOR_CLASSES[enr.color];
@@ -2220,50 +2239,59 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: string) => void }) {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Upcoming Sessions */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">Upcoming Sessions</p>
-        <div className="space-y-2">
-          {studentDetail.upcomingSessions.map((s, i) => {
-            const subjectColor = SUBJECT_COLOR[s.subject];
-            return (
-              <div key={i} className="flex items-center gap-3 py-1.5">
-                <div className={cn("w-2 h-2 rounded-full shrink-0", subjectColor?.dot ?? "bg-slate-300")} />
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="text-sm font-semibold text-slate-700 shrink-0">{s.date}</span>
-                  <span className="text-sm text-slate-500 shrink-0">{s.time}</span>
-                  <span className="text-sm text-slate-800 font-medium shrink-0">{s.subject}</span>
-                  <span className="text-xs text-slate-400 truncate">{s.teacher}</span>
+        {isApiStudent ? (
+          <p className="text-sm text-slate-500 italic">No upcoming sessions scheduled.</p>
+        ) : (
+          <div className="space-y-2">
+            {studentDetail.upcomingSessions.map((s, i) => {
+              const subjectColor = SUBJECT_COLOR[s.subject];
+              return (
+                <div key={i} className="flex items-center gap-3 py-1.5">
+                  <div className={cn("w-2 h-2 rounded-full shrink-0", subjectColor?.dot ?? "bg-slate-300")} />
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-sm font-semibold text-slate-700 shrink-0">{s.date}</span>
+                    <span className="text-sm text-slate-500 shrink-0">{s.time}</span>
+                    <span className="text-sm text-slate-800 font-medium shrink-0">{s.subject}</span>
+                    <span className="text-xs text-slate-400 truncate">{s.teacher}</span>
+                  </div>
+                  <span className="text-xs text-slate-400 shrink-0">{s.room}</span>
                 </div>
-                <span className="text-xs text-slate-400 shrink-0">{s.room}</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Activity Timeline */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">Recent Activity</p>
-        <div className="space-y-3">
-          {studentDetail.activityTimeline.map((event, i) => {
-            const meta = ACTIVITY_ICON[event.type] ?? { Icon: AlertCircle, color: "text-slate-500", bg: "bg-slate-50" };
-            const { Icon, color, bg } = meta;
-            return (
-              <div key={i} className="flex items-start gap-3">
-                <div className={cn("w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", bg)}>
-                  <Icon className={cn("w-3.5 h-3.5", color)} />
+        {isApiStudent ? (
+          <p className="text-sm text-slate-500 italic">No activity recorded yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {studentDetail.activityTimeline.map((event, i) => {
+              const meta = ACTIVITY_ICON[event.type] ?? { Icon: AlertCircle, color: "text-slate-500", bg: "bg-slate-50" };
+              const { Icon, color, bg } = meta;
+              return (
+                <div key={i} className="flex items-start gap-3">
+                  <div className={cn("w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5", bg)}>
+                    <Icon className={cn("w-3.5 h-3.5", color)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-700 leading-snug">{event.description}</p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 shrink-0 mt-0.5 whitespace-nowrap">{event.timeAgo}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 leading-snug">{event.description}</p>
-                </div>
-                <span className="text-[11px] text-slate-400 shrink-0 mt-0.5 whitespace-nowrap">{event.timeAgo}</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3554,6 +3582,9 @@ function StudentProfilePageContent() {
           enrolledCoursesCount:
             (data.enrolments as { status: string }[])?.filter((e) => e.status === "Active").length ?? 0,
           primaryGuardianId: data.primary_guardian_id ?? "",
+          primaryGuardianName: data.guardians
+            ? `${data.guardians.first_name ?? ""} ${data.guardians.last_name ?? ""}`.trim()
+            : "",
         }));
       })
       .catch(() => {});
@@ -3561,7 +3592,8 @@ function StudentProfilePageContent() {
   const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [journeyEnrolmentOpen, setJourneyEnrolmentOpen] = useState(false);
   const [journeyPaymentOpen, setJourneyPaymentOpen] = useState(false);
-  const [invoicesState, setInvoicesState] = useState<StudentInvoice[]>(() => studentDetail.invoices);
+  const isApiStudent = routeId !== BILAL_STUDENT_ID;
+  const [invoicesState, setInvoicesState] = useState<StudentInvoice[]>(() => isApiStudent ? [] : studentDetail.invoices);
 
   function handlePaymentRecorded(invoiceId: string, _paidAmount: number, fullyPaid: boolean) {
     setInvoicesState((list) =>
@@ -3653,6 +3685,7 @@ function StudentProfilePageContent() {
             profile={profile}
             onTabChange={handleTabChange}
             onEdit={setEditSection}
+            isApiStudent={isApiStudent}
           />
         </aside>
 
@@ -3664,7 +3697,7 @@ function StudentProfilePageContent() {
 
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-6">
-            {activeTab === "overview"    && <OverviewTab    onTabChange={handleTabChange} />}
+            {activeTab === "overview"    && <OverviewTab    onTabChange={handleTabChange} isApiStudent={isApiStudent} />}
             {activeTab === "calendar"    && <CalendarTab    canExport={canExport} fireToast={fireToast} />}
             {activeTab === "attendance"  && <AttendanceTab  canExport={canExport} />}
             {activeTab === "invoices"    && <InvoicesTab    canExport={canExport} fireToast={fireToast} invoices={invoicesState} onPaymentRecorded={handlePaymentRecorded} studentId={routeId || STUDENT_ID} />}
