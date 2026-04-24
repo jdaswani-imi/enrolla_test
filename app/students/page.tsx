@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -36,44 +36,98 @@ import {
   type StudentDepartment,
 } from "@/components/enrolment/new-enrolment-dialog";
 import {
-  students as studentsStore,
   studentDetail,
   tasks as tasksStore,
   staffMembers,
   currentUser,
-  AVATAR_PALETTES,
   getAvatarPalette,
   getInitials,
-  type Student,
   type Task,
   type TaskPriority,
   type TaskType,
 } from "@/lib/mock-data";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni";
+
+export interface Student {
+  id: string;
+  ref: string;
+  name: string;
+  yearGroup: string;
+  department: string;
+  school: string;
+  guardian: string;
+  guardianPhone: string;
+  guardianEmail: string;
+  enrolments: number;
+  churnScore: number | null;
+  status: StudentStatus;
+  lastContact: string;
+  createdOn: string;
+}
+
+interface ApiStudent {
+  id: string;
+  student_ref: string;
+  first_name: string;
+  last_name: string;
+  year_group: string | null;
+  status: string;
+  churn_score: number | null;
+  created_at: string;
+  departments: { id: string; name: string; colour: string } | null;
+  guardians: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    phone: string | null;
+    email: string | null;
+    whatsapp_number: string | null;
+    is_dnc: boolean;
+    is_unsubscribed: boolean;
+  } | null;
+  enrolments: Array<{
+    id: string;
+    status: string;
+    enrolled_at: string;
+    withdrawn_at: string | null;
+    frequency_tier: string | null;
+    sessions_per_week: number;
+    courses: { id: string; name: string; rate_per_session: number; subjects: { id: string; name: string } | null } | null;
+  }>;
+}
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function toStudent(raw: ApiStudent): Student {
+  const name = `${raw.first_name} ${raw.last_name}`.trim();
+  const g = raw.guardians;
+  const d = new Date(raw.created_at);
+  return {
+    id: raw.id,
+    ref: raw.student_ref,
+    name,
+    yearGroup: raw.year_group ?? "",
+    department: raw.departments?.name ?? "",
+    school: "",
+    guardian: g ? `${g.first_name} ${g.last_name}`.trim() : "",
+    guardianPhone: g?.phone ?? "",
+    guardianEmail: g?.email ?? "",
+    enrolments: raw.enrolments?.filter(e => e.status === "Active").length ?? 0,
+    churnScore: raw.churn_score,
+    status: raw.status as StudentStatus,
+    lastContact: "—",
+    createdOn: `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
+  };
+}
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { useSavedSegments } from "@/hooks/use-saved-segments";
 import { DateRangePicker, type DateRange, type PresetItem } from "@/components/ui/date-range-picker";
-
-function getNextStudentId(): string {
-  const max = studentsStore.reduce((acc, s) => {
-    const n = parseInt(s.id.replace(/[^0-9]/g, ""), 10);
-    return Number.isFinite(n) ? Math.max(acc, n) : acc;
-  }, 0);
-  return `IMI-${String(max + 1).padStart(4, "0")}`;
-}
-
-function formatCreatedOn(d: Date): string {
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-function getGuardianEmail(guardianName: string): string {
-  const parts = guardianName.trim().toLowerCase().split(/\s+/);
-  if (parts.length >= 2) return `${parts[0]}.${parts[parts.length - 1]}@gmail.com`;
-  return `${parts[0]}@gmail.com`;
-}
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -358,19 +412,31 @@ export default function StudentsPage() {
   const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
-  const [studentsVersion, setStudentsVersion] = useState(0);
+  const [students, setStudents] = useState<Student[]>([]);
+
+  const fetchStudents = useCallback(async () => {
+    try {
+      const res = await fetch("/api/students");
+      if (!res.ok) throw new Error();
+      const { data } = await res.json();
+      setStudents((data as ApiStudent[]).map(toStudent));
+    } catch {
+      toast.error("Failed to load students");
+    }
+  }, []);
+
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   const studentStats = useMemo(() => {
-    const total = studentsStore.length;
-    const active = studentsStore.filter((s) => s.status === "Active").length;
-    const withdrawn = studentsStore.filter((s) => s.status === "Withdrawn").length;
+    const total = students.length;
+    const active = students.filter((s) => s.status === "Active").length;
+    const withdrawn = students.filter((s) => s.status === "Withdrawn").length;
     return [
       { label: "Total Students", value: total, icon: Users, iconColor: "text-slate-500", sub: "All time", trend: null, trendUp: false },
       { label: "Active Students", value: active, icon: UserCheck, iconColor: "text-green-500", sub: total > 0 ? `${Math.round((active / total) * 100)}% of total` : "—", trend: null, trendUp: false },
       { label: "Withdrawn", value: withdrawn, icon: UserX, iconColor: "text-amber-500", sub: total > 0 ? `${Math.round((withdrawn / total) * 100)}% of total` : "—", trend: null, trendUp: false },
     ];
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentsVersion]);
+  }, [students]);
 
   // Filters
   const [statusFilter,     setStatusFilter]     = useState<string[]>([]);
@@ -442,7 +508,7 @@ export default function StudentsPage() {
   }
 
   const filtered = useMemo(() => {
-    let data = studentsStore.filter((s) => {
+    let data = students.filter((s) => {
       if (statusFilter.length > 0 && !statusFilter.includes(s.status)) return false;
       if (yearFilter.length > 0 && !yearFilter.includes(s.yearGroup)) return false;
       if (deptFilter.length > 0 && !deptFilter.includes(s.department)) return false;
@@ -452,7 +518,7 @@ export default function StudentsPage() {
         const q = searchQuery.toLowerCase();
         if (
           !s.name.toLowerCase().includes(q) &&
-          !s.id.toLowerCase().includes(q) &&
+          !s.ref.toLowerCase().includes(q) &&
           !s.guardian.toLowerCase().includes(q) &&
           !s.school.toLowerCase().includes(q)
         ) return false;
@@ -472,7 +538,7 @@ export default function StudentsPage() {
     }
 
     return data;
-  }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, dateFilter, searchQuery, sortField, sortDir, studentsVersion]);
+  }, [statusFilter, yearFilter, deptFilter, enrolmentsFilter, dateFilter, searchQuery, sortField, sortDir, students]);
 
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -547,31 +613,29 @@ export default function StudentsPage() {
       <AddStudentDialog
         open={addStudentOpen}
         onOpenChange={setAddStudentOpen}
-        existingStudents={studentsStore}
-        onCreated={(data: NewStudentData) => {
+        existingStudents={students}
+        onCreated={async (data: NewStudentData) => {
           const fullName = `${data.firstName} ${data.lastName}`.trim();
-          const guardianName = data.primaryGuardian
-            ? `${data.primaryGuardian.firstName} ${data.primaryGuardian.lastName}`.trim()
-            : "";
-          const newStudent: Student = {
-            id: getNextStudentId(),
-            name: fullName,
-            yearGroup: data.yearGroup,
-            department: data.department,
-            school: data.school,
-            guardian: guardianName,
-            guardianPhone: data.primaryGuardian
-              ? `${data.primaryGuardian.dialCode || "+971"} ${data.primaryGuardian.phone}`.trim()
-              : "",
-            enrolments: 0,
-            churnScore: null,
-            status: "Active",
-            lastContact: "Today",
-            createdOn: formatCreatedOn(new Date()),
-          };
-          studentsStore.unshift(newStudent);
-          setStudentsVersion((v) => v + 1);
-          toast.success(`${fullName} added`, { description: `Student ID ${newStudent.id}` });
+          try {
+            const res = await fetch("/api/students", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                first_name: data.firstName,
+                last_name: data.lastName,
+                year_group: data.yearGroup,
+                school_other: data.school,
+                status: "Active",
+                enrolled_at: new Date().toISOString().slice(0, 10),
+              }),
+            });
+            if (!res.ok) throw new Error();
+            const { data: s } = await res.json();
+            toast.success(`${fullName} added`, { description: `Student ID ${s.student_ref}` });
+            await fetchStudents();
+          } catch {
+            toast.error("Failed to add student");
+          }
         }}
       />
 
@@ -579,7 +643,7 @@ export default function StudentsPage() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Export Students"
-        recordCount={studentsStore.length}
+        recordCount={students.length}
         formats={[
           { id: 'csv-summary', label: 'Student Summary', description: 'One row per student. Name, year, subjects, status, guardian contact.', icon: 'rows', recommended: true },
           { id: 'csv-full', label: 'Full Export', description: 'All fields including enrolment history and notes.', icon: 'items' },
@@ -829,7 +893,7 @@ export default function StudentsPage() {
                               {student.name}
                             </p>
                             <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
-                              {student.id}
+                              {student.ref}
                             </p>
                           </div>
                         </div>
@@ -865,10 +929,10 @@ export default function StudentsPage() {
                         )}
                       </td>
 
-                      {/* Email (derived from guardian name) */}
+                      {/* Email */}
                       <td className="px-3 py-0 max-w-[180px]">
                         <span className="text-slate-500 text-sm truncate block">
-                          {getGuardianEmail(student.guardian)}
+                          {student.guardianEmail || "—"}
                         </span>
                       </td>
 
@@ -945,7 +1009,7 @@ export default function StudentsPage() {
       <WithdrawStudentDialog
         student={withdrawStudent}
         onClose={() => setWithdrawStudent(null)}
-        onConfirmed={() => setStudentsVersion((v) => v + 1)}
+        onConfirmed={fetchStudents}
       />
     </div>
   );
@@ -1254,14 +1318,22 @@ function WithdrawStudentDialog({
     if (student) { setReason(""); setError(false); }
   }, [student]);
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!student) return;
     if (!reason.trim()) { setError(true); return; }
-    const target = studentsStore.find((s) => s.id === student.id);
-    if (target) target.status = "Withdrawn";
-    toast.success(`${student.name} has been withdrawn`);
-    onConfirmed();
-    onClose();
+    try {
+      const res = await fetch(`/api/students/${student.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Withdrawn" }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`${student.name} has been withdrawn`);
+      onConfirmed();
+      onClose();
+    } catch {
+      toast.error("Failed to withdraw student");
+    }
   }
 
   return (
