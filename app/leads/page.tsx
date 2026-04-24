@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { currentUser, leads as leadsData, tasks as taskStore, students as studentsStore, AVATAR_PALETTES, getAvatarPalette, getInitials, LEAD_STAGES, type Lead, type LeadStage, type LeadSource, type PreferredWindow, type Task, type Student } from "@/lib/mock-data";
+import { currentUser, tasks as taskStore, students as studentsStore, AVATAR_PALETTES, getAvatarPalette, getInitials, LEAD_STAGES, type Lead, type LeadStage, type LeadSource, type PreferredWindow, type Task, type Student } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -70,6 +70,77 @@ import { SkipWarningDialog, shouldWarnSkip } from "@/components/journey/skip-war
 import { TrialSkipPromptDialog } from "@/components/journey/trial-skip-prompt-dialog";
 import { NeedsMoreTimeDialog } from "@/components/journey/needs-more-time-dialog";
 import { SkipAssessmentDialog } from "@/components/journey/skip-assessment-dialog";
+
+// ─── API adapter ─────────────────────────────────────────────────────────────
+
+type ApiLead = {
+  id: string
+  lead_ref: string
+  child_first_name: string
+  child_last_name: string
+  child_year_group: string | null
+  subject_interest: string[] | null
+  source: string | null
+  stage: LeadStage
+  is_dnc: boolean
+  sibling_student_id: string | null
+  terminal_reason: string | null
+  terminal_notes: string | null
+  terminal_status: string | null
+  re_engage: boolean
+  re_engage_after: string | null
+  converted_student_id: string | null
+  created_at: string
+  updated_at: string
+  last_activity_at: string | null
+  guardians: { id: string; first_name: string; last_name: string; phone: string | null; whatsapp_number: string | null } | null
+}
+
+function _daysBetween(from: string, to: string) {
+  return Math.floor((new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function _fmtActivity(ts: string | null): string {
+  if (!ts) return "—"
+  const d = _daysBetween(ts, new Date().toISOString())
+  if (d <= 0) return "Today"
+  if (d === 1) return "Yesterday"
+  return `${d} days ago`
+}
+
+function toLead(r: ApiLead): Lead {
+  const g = r.guardians
+  let status: Lead['status'] = 'active'
+  if (r.terminal_status === 'lost') status = 'lost'
+  else if (r.terminal_status === 'archived') status = 'archived'
+  else if (r.converted_student_id) status = 'converted'
+  return {
+    id: r.id,
+    ref: r.lead_ref,
+    childName: `${r.child_first_name} ${r.child_last_name}`,
+    yearGroup: r.child_year_group ?? '',
+    department: '',
+    subjects: r.subject_interest ?? [],
+    guardian: g ? `${g.first_name} ${g.last_name}` : '',
+    guardianPhone: g?.phone ?? g?.whatsapp_number ?? '',
+    source: (r.source as LeadSource) ?? 'Website',
+    stage: r.stage,
+    assignedTo: '',
+    lastActivity: _fmtActivity(r.last_activity_at ?? r.updated_at),
+    daysInStage: 0,
+    daysInPipeline: _daysBetween(r.created_at, new Date().toISOString()),
+    dnc: r.is_dnc,
+    sibling: !!r.sibling_student_id,
+    stageMessagePending: false,
+    createdOn: r.created_at.slice(0, 10),
+    lostReason: r.terminal_reason ?? undefined,
+    lostNotes: r.terminal_notes ?? undefined,
+    reEngage: r.re_engage,
+    reEngageAfter: r.re_engage_after ?? undefined,
+    status,
+    convertedStudentId: r.converted_student_id ?? undefined,
+  }
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -2544,10 +2615,12 @@ function AddLeadDialog({
   open,
   onOpenChange,
   initialStage,
+  onSaved,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   initialStage: LeadStage | null;
+  onSaved?: () => void;
 }) {
   const [name, setName] = useState("");
   const [guardian, setGuardian] = useState("");
@@ -2558,6 +2631,7 @@ function AddLeadDialog({
   const [source, setSource] = useState<LeadSource | "">("");
   const [assigned, setAssigned] = useState("");
   const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -2574,6 +2648,37 @@ function AddLeadDialog({
   }, [open]);
 
   const canSave = name.trim() && guardian.trim() && phone.trim() && year && subjects.length > 0 && source;
+
+  async function handleSave() {
+    if (!canSave || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          childName: name.trim(),
+          guardianName: guardian.trim(),
+          phone: phone.trim(),
+          whatsapp,
+          yearGroup: year,
+          subjects,
+          source,
+          assignedTo: assigned,
+          notes: notes.trim(),
+          stage: initialStage ?? 'New',
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Lead added successfully");
+      onOpenChange(false);
+      onSaved?.();
+    } catch {
+      toast.error("Failed to add lead");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function toggleSubject(s: string) {
     setSubjects((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
@@ -2750,19 +2855,16 @@ function AddLeadDialog({
           </button>
           <button
             type="button"
-            disabled={!canSave}
-            onClick={() => {
-              toast.success("Lead added successfully");
-              onOpenChange(false);
-            }}
+            disabled={!canSave || saving}
+            onClick={handleSave}
             className={cn(
               "px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
-              canSave
+              canSave && !saving
                 ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
                 : "bg-slate-100 text-slate-400 cursor-not-allowed",
             )}
           >
-            Save Lead
+            {saving ? "Saving…" : "Save Lead"}
           </button>
         </DialogFooter>
       </DialogContent>
@@ -3064,6 +3166,19 @@ type ViewMode = "kanban" | "list" | "table";
 
 export default function LeadsPage() {
   const { can } = usePermission();
+
+  const [leadsData, setLeadsData] = useState<Lead[]>([]);
+  const fetchLeads = useCallback(async () => {
+    try {
+      const res = await fetch('/api/leads');
+      const { data } = await res.json();
+      setLeadsData((data as ApiLead[]).map(toLead));
+    } catch {
+      toast.error('Failed to load leads');
+    }
+  }, []);
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
   const [exportOpen, setExportOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) return "list";
@@ -3778,7 +3893,7 @@ export default function LeadsPage() {
       {/* ── Page Header ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-slate-500">
-          28 active leads · 6 stages with pending action
+          No active leads
         </p>
         <div className="flex items-center gap-2">
           {can('export') && (
@@ -4528,6 +4643,7 @@ export default function LeadsPage() {
         open={addLeadOpen}
         onOpenChange={setAddLeadOpen}
         initialStage={addLeadStage}
+        onSaved={fetchLeads}
       />
       <ArchiveConfirmDialog
         lead={archiveLead}

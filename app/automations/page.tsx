@@ -2993,9 +2993,9 @@ function RulesTab() {
       {/* Mini stat row */}
       <div className="flex gap-3 mb-4">
         {[
-          { label: 'Enabled',       value: 16, color: 'text-green-600 bg-green-50' },
-          { label: 'Disabled',      value: 5,  color: 'text-slate-600 bg-slate-100' },
-          { label: 'System-Locked', value: 8,  color: 'text-amber-600 bg-amber-50', icon: true },
+          { label: 'Enabled',       value: 0, color: 'text-green-600 bg-green-50' },
+          { label: 'Disabled',      value: 0, color: 'text-slate-600 bg-slate-100' },
+          { label: 'System-Locked', value: 0, color: 'text-amber-600 bg-amber-50', icon: true },
         ].map(s => (
           <div key={s.label} className={cn('flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white shadow-sm text-sm font-medium')}>
             {s.icon && <Lock className="w-3.5 h-3.5 text-amber-500" />}

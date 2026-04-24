@@ -62,7 +62,7 @@ The Profile Header is a full-width band that remains visible at all times. It es
 | Department badge | Pill badge displaying the department (Primary, Lower Secondary, Senior). Auto-assigned from year group; Admin+ can override. |
 | School name | Displays the school from the structured [[03_Student-M02_Student_Guardian_CRM|M02]] dropdown. Editable inline by Admin and above. |
 | Student ID | System-generated ID displayed beneath the name (e.g. IMI-0001). Read-only. Locked after first student record created. No branch code is ever included in the Student ID. |
-| Lifecycle status badge | Colour-coded badge: Active (green), Withdrawn (red), Graduated (blue), Alumni (grey). |
+| Lifecycle status badge | Colour-coded badge: Active (green), Withdrawn (red), Graduated (blue), Alumni (grey), Archived (amber). |
 
 ## 01.2.2 Quick Action Row
 
@@ -81,6 +81,8 @@ Quick Actions are context-sensitive. Available actions depend on the student's c
 | Send message | Always available (sends via the configured communication channel) |
 | Extend Validity | Student has an enrolment approaching term end with no confirmed re-enrolment |
 | Withdraw student | Student is Active (requires confirmation dialog) |
+| Archive student | Student is Withdrawn or Prospect with no active enrolments. Admin Head+ only. Requires confirmation dialog. |
+| Delete student | Student is Archived and has no financial, attendance, or enrolment records. Super Admin only. Requires confirmation dialog. |
 | Log contact note | Always available |
 | New task | Always available |
 

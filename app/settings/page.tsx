@@ -48,11 +48,7 @@ import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
 import {
   orgSettings,
-  departments as mockDepartments,
   timetableSessions,
-  academicYears as seedAcademicYears,
-  calendarPeriods as seedPeriods,
-  publicHolidays as seedHolidays,
   type Department as DeptData,
   type PeriodType,
   type AcademicYear,
@@ -550,6 +546,17 @@ function BranchesSection() {
   const [editing, setEditing] = useState<Branch | null>(null);
   const [archiving, setArchiving] = useState<Branch | null>(null);
 
+  useEffect(() => {
+    fetch('/api/settings/branches')
+      .then((r) => r.json())
+      .then((data) => setBranches(
+        (data ?? []).map((b: { id: string; name: string; address: string; phone: string }) => ({
+          id: b.id, name: b.name, address: b.address ?? '', phone: b.phone ?? '',
+        }))
+      ))
+      .catch(() => {});
+  }, []);
+
   function openAdd() {
     setEditing(null);
     setDialogOpen(true);
@@ -559,27 +566,46 @@ function BranchesSection() {
     setDialogOpen(true);
   }
 
-  function handleSave(data: { name: string; address: string; phone: string }) {
+  async function handleSave(data: { name: string; address: string; phone: string }) {
     if (editing) {
-      setBranches((prev) =>
-        prev.map((b) => (b.id === editing.id ? { ...b, ...data } : b))
-      );
-      toast.success("Branch updated");
+      const res = await fetch(`/api/settings/branches/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        setBranches((prev) => prev.map((b) => (b.id === editing.id ? { ...b, ...data } : b)));
+        toast.success("Branch updated");
+      } else {
+        toast.error("Failed to update branch");
+      }
     } else {
-      setBranches((prev) => [
-        ...prev,
-        { id: `b${Date.now()}`, ...data },
-      ]);
-      toast.success("Branch added");
+      const res = await fetch('/api/settings/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setBranches((prev) => [...prev, { id: created.id, name: created.name, address: created.address ?? '', phone: created.phone ?? '' }]);
+        toast.success("Branch added");
+      } else {
+        toast.error("Failed to add branch");
+      }
     }
   }
 
-  function handleArchive(id: string) {
-    setBranches((prev) => prev.filter((b) => b.id !== id));
-    toast.success("Branch archived");
+  async function handleArchive(id: string) {
+    const res = await fetch(`/api/settings/branches/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setBranches((prev) => prev.filter((b) => b.id !== id));
+      toast.success("Branch archived");
+    } else {
+      toast.error("Failed to archive branch");
+    }
   }
 
-  const onlyOne = branches.length <= 1;
+  const onlyOne = branches.filter(b => b.id).length <= 1;
 
   return (
     <div>
@@ -886,13 +912,18 @@ function DepartmentArchiveDialog({
 }
 
 function DepartmentsSection() {
-  const [depts, setDepts] = useState<DeptData[]>(() =>
-    [...mockDepartments].sort((a, b) => a.sortOrder - b.sortOrder)
-  );
+  const [depts, setDepts] = useState<DeptData[]>([]);
   const [dialogOpen, setDialogOpen]       = useState(false);
   const [editing, setEditing]             = useState<DeptData | null>(null);
   const [archiving, setArchiving]         = useState<DeptData | null>(null);
   const [archivedOpen, setArchivedOpen]   = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/departments')
+      .then((r) => r.json())
+      .then((data) => setDepts((data ?? []).sort((a: DeptData, b: DeptData) => a.sortOrder - b.sortOrder)))
+      .catch(() => {});
+  }, []);
 
   const activeDepts   = depts.filter((d) => d.active).sort((a, b) => a.sortOrder - b.sortOrder);
   const archivedDepts = depts.filter((d) => !d.active);
@@ -906,32 +937,62 @@ function DepartmentsSection() {
     setDialogOpen(true);
   }
 
-  function handleSave(data: Omit<DeptData, "id" | "active" | "studentCount">) {
+  async function handleSave(data: Omit<DeptData, "id" | "active" | "studentCount">) {
     if (editing) {
-      setDepts((prev) => prev.map((d) => d.id === editing.id ? { ...d, ...data } : d));
-      toast.success("Department saved");
+      const res = await fetch(`/api/settings/departments/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setDepts((prev) => prev.map((d) => d.id === editing.id ? { ...d, ...updated } : d));
+        toast.success("Department saved");
+      } else {
+        toast.error("Failed to save department");
+      }
     } else {
-      setDepts((prev) => [
-        ...prev,
-        {
-          id: `d${Date.now()}`,
-          active: true,
-          studentCount: 0,
-          ...data,
-        },
-      ]);
-      toast.success("Department added");
+      const res = await fetch('/api/settings/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setDepts((prev) => [...prev, created]);
+        toast.success("Department added");
+      } else {
+        toast.error("Failed to add department");
+      }
     }
   }
 
-  function handleArchive(id: string) {
-    setDepts((prev) => prev.map((d) => d.id === id ? { ...d, active: false } : d));
-    toast.success("Department archived");
+  async function handleArchive(id: string) {
+    const res = await fetch(`/api/settings/departments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false }),
+    });
+    if (res.ok) {
+      setDepts((prev) => prev.map((d) => d.id === id ? { ...d, active: false } : d));
+      toast.success("Department archived");
+    } else {
+      toast.error("Failed to archive department");
+    }
   }
 
-  function handleRestore(id: string) {
-    setDepts((prev) => prev.map((d) => d.id === id ? { ...d, active: true } : d));
-    toast.success("Department restored");
+  async function handleRestore(id: string) {
+    const res = await fetch(`/api/settings/departments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: true }),
+    });
+    if (res.ok) {
+      setDepts((prev) => prev.map((d) => d.id === id ? { ...d, active: true } : d));
+      toast.success("Department restored");
+    } else {
+      toast.error("Failed to restore department");
+    }
   }
 
   // Year group mapping — derived
@@ -1119,6 +1180,7 @@ type Room = {
   id: string;
   name: string;
   branch: string;
+  branch_id: string;
   capacity: number;
   soft: number;
   hard: number;
@@ -1126,7 +1188,7 @@ type Room = {
   active: boolean;
 };
 
-const ROOM_BRANCH_OPTIONS = ["Gold & Diamond Park"];
+// branch options populated dynamically from API
 
 function RoomDialog({
   open,
@@ -1138,11 +1200,11 @@ function RoomDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   initial: Room | null;
-  branches: string[];
-  onSave: (data: { name: string; branch: string; capacity: number; soft: number; hard: number; type: RoomType }) => void;
+  branches: { id: string; name: string }[];
+  onSave: (data: { name: string; branch: string; branch_id: string; capacity: number; soft: number; hard: number; type: RoomType }) => void;
 }) {
   const [roomName, setRoomName] = useState("");
-  const [branch, setBranch]    = useState(branches[0] ?? "");
+  const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
   const [capacity, setCapacity] = useState("");
   const [soft, setSoft]        = useState("");
   const [hard, setHard]        = useState("");
@@ -1151,7 +1213,7 @@ function RoomDialog({
   useEffect(() => {
     if (open) {
       setRoomName(initial?.name ?? "");
-      setBranch(initial?.branch ?? branches[0] ?? "");
+      setBranchId(initial?.branch_id ?? branches[0]?.id ?? "");
       setCapacity(initial ? String(initial.capacity) : "");
       setSoft(initial ? String(initial.soft) : "");
       setHard(initial ? String(initial.hard) : "");
@@ -1164,7 +1226,8 @@ function RoomDialog({
   const softNum = soft !== "" ? Number(soft)  : capNum;
   const hardNum = hard !== "" ? Number(hard)  : capNum;
 
-  const canSubmit = roomName.trim() && branch && capNum > 0;
+  const selectedBranch = branches.find((b) => b.id === branchId);
+  const canSubmit = roomName.trim() && branchId && capNum > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1189,11 +1252,11 @@ function RoomDialog({
             <FieldLabel required>Branch</FieldLabel>
             <select
               className={FIELD}
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
             >
               {branches.map((b) => (
-                <option key={b} value={b}>{b}</option>
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
@@ -1254,7 +1317,8 @@ function RoomDialog({
             if (!canSubmit) return;
             onSave({
               name: roomName.trim(),
-              branch,
+              branch: selectedBranch?.name ?? '',
+              branch_id: branchId,
               capacity: capNum,
               soft: softNum,
               hard: hardNum,
@@ -1272,10 +1336,22 @@ function RoomDialog({
 
 function RoomsSection() {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [branchOptions, setBranchOptions] = useState<{ id: string; name: string }[]>([]);
   const [dialogOpen, setDialogOpen]   = useState(false);
   const [editing, setEditing]         = useState<Room | null>(null);
   const [archiving, setArchiving]     = useState<Room | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/branches')
+      .then((r) => r.json())
+      .then((data) => setBranchOptions((data ?? []).filter((b: { is_active: boolean }) => b.is_active).map((b: { id: string; name: string }) => ({ id: b.id, name: b.name }))))
+      .catch(() => {});
+    fetch('/api/settings/rooms')
+      .then((r) => r.json())
+      .then((data) => setRooms(data ?? []))
+      .catch(() => {});
+  }, []);
 
   const activeRooms   = rooms.filter((r) => r.active);
   const archivedRooms = rooms.filter((r) => !r.active);
@@ -1295,27 +1371,58 @@ function RoomsSection() {
     setDialogOpen(true);
   }
 
-  function handleSave(data: { name: string; branch: string; capacity: number; soft: number; hard: number; type: RoomType }) {
+  async function handleSave(data: { name: string; branch: string; branch_id: string; capacity: number; soft: number; hard: number; type: RoomType }) {
     if (editing) {
-      setRooms((prev) => prev.map((r) => r.id === editing.id ? { ...r, ...data } : r));
-      toast.success("Room saved");
+      const res = await fetch(`/api/settings/rooms/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setRooms((prev) => prev.map((r) => r.id === editing.id ? updated : r));
+        toast.success("Room saved");
+      } else {
+        toast.error("Failed to save room");
+      }
     } else {
-      setRooms((prev) => [
-        ...prev,
-        { id: `r${Date.now()}`, active: true, ...data },
-      ]);
-      toast.success("Room added");
+      const res = await fetch('/api/settings/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setRooms((prev) => [...prev, created]);
+        toast.success("Room added");
+      } else {
+        toast.error("Failed to add room");
+      }
     }
   }
 
-  function handleArchive(id: string) {
-    setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: false } : r));
-    toast.success("Room archived");
+  async function handleArchive(id: string) {
+    const res = await fetch(`/api/settings/rooms/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: false } : r));
+      toast.success("Room archived");
+    } else {
+      toast.error("Failed to archive room");
+    }
   }
 
-  function handleRestore(id: string) {
-    setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: true } : r));
-    toast.success("Room restored");
+  async function handleRestore(id: string) {
+    const res = await fetch(`/api/settings/rooms/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: true }),
+    });
+    if (res.ok) {
+      setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: true } : r));
+      toast.success("Room restored");
+    } else {
+      toast.error("Failed to restore room");
+    }
   }
 
   return (
@@ -1408,7 +1515,7 @@ function RoomsSection() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         initial={editing}
-        branches={ROOM_BRANCH_OPTIONS}
+        branches={branchOptions}
         onSave={handleSave}
       />
       <ArchiveConfirmDialog
@@ -2607,16 +2714,45 @@ function AddAcademicYearModal({
 // ── Main section ───────────────────────────────────────────────────────────────
 
 function AcademicCalendarSection() {
-  const [years, setYears]       = useState<AcademicYear[]>([...seedAcademicYears]);
-  const [periods, setPeriods]   = useState<CalendarPeriod[]>([...seedPeriods]);
-  const [holidays, setHolidays] = useState<PublicHoliday[]>([...seedHolidays]);
-  const [selectedYearId, setSelectedYearId] = useState(
-    seedAcademicYears.find((y) => y.isCurrent)?.id ?? seedAcademicYears[0]?.id ?? ""
-  );
+  const [years, setYears]       = useState<AcademicYear[]>([]);
+  const [periods, setPeriods]   = useState<CalendarPeriod[]>([]);
+  const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState("");
   const [useUaeTemplate, setUseUaeTemplate] = useState(false);
   const [addYearOpen, setAddYearOpen]       = useState(false);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
   const [editingPeriod, setEditingPeriod]   = useState<CalendarPeriod | null>(null);
+
+  // Load academic years on mount
+  useEffect(() => {
+    fetch('/api/settings/academic-years')
+      .then((r) => r.json())
+      .then((data: AcademicYear[]) => {
+        setYears(data ?? []);
+        const current = (data ?? []).find((y: AcademicYear) => y.isCurrent) ?? data?.[0];
+        if (current) setSelectedYearId(current.id);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load periods and holidays whenever selected year changes
+  useEffect(() => {
+    if (!selectedYearId) return;
+    fetch(`/api/settings/calendar-periods?yearId=${selectedYearId}`)
+      .then((r) => r.json())
+      .then((data) => setPeriods((prev) => [
+        ...prev.filter((p) => p.academicYearId !== selectedYearId),
+        ...(data ?? []),
+      ]))
+      .catch(() => {});
+    fetch(`/api/settings/public-holidays?yearId=${selectedYearId}`)
+      .then((r) => r.json())
+      .then((data) => setHolidays((prev) => [
+        ...prev.filter((h) => h.academicYearId !== selectedYearId),
+        ...(data ?? []),
+      ]))
+      .catch(() => {});
+  }, [selectedYearId]);
 
   const selectedYear = years.find((y) => y.id === selectedYearId);
   const yearPeriods  = periods
@@ -2624,72 +2760,97 @@ function AcademicCalendarSection() {
     .sort((a, b) => a.sortOrder - b.sortOrder);
   const yearHolidays = holidays.filter((h) => h.academicYearId === selectedYearId);
 
-  function handleSavePeriod(data: Omit<CalendarPeriod, "sortOrder" | "id"> & { id?: string }) {
+  async function handleSavePeriod(data: Omit<CalendarPeriod, "sortOrder" | "id"> & { id?: string }) {
     if (data.id) {
-      setPeriods((prev) =>
-        prev.map((p) => (p.id === data.id ? ({ ...p, ...data } as CalendarPeriod) : p))
-      );
-      toast.success("Period updated");
+      const res = await fetch(`/api/settings/calendar-periods/${data.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setPeriods((prev) => prev.map((p) => p.id === data.id ? updated : p));
+        toast.success("Period updated");
+      } else {
+        toast.error("Failed to update period");
+      }
     } else {
-      const nextSort =
-        yearPeriods.length > 0 ? Math.max(...yearPeriods.map((p) => p.sortOrder)) + 1 : 1;
-      const newPeriod: CalendarPeriod = {
-        ...data,
-        id: `cp-${Date.now()}`,
-        sortOrder: nextSort,
-      } as CalendarPeriod;
-      setPeriods((prev) => [...prev, newPeriod]);
-      toast.success("Period added");
+      const res = await fetch('/api/settings/calendar-periods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, academicYearId: selectedYearId }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setPeriods((prev) => [...prev, created]);
+        toast.success("Period added");
+      } else {
+        toast.error("Failed to add period");
+      }
     }
   }
 
-  function handleDeletePeriod(id: string) {
-    setPeriods((prev) => prev.filter((p) => p.id !== id));
-    toast.success("Period deleted");
+  async function handleDeletePeriod(id: string) {
+    const res = await fetch(`/api/settings/calendar-periods/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setPeriods((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Period deleted");
+    } else {
+      toast.error("Failed to delete period");
+    }
   }
 
-  function handleTogglePause(periodId: string, deptId: string) {
-    setPeriods((prev) =>
-      prev.map((p) => {
-        if (p.id !== periodId) return p;
-        return {
-          ...p,
-          departmentPauses: (p.departmentPauses ?? []).map((dp) =>
-            dp.departmentId === deptId ? { ...dp, paused: !dp.paused } : dp
-          ),
-        };
-      })
+  async function handleTogglePause(periodId: string, deptId: string) {
+    const period = periods.find((p) => p.id === periodId);
+    if (!period) return;
+    const updatedPauses = (period.departmentPauses ?? []).map((dp) =>
+      dp.departmentId === deptId ? { ...dp, paused: !dp.paused } : dp
     );
+    // Optimistic update
+    setPeriods((prev) => prev.map((p) => p.id === periodId ? { ...p, departmentPauses: updatedPauses } : p));
+    fetch(`/api/settings/calendar-periods/${periodId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ departmentPauses: updatedPauses }),
+    }).catch(() => {});
   }
 
-  function handleAddHoliday(h: { name: string; date: string }) {
-    setHolidays((prev) => [
-      ...prev,
-      {
-        id:             `ph-${Date.now()}`,
-        academicYearId: selectedYearId,
-        name:           h.name,
-        date:           h.date,
-        source:         "custom" as const,
-      },
-    ]);
-    toast.success("Public holiday added");
+  async function handleAddHoliday(h: { name: string; date: string }) {
+    const res = await fetch('/api/settings/public-holidays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...h, academicYearId: selectedYearId, source: 'custom' }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setHolidays((prev) => [...prev, created]);
+      toast.success("Public holiday added");
+    } else {
+      toast.error("Failed to add holiday");
+    }
   }
 
-  function handleDeleteHoliday(id: string) {
-    setHolidays((prev) => prev.filter((h) => h.id !== id));
-    toast.success("Holiday removed");
+  async function handleDeleteHoliday(id: string) {
+    const res = await fetch(`/api/settings/public-holidays/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setHolidays((prev) => prev.filter((h) => h.id !== id));
+      toast.success("Holiday removed");
+    } else {
+      toast.error("Failed to remove holiday");
+    }
   }
 
-  function handleAddYear(
+  async function handleAddYear(
     data: { name: string; startDate: string; endDate: string; isCurrent: boolean },
     copyFromId?: string
   ) {
-    const newYear: AcademicYear = {
-      ...data,
-      id: `ay-${Date.now()}`,
-      financialYearStartMonth: 1,
-    };
+    const res = await fetch('/api/settings/academic-years', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) { toast.error("Failed to create academic year"); return; }
+    const newYear: AcademicYear = await res.json();
 
     setYears((prev) =>
       data.isCurrent
@@ -2701,20 +2862,24 @@ function AcademicCalendarSection() {
       const srcYear    = years.find((y) => y.id === copyFromId);
       const srcPeriods = periods.filter((p) => p.academicYearId === copyFromId);
       if (srcYear && srcPeriods.length > 0) {
-        const shiftMs =
-          new Date(newYear.startDate).getTime() - new Date(srcYear.startDate).getTime();
-        const copied: CalendarPeriod[] = srcPeriods.map((p) => ({
+        const shiftMs = new Date(newYear.startDate).getTime() - new Date(srcYear.startDate).getTime();
+        const copies = srcPeriods.map((p) => ({
           ...p,
-          id:             `cp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: undefined,
           academicYearId: newYear.id,
-          startDate:      new Date(new Date(p.startDate).getTime() + shiftMs)
-            .toISOString()
-            .split("T")[0],
-          endDate:        new Date(new Date(p.endDate).getTime() + shiftMs)
-            .toISOString()
-            .split("T")[0],
+          startDate: new Date(new Date(p.startDate).getTime() + shiftMs).toISOString().split("T")[0],
+          endDate:   new Date(new Date(p.endDate).getTime() + shiftMs).toISOString().split("T")[0],
         }));
-        setPeriods((prev) => [...prev, ...copied]);
+        const created = await Promise.all(
+          copies.map((c) =>
+            fetch('/api/settings/calendar-periods', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(c),
+            }).then((r) => r.json())
+          )
+        );
+        setPeriods((prev) => [...prev, ...created]);
       }
     }
 

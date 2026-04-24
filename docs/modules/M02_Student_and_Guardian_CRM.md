@@ -27,7 +27,7 @@ Student & Guardian CRM is the master data store for all student and guardian rec
 | Status | Current |
 | Primary users | Admin, Admin Head, Academic Head |
 | Secondary users | HOD (scoped to subject), Teacher (own students), Parent (own children — Phase 2) |
-| Key rule | Cumulative records are never deleted. Withdrawn and graduated student records are retained permanently. |
+| Key rule | Cumulative records are never deleted unless the student is Archived and has no financial, attendance, or enrolment history — in which case a Super Admin hard-delete is permitted. Withdrawn and graduated student records are retained permanently unless that two-step path is followed. |
 | Toggleable | No — Student CRM is always active |
 | Dependencies | [[01_Foundation-PL01_Platform_Architecture|PL-01]], [[01_Foundation-PL02_RBAC|PL-02]], [[03_Student-M01_Lead_Management|M01]], [[06_Finance-M08_Finance_Billing|M08]], [[03_Student-M17_Student_Profile|M17]], [[03_Student-M18_Guardian_Profile|M18]], [[09_Settings-M20_Tenant_Settings|M20]] |
 | Phase | v1 |
@@ -113,6 +113,7 @@ The following statuses apply to student records only. Lead statuses (Won, Lost, 
 | Withdrawn | Student has left the institution. Reason recorded. Record retained permanently with full cumulative history. |
 | Graduated | The student has completed their final year. Status automatically transitions to Alumni after 30 days (platform default, configurable in [[09_Settings-M20_Tenant_Settings|M20]] by Super Admin). |
 | Alumni | Auto-transitions from Graduated after the configured period. Retained permanently for records, referral tracking, and re-engagement. Department field is null. |
+| Archived | Student record has been archived by Admin Head or above. Hidden from all operational pickers and lists. Visible to Admin Head and above via the "Include archived" filter. Required step before hard-deletion. See §01.2.2. |
 
 **Student Categories:**
 
@@ -123,7 +124,7 @@ In addition to lifecycle statuses, students are assigned a category that determi
 | Standard | Default category for all students assigned to a year group (FS1–Y13). Subject to year group progression rules. |
 | Senior | A permanent student category for adult learners and external professionals. Senior students are not assigned a school year group (FS1–Y13). They are assigned to the Senior department. Per-session rate uses the Senior rate card entry. Senior students can enrol in any subject offered by the Senior department. |
 
-Status changes are logged on the cumulative record with timestamp and changed by. Withdrawn and Graduated records retain full cumulative history and are never deleted. A Withdrawn student can be re-enrolled — on re-enrolment, their original Student ID is reinstated and their cumulative record continues from where it left off.
+Status changes are logged on the cumulative record with timestamp and changed by. Withdrawn and Graduated records retain full cumulative history and are never deleted, except via the Archive → Delete path described in §01.2.2 (restricted to records with no financial, attendance, or enrolment history). A Withdrawn student can be re-enrolled — on re-enrolment, their original Student ID is reinstated and their cumulative record continues from where it left off.
 
 ## 01.2.1 Student Lifecycle Actions
 
@@ -133,6 +134,33 @@ The following actions are available on student records depending on the student'
 |---|---|
 | Withdraw | Full termination of a student's enrolment. See [[03_Student-M04_Enrolment_Lifecycle|M04]] §01.5 for the full withdrawal flow. |
 | Extend Validity | Available when a student's enrolment is approaching expiry at term end without a confirmed re-enrolment. Admin uses this action to extend the current term's sessions into the next term window. Extend Validity does not change the student's status — the student remains Active. A reason must be logged. Admin Head is notified when Extend Validity is applied. |
+| Archive | Available on Withdrawn and Prospect students only (no active enrolments). Hides the record from all operational pickers and lists. Required step before deletion. Requires Admin Head minimum. See §01.2.2. |
+| Delete | Available on Archived students only, where the record has no financial records, no attendance records, and no enrolment records. Hard-deletes the student row permanently. Requires Super Admin. Cannot be reversed. See §01.2.2. |
+
+## 01.2.2 Archive and Deletion Rules
+
+This two-step path exists to permanently remove genuinely erroneous student records (e.g. test data, data-entry mistakes with no real history). It is not a general-purpose deactivation tool — Withdrawal is the correct path for a student who leaves the centre.
+
+**Archive:**
+
+- Student status must be Withdrawn or Prospect. An Active student cannot be archived until all enrolments are ended via Withdrawal first.
+- Archive does not require the absence of financial records — that check occurs at deletion time.
+- Permission: Admin Head minimum.
+- Effect: `archived_at` timestamp is set. Record is hidden from all lists and pickers across the platform. Status badge shows Archived (amber). Visible to Admin Head and above when the "Include archived" filter is active.
+- All archive actions are logged permanently with actor and timestamp.
+- An archived student can be unarchived by Admin Head or above with a logged reason, returning the record to its prior status.
+
+**Delete (hard-delete):**
+
+- Student must be Archived first.
+- Blocked if the student has any financial records (invoices, payments, credits). The system surfaces a message and links to the erasure path (PL-03 §3) instead.
+- Blocked if the student has any session attendance records.
+- Blocked if the student has any enrolment records, including historical withdrawn enrolments.
+- If all three conditions pass, a Super Admin can hard-delete the student row.
+- Permission: Super Admin only.
+- Requires a confirm dialog: *"Delete student [Full Name]? This action cannot be undone."* The confirm button text reads "Delete student", not "Confirm".
+- The Student ID is never reused, even after deletion.
+- An audit log entry is written and retained permanently (after the student row is removed) recording: student display name, Student ID, actor, timestamp, and reason if provided.
 
 ---
 
@@ -173,7 +201,7 @@ The cumulative record is a persistent, append-only profile that aggregates data 
 | [[04_Academic-M19_Progress_Tracking|M19]] Progress | Progress tracker records per course per term. Progress reports generated and sent. |
 | Communication Log | All outbound and inbound messages: WhatsApp, email, in-app, phone call notes (manual) |
 
-The cumulative record is never deleted, even if the student withdraws, graduates, or transitions to Alumni. On re-enrolment after withdrawal, the existing cumulative record continues — no new record is created. Access to cumulative record data is governed by the RBAC permissions of the source module.
+The cumulative record is never deleted, even if the student withdraws, graduates, or transitions to Alumni — with one exception: a hard-delete via the Archive → Delete path (§01.2.2) is permitted when the record has no financial, attendance, or enrolment history. On re-enrolment after withdrawal, the existing cumulative record continues — no new record is created. Access to cumulative record data is governed by the RBAC permissions of the source module.
 
 ---
 

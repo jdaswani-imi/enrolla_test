@@ -1,19 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
-
-const TENANT_ID = 'b2000000-0000-0000-0000-000000000001'
-const BRANCH_ID = 'c3000000-0000-0000-0000-000000000001'
-
-const DEPT_ID: Record<string, string> = {
-  Primary: 'd4000000-0000-0000-0000-000000000001',
-  'Lower Secondary': 'd4000000-0000-0000-0000-000000000002',
-  Senior: 'd4000000-0000-0000-0000-000000000003',
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -97,6 +89,17 @@ export async function POST(request: NextRequest) {
 
   const { primaryGuardian, department, id, created_at, updated_at, ...rest } = body
 
+  let department_id: string | undefined
+  if (department) {
+    const { data: dept } = await supabase
+      .from('departments')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .eq('name', department)
+      .single()
+    department_id = dept?.id
+  }
+
   const { data, error } = await supabase
     .from('students')
     .insert({
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
       tenant_id: TENANT_ID,
       branch_id: BRANCH_ID,
       student_ref,
-      ...(department && DEPT_ID[department] ? { department_id: DEPT_ID[department] } : {}),
+      ...(department_id ? { department_id } : {}),
       ...(primary_guardian_id ? { primary_guardian_id } : {}),
     })
     .select()

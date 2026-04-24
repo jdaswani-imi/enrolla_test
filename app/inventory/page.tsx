@@ -976,7 +976,7 @@ function ReorderAlertsTab() {
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-center gap-2">
         <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
         <span className="text-sm text-amber-700">
-          7 items are currently at or below their reorder point. Contact the supplier directly to place an order.
+          0 items are currently at or below their reorder point.
         </span>
       </div>
 
@@ -1783,7 +1783,7 @@ function CatalogueTab({
             options={['All', 'Healthy', 'Approaching', 'Below Reorder']}
           />
         </div>
-        <p className="text-xs text-slate-400 mt-2 pl-1">Showing {filtered.length} of 113 items</p>
+        <p className="text-xs text-slate-400 mt-2 pl-1">Showing {filtered.length} of {filtered.length} items</p>
       </div>
 
       {/* Category groups */}
@@ -1936,7 +1936,7 @@ function InventoryPageContent() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-bold text-slate-900 text-2xl">Inventory</h1>
-          <p className="text-sm text-slate-500 mt-0.5">113 items across 16 categories — IMI reference catalogue</p>
+          <p className="text-sm text-slate-500 mt-0.5">0 items — IMI reference catalogue</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {can('stock.take') && (

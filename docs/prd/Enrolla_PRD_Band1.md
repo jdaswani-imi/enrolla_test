@@ -728,16 +728,17 @@ A paginated list with search, filters (department, branch, year group, enrolment
 
 ### 4.2.9 Permissions
 
-- **Super Admin, Admin Head, Admin** — full create, edit, archive, merge.
+- **Super Admin, Admin Head, Admin** — full create, edit, merge.
 - **Academic Head, HOD, Head of Subject, Teacher, TA** — read-only on students they have a legitimate scope for (Teacher sees only students in their own sessions; HOD sees their department; Academic Head sees all).
 - **HR/Finance** — read-only on students, full access on the Finance tab.
-- **Merge, archive, erasure** — Admin Head minimum; erasure is Super Admin only.
+- **Merge, archive** — Admin Head minimum.
+- **Erasure, hard-delete (from Archived)** — Super Admin only.
 
 ## 4.3 Data captured
 
 | Entity | Key fields (Band 1) |
 |---|---|
-| `students` | id, tenant_id, branch_id, student_id_display, first_name, middle_name, last_name, dob, year_group, department_id, gender, school, photo_url, enrolment_status (enum: Prospect / Active / Graduated / Alumni), enrolment_status_since, co_parent_state (enum: not_linked / linked_cooperating / linked_separated), active, created_at |
+| `students` | id, tenant_id, branch_id, student_id_display, first_name, middle_name, last_name, dob, year_group, department_id, gender, school, photo_url, enrolment_status (enum: Prospect / Active / Graduated / Alumni / Archived), enrolment_status_since, co_parent_state (enum: not_linked / linked_cooperating / linked_separated), active, archived_at, archived_by, created_at |
 | `guardians` | id, tenant_id, first_name, last_name, phone_primary, phone_secondary, email, dnc, dnc_reason, dnc_set_by, dnc_set_at, unsubscribed, unsubscribed_at, erased_at |
 | `student_guardian` | student_id, guardian_id, relationship_type, is_primary_contact, is_financial_payer, created_at |
 | `merge_history` | id, tenant_id, entity_type (student/guardian), winning_id, losing_id, field_choices (JSON), initiated_by, initiated_at, rollback_deadline, rolled_back_at, rollback_blocked_reason |
@@ -748,7 +749,7 @@ A paginated list with search, filters (department, branch, year group, enrolment
 - A student must always have at least one guardian marked primary contact. Removing the primary flag from the only primary guardian is blocked until another guardian is promoted.
 - A student must always have at least one guardian marked financial payer before an invoice can be issued in Item 5 (not at student creation — at invoice time).
 - Department is recalculated whenever year group changes. The recalculation runs in the same transaction as the year group update.
-- Student ID is auto-generated on create and is never reused (even for deleted records).
+- Student ID is auto-generated on create and is never reused, even if the student row is hard-deleted via the Archive → Delete path.
 - The student row's `enrolment_status` follows this lifecycle: **Prospect** (created, no active enrolment yet) → **Active** (first enrolment created) → if all enrolments transition to Withdrawn or the centre-wide graduation date is reached → **Graduated** → after the configurable 30-day window from PL-01 → **Alumni**. A student returns to **Active** if a new enrolment is created on an Alumni or Graduated record (the existing record is reused, not duplicated). The transition from Active back to Prospect is **not** automatic — once a student has been Active, they never return to Prospect; the appropriate state for a student with no current enrolments is Graduated or Alumni depending on context.
 - The activity log is append-only. Edits and deletions of activity rows are blocked at the application layer.
 - Merge rollback is blocked by financial activity on the losing record within the 24-hour window.
