@@ -549,10 +549,19 @@ function ListSection({
 
 // ─── Kanban Card ──────────────────────────────────────────────────────────────
 
-function KanbanCard({ task, isDone, onClick }: { task: Task; isDone: boolean; onClick: () => void }) {
+function KanbanCard({
+  task, isDone, onClick, onDragStart, onDragEnd,
+}: {
+  task: Task; isDone: boolean; onClick: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+}) {
   const palette = getAvatarPalette(task.assignee);
   return (
     <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; onDragStart?.(); }}
+      onDragEnd={() => onDragEnd?.()}
       onClick={onClick}
       className={cn(
         "bg-white border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all select-none",
@@ -723,6 +732,9 @@ export default function TasksPage() {
   const [doneTasks, setDoneTasks] = useState<Set<string>>(
     new Set(allTasks.filter((t) => t.status === "Done").map((t) => t.id))
   );
+  const [taskStatusOverrides, setTaskStatusOverrides] = useState<Record<string, TaskStatus>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<"todo" | "inprogress" | "done" | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [tasksVersion, setTasksVersion] = useState(0);
@@ -808,13 +820,34 @@ export default function TasksPage() {
 
   // Kanban columns
   const priorityOrder: Record<string, number> = { Urgent: -1, High: 0, Medium: 1, Low: 2 };
+
+  function effectiveStatus(task: Task): TaskStatus {
+    if (doneTasks.has(task.id)) return "Done";
+    return (taskStatusOverrides[task.id] ?? task.status) as TaskStatus;
+  }
+
+  function handleKanbanDrop(col: "todo" | "inprogress" | "done") {
+    if (!draggingId) { setDragOverCol(null); return; }
+    const id = draggingId;
+    setDraggingId(null);
+    setDragOverCol(null);
+    if (col === "done") {
+      setDoneTasks((prev) => { const next = new Set(prev); next.add(id); return next; });
+      setTaskStatusOverrides((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    } else {
+      setDoneTasks((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      const newStatus: TaskStatus = col === "todo" ? "Open" : "In Progress";
+      setTaskStatusOverrides((prev) => ({ ...prev, [id]: newStatus }));
+    }
+  }
+
   const kanbanTodo = filtered
-    .filter((t) => !doneTasks.has(t.id) && t.status === "Open")
+    .filter((t) => effectiveStatus(t) === "Open")
     .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
   const kanbanInProgress = filtered
-    .filter((t) => !doneTasks.has(t.id) && (t.status === "In Progress" || t.status === "Blocked"))
+    .filter((t) => { const s = effectiveStatus(t); return s === "In Progress" || s === "Blocked"; })
     .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-  const kanbanDone = filtered.filter((t) => doneTasks.has(t.id));
+  const kanbanDone = filtered.filter((t) => effectiveStatus(t) === "Done");
 
   if (!can('tasks.view')) return <AccessDenied />;
 
@@ -1073,14 +1106,26 @@ export default function TasksPage() {
         {view === "kanban" && (
           <div className="px-6 py-5 flex gap-5 items-start overflow-x-auto">
             {/* To Do */}
-            <div className="flex-1 min-w-[260px]">
+            <div
+              className={cn("flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors", dragOverCol === "todo" && "bg-red-50 ring-2 ring-red-200 ring-inset")}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol("todo"); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
+              onDrop={(e) => { e.preventDefault(); handleKanbanDrop("todo"); }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="text-sm font-semibold text-slate-700">To Do</h3>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{kanbanTodo.length}</span>
               </div>
               <div className="space-y-2">
                 {kanbanTodo.map((task) => (
-                  <KanbanCard key={task.id} task={task} isDone={false} onClick={() => setSelectedTask(task)} />
+                  <KanbanCard
+                    key={task.id}
+                    task={task}
+                    isDone={false}
+                    onClick={() => setSelectedTask(task)}
+                    onDragStart={() => setDraggingId(task.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                  />
                 ))}
                 {kanbanTodo.length === 0 && (
                   <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>
@@ -1089,14 +1134,26 @@ export default function TasksPage() {
             </div>
 
             {/* In Progress */}
-            <div className="flex-1 min-w-[260px]">
+            <div
+              className={cn("flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors", dragOverCol === "inprogress" && "bg-amber-50 ring-2 ring-amber-200 ring-inset")}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol("inprogress"); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
+              onDrop={(e) => { e.preventDefault(); handleKanbanDrop("inprogress"); }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="text-sm font-semibold text-slate-700">In Progress</h3>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{kanbanInProgress.length}</span>
               </div>
               <div className="space-y-2">
                 {kanbanInProgress.map((task) => (
-                  <KanbanCard key={task.id} task={task} isDone={false} onClick={() => setSelectedTask(task)} />
+                  <KanbanCard
+                    key={task.id}
+                    task={task}
+                    isDone={false}
+                    onClick={() => setSelectedTask(task)}
+                    onDragStart={() => setDraggingId(task.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                  />
                 ))}
                 {kanbanInProgress.length === 0 && (
                   <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>
@@ -1105,14 +1162,26 @@ export default function TasksPage() {
             </div>
 
             {/* Done */}
-            <div className="flex-1 min-w-[260px]">
+            <div
+              className={cn("flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors", dragOverCol === "done" && "bg-emerald-50 ring-2 ring-emerald-200 ring-inset")}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol("done"); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
+              onDrop={(e) => { e.preventDefault(); handleKanbanDrop("done"); }}
+            >
               <div className="flex items-center gap-2 mb-3">
                 <h3 className="text-sm font-semibold text-slate-700">Done</h3>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{kanbanDone.length}</span>
               </div>
               <div className="space-y-2">
                 {kanbanDone.map((task) => (
-                  <KanbanCard key={task.id} task={task} isDone={true} onClick={() => setSelectedTask(task)} />
+                  <KanbanCard
+                    key={task.id}
+                    task={task}
+                    isDone={true}
+                    onClick={() => setSelectedTask(task)}
+                    onDragStart={() => setDraggingId(task.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                  />
                 ))}
                 {kanbanDone.length === 0 && (
                   <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>

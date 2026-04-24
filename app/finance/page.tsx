@@ -21,6 +21,10 @@ import {
   Eye,
   Bell,
   Ban,
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -42,12 +46,16 @@ import {
   payments,
   creditLedger,
   students,
+  departments,
+  unbilledSessions,
+  currentUser,
   type Invoice,
   type InvoiceStatus,
   type PaymentMethod,
   type Payment,
   type Credit,
   type CreditType,
+  type UnbilledSession,
 } from "@/lib/mock-data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1797,7 +1805,365 @@ function CreditsTab() {
   );
 }
 
-// ─── Tab 4 — Reports ──────────────────────────────────────────────────────────
+// ─── Tab 4 — Unbilled ─────────────────────────────────────────────────────────
+
+const WRITE_OFF_REASONS = ["Waived", "Compensatory", "Data Error", "Other"] as const;
+
+function fmtSessionDate(dateStr: string, count: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const formatted = `${String(d).padStart(2,"0")}/${String(m).padStart(2,"0")}/${y}`;
+  if (count > 1) return `${count} sessions from ${formatted}`;
+  return formatted;
+}
+
+function fmtDateDDMMYYYY(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return `${String(d).padStart(2,"0")}/${String(m).padStart(2,"0")}/${y}`;
+}
+
+function getDeptColor(deptName: string): string {
+  const dept = departments.find(d => d.name === deptName);
+  if (!dept) return "#94A3B8";
+  return dept.colour;
+}
+
+function getDeptBadgeStyle(deptName: string): React.CSSProperties {
+  const color = getDeptColor(deptName);
+  return { backgroundColor: `${color}20`, color, border: `1px solid ${color}40` };
+}
+
+function daysDiff(dateStr: string): number {
+  const d = new Date(dateStr);
+  const now = new Date("2026-04-23");
+  return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function OldestChip({ dateStr }: { dateStr: string }) {
+  const days = daysDiff(dateStr);
+  const cls =
+    days > 14 ? "bg-red-50 text-red-700 border-red-200" :
+    days >= 7  ? "bg-amber-50 text-amber-700 border-amber-200" :
+                 "bg-emerald-50 text-emerald-700 border-emerald-200";
+  return (
+    <div className={cn("border rounded-lg px-4 py-3 text-center", cls)}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">Oldest Unbilled</p>
+      <p className="text-base font-bold mt-0.5">{fmtDateDDMMYYYY(dateStr)}</p>
+    </div>
+  );
+}
+
+function WriteOffModal({
+  record,
+  open,
+  onClose,
+  onConfirm,
+}: {
+  record: UnbilledSession | null;
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (id: string, reason: string, notes: string) => void;
+}) {
+  const [reason, setReason] = useState<string>(WRITE_OFF_REASONS[0]);
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (open) { setReason(WRITE_OFF_REASONS[0]); setNotes(""); }
+  }, [open]);
+
+  if (!record) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle>Write off unbilled session</DialogTitle>
+          <DialogDescription>
+            You are writing off {record.sessionsCount} unbilled session{record.sessionsCount !== 1 ? "s" : ""} for{" "}
+            <span className="font-semibold">{record.studentName}</span> — {record.subject}.{" "}
+            This action is permanent and will be logged in the audit trail.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-4 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="wo-reason">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="wo-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            >
+              {WRITE_OFF_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block" htmlFor="wo-notes">
+              Notes (optional)
+            </label>
+            <textarea
+              id="wo-notes"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-white transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => { onConfirm(record.id, reason, notes); onClose(); }}
+            className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+          >
+            Write Off
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UnbilledTab() {
+  const { can } = usePermission();
+  const router = useRouter();
+  const [records, setRecords] = useState<UnbilledSession[]>(() => [...unbilledSessions]);
+  const [writeOffTarget, setWriteOffTarget] = useState<UnbilledSession | null>(null);
+  const [writtenOffOpen, setWrittenOffOpen] = useState(false);
+
+  const openRecords    = records.filter((r) => r.status === "open");
+  const writtenOff     = records.filter((r) => r.status === "written_off");
+  const totalSessions  = openRecords.reduce((s, r) => s + r.sessionsCount, 0);
+  const uniqueStudents = new Set(openRecords.map((r) => r.studentId)).size;
+  const oldestDate     = openRecords.length > 0
+    ? openRecords.reduce((a, b) => a.sessionDate < b.sessionDate ? a : b).sessionDate
+    : null;
+
+  function handleWriteOff(id: string, reason: string, _notes: string) {
+    const today = "2026-04-23";
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? { ...r, status: "written_off", writeOffReason: reason, writeOffBy: currentUser.name, writeOffAt: today }
+          : r
+      )
+    );
+    toast.success("Session written off and removed from tracker");
+  }
+
+  if (openRecords.length === 0 && writtenOff.length === 0) {
+    return (
+      <EmptyState
+        icon={CheckCircle}
+        title="All sessions invoiced"
+        description="No unbilled sessions. Great — all attended sessions have active invoices."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Unbilled Sessions</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Sessions attended with no active invoice. Create an invoice or write off to clear.
+          </p>
+        </div>
+        {can('export') && (
+          <button
+            type="button"
+            onClick={() => toast.success("Exporting unbilled sessions...")}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        )}
+      </div>
+
+      {/* Summary bar */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white border border-slate-200 rounded-lg px-4 py-3 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total Unbilled Sessions</p>
+          <p className="text-2xl font-bold text-slate-900 mt-0.5">{totalSessions}</p>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-lg px-4 py-3 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Students Affected</p>
+          <p className="text-2xl font-bold text-slate-900 mt-0.5">{uniqueStudents}</p>
+        </div>
+        {oldestDate ? (
+          <OldestChip dateStr={oldestDate} />
+        ) : (
+          <div className="bg-white border border-slate-200 rounded-lg px-4 py-3 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Oldest Unbilled</p>
+            <p className="text-2xl font-bold text-emerald-600 mt-0.5">—</p>
+          </div>
+        )}
+      </div>
+
+      {/* Open records table */}
+      {openRecords.length === 0 ? (
+        <EmptyState
+          icon={CheckCircle}
+          title="All sessions invoiced"
+          description="No unbilled sessions. Great — all attended sessions have active invoices."
+        />
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  {["Student", "Department", "Subject", "Session Date", "Sessions", "Status", "Actions"].map((h) => (
+                    <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {openRecords.map((rec) => (
+                  <tr key={rec.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/students/${rec.studentId}`}
+                        className="font-medium text-slate-800 hover:text-amber-600 hover:underline transition-colors cursor-pointer"
+                      >
+                        {rec.studentName}
+                      </Link>
+                      <span className="block text-xs text-slate-400 mt-0.5">{rec.yearGroup}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                        style={getDeptBadgeStyle(rec.department)}
+                      >
+                        {rec.department}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{rec.subject}</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-sm">
+                      {fmtSessionDate(rec.sessionDate, rec.sessionsCount)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+                        {rec.sessionsCount}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                        Open
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/finance/invoice/new?studentId=${rec.studentId}`)}
+                          className="px-2.5 py-1 text-xs font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          Create Invoice
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWriteOffTarget(rec)}
+                          className="px-2.5 py-1 text-xs font-medium border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          Write Off
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Written Off collapsible section */}
+      {writtenOff.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setWrittenOffOpen((v) => !v)}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors cursor-pointer mb-2"
+          >
+            {writtenOffOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            Written Off ({writtenOff.length})
+          </button>
+          {writtenOffOpen && (
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden opacity-75">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      {["Student", "Department", "Subject", "Session Date", "Sessions", "Status", "Reason", "Written Off By", "Date"].map((h) => (
+                        <th key={h} className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {writtenOff.map((rec) => (
+                      <tr key={rec.id} className="border-b border-slate-100">
+                        <td className="px-4 py-3">
+                          <Link href={`/students/${rec.studentId}`} className="font-medium text-slate-600 hover:text-amber-600 hover:underline transition-colors cursor-pointer">
+                            {rec.studentName}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={getDeptBadgeStyle(rec.department)}>
+                            {rec.department}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">{rec.subject}</td>
+                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-sm">{fmtDateDDMMYYYY(rec.sessionDate)}</td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
+                            {rec.sessionsCount}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500">
+                            Written Off
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">{rec.writeOffReason ?? "—"}</td>
+                        <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{rec.writeOffBy ?? "—"}</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{rec.writeOffAt ? fmtDateDDMMYYYY(rec.writeOffAt) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <WriteOffModal
+        record={writeOffTarget}
+        open={writeOffTarget !== null}
+        onClose={() => setWriteOffTarget(null)}
+        onConfirm={handleWriteOff}
+      />
+    </div>
+  );
+}
+
+// ─── Tab 5 — Reports ──────────────────────────────────────────────────────────
 
 const REPORT_CARDS = [
   {
@@ -1929,12 +2295,15 @@ function ReportsTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = "invoices" | "payments" | "credits" | "reports";
+type Tab = "invoices" | "payments" | "credits" | "unbilled" | "reports";
 
-const TABS: { key: Tab; label: string }[] = [
+const openUnbilledCount = unbilledSessions.filter((r) => r.status === "open").length;
+
+const TABS: { key: Tab; label: string; badge?: number }[] = [
   { key: "invoices", label: "Invoices"  },
   { key: "payments", label: "Payments"  },
   { key: "credits",  label: "Credits"   },
+  { key: "unbilled", label: "Unbilled", badge: openUnbilledCount },
   { key: "reports",  label: "Reports"   },
 ];
 
@@ -1959,18 +2328,23 @@ function FinancePageContent() {
       )}
       {/* Tab bar */}
       <div className="flex items-center gap-0 border-b border-slate-200 -mt-1">
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, label, badge }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
             className={cn(
-              "px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px",
+              "relative px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px flex items-center gap-1.5",
               tab === key
                 ? "border-amber-500 text-amber-600"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
             )}
           >
             {label}
+            {badge != null && badge > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                {badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1980,6 +2354,7 @@ function FinancePageContent() {
           {tab === "invoices" && <InvoicesTab />}
           {tab === "payments" && <PaymentsTab />}
           {tab === "credits"  && <CreditsTab  />}
+          {tab === "unbilled" && <UnbilledTab />}
           {tab === "reports"  && <ReportsTab  />}
         </div>
       </div>

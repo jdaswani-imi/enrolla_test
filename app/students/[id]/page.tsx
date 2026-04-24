@@ -41,6 +41,7 @@ import {
   trials,
   assessments,
   churnRiskStudents,
+  unbilledSessions,
   type StudentInvoice,
   type Trial,
   type Assessment,
@@ -2701,16 +2702,49 @@ function InvoicesTab({
   fireToast,
   invoices,
   onPaymentRecorded,
+  studentId,
 }: {
   canExport: boolean;
   fireToast: FireToast;
   invoices: StudentInvoice[];
   onPaymentRecorded: (invoiceId: string, paidAmount: number, fullyPaid: boolean) => void;
+  studentId: string;
 }) {
   const [previewInvoice, setPreviewInvoice] = useState<StudentInvoiceRow | null>(null);
   const [payInvoiceId, setPayInvoiceId] = useState<string | null>(null);
+
+  const openUnbilled = unbilledSessions.filter(
+    (r) => r.studentId === studentId && r.status === "open"
+  );
+  const unbilledCount = openUnbilled.reduce((s, r) => s + r.sessionsCount, 0);
+
   return (
     <div className="space-y-4">
+      {/* Unbilled alert banner */}
+      {unbilledCount > 0 && (
+        <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800">
+              {unbilledCount} unbilled session{unbilledCount !== 1 ? "s" : ""} on record for this student.
+            </p>
+            <div className="flex items-center gap-4 mt-1">
+              <Link
+                href={`/finance/invoice/new?studentId=${studentId}`}
+                className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline transition-colors"
+              >
+                Create Invoice →
+              </Link>
+              <Link
+                href="/finance?tab=unbilled"
+                className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline transition-colors"
+              >
+                View tracker →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
       {canExport && (
         <div className="flex justify-end">
           <button
@@ -3650,7 +3684,7 @@ function StudentProfilePageContent() {
             {activeTab === "overview"    && <OverviewTab    onTabChange={handleTabChange} />}
             {activeTab === "calendar"    && <CalendarTab    canExport={canExport} fireToast={fireToast} />}
             {activeTab === "attendance"  && <AttendanceTab  canExport={canExport} />}
-            {activeTab === "invoices"    && <InvoicesTab    canExport={canExport} fireToast={fireToast} invoices={invoicesState} onPaymentRecorded={handlePaymentRecorded} />}
+            {activeTab === "invoices"    && <InvoicesTab    canExport={canExport} fireToast={fireToast} invoices={invoicesState} onPaymentRecorded={handlePaymentRecorded} studentId={routeId || STUDENT_ID} />}
             {activeTab === "grades"      && <GradesTab      canExport={canExport} />}
             {activeTab === "courses"     && <CoursesTab />}
             {activeTab === "comms"       && <CommLogTab     canExport={canExport} fireToast={fireToast} />}

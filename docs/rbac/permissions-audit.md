@@ -8,11 +8,16 @@ Derived from live permission checks in each page file, resolved against the `PER
 
 ### /dashboard
 
-No permission checks in `app/dashboard/page.tsx`. The `NAV_ACCESS` entry for `dashboard` maps to `''` (no action required; always returns `true`). All roles reach this page.
+Page access is ungated. All roles reach the page. Individual KPI cards are gated via `KPI_PERMISSIONS` map (added Session 10) — each card ID maps to a `can()` action or `null` (always visible).
 
 | Feature | Super Admin | Admin Head | Admin | Academic Head | HOD | Teacher | TA | HR/Finance |
 |---|---|---|---|---|---|---|---|---|
 | Page access (no gate) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Revenue / Collected / Overdue KPIs · `finance.view` | ✓ | ✓ | ✓ | — | — | — | — | ✓ |
+| New Enrolments / Re-enrolments KPIs · `enrolment.view` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| Churn / At-Risk / Occupancy KPIs · `analytics.view` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ |
+| Active Staff / CPD Completion KPIs · `staff.view` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | ✓ |
+| Role-scoped KPIs (always visible when in role config) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ---
 

@@ -121,6 +121,7 @@ const KPI_LINKS: Record<string, string> = {
   revenue:   "/analytics?tab=revenue",
   collected: "/analytics?tab=revenue",
   overdue:   "/finance",
+  "unbilled-sessions": "/finance?tab=unbilled",
   "at-risk": "/analytics?tab=churn",
   concerns:  "/progress?tab=alerts",
   occupancy: "/analytics?tab=occupancy",
@@ -1400,8 +1401,38 @@ function DraggableSections({ initial }: { initial: DraggableSection[] }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// KPI permission gate: maps each KPI card ID to the can() action required to show it.
+// null = always visible (no gate). Derived from docs/rbac/permissions-audit.md.
+const KPI_PERMISSIONS: Record<string, string | null> = {
+  'revenue':               'finance.view',
+  'collected':             'finance.view',
+  'overdue':               'finance.view',
+  'unbilled-sessions':     'finance.view',
+  'active-students':       null,
+  'new-enrolments':        'enrolment.view',
+  're-enrolments':         'enrolment.view',
+  'churn':                 'analytics.view',
+  'at-risk':               'analytics.view',
+  'concerns':              null,
+  'occupancy':             'analytics.view',
+  'attendance-rate':       null,
+  'tracker-breaches':      null,
+  'my-students':           null,
+  'my-sessions-week':      null,
+  'my-attendance-rate':    null,
+  'ta-assigned-sessions':  null,
+  'ta-attendance-rate':    null,
+  'dept-active-students':  null,
+  'dept-sessions-week':    null,
+  'dept-attendance-rate':  null,
+  'dept-concerns':         null,
+  'active-staff':          'staff.view',
+  'cpd-completion':        'staff.view',
+};
+
 export default function DashboardPage() {
   const { role } = useRole();
+  const { can } = usePermission();
   const config = getDashboardConfig(role);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -1451,19 +1482,9 @@ export default function DashboardPage() {
       <div className={cn("grid gap-4", config.kpiGridClass)}>
         {config.kpis
           .filter((card) => {
-            if (role !== "Teacher" && role !== "TA") return true;
-            // Teacher/TA: hide all financial and management KPIs.
-            // Only Today's Sessions, Attendance Rate, Open Concerns, Active Students.
-            return (
-              card.id === "my-sessions-week" ||
-              card.id === "ta-assigned-sessions" ||
-              card.id === "my-attendance-rate" ||
-              card.id === "ta-attendance-rate" ||
-              card.id === "attendance-rate" ||
-              card.id === "concerns" ||
-              card.id === "active-students" ||
-              card.id === "my-students"
-            );
+            const action = KPI_PERMISSIONS[card.id];
+            if (!action) return true;
+            return can(action);
           })
           .map((card) => (
             <KpiCardItem key={card.id} card={card} />

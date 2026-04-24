@@ -1,6 +1,6 @@
 # Enrolla Frontend Prototype — Developer Handover Summary
 
-> **Generated:** 23 April 2026 (updated Session 9)  
+> **Generated:** 23 April 2026 (updated Session 10)  
 > **Source:** Derived entirely from the codebase at the time of writing. No assumptions — everything below is read directly from source files.
 
 ---
@@ -30,7 +30,7 @@
 
 The prototype covers everything an IMI administrator would do day-to-day: lead intake and CRM pipeline, student and guardian records, session timetabling, attendance marking, academic progress and reporting, finance/invoicing, staff management, task management, automations, inventory, and analytics.
 
-**No backend. All data is mocked.** The single source of truth for seed data is `lib/mock-data.ts` (~2,952 lines).
+**No backend. All data is mocked.** The single source of truth for seed data is `lib/mock-data.ts` (~3,423 lines).
 
 ---
 
@@ -261,7 +261,7 @@ enrolla_frontend_prototype/
 │   └── invoice-builder.tsx           # Full-screen invoice builder component
 │
 ├── lib/
-│   ├── mock-data.ts                  # ~2952 lines — all seed data + interfaces
+│   ├── mock-data.ts                  # ~3423 lines — all seed data + interfaces
 │   ├── role-config.ts                # Role type, PERMISSIONS matrix, canDo(), canAccess()
 │   ├── role-context.tsx              # RoleProvider + useRole()
 │   ├── use-permission.ts             # usePermission() hook → { can, sees, role }
@@ -322,6 +322,8 @@ Role-scoped dashboard driven by `lib/dashboard-config.ts`. The `getDashboardConf
 - **Charts:** Revenue bar chart (6 months Recharts) + occupancy heatmap (Mon–Fri × 8 time slots)
 
 **Features:** Skeleton loaders on initial mount (200ms delay), drag-to-reorder for Super Admin/Admin Head, `?tab=` deep links from KPI cards and alert rows.
+
+**KPI permission gating (updated Session 10):** A `KPI_PERMISSIONS` map (keyed by `card.id`) replaces the old hardcoded Teacher/TA role filter. Each KPI is mapped to a `can()` action or `null` (always visible). Examples: `revenue` / `collected` / `overdue` → `finance.view`; `churn` / `at-risk` / `occupancy` → `analytics.view`; `active-staff` / `cpd-completion` → `staff.view`. Role-scoped KPIs like `my-sessions-week` map to `null` (always visible for any role that receives them in their config).
 
 **Inventory Summary Cards (added Session 9):** An `InventorySummaryCards` component is rendered below the KPI grid on all dashboard views. It shows two cards — "Low Stock Items" (count of items with `health === 'below'`, amber accent) and "Recently Ordered" (count of reorder alerts opened in the last 14 days). Each card links to `/inventory` and `/inventory?tab=reorder-alerts` respectively. Gated by `inventory.view` — returns `null` for roles without access (Teacher, TA).
 
@@ -491,6 +493,8 @@ All journey dialogs are in `components/journey/`. The `JourneyProvider` (context
 **Weekly grid:** Mon–Sat columns, 09:00–20:00 rows, 37 mock sessions. Colour-coded by subject department. Session card shows: subject, teacher, room, student count, status badge.
 
 **Session detail modal:** Click any session to open details. Shows attendance status, enrolled students list.
+
+**Navigation arrows (functional as of Session 10):** The prev/next chevron buttons in the toolbar now navigate the calendar. Day view: advances/retreats one day, wrapping to the previous/next week when crossing the Mon/Sat boundary. Week view: jumps ±7 days. Month view: jumps ±1 month.
 
 **Actions:**
 - New Session → `new-session-dialog.tsx` (gated `timetable.createSession`)
@@ -678,9 +682,11 @@ Full-screen invoice builder at route group `app/(invoice)/`. Bypasses root layou
 
 **RBAC:** `tasks.view` — all 8 roles (Teacher and TA added in Session 8).
 
-**Views:** Kanban (4 columns: Open, In Progress, Blocked, Done) + List view toggle.
+**Views:** Kanban (3 columns: To Do, In Progress, Done) + List view toggle.
 
 22 task records. Kanban has undo-on-move with 5-second animated undo bar (`undo-toast-shrink` animation).
+
+**Kanban drag-and-drop (added Session 10):** Cards use the HTML5 DnD API (`draggable`, `onDragStart`, `onDrop`). Each column tracks hover state (`dragOverCol`) and highlights with a colour-coded ring: red (To Do), amber (In Progress), emerald (Done). Dropped card status is tracked in `taskStatusOverrides: Record<string, TaskStatus>` — an `effectiveStatus()` helper merges base status with overrides and the `doneTasks` set. Persists within the browser session; resets on page refresh.
 
 **Task card:** Title, type badge, priority badge, assignee avatar, due date, overdue indicator, linked record chip (student/lead).
 
@@ -799,11 +805,11 @@ Left-nav panel with sections (not URL tabs — section state held in local useSt
 |---|---|
 | Organisation | Org name, contact details, address, logo upload |
 | Branches | Branch management |
-| Departments | Department configuration (Primary, Lower Secondary, Senior) |
+| Departments | Full CRUD — add/edit/archive departments with year group range, colour, sort order, overlap validation |
 | Rooms | 5 rooms (Room 1A, 1C, 2A, 2B, 3A) with capacity |
 | Billing | Billing settings, payment terms |
 | Payment Plans | Payment plan configuration |
-| Academic Calendar | Term dates |
+| Academic Calendar | Full academic year management — term periods, half-terms, public holidays, per-department pause settings, billable week calculator |
 | Subjects | Subject catalogue — `subjects-catalogue.tsx` (gated `catalogue.edit`) |
 | Staff / HR | HR settings |
 | Roles | RBAC role editor — permissions matrix viewer (gated `settings.manageRoles`) |
@@ -812,6 +818,19 @@ Left-nav panel with sections (not URL tabs — section state held in local useSt
 | Reports Settings | Report configuration |
 | Feature Flags | Feature toggle switches |
 | Danger Zone | Account deletion / data reset |
+
+**Departments section (built out Session 10):** Full CRUD via `DepartmentDialog` (add/edit) and `DepartmentArchiveDialog` (confirm archive/restore). Fields: name, year group from/to (FS1–Y13 dropdown range; `ygTo` is automatically clamped ≥ `ygFrom`), colour (8 preset swatches + custom hex input with live preview dot), sort order. Overlap validation: the dialog checks all active departments for year group range conflicts and blocks save with an inline error message. Archive/restore flips `active` flag. Backed by `departments` export in `lib/mock-data.ts` (3 seed entries).
+
+**Academic Calendar section (built out Session 10):** Full academic calendar management. Components:
+- `AcademicCalendarSection` — academic year selector (top), timeline + holiday panels, term billable table
+- `CalendarTimeline` — visual timeline of `CalendarPeriod` entries with colour coding by `PeriodType`
+- `PeriodCard` — individual period card with edit/delete actions, shows department pause badges for half-terms
+- `AddEditPeriodModal` — create/edit a period: type, name, start/end dates, and half-term department pause toggles (`DepartmentPause[]`)
+- `PublicHolidaysPanel` + `AddPublicHolidayModal` — UAE public holidays per academic year
+- `TermBillableTable` — per-department breakdown of total/paused/billable weeks using `getBillableWeeks()`
+- `AddAcademicYearModal` — create a new academic year with financial year start month
+
+Backed by new `lib/mock-data.ts` exports: `academicYears` (1 record), `calendarPeriods` (9 records: Terms 1–3, 3 half-terms, Winter/Spring/Summer breaks), `publicHolidays` (5 UAE entries).
 
 ---
 
@@ -1241,7 +1260,54 @@ invoiceStatusBreakdown: InvoiceStatusSlice[]       // 4 slices
 staffCpdProgress: StaffCpdRow[]                    // 6 staff
 ```
 
-### 7.17 Journey Store Types (`lib/journey-store.tsx`)
+### 7.17 Departments & Academic Calendar
+
+```typescript
+interface Department {
+  id, name: string;
+  yearGroupFrom, yearGroupTo: string;  // e.g. "FS1", "Y13"
+  colour: string;                       // hex
+  active: boolean;
+  studentCount: number;
+  sortOrder: number;
+}
+// 3 records: Primary (FS1–Y6), Lower Secondary (Y7–Y9), Senior (Y10–Y13)
+
+type PeriodType =
+  | 'term' | 'half_term' | 'holiday_break' | 'summer_term'
+  | 'closure' | 'public_holiday';
+
+interface AcademicYear {
+  id, name: string;
+  startDate, endDate: string;           // "YYYY-MM-DD"
+  isCurrent: boolean;
+  financialYearStartMonth: number;      // 1 = January
+}
+// 1 record: "2025–26"
+
+interface DepartmentPause {
+  departmentId, departmentName: string;
+  paused: boolean;
+}
+
+interface CalendarPeriod {
+  id, academicYearId: string;
+  type: PeriodType;
+  name, startDate, endDate: string;
+  sortOrder: number;
+  departmentPauses?: DepartmentPause[]; // half_term only
+}
+// 9 records: Terms 1–3, 3 half-terms, winter/spring/summer breaks
+
+interface PublicHoliday {
+  id, academicYearId: string;
+  name, date: string;
+  source: 'uae_template' | 'custom';
+}
+// 5 UAE public holiday records
+```
+
+### 7.18 Journey Store Types (`lib/journey-store.tsx`)
 
 ```typescript
 interface JourneyAssessment {
@@ -1911,7 +1977,7 @@ These are intentional scope decisions for the prototype, noted in `project_enrol
 
 | Area | Gap |
 |---|---|
-| Tasks Kanban | Drag-and-drop visible but not persisted (undo bar works, position resets on reload) |
+| Tasks Kanban | Drag-and-drop implemented (Session 10); persists within session but resets on page refresh |
 | Assessments | Row actions (Outcomes tab) are static — clicking does nothing |
 | People / Duplicates | Merge wizard step 1 is functional; steps 2–4 are static placeholders |
 | Leads Kanban | Drag-and-drop card movement visible but not persisted to `leadsData` array |
@@ -1947,7 +2013,7 @@ The prototype is signed off. Backend build is the next phase:
 
 These gaps should be wired before backend integration:
 
-1. **Tasks kanban persistence** — move card arrays to a `useState` at page level so drag persists within session
+1. ~~**Tasks kanban persistence**~~ — done in Session 10 (drag persists within session via `taskStatusOverrides` state)
 2. **Assessments row actions** — wire "Enter Outcome" button to a dialog
 3. **Duplicates merge wizard** — build steps 2–4 (field comparison → merge → confirm)
 4. **Student profile tabs** — Courses and Files tabs need minimal static content

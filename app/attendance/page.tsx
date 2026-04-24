@@ -34,6 +34,7 @@ import {
   absenceSummary,
   makeupLog,
   staffMembers,
+  unbilledSessions,
   ATTENDANCE_ROLE_USER,
   type TimetableSession,
   type UnmarkedSession,
@@ -620,6 +621,31 @@ function AttendancePageContent() {
                     </button>
                   )}
                 </div>
+
+                {/* Unbilled sessions warning banner — finance.view roles only */}
+                {can('finance.view') && (() => {
+                  const openUnbilledIds = new Set(
+                    unbilledSessions.filter(r => r.status === 'open').map(r => r.studentId)
+                  );
+                  const studentIdByName = new Map(allStudents.map(s => [s.name, s.id]));
+                  const unbilledCount = selectedSession.students.filter(name => {
+                    const sid = studentIdByName.get(name);
+                    return sid ? openUnbilledIds.has(sid) : false;
+                  }).length;
+                  if (unbilledCount === 0) return null;
+                  return (
+                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-800 flex-1">
+                        <span className="font-semibold">{unbilledCount} student{unbilledCount !== 1 ? "s" : ""}</span>{" "}
+                        in this session have no active invoice. Sessions marked present will be logged as unbilled.{" "}
+                        <Link href="/finance?tab=unbilled" className="font-semibold underline hover:text-amber-900 transition-colors">
+                          View unbilled tracker →
+                        </Link>
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Empty state (meetings / no students) */}
                 {selectedSession.students.length === 0 ? (

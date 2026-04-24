@@ -36,14 +36,30 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Search,
   Pencil,
+  Trash2,
   X,
   AlertTriangle,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
-import { orgSettings } from "@/lib/mock-data";
+import {
+  orgSettings,
+  departments as mockDepartments,
+  timetableSessions,
+  academicYears as seedAcademicYears,
+  calendarPeriods as seedPeriods,
+  publicHolidays as seedHolidays,
+  type Department as DeptData,
+  type PeriodType,
+  type AcademicYear,
+  type CalendarPeriod,
+  type DepartmentPause,
+  type PublicHoliday,
+} from "@/lib/mock-data";
 import {
   Tooltip,
   TooltipTrigger,
@@ -633,36 +649,472 @@ function BranchesSection() {
 
 // ─── Section 3: Departments ────────────────────────────────────────────────────
 
+const YEAR_GROUPS = ["FS1", "FS2", "Y1", "Y2", "Y3", "Y4", "Y5", "Y6", "Y7", "Y8", "Y9", "Y10", "Y11", "Y12", "Y13"] as const;
+type YearGroup = typeof YEAR_GROUPS[number];
+
+const DEPT_COLOURS = [
+  { hex: "#F97316", label: "Orange" },
+  { hex: "#3B82F6", label: "Blue" },
+  { hex: "#8B5CF6", label: "Purple" },
+  { hex: "#22C55E", label: "Green" },
+  { hex: "#EF4444", label: "Red" },
+  { hex: "#EAB308", label: "Yellow" },
+  { hex: "#EC4899", label: "Pink" },
+  { hex: "#64748B", label: "Grey" },
+];
+
+function ygIndex(yg: string) {
+  return YEAR_GROUPS.indexOf(yg as YearGroup);
+}
+
+function rangesOverlap(aFrom: string, aTo: string, bFrom: string, bTo: string) {
+  const ai = ygIndex(aFrom), aj = ygIndex(aTo);
+  const bi = ygIndex(bFrom), bj = ygIndex(bTo);
+  return ai <= bj && bi <= aj;
+}
+
+function DepartmentDialog({
+  open,
+  onOpenChange,
+  initial,
+  allDepts,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initial: DeptData | null;
+  allDepts: DeptData[];
+  onSave: (data: Omit<DeptData, "id" | "active" | "studentCount">) => void;
+}) {
+  const [name, setName]           = useState("");
+  const [ygFrom, setYgFrom]       = useState<string>("FS1");
+  const [ygTo, setYgTo]           = useState<string>("FS1");
+  const [colour, setColour]       = useState(DEPT_COLOURS[0].hex);
+  const [hexInput, setHexInput]   = useState(DEPT_COLOURS[0].hex);
+  const [sortOrder, setSortOrder] = useState("");
+  const [overlapErr, setOverlapErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(initial?.name ?? "");
+      setYgFrom(initial?.yearGroupFrom ?? "FS1");
+      setYgTo(initial?.yearGroupTo ?? "FS1");
+      setColour(initial?.colour ?? DEPT_COLOURS[0].hex);
+      setHexInput(initial?.colour ?? DEPT_COLOURS[0].hex);
+      setSortOrder(initial ? String(initial.sortOrder) : String(allDepts.filter(d => d.active).length + 1));
+      setOverlapErr(null);
+    }
+  }, [open, initial, allDepts]);
+
+  // keep ygTo >= ygFrom
+  useEffect(() => {
+    if (ygIndex(ygTo) < ygIndex(ygFrom)) setYgTo(ygFrom);
+  }, [ygFrom, ygTo]);
+
+  function validate() {
+    const conflict = allDepts.find(
+      (d) =>
+        d.active &&
+        d.id !== initial?.id &&
+        rangesOverlap(ygFrom, ygTo, d.yearGroupFrom, d.yearGroupTo)
+    );
+    if (conflict) {
+      setOverlapErr(`Year groups ${conflict.yearGroupFrom}–${conflict.yearGroupTo} are already assigned to ${conflict.name}.`);
+      return false;
+    }
+    setOverlapErr(null);
+    return true;
+  }
+
+  function handleColourSwatch(hex: string) {
+    setColour(hex);
+    setHexInput(hex);
+  }
+
+  function handleHexInput(val: string) {
+    setHexInput(val);
+    if (/^#[0-9A-Fa-f]{6}$/.test(val)) setColour(val);
+  }
+
+  const canSubmit = name.trim() && ygFrom && ygTo && sortOrder && Number(sortOrder) > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[520px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>{initial ? "Edit department" : "Add department"}</DialogTitle>
+          <DialogDescription>
+            {initial ? "Update department details." : "Create a new academic department."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel required>Department name</FieldLabel>
+            <input
+              className={FIELD}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Foundation"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>Year group from</FieldLabel>
+              <select
+                className={FIELD}
+                value={ygFrom}
+                onChange={(e) => setYgFrom(e.target.value)}
+              >
+                {YEAR_GROUPS.map((yg) => (
+                  <option key={yg} value={yg}>{yg}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel required>Year group to</FieldLabel>
+              <select
+                className={FIELD}
+                value={ygTo}
+                onChange={(e) => setYgTo(e.target.value)}
+              >
+                {YEAR_GROUPS.filter((yg) => ygIndex(yg) >= ygIndex(ygFrom)).map((yg) => (
+                  <option key={yg} value={yg}>{yg}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {overlapErr && (
+            <p className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-md px-3 py-2">
+              {overlapErr}
+            </p>
+          )}
+
+          <div>
+            <FieldLabel required>Colour</FieldLabel>
+            <div className="flex items-center gap-3 flex-wrap">
+              {DEPT_COLOURS.map((c) => (
+                <button
+                  key={c.hex}
+                  type="button"
+                  onClick={() => handleColourSwatch(c.hex)}
+                  title={c.label}
+                  className={cn(
+                    "w-7 h-7 rounded-full border-2 transition-transform cursor-pointer",
+                    colour === c.hex ? "border-slate-800 scale-110" : "border-white shadow-sm"
+                  )}
+                  style={{ backgroundColor: c.hex }}
+                />
+              ))}
+              <div className="flex items-center gap-1.5 ml-1">
+                <div
+                  className="w-7 h-7 rounded-full border border-slate-200 flex-shrink-0"
+                  style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(hexInput) ? hexInput : "#fff" }}
+                />
+                <input
+                  className="w-24 px-2 py-1 text-xs border border-slate-200 rounded-md font-mono bg-white focus:outline-none focus:border-amber-400"
+                  value={hexInput}
+                  onChange={(e) => handleHexInput(e.target.value)}
+                  placeholder="#F97316"
+                  maxLength={7}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="w-32">
+            <FieldLabel required>Sort order</FieldLabel>
+            <input
+              className={FIELD}
+              type="number"
+              min={1}
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+            />
+          </div>
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => {
+            if (!canSubmit) return;
+            if (!validate()) return;
+            onSave({
+              name: name.trim(),
+              yearGroupFrom: ygFrom,
+              yearGroupTo: ygTo,
+              colour,
+              sortOrder: Number(sortOrder),
+            });
+            onOpenChange(false);
+          }}
+          submitLabel={initial ? "Save changes" : "Add department"}
+          submitDisabled={!canSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DepartmentArchiveDialog({
+  open,
+  onOpenChange,
+  dept,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  dept: DeptData | null;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[440px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-500" />
+            Archive {dept?.name}?
+          </DialogTitle>
+          <DialogDescription>
+            Archived departments are hidden from all pickers but their historical data is retained.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-4 text-sm text-slate-600">
+          You can restore this department at any time from the archived section below.
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => { onConfirm(); onOpenChange(false); }}
+          submitLabel="Archive"
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DepartmentsSection() {
-  const depts = [
-    { name: "Primary", groups: "FS1 – Y6", count: "1,124" },
-    { name: "Lower Secondary", groups: "Y7 – Y9", count: "412" },
-    { name: "Senior", groups: "Y10 – Y13", count: "311" },
-  ];
+  const [depts, setDepts] = useState<DeptData[]>(() =>
+    [...mockDepartments].sort((a, b) => a.sortOrder - b.sortOrder)
+  );
+  const [dialogOpen, setDialogOpen]       = useState(false);
+  const [editing, setEditing]             = useState<DeptData | null>(null);
+  const [archiving, setArchiving]         = useState<DeptData | null>(null);
+  const [archivedOpen, setArchivedOpen]   = useState(false);
+
+  const activeDepts   = depts.filter((d) => d.active).sort((a, b) => a.sortOrder - b.sortOrder);
+  const archivedDepts = depts.filter((d) => !d.active);
+
+  function openAdd() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+  function openEdit(d: DeptData) {
+    setEditing(d);
+    setDialogOpen(true);
+  }
+
+  function handleSave(data: Omit<DeptData, "id" | "active" | "studentCount">) {
+    if (editing) {
+      setDepts((prev) => prev.map((d) => d.id === editing.id ? { ...d, ...data } : d));
+      toast.success("Department saved");
+    } else {
+      setDepts((prev) => [
+        ...prev,
+        {
+          id: `d${Date.now()}`,
+          active: true,
+          studentCount: 0,
+          ...data,
+        },
+      ]);
+      toast.success("Department added");
+    }
+  }
+
+  function handleArchive(id: string) {
+    setDepts((prev) => prev.map((d) => d.id === id ? { ...d, active: false } : d));
+    toast.success("Department archived");
+  }
+
+  function handleRestore(id: string) {
+    setDepts((prev) => prev.map((d) => d.id === id ? { ...d, active: true } : d));
+    toast.success("Department restored");
+  }
+
+  // Year group mapping — derived
+  const ygMap = useMemo(() => {
+    const map: Record<string, DeptData | null> = {};
+    for (const yg of YEAR_GROUPS) {
+      map[yg] = activeDepts.find(
+        (d) => ygIndex(yg) >= ygIndex(d.yearGroupFrom) && ygIndex(yg) <= ygIndex(d.yearGroupTo)
+      ) ?? null;
+    }
+    return map;
+  }, [activeDepts]);
+
   return (
     <div>
       <SectionHeader
         title="Departments"
         description="Academic departments and year group mappings."
-        action={<AddButton label="Add Department" />}
+        action={<AddButton label="Add Department" onClick={openAdd} />}
       />
-      <Table headers={["Department", "Year Groups", "Student Count", "Status", "Actions"]}>
-        {depts.map((d) => (
-          <tr key={d.name} className="hover:bg-slate-50 transition-colors">
-            <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{d.name}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{d.groups}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{d.count}</td>
-            <td className="px-4 py-3.5">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                Active
-              </span>
-            </td>
-            <td className="px-4 py-3.5">
-              <TableAction label="Edit" />
-            </td>
-          </tr>
-        ))}
+
+      {/* Active departments */}
+      <Table headers={["", "Department", "Year Groups", "Students", "Status", "Actions"]}>
+        {activeDepts.map((d) => {
+          const canArchive = d.studentCount === 0;
+          return (
+            <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+              <td className="px-4 py-3.5 w-8">
+                <span
+                  className="block w-3.5 h-3.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: d.colour }}
+                />
+              </td>
+              <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{d.name}</td>
+              <td className="px-4 py-3.5 text-sm text-slate-600">
+                {d.yearGroupFrom} – {d.yearGroupTo}
+              </td>
+              <td className="px-4 py-3.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                  {d.studentCount.toLocaleString()} students
+                </span>
+              </td>
+              <td className="px-4 py-3.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                  Active
+                </span>
+              </td>
+              <td className="px-4 py-3.5">
+                <div className="flex items-center gap-1">
+                  <TableAction label="Edit" onClick={() => openEdit(d)} />
+                  {canArchive ? (
+                    <TableAction
+                      label="Archive"
+                      danger
+                      onClick={() => setArchiving(d)}
+                    />
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span>
+                          <TableAction label="Archive" disabled />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Cannot archive — {d.studentCount.toLocaleString()} students are enrolled in this department.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </td>
+            </tr>
+          );
+        })}
       </Table>
+
+      {/* Archived departments */}
+      {archivedDepts.length > 0 && (
+        <div className="mt-6">
+          <button
+            onClick={() => setArchivedOpen((v) => !v)}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mb-3"
+          >
+            {archivedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            Archived ({archivedDepts.length})
+          </button>
+          {archivedOpen && (
+            <Table headers={["", "Department", "Year Groups", "Students", "Status", "Actions"]}>
+              {archivedDepts.map((d) => (
+                <tr key={d.id} className="hover:bg-slate-50 transition-colors opacity-60">
+                  <td className="px-4 py-3.5 w-8">
+                    <span
+                      className="block w-3.5 h-3.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: d.colour }}
+                    />
+                  </td>
+                  <td className="px-4 py-3.5 text-sm font-medium text-slate-700">{d.name}</td>
+                  <td className="px-4 py-3.5 text-sm text-slate-500">
+                    {d.yearGroupFrom} – {d.yearGroupTo}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                      {d.studentCount.toLocaleString()} students
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                      Archived
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <TableAction label="Restore" onClick={() => handleRestore(d.id)} />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </div>
+      )}
+
+      {/* Year Group Mapping */}
+      <div className="mt-8">
+        <p className="text-sm font-semibold text-slate-700 mb-3">Year Group Mapping</p>
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Year Group</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Department</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {YEAR_GROUPS.map((yg) => {
+                const dept = ygMap[yg];
+                return (
+                  <tr key={yg} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-2.5 text-sm font-medium text-slate-700">{yg}</td>
+                    <td className="px-4 py-2.5">
+                      {dept ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: dept.colour }}
+                          />
+                          <span className="text-sm text-slate-700">{dept.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400 italic">Unassigned</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-start gap-1.5 mt-2.5">
+          <Info className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-slate-500">
+            Year group assignments are used for automatic department assignment when a student record is created.
+          </p>
+        </div>
+      </div>
+
+      <DepartmentDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initial={editing}
+        allDepts={depts}
+        onSave={handleSave}
+      />
+      <DepartmentArchiveDialog
+        open={archiving !== null}
+        onOpenChange={(o) => !o && setArchiving(null)}
+        dept={archiving}
+        onConfirm={() => archiving && handleArchive(archiving.id)}
+      />
     </div>
   );
 }
@@ -678,52 +1130,65 @@ type Room = {
   soft: number;
   hard: number;
   type: RoomType;
+  active: boolean;
 };
 
 const ROOM_BRANCH_OPTIONS = ["Gold & Diamond Park"];
 
-function AddRoomDialog({
+function RoomDialog({
   open,
   onOpenChange,
+  initial,
   branches,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  initial: Room | null;
   branches: string[];
-  onSave: (room: { name: string; branch: string; capacity: number; type: RoomType }) => void;
+  onSave: (data: { name: string; branch: string; capacity: number; soft: number; hard: number; type: RoomType }) => void;
 }) {
-  const [name, setName] = useState("");
-  const [branch, setBranch] = useState(branches[0] ?? "");
+  const [roomName, setRoomName] = useState("");
+  const [branch, setBranch]    = useState(branches[0] ?? "");
   const [capacity, setCapacity] = useState("");
-  const [type, setType] = useState<RoomType>("Classroom");
+  const [soft, setSoft]        = useState("");
+  const [hard, setHard]        = useState("");
+  const [type, setType]        = useState<RoomType>("Classroom");
 
   useEffect(() => {
     if (open) {
-      setName("");
-      setBranch(branches[0] ?? "");
-      setCapacity("");
-      setType("Classroom");
+      setRoomName(initial?.name ?? "");
+      setBranch(initial?.branch ?? branches[0] ?? "");
+      setCapacity(initial ? String(initial.capacity) : "");
+      setSoft(initial ? String(initial.soft) : "");
+      setHard(initial ? String(initial.hard) : "");
+      setType(initial?.type ?? "Classroom");
     }
-  }, [open, branches]);
+  }, [open, initial, branches]);
 
-  const capNum = Number(capacity);
-  const canSubmit = name.trim() && branch && capNum > 0;
+  // sync soft/hard to capacity when blank
+  const capNum  = Number(capacity);
+  const softNum = soft !== "" ? Number(soft)  : capNum;
+  const hardNum = hard !== "" ? Number(hard)  : capNum;
+
+  const canSubmit = roomName.trim() && branch && capNum > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[480px] max-w-[92vw]">
         <DialogHeader>
-          <DialogTitle>Add room</DialogTitle>
-          <DialogDescription>Register a new room and its default capacity.</DialogDescription>
+          <DialogTitle>{initial ? "Edit room" : "Add room"}</DialogTitle>
+          <DialogDescription>
+            {initial ? "Update room details." : "Register a new room and its default capacity."}
+          </DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-4">
           <div>
             <FieldLabel required>Room name</FieldLabel>
             <input
               className={FIELD}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
               placeholder="e.g. Room 4A"
             />
           </div>
@@ -739,40 +1204,72 @@ function AddRoomDialog({
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <FieldLabel required>Capacity</FieldLabel>
               <input
                 className={FIELD}
                 type="number"
                 min={1}
+                max={100}
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
                 placeholder="6"
               />
             </div>
             <div>
-              <FieldLabel required>Type</FieldLabel>
-              <select
+              <FieldLabel>Soft cap</FieldLabel>
+              <input
                 className={FIELD}
-                value={type}
-                onChange={(e) => setType(e.target.value as RoomType)}
-              >
-                <option>Classroom</option>
-                <option>Lab</option>
-                <option>Office</option>
-              </select>
+                type="number"
+                min={1}
+                max={100}
+                value={soft}
+                onChange={(e) => setSoft(e.target.value)}
+                placeholder={capacity || "—"}
+              />
             </div>
+            <div>
+              <FieldLabel>Hard cap</FieldLabel>
+              <input
+                className={FIELD}
+                type="number"
+                min={1}
+                max={100}
+                value={hard}
+                onChange={(e) => setHard(e.target.value)}
+                placeholder={capacity || "—"}
+              />
+            </div>
+          </div>
+          <div>
+            <FieldLabel required>Type</FieldLabel>
+            <select
+              className={FIELD}
+              value={type}
+              onChange={(e) => setType(e.target.value as RoomType)}
+            >
+              <option>Classroom</option>
+              <option>Lab</option>
+              <option>Office</option>
+            </select>
           </div>
         </div>
         <FormActions
           onCancel={() => onOpenChange(false)}
           onSubmit={() => {
             if (!canSubmit) return;
-            onSave({ name: name.trim(), branch, capacity: capNum, type });
+            onSave({
+              name: roomName.trim(),
+              branch,
+              capacity: capNum,
+              soft: softNum,
+              hard: hardNum,
+              type,
+            });
             onOpenChange(false);
           }}
-          submitLabel="Add room"
+          submitLabel={initial ? "Save changes" : "Add room"}
           submitDisabled={!canSubmit}
         />
       </DialogContent>
@@ -782,28 +1279,56 @@ function AddRoomDialog({
 
 function RoomsSection() {
   const [rooms, setRooms] = useState<Room[]>([
-    { id: "r1", name: "Room 1A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom" },
-    { id: "r2", name: "Room 2B", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom" },
-    { id: "r3", name: "Room 3A", branch: "Gold & Diamond Park", capacity: 8, soft: 7, hard: 8, type: "Classroom" },
-    { id: "r4", name: "Room 1C", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom" },
-    { id: "r5", name: "Room 2A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom" },
+    { id: "r1", name: "Room 1A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom", active: true },
+    { id: "r2", name: "Room 2B", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom", active: true },
+    { id: "r3", name: "Room 3A", branch: "Gold & Diamond Park", capacity: 8, soft: 7, hard: 8, type: "Classroom", active: true },
+    { id: "r4", name: "Room 1C", branch: "Gold & Diamond Park", capacity: 4, soft: 4, hard: 4, type: "Classroom", active: true },
+    { id: "r5", name: "Room 2A", branch: "Gold & Diamond Park", capacity: 6, soft: 5, hard: 6, type: "Classroom", active: true },
   ]);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen]   = useState(false);
+  const [editing, setEditing]         = useState<Room | null>(null);
+  const [archiving, setArchiving]     = useState<Room | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
 
-  function handleAdd(data: { name: string; branch: string; capacity: number; type: RoomType }) {
-    setRooms((prev) => [
-      ...prev,
-      {
-        id: `r${Date.now()}`,
-        name: data.name,
-        branch: data.branch,
-        capacity: data.capacity,
-        soft: Math.max(1, data.capacity - 1),
-        hard: data.capacity,
-        type: data.type,
-      },
-    ]);
-    toast.success("Room added");
+  const activeRooms   = rooms.filter((r) => r.active);
+  const archivedRooms = rooms.filter((r) => !r.active);
+
+  // rooms with scheduled timetable sessions cannot be archived
+  const scheduledRoomNames = useMemo(
+    () => new Set(timetableSessions.map((s) => s.room)),
+    []
+  );
+
+  function openAdd() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+  function openEdit(r: Room) {
+    setEditing(r);
+    setDialogOpen(true);
+  }
+
+  function handleSave(data: { name: string; branch: string; capacity: number; soft: number; hard: number; type: RoomType }) {
+    if (editing) {
+      setRooms((prev) => prev.map((r) => r.id === editing.id ? { ...r, ...data } : r));
+      toast.success("Room saved");
+    } else {
+      setRooms((prev) => [
+        ...prev,
+        { id: `r${Date.now()}`, active: true, ...data },
+      ]);
+      toast.success("Room added");
+    }
+  }
+
+  function handleArchive(id: string) {
+    setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: false } : r));
+    toast.success("Room archived");
+  }
+
+  function handleRestore(id: string) {
+    setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: true } : r));
+    toast.success("Room restored");
   }
 
   return (
@@ -811,36 +1336,99 @@ function RoomsSection() {
       <SectionHeader
         title="Rooms"
         description="Classroom capacity and occupancy caps per branch."
-        action={<AddButton label="Add Room" onClick={() => setDialogOpen(true)} />}
+        action={<AddButton label="Add Room" onClick={openAdd} />}
       />
       <Table headers={["Room", "Branch", "Capacity", "Soft Cap", "Hard Cap", "Status", "Actions"]}>
-        {rooms.map((r) => (
-          <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-            <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{r.name}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{r.branch}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{r.capacity}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{r.soft}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{r.hard}</td>
-            <td className="px-4 py-3.5">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                Active
-              </span>
-            </td>
-            <td className="px-4 py-3.5">
-              <div className="flex items-center gap-1">
-                <TableAction label="Edit" />
-                <TableAction label="Archive" danger />
-              </div>
-            </td>
-          </tr>
-        ))}
+        {activeRooms.map((r) => {
+          const hasScheduled = scheduledRoomNames.has(r.name);
+          return (
+            <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+              <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{r.name}</td>
+              <td className="px-4 py-3.5 text-sm text-slate-600">{r.branch}</td>
+              <td className="px-4 py-3.5 text-sm text-slate-600">{r.capacity}</td>
+              <td className="px-4 py-3.5 text-sm text-slate-600">
+                {r.soft !== r.capacity ? r.soft : <span className="text-slate-400">—</span>}
+              </td>
+              <td className="px-4 py-3.5 text-sm text-slate-600">
+                {r.hard !== r.capacity ? r.hard : <span className="text-slate-400">—</span>}
+              </td>
+              <td className="px-4 py-3.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                  Active
+                </span>
+              </td>
+              <td className="px-4 py-3.5">
+                <div className="flex items-center gap-1">
+                  <TableAction label="Edit" onClick={() => openEdit(r)} />
+                  {hasScheduled ? (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span>
+                          <TableAction label="Archive" disabled />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Cannot archive — sessions scheduled in this room.</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <TableAction
+                      label="Archive"
+                      danger
+                      onClick={() => setArchiving(r)}
+                    />
+                  )}
+                </div>
+              </td>
+            </tr>
+          );
+        })}
       </Table>
 
-      <AddRoomDialog
+      {/* Archived rooms */}
+      {archivedRooms.length > 0 && (
+        <div className="mt-6">
+          <button
+            onClick={() => setArchivedOpen((v) => !v)}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mb-3"
+          >
+            {archivedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            Archived ({archivedRooms.length})
+          </button>
+          {archivedOpen && (
+            <Table headers={["Room", "Branch", "Capacity", "Soft Cap", "Hard Cap", "Status", "Actions"]}>
+              {archivedRooms.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50 transition-colors opacity-60">
+                  <td className="px-4 py-3.5 text-sm font-medium text-slate-700">{r.name}</td>
+                  <td className="px-4 py-3.5 text-sm text-slate-500">{r.branch}</td>
+                  <td className="px-4 py-3.5 text-sm text-slate-500">{r.capacity}</td>
+                  <td className="px-4 py-3.5 text-sm text-slate-500">{r.soft}</td>
+                  <td className="px-4 py-3.5 text-sm text-slate-500">{r.hard}</td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                      Archived
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <TableAction label="Restore" onClick={() => handleRestore(r.id)} />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </div>
+      )}
+
+      <RoomDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        initial={editing}
         branches={ROOM_BRANCH_OPTIONS}
-        onSave={handleAdd}
+        onSave={handleSave}
+      />
+      <ArchiveConfirmDialog
+        open={archiving !== null}
+        onOpenChange={(o) => !o && setArchiving(null)}
+        label={archiving?.name ?? ""}
+        onConfirm={() => archiving && handleArchive(archiving.id)}
       />
     </div>
   );
@@ -973,56 +1561,562 @@ function PaymentPlansSection() {
 
 // ─── Section 7: Academic Calendar ─────────────────────────────────────────────
 
-type HolidayType = "Public holiday" | "School holiday" | "Break";
-type Holiday = { id: string; name: string; from: string; to: string; type: HolidayType };
+// ── Utilities ──────────────────────────────────────────────────────────────────
 
-const HOLIDAY_BADGE: Record<HolidayType, string> = {
-  "Public holiday": "bg-rose-50 text-rose-700 border-rose-200",
-  "School holiday": "bg-amber-50 text-amber-700 border-amber-200",
-  "Break": "bg-slate-100 text-slate-600 border-slate-200",
-};
+const CAL_DAY_MS = 86_400_000;
 
-function formatRange(from: string, to: string) {
-  if (!from) return "";
-  const f = new Date(from);
-  const fDisp = f.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  if (!to || to === from) return fDisp;
-  const t = new Date(to);
-  const tDisp = t.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  return `${fDisp} – ${tDisp}`;
+function calDayDiff(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / CAL_DAY_MS);
 }
 
-function AddHolidayDialog({
+function calDurationLabel(start: string, end: string): string {
+  const days = calDayDiff(start, end) + 1;
+  const w = Math.floor(days / 7);
+  const d = days % 7;
+  if (d === 0) return `${w} week${w !== 1 ? "s" : ""}`;
+  return `${w} week${w !== 1 ? "s" : ""} ${d} day${d !== 1 ? "s" : ""}`;
+}
+
+function fmtISODate(iso: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// Part 3 helper — not exported; referenced by invoice builder in future use
+function getBillableWeeks(
+  termId: string,
+  departmentId: string,
+  periods: CalendarPeriod[]
+): { totalWeeks: number; pausedWeeks: number; billableWeeks: number } {
+  const term = periods.find((p) => p.id === termId && p.type === "term");
+  if (!term) return { totalWeeks: 0, pausedWeeks: 0, billableWeeks: 0 };
+
+  const termStartMs = new Date(term.startDate).getTime();
+  const termEndMs   = new Date(term.endDate).getTime();
+  const totalWeeks  = Math.floor((termEndMs - termStartMs) / (7 * CAL_DAY_MS));
+
+  const halfTermsInTerm = periods.filter(
+    (p) =>
+      p.type === "half_term" &&
+      new Date(p.startDate).getTime() >= termStartMs &&
+      new Date(p.endDate).getTime() <= termEndMs
+  );
+
+  let pausedWeeks = 0;
+  for (const ht of halfTermsInTerm) {
+    const pause = ht.departmentPauses?.find((dp) => dp.departmentId === departmentId);
+    if (pause?.paused) {
+      const dur =
+        (new Date(ht.endDate).getTime() - new Date(ht.startDate).getTime()) / CAL_DAY_MS;
+      pausedWeeks += Math.ceil(dur / 7);
+    }
+  }
+
+  return { totalWeeks, pausedWeeks, billableWeeks: totalWeeks - pausedWeeks };
+}
+
+function hasSessionsInPeriod(period: CalendarPeriod): boolean {
+  const startMs = new Date(period.startDate).getTime();
+  const endMs   = new Date(period.endDate).getTime();
+  return timetableSessions.some((s) => {
+    const parts = s.date.split(" ");
+    if (parts.length !== 2) return false;
+    for (const yr of [2025, 2026]) {
+      const d = new Date(`${parts[0]} ${parts[1]} ${yr}`);
+      if (!isNaN(d.getTime()) && d.getTime() >= startMs && d.getTime() <= endMs) return true;
+    }
+    return false;
+  });
+}
+
+function getMonthLabels(
+  yearStart: string,
+  yearEnd: string
+): Array<{ label: string; pct: number }> {
+  const totalDays = calDayDiff(yearStart, yearEnd);
+  const end = new Date(yearEnd);
+  const cur = new Date(
+    new Date(yearStart).getFullYear(),
+    new Date(yearStart).getMonth(),
+    1
+  );
+  const labels: Array<{ label: string; pct: number }> = [];
+  while (cur <= end) {
+    const iso    = cur.toISOString().split("T")[0];
+    const offset = calDayDiff(yearStart, iso);
+    labels.push({
+      label: cur.toLocaleDateString("en-GB", { month: "short" }),
+      pct:   (Math.max(0, offset) / totalDays) * 100,
+    });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return labels;
+}
+
+// ── Colour maps ────────────────────────────────────────────────────────────────
+
+const PERIOD_BG: Record<string, string> = {
+  term:          "bg-green-500",
+  half_term:     "bg-amber-400",
+  holiday_break: "bg-gray-300",
+  summer_term:   "bg-teal-500",
+  closure:       "bg-red-300",
+};
+
+const PERIOD_BADGE: Record<string, string> = {
+  term:          "bg-green-50 text-green-700 border-green-200",
+  half_term:     "bg-amber-50 text-amber-700 border-amber-200",
+  holiday_break: "bg-gray-100 text-gray-600 border-gray-200",
+  summer_term:   "bg-teal-50 text-teal-700 border-teal-200",
+  closure:       "bg-red-50 text-red-700 border-red-200",
+};
+
+const PERIOD_TYPE_LABEL: Record<string, string> = {
+  term:          "Term",
+  half_term:     "Half-Term",
+  holiday_break: "Holiday Break",
+  summer_term:   "Summer Term",
+  closure:       "Closure",
+};
+
+const DEPT_COLOUR_BY_ID: Record<string, string> = {
+  "dept-primary":  "#F97316",
+  "dept-lowersec": "#3B82F6",
+  "dept-senior":   "#8B5CF6",
+};
+
+const DEPT_PAUSE_ROWS = [
+  { id: "dept-primary",  name: "Primary"         },
+  { id: "dept-lowersec", name: "Lower Secondary" },
+  { id: "dept-senior",   name: "Senior"          },
+];
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function PauseToggle({ paused, onChange }: { paused: boolean; onChange: () => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={paused}
+      onClick={onChange}
+      className={cn(
+        "relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500",
+        paused ? "bg-amber-400" : "bg-green-500"
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200",
+          paused ? "translate-x-[3px]" : "translate-x-[18px]"
+        )}
+      />
+    </button>
+  );
+}
+
+function CalendarTimeline({
+  year,
+  periods,
+  holidays,
+}: {
+  year: AcademicYear;
+  periods: CalendarPeriod[];
+  holidays: PublicHoliday[];
+}) {
+  const totalDays  = calDayDiff(year.startDate, year.endDate);
+  const monthLabels = getMonthLabels(year.startDate, year.endDate);
+
+  return (
+    <div>
+      {/* Public holiday triangle markers */}
+      <div className="relative h-4 mb-1">
+        {holidays.map((h) => {
+          const offset = calDayDiff(year.startDate, h.date);
+          if (offset < 0 || offset > totalDays) return null;
+          const pct = (offset / totalDays) * 100;
+          return (
+            <Tooltip key={h.id}>
+              <TooltipTrigger>
+                <div
+                  className="absolute -translate-x-1/2 cursor-default w-0 h-0"
+                  style={{
+                    left: `${pct}%`,
+                    top: 0,
+                    borderLeft: "5px solid transparent",
+                    borderRight: "5px solid transparent",
+                    borderBottom: "8px solid #EF4444",
+                  }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p className="text-xs font-medium">{h.name}</p>
+                <p className="text-xs text-slate-400">{fmtISODate(h.date)}</p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+
+      {/* Proportional bar */}
+      <div className="relative h-10 bg-slate-100 rounded-lg overflow-hidden">
+        {periods.map((p) => {
+          const offset = calDayDiff(year.startDate, p.startDate);
+          const dur    = calDayDiff(p.startDate, p.endDate) + 1;
+          const left   = (offset / totalDays) * 100;
+          const width  = (dur / totalDays) * 100;
+          return (
+            <Tooltip key={p.id}>
+              <TooltipTrigger>
+                <div
+                  className={cn(
+                    "absolute inset-y-0 flex items-center justify-center overflow-hidden cursor-default",
+                    PERIOD_BG[p.type],
+                    p.type === "half_term" ? "opacity-75" : ""
+                  )}
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                >
+                  {width > 4 && (
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold truncate px-1.5",
+                        p.type === "holiday_break" ? "text-slate-600" : "text-white"
+                      )}
+                    >
+                      {p.name}
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs font-semibold">{p.name}</p>
+                <p className="text-xs text-slate-400">
+                  {fmtISODate(p.startDate)} – {fmtISODate(p.endDate)}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+
+      {/* Month labels */}
+      <div className="relative h-5 mt-1">
+        {monthLabels.map(({ label, pct }) => (
+          <span
+            key={`${label}-${pct}`}
+            className="absolute text-[10px] text-slate-400 -translate-x-1/2 select-none"
+            style={{ left: `${pct}%` }}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-slate-100">
+        {(Object.entries(PERIOD_TYPE_LABEL) as [string, string][]).map(([type, label]) => (
+          <div key={type} className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span className={cn("w-2.5 h-2.5 rounded-sm inline-block", PERIOD_BG[type])} />
+            {label}
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div
+            className="w-0 h-0 inline-block"
+            style={{
+              borderLeft: "4px solid transparent",
+              borderRight: "4px solid transparent",
+              borderBottom: "6px solid #EF4444",
+            }}
+          />
+          Public Holiday
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TermBillableTable({
+  termId,
+  periods,
+}: {
+  termId: string;
+  periods: CalendarPeriod[];
+}) {
+  return (
+    <div className="mt-4 rounded-md border border-slate-100 overflow-hidden">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-slate-50 border-b border-slate-100">
+            {["Department", "Total weeks", "Paused weeks", "Billable weeks"].map((h) => (
+              <th
+                key={h}
+                className="px-3 py-2 text-left font-semibold text-slate-500 whitespace-nowrap"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {DEPT_PAUSE_ROWS.map((dept) => {
+            const { totalWeeks, pausedWeeks, billableWeeks } = getBillableWeeks(
+              termId,
+              dept.id,
+              periods
+            );
+            return (
+              <tr key={dept.id}>
+                <td className="px-3 py-2 text-slate-700 font-medium">{dept.name}</td>
+                <td className="px-3 py-2 text-slate-600">{totalWeeks}</td>
+                <td className="px-3 py-2">
+                  {pausedWeeks > 0 ? (
+                    <span className="text-amber-600 font-semibold">{pausedWeeks}</span>
+                  ) : (
+                    <span className="text-slate-400">0</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 font-semibold text-green-700">{billableWeeks}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PeriodCard({
+  period,
+  allPeriods,
+  onEdit,
+  onDelete,
+  onTogglePause,
+}: {
+  period: CalendarPeriod;
+  allPeriods: CalendarPeriod[];
+  onEdit: (p: CalendarPeriod) => void;
+  onDelete: (id: string) => void;
+  onTogglePause: (periodId: string, deptId: string) => void;
+}) {
+  const hasSessions = hasSessionsInPeriod(period);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  const parentTerm =
+    period.type === "half_term"
+      ? allPeriods.find(
+          (p) =>
+            p.type === "term" &&
+            new Date(p.startDate).getTime() <= new Date(period.startDate).getTime() &&
+            new Date(p.endDate).getTime() >= new Date(period.endDate).getTime()
+        )
+      : undefined;
+
+  return (
+    <Card className="mb-3 overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-4">
+          {/* Left: badge + name + date range */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span
+                className={cn(
+                  "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0",
+                  PERIOD_BADGE[period.type]
+                )}
+              >
+                {PERIOD_TYPE_LABEL[period.type]}
+              </span>
+              <span className="text-sm font-semibold text-slate-900">{period.name}</span>
+            </div>
+            <p className="text-xs text-slate-500">
+              {fmtISODate(period.startDate)} – {fmtISODate(period.endDate)}
+              <span className="mx-1.5 text-slate-300">·</span>
+              {calDurationLabel(period.startDate, period.endDate)}
+            </p>
+          </div>
+
+          {/* Right: edit + delete */}
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <button
+              onClick={() => onEdit(period)}
+              className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="Edit period"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <Tooltip>
+              <TooltipTrigger>
+                <button
+                  onClick={() => !hasSessions && setDeleteConfirm(true)}
+                  disabled={hasSessions}
+                  className={cn(
+                    "p-1.5 rounded transition-colors",
+                    hasSessions
+                      ? "text-slate-200 cursor-not-allowed"
+                      : "text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                  )}
+                  aria-label="Delete period"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              {hasSessions && (
+                <TooltipContent side="left">
+                  <p className="text-xs">Sessions are scheduled in this period</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Term: billable weeks table */}
+        {period.type === "term" && (
+          <TermBillableTable termId={period.id} periods={allPeriods} />
+        )}
+
+        {/* Summer term: ad hoc billing note */}
+        {period.type === "summer_term" && (
+          <div className="mt-3 rounded-md bg-teal-50 border border-teal-100 px-3 py-2">
+            <p className="text-xs text-teal-700">
+              Ad hoc billing · Sessions booked and invoiced individually · No regular weekly
+              sessions · All departments active
+            </p>
+          </div>
+        )}
+
+        {/* Holiday break: info note */}
+        {period.type === "holiday_break" && (
+          <div className="mt-3 rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+            <p className="text-xs text-slate-500">
+              Regular weekly sessions do not run · Departments may schedule intensive or revision
+              sessions independently
+            </p>
+          </div>
+        )}
+
+        {/* Half-term: department pause toggles */}
+        {period.type === "half_term" && period.departmentPauses && (
+          <div className="mt-3 space-y-2.5">
+            {period.departmentPauses.map((dp) => {
+              // Compute impact: billable weeks for parent term with vs without this pause
+              const withPause = parentTerm
+                ? getBillableWeeks(parentTerm.id, dp.departmentId, allPeriods).billableWeeks
+                : null;
+              const withoutPause =
+                parentTerm && dp.paused
+                  ? getBillableWeeks(
+                      parentTerm.id,
+                      dp.departmentId,
+                      allPeriods.map((p) =>
+                        p.id === period.id
+                          ? {
+                              ...p,
+                              departmentPauses: p.departmentPauses?.map((d) =>
+                                d.departmentId === dp.departmentId ? { ...d, paused: false } : d
+                              ),
+                            }
+                          : p
+                      )
+                    ).billableWeeks
+                  : null;
+
+              return (
+                <div key={dp.departmentId}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{
+                          backgroundColor: DEPT_COLOUR_BY_ID[dp.departmentId] ?? "#94A3B8",
+                        }}
+                      />
+                      <span className="text-xs text-slate-700">{dp.departmentName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "text-xs font-medium",
+                          dp.paused ? "text-amber-600" : "text-green-600"
+                        )}
+                      >
+                        {dp.paused ? "Pauses" : "Continues"}
+                      </span>
+                      <PauseToggle
+                        paused={dp.paused}
+                        onChange={() => onTogglePause(period.id, dp.departmentId)}
+                      />
+                    </div>
+                  </div>
+                  {dp.paused && parentTerm && withPause !== null && withoutPause !== null && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 pl-4">
+                      {parentTerm.name} billable weeks for {dp.departmentName}: {withoutPause} →{" "}
+                      {withPause}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Inline delete confirmation strip */}
+      {deleteConfirm && (
+        <div className="border-t border-rose-100 bg-rose-50 px-4 py-3 flex items-center justify-between gap-4">
+          <p className="text-xs text-rose-700 font-medium">
+            Delete "{period.name}"? This cannot be undone.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setDeleteConfirm(false)}
+              className="text-xs px-3 py-1.5 border border-slate-200 rounded bg-white text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                onDelete(period.id);
+                setDeleteConfirm(false);
+              }}
+              className="text-xs px-3 py-1.5 bg-rose-500 text-white rounded hover:bg-rose-600 transition-colors cursor-pointer"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function AddPublicHolidayModal({
   open,
   onOpenChange,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onSave: (h: { name: string; from: string; to: string; type: HolidayType }) => void;
+  onSave: (h: { name: string; date: string }) => void;
 }) {
   const [name, setName] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [type, setType] = useState<HolidayType>("Public holiday");
+  const [date, setDate] = useState("");
 
   useEffect(() => {
     if (open) {
       setName("");
-      setFrom("");
-      setTo("");
-      setType("Public holiday");
+      setDate("");
     }
   }, [open]);
 
-  const canSubmit = name.trim() && from && to && new Date(to) >= new Date(from);
+  const canSubmit = name.trim() && date;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[480px] max-w-[92vw]">
+      <DialogContent className="w-[440px] max-w-[92vw]">
         <DialogHeader>
-          <DialogTitle>Add holiday</DialogTitle>
-          <DialogDescription>Add a public holiday, school closure, or break.</DialogDescription>
+          <DialogTitle>Add Public Holiday</DialogTitle>
+          <DialogDescription>Add a custom public holiday to this academic year.</DialogDescription>
         </DialogHeader>
         <div className="p-6 space-y-4">
           <div>
@@ -1031,48 +2125,25 @@ function AddHolidayDialog({
               className={FIELD}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. UAE National Day"
+              placeholder="e.g. Eid Arafat Day"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <FieldLabel required>From</FieldLabel>
-              <input
-                className={FIELD}
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-              />
-            </div>
-            <div>
-              <FieldLabel required>To</FieldLabel>
-              <input
-                className={FIELD}
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                min={from || undefined}
-              />
-            </div>
-          </div>
           <div>
-            <FieldLabel required>Type</FieldLabel>
-            <select
+            <FieldLabel required>Date</FieldLabel>
+            <input
               className={FIELD}
-              value={type}
-              onChange={(e) => setType(e.target.value as HolidayType)}
-            >
-              <option>Public holiday</option>
-              <option>School holiday</option>
-              <option>Break</option>
-            </select>
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
+          <p className="text-xs text-slate-400">Source will be set to "Custom".</p>
         </div>
         <FormActions
           onCancel={() => onOpenChange(false)}
           onSubmit={() => {
             if (!canSubmit) return;
-            onSave({ name: name.trim(), from, to, type });
+            onSave({ name: name.trim(), date });
             onOpenChange(false);
           }}
           submitLabel="Add holiday"
@@ -1083,101 +2154,744 @@ function AddHolidayDialog({
   );
 }
 
-function AcademicCalendarSection() {
-  const terms = [
-    { name: "Term 1", start: "2 Sep 2024", end: "13 Dec 2024", flex: 14, color: "bg-amber-500 text-white" },
-    { name: "Winter Break", start: "14 Dec", end: "5 Jan", flex: 3, color: "bg-slate-200 text-slate-600" },
-    { name: "Term 2", start: "6 Jan 2026", end: "28 Mar 2026", flex: 12, color: "bg-teal-500 text-white" },
-    { name: "Spring Break", start: "29 Mar", end: "13 Apr", flex: 2, color: "bg-slate-200 text-slate-600" },
-    { name: "Term 3", start: "14 Apr 2026", end: "25 Jul 2026", flex: 14, color: "bg-slate-700 text-white" },
-    { name: "Graduation", start: "~end Jul", end: "—", flex: 1, color: "bg-violet-500 text-white" },
-  ];
+function PublicHolidaysPanel({
+  holidays,
+  useUaeTemplate,
+  onToggleTemplate,
+  onAdd,
+  onDelete,
+}: {
+  holidays: PublicHoliday[];
+  useUaeTemplate: boolean;
+  onToggleTemplate: (v: boolean) => void;
+  onAdd: (h: { name: string; date: string }) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen]                       = useState(false);
+  const [addOpen, setAddOpen]                 = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const [holidays, setHolidays] = useState<Holiday[]>([
-    { id: "h1", name: "UAE National Day",        from: "2024-12-02", to: "2024-12-02", type: "Public holiday" },
-    { id: "h2", name: "Eid Al Fitr (est.)",      from: "2026-03-29", to: "2026-03-31", type: "Public holiday" },
-    { id: "h3", name: "Eid Al Adha (est.)",      from: "2026-06-05", to: "2026-06-07", type: "Public holiday" },
-    { id: "h4", name: "Islamic New Year (est.)", from: "2026-06-26", to: "2026-06-26", type: "Public holiday" },
-  ]);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const visible = useUaeTemplate
+    ? holidays
+    : holidays.filter((h) => h.source === "custom");
 
-  function handleAdd(h: { name: string; from: string; to: string; type: HolidayType }) {
-    setHolidays((prev) => [...prev, { id: `h${Date.now()}`, ...h }]);
-    toast.success("Holiday added");
+  return (
+    <div className="mt-6">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+      >
+        <span className="text-sm font-semibold text-slate-900">Public Holidays</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">{visible.length} entries</span>
+          {open ? (
+            <ChevronUp className="w-4 h-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-400" />
+          )}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border border-t-0 border-slate-200 rounded-b-lg bg-white overflow-hidden">
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Toggle checked={useUaeTemplate} onChange={onToggleTemplate} />
+              <span className="text-sm text-slate-700">Use UAE public holiday template</span>
+            </div>
+            <AddButton label="Add Public Holiday" onClick={() => setAddOpen(true)} />
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                {["Holiday", "Date", "Source", ""].map((h, i) => (
+                  <th
+                    key={i}
+                    className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-sm text-slate-400 text-center">
+                    No public holidays configured.
+                  </td>
+                </tr>
+              )}
+              {visible.map((h) => (
+                <tr key={h.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-slate-800">{h.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{fmtISODate(h.date)}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "text-xs px-2 py-0.5 rounded-full border font-medium",
+                        h.source === "uae_template"
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      )}
+                    >
+                      {h.source === "uae_template" ? "UAE Template" : "Custom"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {h.source === "custom" &&
+                      (deleteConfirmId === h.id ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              onDelete(h.id);
+                              setDeleteConfirmId(null);
+                            }}
+                            className="text-xs text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                          >
+                            Confirm delete
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="text-xs text-slate-500 hover:text-slate-700 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirmId(h.id)}
+                          className="p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          aria-label="Delete holiday"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <AddPublicHolidayModal open={addOpen} onOpenChange={setAddOpen} onSave={onAdd} />
+    </div>
+  );
+}
+
+const PERIOD_TYPE_OPTIONS: Array<{ value: PeriodType; label: string }> = [
+  { value: "term",          label: "Term"            },
+  { value: "half_term",     label: "Half-Term Break" },
+  { value: "holiday_break", label: "Holiday Break"   },
+  { value: "summer_term",   label: "Summer Term"     },
+  { value: "closure",       label: "Closure"         },
+];
+
+const DEFAULT_PAUSES: DepartmentPause[] = [
+  { departmentId: "dept-primary",  departmentName: "Primary",         paused: true },
+  { departmentId: "dept-lowersec", departmentName: "Lower Secondary", paused: true },
+  { departmentId: "dept-senior",   departmentName: "Senior",          paused: true },
+];
+
+function AddEditPeriodModal({
+  open,
+  onOpenChange,
+  initial,
+  existingPeriods,
+  academicYearId,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initial: CalendarPeriod | null;
+  existingPeriods: CalendarPeriod[];
+  academicYearId: string;
+  onSave: (data: Omit<CalendarPeriod, "sortOrder" | "id"> & { id?: string }) => void;
+}) {
+  const [type, setType]             = useState<PeriodType>("term");
+  const [name, setName]             = useState("");
+  const [startDate, setStartDate]   = useState("");
+  const [endDate, setEndDate]       = useState("");
+  const [deptPauses, setDeptPauses] = useState<DepartmentPause[]>(
+    DEFAULT_PAUSES.map((d) => ({ ...d }))
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    if (initial) {
+      setType(initial.type);
+      setName(initial.name);
+      setStartDate(initial.startDate);
+      setEndDate(initial.endDate);
+      setDeptPauses(
+        initial.departmentPauses
+          ? initial.departmentPauses.map((d) => ({ ...d }))
+          : DEFAULT_PAUSES.map((d) => ({ ...d }))
+      );
+    } else {
+      setType("term");
+      setName("");
+      setStartDate("");
+      setEndDate("");
+      setDeptPauses(DEFAULT_PAUSES.map((d) => ({ ...d })));
+    }
+  }, [open, initial]);
+
+  function handleTypeChange(t: PeriodType) {
+    setType(t);
+    const label = PERIOD_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? "";
+    if (!name || PERIOD_TYPE_OPTIONS.some((o) => o.label === name)) setName(label);
+    if (t === "half_term" && !initial) setDeptPauses(DEFAULT_PAUSES.map((d) => ({ ...d })));
+  }
+
+  const dateError = Boolean(startDate && endDate && new Date(endDate) <= new Date(startDate));
+
+  const overlapWith =
+    startDate && endDate && !dateError
+      ? existingPeriods.find(
+          (p) =>
+            p.id !== initial?.id &&
+            new Date(p.startDate) <= new Date(endDate) &&
+            new Date(p.endDate) >= new Date(startDate)
+        )
+      : null;
+
+  const canSubmit = Boolean(name.trim() && startDate && endDate && !dateError);
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    onSave({
+      id:               initial?.id,
+      academicYearId,
+      type,
+      name:             name.trim(),
+      startDate,
+      endDate,
+      departmentPauses: type === "half_term" ? deptPauses : undefined,
+    });
+    onOpenChange(false);
   }
 
   return (
-    <div>
-      <SectionHeader
-        title="Academic Calendar"
-        description="Academic year structure, term dates, and public holidays."
-        action={
-          <div className="flex items-center gap-2">
-            <OutlineButton label="Edit Academic Year" />
-          </div>
-        }
-      />
-
-      <Card className="p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-semibold text-slate-700">Academic Year 2024–25</p>
-        </div>
-        <div className="flex rounded-lg overflow-hidden gap-px bg-slate-200">
-          {terms.map((t) => (
-            <div
-              key={t.name}
-              className={cn("px-3 py-4 min-w-0 overflow-hidden", t.color)}
-              style={{ flex: t.flex }}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[520px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>{initial ? "Edit period" : "Add period"}</DialogTitle>
+          <DialogDescription>
+            {initial
+              ? "Update this calendar period."
+              : "Add a new period to the academic calendar."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel required>Period type</FieldLabel>
+            <select
+              className={FIELD}
+              value={type}
+              onChange={(e) => handleTypeChange(e.target.value as PeriodType)}
             >
-              <p className="text-xs font-semibold truncate">{t.name}</p>
-              <p className="text-[10px] opacity-80 truncate mt-0.5">{t.start}</p>
-              {t.flex > 2 && (
-                <p className="text-[10px] opacity-80 truncate">→ {t.end}</p>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-3 mt-4">
-          {[
-            { label: "Term blocks", color: "bg-amber-500" },
-            { label: "Break periods", color: "bg-slate-300" },
-          ].map((l) => (
-            <div key={l.label} className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className={cn("w-2.5 h-2.5 rounded-sm", l.color)} />
-              {l.label}
-            </div>
-          ))}
-        </div>
-      </Card>
+              {PERIOD_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-semibold text-slate-700">Public Holidays</p>
-        <AddButton label="Add Holiday" onClick={() => setDialogOpen(true)} />
+          <div>
+            <FieldLabel required>Name</FieldLabel>
+            <input
+              className={FIELD}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Term 4"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>Start date</FieldLabel>
+              <input
+                className={FIELD}
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <FieldLabel required>End date</FieldLabel>
+              <input
+                className={FIELD}
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {dateError && (
+            <p className="text-xs text-rose-600 -mt-2">End date must be after start date.</p>
+          )}
+
+          {overlapWith && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                These dates overlap with <strong>{overlapWith.name}</strong>. Confirm to proceed.
+              </p>
+            </div>
+          )}
+
+          {type === "half_term" && (
+            <div>
+              <FieldLabel>Department pause settings</FieldLabel>
+              <div className="space-y-2 mt-2 rounded-md border border-slate-100 p-3 bg-slate-50">
+                {deptPauses.map((dp) => (
+                  <div key={dp.departmentId} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{
+                          backgroundColor: DEPT_COLOUR_BY_ID[dp.departmentId] ?? "#94A3B8",
+                        }}
+                      />
+                      <span className="text-sm text-slate-700">{dp.departmentName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "text-xs font-medium",
+                          dp.paused ? "text-amber-600" : "text-green-600"
+                        )}
+                      >
+                        {dp.paused ? "Pauses" : "Continues"}
+                      </span>
+                      <PauseToggle
+                        paused={dp.paused}
+                        onChange={() =>
+                          setDeptPauses((prev) =>
+                            prev.map((d) =>
+                              d.departmentId === dp.departmentId
+                                ? { ...d, paused: !d.paused }
+                                : d
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={handleSubmit}
+          submitLabel={initial ? "Save changes" : "Add period"}
+          submitDisabled={!canSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddAcademicYearModal({
+  open,
+  onOpenChange,
+  existingYears,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  existingYears: AcademicYear[];
+  onSave: (
+    data: { name: string; startDate: string; endDate: string; isCurrent: boolean },
+    copyFromId?: string
+  ) => void;
+}) {
+  const [yearName, setYearName]     = useState("");
+  const [startDate, setStartDate]   = useState("");
+  const [endDate, setEndDate]       = useState("");
+  const [isCurrent, setIsCurrent]   = useState(false);
+  const [copyFromId, setCopyFromId] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setYearName("");
+      setStartDate("");
+      setEndDate("");
+      setIsCurrent(false);
+      setCopyFromId("");
+    }
+  }, [open]);
+
+  const dateError  = Boolean(startDate && endDate && new Date(endDate) <= new Date(startDate));
+  const canSubmit  = Boolean(yearName.trim() && startDate && endDate && !dateError);
+  const hasCurrentYear = existingYears.some((y) => y.isCurrent);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[520px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Add Academic Year</DialogTitle>
+          <DialogDescription>
+            Create a new academic year for this organisation.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel required>Year name</FieldLabel>
+            <input
+              className={FIELD}
+              value={yearName}
+              onChange={(e) => setYearName(e.target.value)}
+              placeholder="e.g. 2026–27"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>Start date</FieldLabel>
+              <input
+                className={FIELD}
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <FieldLabel required>End date</FieldLabel>
+              <input
+                className={FIELD}
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          {dateError && (
+            <p className="text-xs text-rose-600 -mt-2">End date must be after start date.</p>
+          )}
+
+          <div className="flex items-center justify-between py-1">
+            <span className="text-sm text-slate-700">Set as current year</span>
+            <Toggle checked={isCurrent} onChange={(v) => setIsCurrent(v)} />
+          </div>
+          {isCurrent && hasCurrentYear && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                This will make <strong>{yearName || "the new year"}</strong> the active academic
+                year across the platform.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <FieldLabel>Copy period structure from</FieldLabel>
+            <select
+              className={FIELD}
+              value={copyFromId}
+              onChange={(e) => setCopyFromId(e.target.value)}
+            >
+              <option value="">— Start blank</option>
+              {existingYears.map((y) => (
+                <option key={y.id} value={y.id}>
+                  {y.name}
+                </option>
+              ))}
+            </select>
+            {copyFromId && (
+              <p className="text-xs text-slate-400 mt-1">
+                Dates will shift proportionally · Pause toggles copied
+              </p>
+            )}
+          </div>
+        </div>
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => {
+            if (!canSubmit) return;
+            onSave(
+              { name: yearName.trim(), startDate, endDate, isCurrent },
+              copyFromId || undefined
+            );
+            onOpenChange(false);
+          }}
+          submitLabel="Create academic year"
+          submitDisabled={!canSubmit}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Main section ───────────────────────────────────────────────────────────────
+
+function AcademicCalendarSection() {
+  const [years, setYears]       = useState<AcademicYear[]>([...seedAcademicYears]);
+  const [periods, setPeriods]   = useState<CalendarPeriod[]>([...seedPeriods]);
+  const [holidays, setHolidays] = useState<PublicHoliday[]>([...seedHolidays]);
+  const [selectedYearId, setSelectedYearId] = useState(
+    seedAcademicYears.find((y) => y.isCurrent)?.id ?? seedAcademicYears[0]?.id ?? ""
+  );
+  const [useUaeTemplate, setUseUaeTemplate] = useState(true);
+  const [addYearOpen, setAddYearOpen]       = useState(false);
+  const [editPeriodOpen, setEditPeriodOpen] = useState(false);
+  const [editingPeriod, setEditingPeriod]   = useState<CalendarPeriod | null>(null);
+
+  const selectedYear = years.find((y) => y.id === selectedYearId);
+  const yearPeriods  = periods
+    .filter((p) => p.academicYearId === selectedYearId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const yearHolidays = holidays.filter((h) => h.academicYearId === selectedYearId);
+
+  function handleSavePeriod(data: Omit<CalendarPeriod, "sortOrder" | "id"> & { id?: string }) {
+    if (data.id) {
+      setPeriods((prev) =>
+        prev.map((p) => (p.id === data.id ? ({ ...p, ...data } as CalendarPeriod) : p))
+      );
+      toast.success("Period updated");
+    } else {
+      const nextSort =
+        yearPeriods.length > 0 ? Math.max(...yearPeriods.map((p) => p.sortOrder)) + 1 : 1;
+      const newPeriod: CalendarPeriod = {
+        ...data,
+        id: `cp-${Date.now()}`,
+        sortOrder: nextSort,
+      } as CalendarPeriod;
+      setPeriods((prev) => [...prev, newPeriod]);
+      toast.success("Period added");
+    }
+  }
+
+  function handleDeletePeriod(id: string) {
+    setPeriods((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Period deleted");
+  }
+
+  function handleTogglePause(periodId: string, deptId: string) {
+    setPeriods((prev) =>
+      prev.map((p) => {
+        if (p.id !== periodId) return p;
+        return {
+          ...p,
+          departmentPauses: (p.departmentPauses ?? []).map((dp) =>
+            dp.departmentId === deptId ? { ...dp, paused: !dp.paused } : dp
+          ),
+        };
+      })
+    );
+  }
+
+  function handleAddHoliday(h: { name: string; date: string }) {
+    setHolidays((prev) => [
+      ...prev,
+      {
+        id:             `ph-${Date.now()}`,
+        academicYearId: selectedYearId,
+        name:           h.name,
+        date:           h.date,
+        source:         "custom" as const,
+      },
+    ]);
+    toast.success("Public holiday added");
+  }
+
+  function handleDeleteHoliday(id: string) {
+    setHolidays((prev) => prev.filter((h) => h.id !== id));
+    toast.success("Holiday removed");
+  }
+
+  function handleAddYear(
+    data: { name: string; startDate: string; endDate: string; isCurrent: boolean },
+    copyFromId?: string
+  ) {
+    const newYear: AcademicYear = {
+      ...data,
+      id: `ay-${Date.now()}`,
+      financialYearStartMonth: 1,
+    };
+
+    setYears((prev) =>
+      data.isCurrent
+        ? prev.map((y) => ({ ...y, isCurrent: false })).concat(newYear)
+        : [...prev, newYear]
+    );
+
+    if (copyFromId) {
+      const srcYear    = years.find((y) => y.id === copyFromId);
+      const srcPeriods = periods.filter((p) => p.academicYearId === copyFromId);
+      if (srcYear && srcPeriods.length > 0) {
+        const shiftMs =
+          new Date(newYear.startDate).getTime() - new Date(srcYear.startDate).getTime();
+        const copied: CalendarPeriod[] = srcPeriods.map((p) => ({
+          ...p,
+          id:             `cp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          academicYearId: newYear.id,
+          startDate:      new Date(new Date(p.startDate).getTime() + shiftMs)
+            .toISOString()
+            .split("T")[0],
+          endDate:        new Date(new Date(p.endDate).getTime() + shiftMs)
+            .toISOString()
+            .split("T")[0],
+        }));
+        setPeriods((prev) => [...prev, ...copied]);
+      }
+    }
+
+    setSelectedYearId(newYear.id);
+    toast.success("Academic year created");
+  }
+
+  const finMonthName = selectedYear
+    ? new Date(2000, (selectedYear.financialYearStartMonth ?? 1) - 1, 1).toLocaleDateString(
+        "en-GB",
+        { month: "long" }
+      )
+    : "January";
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Academic Calendar</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Academic year structure, term dates, and public holidays.
+          </p>
+        </div>
+        <AddButton label="Add Academic Year" onClick={() => setAddYearOpen(true)} />
       </div>
-      <Table headers={["Holiday", "Date", "Type", "Actions"]}>
-        {holidays.map((h) => (
-          <tr key={h.id} className="hover:bg-slate-50 transition-colors">
-            <td className="px-4 py-3.5 text-sm text-slate-800">{h.name}</td>
-            <td className="px-4 py-3.5 text-sm text-slate-600">{formatRange(h.from, h.to)}</td>
-            <td className="px-4 py-3.5">
-              <span className={cn(
-                "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
-                HOLIDAY_BADGE[h.type]
-              )}>
-                {h.type}
-              </span>
-            </td>
-            <td className="px-4 py-3.5">
-              <TableAction label="Edit" />
-            </td>
-          </tr>
-        ))}
-      </Table>
 
-      <AddHolidayDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSave={handleAdd}
+      {/* Academic year segmented selector */}
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        {years.map((y) => (
+          <button
+            key={y.id}
+            onClick={() => setSelectedYearId(y.id)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer",
+              selectedYearId === y.id
+                ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+            )}
+          >
+            {y.name}
+            {y.isCurrent && (
+              <span
+                className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                  selectedYearId === y.id
+                    ? "bg-white/25 text-white"
+                    : "bg-green-100 text-green-700"
+                )}
+              >
+                Current
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {selectedYear && (
+        <>
+          {/* Financial year info banner */}
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 mb-6">
+            <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <p className="text-xs text-blue-700">
+              Financial year: <strong>{finMonthName} – December</strong> · Reports and revenue
+              figures can be sliced by term or by calendar quarter.
+            </p>
+          </div>
+
+          {/* Timeline visualisation */}
+          <Card className="p-5 mb-6">
+            <p className="text-sm font-semibold text-slate-700 mb-4">
+              {selectedYear.name} · {fmtISODate(selectedYear.startDate)} –{" "}
+              {fmtISODate(selectedYear.endDate)}
+            </p>
+            <CalendarTimeline
+              year={selectedYear}
+              periods={yearPeriods}
+              holidays={
+                useUaeTemplate
+                  ? yearHolidays
+                  : yearHolidays.filter((h) => h.source === "custom")
+              }
+            />
+          </Card>
+
+          {/* Period cards header */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-slate-700">
+              Calendar Periods ({yearPeriods.length})
+            </p>
+            <AddButton
+              label="Add Period"
+              onClick={() => {
+                setEditingPeriod(null);
+                setEditPeriodOpen(true);
+              }}
+            />
+          </div>
+
+          {/* Period cards list */}
+          {yearPeriods.length === 0 ? (
+            <Card className="p-8 text-center mb-6">
+              <p className="text-sm text-slate-400">
+                No periods configured for this academic year.
+              </p>
+            </Card>
+          ) : (
+            <div className="mb-2">
+              {yearPeriods.map((p) => (
+                <PeriodCard
+                  key={p.id}
+                  period={p}
+                  allPeriods={periods}
+                  onEdit={(period) => {
+                    setEditingPeriod(period);
+                    setEditPeriodOpen(true);
+                  }}
+                  onDelete={handleDeletePeriod}
+                  onTogglePause={handleTogglePause}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Public holidays panel */}
+          <PublicHolidaysPanel
+            holidays={yearHolidays}
+            useUaeTemplate={useUaeTemplate}
+            onToggleTemplate={setUseUaeTemplate}
+            onAdd={handleAddHoliday}
+            onDelete={handleDeleteHoliday}
+          />
+        </>
+      )}
+
+      {/* Modals */}
+      <AddAcademicYearModal
+        open={addYearOpen}
+        onOpenChange={setAddYearOpen}
+        existingYears={years}
+        onSave={handleAddYear}
+      />
+      <AddEditPeriodModal
+        open={editPeriodOpen}
+        onOpenChange={setEditPeriodOpen}
+        initial={editingPeriod}
+        existingPeriods={yearPeriods}
+        academicYearId={selectedYearId}
+        onSave={handleSavePeriod}
       />
     </div>
   );

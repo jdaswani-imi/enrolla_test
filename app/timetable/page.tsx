@@ -973,13 +973,49 @@ export default function TimetablePage() {
       <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 flex-shrink-0 gap-3 flex-wrap">
 
         <div className="flex items-center gap-2">
-          <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+          <button
+            onClick={() => {
+              if (activeView === "Day") {
+                const idx = ALL_DAY_KEYS.indexOf(activeDay as typeof ALL_DAY_KEYS[number]);
+                if (idx > 0) {
+                  setActiveDay(ALL_DAY_KEYS[idx - 1]);
+                } else {
+                  const prev = addDays(weekStart, -7);
+                  setNow(prev);
+                  setActiveDay("Sat");
+                }
+              } else if (activeView === "Month") {
+                setNow(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+              } else {
+                setNow(addDays(weekStart, -7));
+              }
+            }}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
             <ChevronLeft className="w-4 h-4 text-slate-500" />
           </button>
           <span className="text-sm font-semibold text-slate-700 px-1 select-none">
             {activeView === "Month" ? monthHeader : weekHeader}
           </span>
-          <button className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+          <button
+            onClick={() => {
+              if (activeView === "Day") {
+                const idx = ALL_DAY_KEYS.indexOf(activeDay as typeof ALL_DAY_KEYS[number]);
+                if (idx < 5) {
+                  setActiveDay(ALL_DAY_KEYS[idx + 1]);
+                } else {
+                  const next = addDays(weekStart, 7);
+                  setNow(next);
+                  setActiveDay("Mon");
+                }
+              } else if (activeView === "Month") {
+                setNow(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+              } else {
+                setNow(addDays(weekStart, 7));
+              }
+            }}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
             <ChevronRight className="w-4 h-4 text-slate-500" />
           </button>
           <button

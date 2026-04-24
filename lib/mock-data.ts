@@ -1235,7 +1235,28 @@ export const financeStats = {
   creditsIssuedThisTerm: 4800,
   creditsApplied: 3200,
   creditsUnused:  1600,
+  unbilledCount:          6,
+  unbilledSessionsTotal: 10,
 };
+
+// ─── Departments ─────────────────────────────────────────────────────────────
+
+export interface Department {
+  id: string;
+  name: string;
+  yearGroupFrom: string;
+  yearGroupTo: string;
+  colour: string;
+  active: boolean;
+  studentCount: number;
+  sortOrder: number;
+}
+
+export const departments: Department[] = [
+  { id: "d1", name: "Primary",         yearGroupFrom: "FS1", yearGroupTo: "Y6",  colour: "#F97316", active: true, studentCount: 1124, sortOrder: 1 },
+  { id: "d2", name: "Lower Secondary", yearGroupFrom: "Y7",  yearGroupTo: "Y9",  colour: "#3B82F6", active: true, studentCount: 412,  sortOrder: 2 },
+  { id: "d3", name: "Senior",          yearGroupFrom: "Y10", yearGroupTo: "Y13", colour: "#8B5CF6", active: true, studentCount: 311,  sortOrder: 3 },
+];
 
 // ─── Timetable ────────────────────────────────────────────────────────────────
 
@@ -3287,5 +3308,218 @@ export const staffCpdProgress: StaffCpdRow[] = [
   { id: "cpd-004", name: "Sarah Thompson",  role: "Admin Head",  cpdHours: 15, cpdTarget: 20 },
   { id: "cpd-005", name: "Ahmed Khalil",    role: "Teacher",     cpdHours: 8,  cpdTarget: 20 },
   { id: "cpd-006", name: "Tariq Al-Amin",   role: "Teacher",     cpdHours: 6,  cpdTarget: 20 },
+];
+
+// ─── Academic Calendar ────────────────────────────────────────────────────────
+
+export type PeriodType =
+  | 'term' | 'half_term' | 'holiday_break' | 'summer_term'
+  | 'closure' | 'public_holiday';
+
+export interface AcademicYear {
+  id: string;
+  name: string;
+  startDate: string;            // ISO "YYYY-MM-DD"
+  endDate: string;
+  isCurrent: boolean;
+  financialYearStartMonth: number; // 1 = January
+}
+
+export interface DepartmentPause {
+  departmentId: string;
+  departmentName: string;
+  paused: boolean;              // true = regular weekly sessions pause
+}
+
+export interface CalendarPeriod {
+  id: string;
+  academicYearId: string;
+  type: PeriodType;
+  name: string;
+  startDate: string;            // ISO date
+  endDate: string;
+  sortOrder: number;
+  departmentPauses?: DepartmentPause[];  // half_term only
+}
+
+export interface PublicHoliday {
+  id: string;
+  academicYearId: string;
+  name: string;
+  date: string;                 // ISO date
+  source: 'uae_template' | 'custom';
+}
+
+export const academicYears: AcademicYear[] = [
+  {
+    id: "ay-2025-26",
+    name: "2025–26",
+    startDate: "2025-09-01",
+    endDate: "2026-07-31",
+    isCurrent: true,
+    financialYearStartMonth: 1,
+  },
+];
+
+export const calendarPeriods: CalendarPeriod[] = [
+  {
+    id: "cp-01", academicYearId: "ay-2025-26", type: "term",
+    name: "Term 1", startDate: "2025-09-01", endDate: "2025-12-19", sortOrder: 1,
+  },
+  {
+    id: "cp-02", academicYearId: "ay-2025-26", type: "half_term",
+    name: "Half-Term Break (Oct)", startDate: "2025-10-20", endDate: "2025-10-24", sortOrder: 2,
+    departmentPauses: [
+      { departmentId: "dept-primary",  departmentName: "Primary",         paused: true  },
+      { departmentId: "dept-lowersec", departmentName: "Lower Secondary", paused: false },
+      { departmentId: "dept-senior",   departmentName: "Senior",          paused: false },
+    ],
+  },
+  {
+    id: "cp-03", academicYearId: "ay-2025-26", type: "holiday_break",
+    name: "Winter Holiday", startDate: "2025-12-20", endDate: "2026-01-05", sortOrder: 3,
+  },
+  {
+    id: "cp-04", academicYearId: "ay-2025-26", type: "term",
+    name: "Term 2", startDate: "2026-01-06", endDate: "2026-03-27", sortOrder: 4,
+  },
+  {
+    id: "cp-05", academicYearId: "ay-2025-26", type: "half_term",
+    name: "Half-Term Break (Feb)", startDate: "2026-02-16", endDate: "2026-02-20", sortOrder: 5,
+    departmentPauses: [
+      { departmentId: "dept-primary",  departmentName: "Primary",         paused: true  },
+      { departmentId: "dept-lowersec", departmentName: "Lower Secondary", paused: true  },
+      { departmentId: "dept-senior",   departmentName: "Senior",          paused: false },
+    ],
+  },
+  {
+    id: "cp-06", academicYearId: "ay-2025-26", type: "holiday_break",
+    name: "Spring Holiday", startDate: "2026-03-28", endDate: "2026-04-13", sortOrder: 6,
+  },
+  {
+    id: "cp-07", academicYearId: "ay-2025-26", type: "term",
+    name: "Term 3", startDate: "2026-04-14", endDate: "2026-06-26", sortOrder: 7,
+  },
+  {
+    id: "cp-08", academicYearId: "ay-2025-26", type: "half_term",
+    name: "Half-Term Break (May)", startDate: "2026-05-25", endDate: "2026-05-29", sortOrder: 8,
+    departmentPauses: [
+      { departmentId: "dept-primary",  departmentName: "Primary",         paused: true  },
+      { departmentId: "dept-lowersec", departmentName: "Lower Secondary", paused: true  },
+      { departmentId: "dept-senior",   departmentName: "Senior",          paused: true  },
+    ],
+  },
+  {
+    id: "cp-09", academicYearId: "ay-2025-26", type: "summer_term",
+    name: "Summer Term", startDate: "2026-06-29", endDate: "2026-07-31", sortOrder: 9,
+  },
+];
+
+export const publicHolidays: PublicHoliday[] = [
+  { id: "ph-01", academicYearId: "ay-2025-26", name: "UAE National Day",  date: "2025-12-02", source: "uae_template" },
+  { id: "ph-02", academicYearId: "ay-2025-26", name: "New Year's Day",    date: "2026-01-01", source: "uae_template" },
+  { id: "ph-03", academicYearId: "ay-2025-26", name: "Eid Al Fitr",       date: "2026-03-30", source: "uae_template" },
+  { id: "ph-04", academicYearId: "ay-2025-26", name: "Eid Al Adha",       date: "2026-06-06", source: "uae_template" },
+  { id: "ph-05", academicYearId: "ay-2025-26", name: "Islamic New Year",  date: "2026-06-26", source: "uae_template" },
+];
+
+// ─── Unbilled Sessions ────────────────────────────────────────────────────────
+
+export interface UnbilledSession {
+  id: string;
+  studentId: string;
+  studentName: string;
+  department: string;
+  yearGroup: string;
+  subject: string;
+  sessionDate: string;        // ISO date "YYYY-MM-DD"
+  sessionId: string;          // links to timetableSessions if available
+  sessionsCount: number;      // number of unbilled sessions for this student/subject combo
+  status: 'open' | 'written_off';
+  writeOffReason?: string;
+  writeOffBy?: string;
+  writeOffAt?: string;
+  createdAt: string;
+}
+
+export const unbilledSessions: UnbilledSession[] = [
+  {
+    id: "ubs-001",
+    studentId: "IMI-0002",
+    studentName: "Omar Al-Farsi",
+    department: "Primary",
+    yearGroup: "Y5",
+    subject: "Maths",
+    sessionDate: "2026-04-21",
+    sessionId: "s001",
+    sessionsCount: 1,
+    status: "open",
+    createdAt: "2026-04-21",
+  },
+  {
+    id: "ubs-002",
+    studentId: "IMI-0008",
+    studentName: "Nour Ibrahim",
+    department: "Primary",
+    yearGroup: "Y4",
+    subject: "English",
+    sessionDate: "2026-04-18",
+    sessionId: "s002",
+    sessionsCount: 2,
+    status: "open",
+    createdAt: "2026-04-18",
+  },
+  {
+    id: "ubs-003",
+    studentId: "IMI-0005",
+    studentName: "Sara Nasser",
+    department: "Lower Secondary",
+    yearGroup: "Y9",
+    subject: "Science",
+    sessionDate: "2026-04-17",
+    sessionId: "s005",
+    sessionsCount: 1,
+    status: "open",
+    createdAt: "2026-04-17",
+  },
+  {
+    id: "ubs-004",
+    studentId: "IMI-0001",
+    studentName: "Aisha Rahman",
+    department: "Lower Secondary",
+    yearGroup: "Y8",
+    subject: "Maths",
+    sessionDate: "2026-03-28",
+    sessionId: "s001",
+    sessionsCount: 3,
+    status: "open",
+    createdAt: "2026-03-28",
+  },
+  {
+    id: "ubs-005",
+    studentId: "IMI-0003",
+    studentName: "Layla Hassan",
+    department: "Senior",
+    yearGroup: "Y10",
+    subject: "Chemistry",
+    sessionDate: "2026-04-20",
+    sessionId: "",
+    sessionsCount: 1,
+    status: "open",
+    createdAt: "2026-04-20",
+  },
+  {
+    id: "ubs-006",
+    studentId: "IMI-0011",
+    studentName: "Khalid Mansoor",
+    department: "Senior",
+    yearGroup: "Y12",
+    subject: "Biology",
+    sessionDate: "2026-03-31",
+    sessionId: "",
+    sessionsCount: 2,
+    status: "open",
+    createdAt: "2026-03-31",
+  },
 ];
 
