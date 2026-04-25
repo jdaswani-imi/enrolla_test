@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,6 +17,8 @@ const STATUS_MAP: Record<string, 'Completed' | 'Pending' | 'Confirmed' | 'Expire
 }
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { data: makeups, error } = await supabase
     .from('makeups')
     .select('id, status, booked_at, student_id, original_attendance_id, replacement_session_id')

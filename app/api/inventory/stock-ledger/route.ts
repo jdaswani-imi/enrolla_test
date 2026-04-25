@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +33,8 @@ function toLedger(row: Record<string, unknown>) {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { searchParams } = new URL(request.url)
   const page       = parseInt(searchParams.get('page') ?? '1', 10)
   const pageSize   = parseInt(searchParams.get('pageSize') ?? '10', 10)

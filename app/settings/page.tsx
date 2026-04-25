@@ -47,8 +47,6 @@ import {
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
 import {
-  orgSettings,
-  timetableSessions,
   type Department as DeptData,
   type PeriodType,
   type AcademicYear,
@@ -355,7 +353,6 @@ function OrganisationSection() {
   const [toast, setToast] = useState("");
 
   function handleUploadLogo() {
-    orgSettings.logoUrl = "/images/imi-logo-placeholder.png";
     setToast("Logo updated — refresh to see changes");
     setTimeout(() => setToast(""), 3000);
   }
@@ -1356,12 +1353,6 @@ function RoomsSection() {
   const activeRooms   = rooms.filter((r) => r.active);
   const archivedRooms = rooms.filter((r) => !r.active);
 
-  // rooms with scheduled timetable sessions cannot be archived
-  const scheduledRoomNames = useMemo(
-    () => new Set(timetableSessions.map((s) => s.room)),
-    []
-  );
-
   function openAdd() {
     setEditing(null);
     setDialogOpen(true);
@@ -1406,6 +1397,9 @@ function RoomsSection() {
     if (res.ok) {
       setRooms((prev) => prev.map((r) => r.id === id ? { ...r, active: false } : r));
       toast.success("Room archived");
+    } else if (res.status === 409) {
+      const body = await res.json();
+      toast.error(body.error ?? "Cannot archive — sessions are scheduled in this room.");
     } else {
       toast.error("Failed to archive room");
     }
@@ -1434,7 +1428,6 @@ function RoomsSection() {
       />
       <Table headers={["Room", "Branch", "Capacity", "Soft Cap", "Hard Cap", "Status", "Actions"]}>
         {activeRooms.map((r) => {
-          const hasScheduled = scheduledRoomNames.has(r.name);
           return (
             <tr key={r.id} className="hover:bg-slate-50 transition-colors">
               <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{r.name}</td>
@@ -1454,22 +1447,11 @@ function RoomsSection() {
               <td className="px-4 py-3.5">
                 <div className="flex items-center gap-1">
                   <TableAction label="Edit" onClick={() => openEdit(r)} />
-                  {hasScheduled ? (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <span>
-                          <TableAction label="Archive" disabled />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>Cannot archive — sessions scheduled in this room.</TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <TableAction
-                      label="Archive"
-                      danger
-                      onClick={() => setArchiving(r)}
-                    />
-                  )}
+                  <TableAction
+                    label="Archive"
+                    danger
+                    onClick={() => setArchiving(r)}
+                  />
                 </div>
               </td>
             </tr>
@@ -1695,19 +1677,6 @@ function getBillableWeeks(
   return { totalWeeks, pausedWeeks, billableWeeks: totalWeeks - pausedWeeks };
 }
 
-function hasSessionsInPeriod(period: CalendarPeriod): boolean {
-  const startMs = new Date(period.startDate).getTime();
-  const endMs   = new Date(period.endDate).getTime();
-  return timetableSessions.some((s) => {
-    const parts = s.date.split(" ");
-    if (parts.length !== 2) return false;
-    for (const yr of [2025, 2026]) {
-      const d = new Date(`${parts[0]} ${parts[1]} ${yr}`);
-      if (!isNaN(d.getTime()) && d.getTime() >= startMs && d.getTime() <= endMs) return true;
-    }
-    return false;
-  });
-}
 
 function getMonthLabels(
   yearStart: string,
@@ -1978,7 +1947,6 @@ function PeriodCard({
   onDelete: (id: string) => void;
   onTogglePause: (periodId: string, deptId: string) => void;
 }) {
-  const hasSessions = hasSessionsInPeriod(period);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const parentTerm =
@@ -2024,28 +1992,13 @@ function PeriodCard({
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
-            <Tooltip>
-              <TooltipTrigger>
-                <button
-                  onClick={() => !hasSessions && setDeleteConfirm(true)}
-                  disabled={hasSessions}
-                  className={cn(
-                    "p-1.5 rounded transition-colors",
-                    hasSessions
-                      ? "text-slate-200 cursor-not-allowed"
-                      : "text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                  )}
-                  aria-label="Delete period"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </TooltipTrigger>
-              {hasSessions && (
-                <TooltipContent side="left">
-                  <p className="text-xs">Sessions are scheduled in this period</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="p-1.5 rounded transition-colors text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+              aria-label="Delete period"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 

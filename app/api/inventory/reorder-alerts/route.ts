@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +28,8 @@ function toAlert(row: Record<string, unknown>) {
 }
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('reorder_alerts')
     .select('*')

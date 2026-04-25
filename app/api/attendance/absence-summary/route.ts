@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,8 @@ const supabase = createClient(
 const ABSENCE_STATUSES = ['Absent Notified', 'Absent Not Notified', 'No Show']
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   // Fetch all absence records
   const { data: records, error: recErr } = await supabase
     .from('attendance_records')

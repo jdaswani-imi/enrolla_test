@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/role-context";
 import { type Role } from "@/lib/role-config";
-import { currentUser } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,12 +18,28 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  function handleSignIn(e?: FormEvent) {
+  async function handleSignIn(e?: FormEvent) {
     e?.preventDefault();
     if (submitting) return;
     setSubmitting(true);
-    // Reset to default role so prior demo role-switching doesn't persist across sign-ins
-    setRole(currentUser.role as Role);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      toast.error(error.message);
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const me = await res.json();
+        setRole(me.role as Role);
+      }
+    } catch {}
+
     router.push("/dashboard");
   }
 

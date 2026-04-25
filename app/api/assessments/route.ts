@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,8 @@ const supabase = createClient(
 )
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('assessments')
     .select(`
@@ -61,6 +64,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const body = await req.json()
   const { lead_id, student_id, assessor_id, scheduled_at, year_group, subjects, room, status, notes } = body
 
@@ -86,6 +91,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const body = await req.json()
   const { id, ...updates } = body
 
@@ -114,6 +121,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const id = new URL(req.url).searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 

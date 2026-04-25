@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,8 @@ const supabase = createClient(
 )
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('departments')
     .select('id, name, colour, sort_order')

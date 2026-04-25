@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +15,8 @@ function computeHealth(current: number, min: number): 'healthy' | 'approaching' 
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const body = await request.json()
   const { counts, actorName }: { counts: { itemId: string; counted: number }[]; actorName: string } = body
 

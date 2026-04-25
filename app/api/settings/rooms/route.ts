@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,8 @@ const supabase = createClient(
 )
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('rooms')
     .select('id, name, capacity, soft_cap, hard_cap, room_type, is_active, branch_id, branches(name)')
@@ -32,6 +35,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const body = await request.json()
   const { name, branch_id, capacity, soft, hard, type } = body
 

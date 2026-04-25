@@ -385,10 +385,11 @@ function GhostBtn({ onClick, children, className }: { onClick?: () => void; chil
 // ─── Tab 1: Subjects ──────────────────────────────────────────────────────────
 
 function SubjectsTab({
-  subjects, setSubjects, onToast,
+  subjects, setSubjects, depts, onToast,
 }: {
   subjects: Subject[];
   setSubjects: (s: Subject[]) => void;
+  depts: { id: string; name: string }[];
   onToast: (m: string) => void;
 }) {
   const { can } = usePermission();
@@ -416,12 +417,19 @@ function SubjectsTab({
     setDialogOpen(true);
   }
 
-  function archive(s: Subject) {
-    setSubjects(subjects.map((x) => x.id === s.id ? { ...x, status: x.status === "Active" ? "Archived" : "Active" } : x));
+  async function archive(s: Subject) {
+    const newActive = s.status !== "Active";
+    const res = await fetch(`/api/courses/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "subject", isActive: newActive }),
+    });
+    if (!res.ok) { onToast("Failed to update subject"); return; }
+    setSubjects(subjects.map((x) => x.id === s.id ? { ...x, status: newActive ? "Active" : "Archived" } : x));
     onToast(`Subject ${s.status === "Active" ? "archived" : "reactivated"}`);
   }
 
-  function save(next: Subject) {
+  async function save(next: Subject): Promise<string | null> {
     const duplicate = subjects.find((x) =>
       x.id !== next.id &&
       x.name.trim().toLowerCase() === next.name.trim().toLowerCase() &&
@@ -430,11 +438,62 @@ function SubjectsTab({
     if (duplicate) {
       return `A subject named "${next.name}" already exists in ${next.department}`;
     }
-    if (editing) {
-      setSubjects(subjects.map((x) => x.id === editing.id ? next : x));
-    } else {
-      setSubjects([...subjects, next]);
+
+    const deptId = depts.find((d) => d.name === next.department)?.id ?? null;
+    const payload = {
+      type: "subject",
+      name: next.name,
+      code: next.code,
+      departmentId: deptId,
+      yearGroups: next.yearGroups,
+      description: next.description,
+      colour: next.colour,
+      isActive: next.status === "Active",
+      sessionDurationMins: next.duration,
+      gradingScale: next.gradingScale,
+      maxStudents: next.maxStudents,
+      allowsMakeup: next.allowsMakeup,
+      requiresAssessment: next.requiresAssessment,
+      billingCadenceDefault: next.billingCadenceDefault,
+      examCountdown: next.examCountdown,
+      conditionalRate: next.conditionalRate,
+      conditionDescription: next.conditionDescription ?? null,
+      weighting: next.weighting,
+      qualificationRoutes: next.qualificationRoutes,
+      examBoards: next.examBoards,
+      phase: next.phase,
+    };
+
+    try {
+      if (editing) {
+        const res = await fetch(`/api/courses/${editing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.status === 409) return "Subject has active enrolments — rename blocked";
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return (err as { error?: string }).error ?? "Failed to save subject";
+        }
+        setSubjects(subjects.map((x) => x.id === editing.id ? next : x));
+      } else {
+        const res = await fetch("/api/courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return (err as { error?: string }).error ?? "Failed to create subject";
+        }
+        const data = await res.json() as { id: string };
+        setSubjects([...subjects, { ...next, id: data.id }]);
+      }
+    } catch {
+      return "Network error — please try again";
     }
+
     onToast("Subject saved");
     setDialogOpen(false);
     return null;
@@ -539,7 +598,7 @@ function SubjectDialog({
   open: boolean;
   onClose: () => void;
   initial: Subject | null;
-  onSave: (s: Subject) => string | null;
+  onSave: (s: Subject) => Promise<string | null>;
   onToast: (m: string) => void;
 }) {
   const blank: Subject = useMemo(() => ({
@@ -567,11 +626,13 @@ function SubjectDialog({
 
   const [form, setForm] = useState<Subject>(initial ?? blank);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setForm(initial ?? blank);
       setError(null);
+      setSaving(false);
     }
   }, [open, initial, blank]);
 
@@ -608,11 +669,13 @@ function SubjectDialog({
   const examCountdownLocked = form.yearGroups.some((y) => ["Y10", "Y11", "Y12", "Y13"].includes(y));
   const hideExamCountdown = form.department === "Primary";
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()) { setError("Subject name is required"); return; }
     if (form.yearGroups.length === 0) { setError("Select at least one year group"); return; }
     if (weightingTotal !== 100) { setError("Work type weighting must total 100%"); return; }
-    const err = onSave({ ...form, examCountdown: examCountdownLocked || form.examCountdown });
+    setSaving(true);
+    const err = await onSave({ ...form, examCountdown: examCountdownLocked || form.examCountdown });
+    setSaving(false);
     if (err) setError(err);
   }
 
@@ -890,7 +953,7 @@ function SubjectDialog({
 
         <DialogFooter className="flex justify-end gap-2">
           <GhostBtn onClick={onClose}>Cancel</GhostBtn>
-          <PrimaryBtn onClick={handleSave}>Save Subject</PrimaryBtn>
+          <PrimaryBtn onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save Subject"}</PrimaryBtn>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -943,7 +1006,7 @@ function PricingTab({
     setDialogOpen(true);
   }
 
-  function handleDialogSave(next: PricingRow, reason: string) {
+  async function handleDialogSave(next: PricingRow, reason: string) {
     if (editing) {
       const rateChanged = editing.rate !== next.rate;
       if (rateChanged) {
@@ -951,18 +1014,92 @@ function PricingTab({
         setDialogOpen(false);
         return;
       }
+      const res = await fetch(`/api/courses/${editing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "course",
+          yearGroup: next.yearGroup,
+          mode: next.mode,
+          sessionDurationMins: next.duration,
+          ratePerSession: next.rate,
+          tier: next.tier,
+          minSessions: next.minSessions,
+          billingCadence: next.cadence,
+          effectiveFrom: next.effectiveFrom,
+          isActive: next.active,
+          conditional: next.conditional,
+          conditionalRateVal: next.conditionalRate ?? null,
+          conditionText: next.condition ?? null,
+          fallbackRate: next.fallbackRate ?? null,
+          trialRate: next.trialRate ?? null,
+          rateHistory: next.history,
+        }),
+      });
+      if (!res.ok) { onToast("Failed to update course row"); return; }
       setRows(rows.map((r) => r.id === editing.id ? next : r));
       onToast("Course row updated");
     } else {
-      setRows([...rows, next]);
+      const subject = subjectMap[next.subjectId];
+      const res = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "course",
+          subjectId: next.subjectId,
+          subjectName: subject?.name,
+          yearGroup: next.yearGroup,
+          mode: next.mode,
+          sessionDurationMins: next.duration,
+          ratePerSession: next.rate,
+          tier: next.tier,
+          minSessions: next.minSessions,
+          billingCadence: next.cadence,
+          effectiveFrom: next.effectiveFrom,
+          isActive: next.active,
+          conditional: next.conditional,
+          conditionalRateVal: next.conditionalRate ?? null,
+          conditionText: next.condition ?? null,
+          fallbackRate: next.fallbackRate ?? null,
+          trialRate: next.trialRate ?? null,
+          rateHistory: next.history,
+        }),
+      });
+      if (!res.ok) { onToast("Failed to create course row"); return; }
+      const data = await res.json() as { id: string };
+      setRows([...rows, { ...next, id: data.id }]);
       onToast("Course row added");
     }
     setDialogOpen(false);
   }
 
-  function confirmRateChange() {
+  async function confirmRateChange() {
     if (!pendingConfirm) return;
-    setRows(rows.map((r) => r.id === pendingConfirm.next.id ? pendingConfirm.next : r));
+    const next = pendingConfirm.next;
+    const res = await fetch(`/api/courses/${next.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "course",
+        ratePerSession: next.rate,
+        rateHistory: next.history,
+        yearGroup: next.yearGroup,
+        mode: next.mode,
+        sessionDurationMins: next.duration,
+        tier: next.tier,
+        minSessions: next.minSessions,
+        billingCadence: next.cadence,
+        effectiveFrom: next.effectiveFrom,
+        isActive: next.active,
+        conditional: next.conditional,
+        conditionalRateVal: next.conditionalRate ?? null,
+        conditionText: next.condition ?? null,
+        fallbackRate: next.fallbackRate ?? null,
+        trialRate: next.trialRate ?? null,
+      }),
+    });
+    if (!res.ok) { onToast("Failed to update rate"); return; }
+    setRows(rows.map((r) => r.id === next.id ? next : r));
     onToast("Rate updated — logged for audit");
     setPendingConfirm(null);
   }
@@ -1125,7 +1262,7 @@ function PricingDialog({
   onClose: () => void;
   initial: PricingRow | null;
   subjects: Subject[];
-  onSave: (r: PricingRow, reason: string) => void;
+  onSave: (r: PricingRow, reason: string) => Promise<void>;
 }) {
   const blank: PricingRow = useMemo(() => ({
     id: Math.random().toString(36).slice(2),
@@ -1145,11 +1282,13 @@ function PricingDialog({
 
   const [form, setForm] = useState<PricingRow>(initial ?? blank);
   const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       setForm(initial ?? blank);
       setReason("");
+      setSaving(false);
     }
   }, [open, initial, blank]);
 
@@ -1163,9 +1302,11 @@ function PricingDialog({
 
   const subject = subjects.find((s) => s.id === form.subjectId);
 
-  function handleSave() {
+  async function handleSave() {
     if (initial && form.rate !== initial.rate && reason.trim() === "") return;
-    onSave(form, reason);
+    setSaving(true);
+    await onSave(form, reason);
+    setSaving(false);
   }
 
   return (
@@ -1286,8 +1427,8 @@ function PricingDialog({
         </div>
         <DialogFooter className="flex justify-end gap-2">
           <GhostBtn onClick={onClose}>Cancel</GhostBtn>
-          <PrimaryBtn onClick={handleSave} disabled={initial !== null && form.rate !== initial.rate && reason.trim() === ""}>
-            Save Course Row
+          <PrimaryBtn onClick={handleSave} disabled={saving || (initial !== null && form.rate !== initial.rate && reason.trim() === "")}>
+            {saving ? "Saving…" : "Save Course Row"}
           </PrimaryBtn>
         </DialogFooter>
       </DialogContent>
@@ -2242,9 +2383,70 @@ export default function SubjectsCatalogueSection() {
   const [boundaries, setBoundaries] = useState<GradeBoundarySet[]>(INITIAL_BOUNDARIES);
   const [deptSelectors, setDeptSelectors] = useState<DeptSelectors[]>(INITIAL_DEPT_SELECTORS);
   const [overrides, setOverrides] = useState<SubjectOverride[]>([]);
+  const [depts, setDepts] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [toast, setToast] = useState<string | null>(null);
   function showToast(m: string) { setToast(m); }
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/settings/departments").then((r) => r.json()),
+      fetch("/api/courses").then((r) => r.json()),
+    ]).then(([ds, catalogData]) => {
+      setDepts(
+        (ds as { id: string; name: string }[]).map((d) => ({ id: d.id, name: d.name }))
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setSubjects((catalogData.subjects ?? []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code ?? "",
+        department: (s.department ?? "") as typeof s.department,
+        yearGroups: s.yearGroups ?? [],
+        phase: s.phase ?? "",
+        description: s.description ?? "",
+        colour: s.colour ?? "bg-amber-500",
+        status: s.isActive ? "Active" : "Archived",
+        duration: (s.sessionDurationMins ?? 60) as 45 | 60 | 120,
+        maxStudents: s.maxStudents ?? 6,
+        allowsMakeup: s.allowsMakeup ?? true,
+        requiresAssessment: s.requiresAssessment ?? false,
+        billingCadenceDefault: s.billingCadenceDefault ?? "Termly",
+        gradingScale: s.gradingScale ?? "Percentage (0–100%)",
+        weighting: s.weighting ?? { classwork: 10, homework: 20, test: 40, other: 30 },
+        qualificationRoutes: s.qualificationRoutes ?? [],
+        examBoards: s.examBoards ?? [],
+        examCountdown: s.examCountdown ?? false,
+        conditionalRate: s.conditionalRate ?? false,
+        conditionDescription: s.conditionDescription ?? undefined,
+      })));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setPricing((catalogData.courses ?? []).map((c: any) => ({
+        id: c.id,
+        subjectId: c.subjectId,
+        yearGroup: c.yearGroup ?? "",
+        mode: (c.mode ?? "Group") as "Group" | "1-to-1" | "Trial",
+        duration: c.sessionDurationMins ?? 60,
+        rate: c.ratePerSession != null ? Number(c.ratePerSession) : null,
+        trialRate: c.trialRate != null ? Number(c.trialRate) : undefined,
+        tier: (c.tier ?? "None") as typeof c.tier,
+        minSessions: c.minSessions ?? 1,
+        cadence: (c.billingCadence ?? "Termly") as typeof c.billingCadence,
+        conditional: c.conditional ?? false,
+        conditionalRate: c.conditionalRateVal != null ? Number(c.conditionalRateVal) : undefined,
+        condition: c.conditionText ?? undefined,
+        fallbackRate: c.fallbackRate != null ? Number(c.fallbackRate) : undefined,
+        effectiveFrom: c.effectiveFrom ?? "",
+        active: c.isActive,
+        history: c.rateHistory ?? [],
+      })));
+
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
   return (
     <div className="-mx-8 -my-8 px-8 py-8 max-w-none">
@@ -2277,8 +2479,13 @@ export default function SubjectsCatalogueSection() {
       </div>
 
       <div className="pb-4">
-        {activeTab === "subjects" && <SubjectsTab subjects={subjects} setSubjects={setSubjects} onToast={showToast} />}
-        {activeTab === "pricing" && <PricingTab subjects={subjects} rows={pricing} setRows={setPricing} onToast={showToast} />}
+        {loading && (
+          <div className="flex items-center justify-center py-16 text-sm text-slate-400">
+            Loading catalogue…
+          </div>
+        )}
+        {!loading && activeTab === "subjects" && <SubjectsTab subjects={subjects} setSubjects={setSubjects} depts={depts} onToast={showToast} />}
+        {!loading && activeTab === "pricing" && <PricingTab subjects={subjects} rows={pricing} setRows={setPricing} onToast={showToast} />}
         {activeTab === "packages" && <PackagesTab packages={packages} setPackages={setPackages} onToast={showToast} />}
         {activeTab === "topics" && <TopicTreesTab subjects={subjects} trees={trees} setTrees={setTrees} onToast={showToast} />}
         {activeTab === "grades" && <GradeBoundariesTab subjects={subjects} boundaries={boundaries} setBoundaries={setBoundaries} onToast={showToast} />}

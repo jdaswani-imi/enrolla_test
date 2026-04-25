@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,6 +21,8 @@ const SESSION_TYPE_MAP: Record<string, string> = {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { searchParams } = new URL(request.url)
   const date = searchParams.get('date') ?? new Date().toISOString().split('T')[0]
 

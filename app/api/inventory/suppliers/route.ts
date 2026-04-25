@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +22,8 @@ function toSupplier(row: Record<string, unknown>) {
 }
 
 export async function GET() {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('suppliers')
     .select('*, inventory_items!inventory_items_supplier_id_fkey(id)')
@@ -34,6 +37,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const body = await request.json()
 
   if (!body.name?.trim()) {

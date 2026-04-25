@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
+import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,6 +53,8 @@ function toFrontend(row: Record<string, unknown>) {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const role   = searchParams.get('role')
@@ -95,6 +98,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
   const body = await request.json()
   const { firstName, lastName, role, department, email, phone, startDate, subjects } = body
 
