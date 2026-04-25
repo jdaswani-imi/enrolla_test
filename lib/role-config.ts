@@ -154,6 +154,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'staff.viewSalary':         ['Super Admin','HR/Finance'],
   'staff.assignRole':         ['Super Admin'],
   'staff.revokeAccess':       ['Super Admin','HR/Finance'],
+  'staff.archive':            ['Super Admin'],
   'staff.initiateOffboarding':['Super Admin','Admin Head','HR/Finance'],
   'staff.verifyCPD':          ['Super Admin','HR/Finance'],
   'staff.activateEmergencyLeave':['Super Admin','Admin Head'],

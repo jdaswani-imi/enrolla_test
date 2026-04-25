@@ -518,5 +518,88 @@ export function DeactivateStaffDialog({
   );
 }
 
+// ─── Archive dialog (Super Admin only — Inactive → Off-boarded) ───────────────
+
+export function ArchiveStaffDialog({
+  staff,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  staff: StaffMember | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const [confirm, setConfirm] = useState("");
+
+  useEffect(() => {
+    if (open) setConfirm("");
+  }, [open]);
+
+  if (!staff) return null;
+
+  const canSubmit = confirm.trim().toUpperCase() === "ARCHIVE";
+
+  function submit() {
+    if (!canSubmit) return;
+    onConfirm();
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle className="text-slate-800">Archive {staff.name}?</DialogTitle>
+          <DialogDescription>
+            This will permanently set the staff member&apos;s status to <strong>Off-boarded</strong>. The profile is retained for audit purposes but the staff member will no longer appear in active staff views. This action can only be performed by a Super Admin.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel htmlFor="arc-confirm" required>
+              Type <span className="font-mono font-bold text-slate-800">ARCHIVE</span> to confirm
+            </FieldLabel>
+            <input
+              id="arc-confirm"
+              type="text"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="ARCHIVE"
+              className={FIELD}
+            />
+          </div>
+          <p className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Off-boarded staff profiles are retained for compliance and audit purposes. Historical session records, CPD logs, and review history are preserved.
+          </p>
+        </div>
+
+        <div className="flex-shrink-0 border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className={cn(
+              "rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors cursor-pointer",
+              canSubmit ? "hover:bg-slate-900" : "opacity-50 cursor-not-allowed",
+            )}
+          >
+            Archive staff member
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Re-export for convenience
 export type { StaffStatus };

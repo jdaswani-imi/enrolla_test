@@ -26,7 +26,7 @@ Role is initialised from `currentUser.role` in mock-data and is mutable at runti
 - Progress: `view`, `enterGrades`, `approveReport`, `generateReport`, `dismissAlert`, `setTargetGrade`
 - Concerns: `raise`, `dismissL1`, `dismissL2plus`
 - Tasks: `view`, `create`, `editOwn`, `editOthers`, `deleteOwn`, `deleteOthers`, `reassign`
-- Staff: `view`, `create`, `edit`, `viewSalary`, `assignRole`, `revokeAccess`, `initiateOffboarding`, `verifyCPD`, `activateEmergencyLeave`, `viewCPDDetail`
+- Staff: `view`, `create`, `edit`, `viewSalary`, `assignRole`, `revokeAccess`, `archive`, `initiateOffboarding`, `verifyCPD`, `activateEmergencyLeave`, `viewCPDDetail`
 - Automations: `view`, `createRule`, `editRule`, `deleteRule`, `toggleRule`
 - Templates: `create`, `approveOrgWide`, `editOrgWide`
 - People: `view`, `export`, `createSegment`, `createOrgSegment`, `manageForms`, `manageBroadcasts`
@@ -38,7 +38,7 @@ Role is initialised from `currentUser.role` in mock-data and is mutable at runti
 - Bulk/cross-module: `export` (bulk export), `import` (only role with this), `delete.records`, `issue.credit`, `approve.discount`, `offboard.staff`, `manage.roles` (only role with this), `merge.duplicates`, `export.all`, `bulk.generate.invoices`, `stock.take`
 - Inventory: `view`
 
-**Notes:** Only role that can `students.delete`, `finance.finalApproveRefund`, `staff.assignRole`, `settings.*`, `import`, `manage.roles`.
+**Notes:** Only role that can `students.delete`, `finance.finalApproveRefund`, `staff.assignRole`, `staff.archive` (Inactive → Off-boarded archive gate), `settings.*`, `import`, `manage.roles`.
 
 ---
 

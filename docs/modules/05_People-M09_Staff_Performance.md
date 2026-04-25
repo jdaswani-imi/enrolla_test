@@ -1,6 +1,6 @@
 # ENROLLA
 # M09 — Staff & Performance
-v1.1 | Confidential
+v1.2 | Confidential
 Improve ME Institute (IMI) · Gold & Diamond Park, Dubai
 
 ---
@@ -14,7 +14,7 @@ M09 covers the full staff lifecycle within Enrolla: profile management, onboardi
 | Module code | M09 |
 | Version | v1.1 |
 | Status | Draft |
-| AMDs absorbed | AMD-02.05 (Immediate Access Revocation), AMD-02.15 (Emergency Leave), AMD-02.29 (Outperformance Flag removed), AMD-05.24 (off-boarding session clearance gate) |
+| AMDs absorbed | AMD-02.05 (Immediate Access Revocation), AMD-02.15 (Emergency Leave), AMD-02.29 (Outperformance Flag removed), AMD-05.24 (off-boarding session clearance gate), AMD-09.01 (Inactive → Archive gate — Super Admin only) |
 | Primary users | HR/Finance, Super Admin, Admin Head |
 | Secondary users | HOD (dept view), Academic Head (academic staff view) |
 | Salary/shift data access | HR/Finance and Super Admin only. Admin Head excluded. |
@@ -267,6 +267,25 @@ Unplanned permanent departure covers dismissal, absconding, or conduct-related i
 | Sessions flagged in M05 | All upcoming sessions assigned to the departed staff member are automatically flagged as Cover Required. Not cancelled. Admin reassigns manually. |
 | Access revocation | Immediate Access Revocation is triggered alongside the departure status. IAR fires independently and instantly. |
 | Audit trail | Departure status application, IAR, and all subsequent session reassignments are logged permanently with actor name and timestamp. |
+
+## 01.8.5 Archive Gate — Inactive → Off-boarded (Super Admin only)
+
+Once a staff member has been set to **Inactive** (via deactivation, dismissal, or expiry), their profile enters a protected state. The only permitted next status transition is **Off-boarded** (archive). This transition is gated exclusively to Super Admin.
+
+| **Element** | **Specification** |
+|---|---|
+| Trigger | "Archive (off-board)" action on any staff profile with status = Inactive |
+| Access | **Super Admin only.** HR/Finance, Admin Head, and all other roles cannot initiate this action. The option is not visible in the UI to non-Super Admin users. |
+| Confirmation | Super Admin must type **ARCHIVE** in full (case-insensitive) to proceed. The dialog explains that the profile is retained for audit and compliance. |
+| Effect | Staff profile status changes from Inactive → Off-boarded. The profile remains searchable by Super Admin and HR/Finance but is excluded from all active staff views, workload calculations, and CPD summaries. |
+| Reversibility | Off-boarded status cannot be reversed without a direct database action by a Super Admin. No in-app reinstatement is provided. |
+| Audit log | Archive action is logged permanently: triggering Super Admin name, timestamp, staff member ID. |
+| Profile retention | All historical data is preserved: session records, CPD log, performance reviews, HR actions, audit trail. No data is deleted. |
+| Off-boarded visibility | Off-boarded profiles are visible only to Super Admin and HR/Finance (filtered view). They do not appear in the main staff directory for other roles. |
+
+**Rationale:** The two-step gate (Deactivate → Archive) ensures that inadvertent deactivations (e.g. marking a staff member Inactive in error) can be reviewed before the profile is formally closed. Only Super Admin can make the permanent archive decision.
+
+**Permission:** `staff.archive` — Super Admin only (see PL-02 RBAC).
 
 ---
 

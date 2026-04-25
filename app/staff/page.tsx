@@ -46,6 +46,7 @@ import { ExportDialog } from "@/components/ui/export-dialog";
 import {
   AddStaffDialog,
   DeactivateStaffDialog,
+  ArchiveStaffDialog,
   type NewStaffData,
 } from "@/components/staff/add-staff-dialog";
 import {
@@ -121,6 +122,7 @@ function RowActionsMenu({
   onEdit,
   onMarkOnLeave,
   onDeactivate,
+  onArchive,
 }: {
   staff: StaffMember;
   isOpen: boolean;
@@ -130,6 +132,7 @@ function RowActionsMenu({
   onEdit: () => void;
   onMarkOnLeave: () => void;
   onDeactivate: () => void;
+  onArchive: () => void;
 }) {
   const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
@@ -144,7 +147,8 @@ function RowActionsMenu({
 
   const canEdit         = can('staff.edit');
   const canSetLeave     = can('staff.edit') && staff.status === "Active";
-  const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive";
+  const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive" && staff.status !== "Off-boarded";
+  const canArchive      = can('staff.archive') && staff.status === "Inactive";
 
   return (
     <div ref={ref} className="relative flex justify-end">
@@ -200,6 +204,20 @@ function RowActionsMenu({
               >
                 <Ban className="w-3.5 h-3.5 shrink-0" />
                 Deactivate
+              </button>
+            </>
+          )}
+
+          {canArchive && (
+            <>
+              <div className="my-1 border-t border-slate-100" />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onArchive(); onClose(); }}
+                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <UserX className="w-3.5 h-3.5 shrink-0" />
+                Archive (off-board)
               </button>
             </>
           )}
@@ -641,6 +659,7 @@ function StaffPageContent() {
   const [addOpen, setAddOpen] = useState(false);
   const [editStaff, setEditStaff] = useState<StaffMember | null>(null);
   const [deactivateStaff, setDeactivateStaff] = useState<StaffMember | null>(null);
+  const [archiveStaff, setArchiveStaff] = useState<StaffMember | null>(null);
 
   // HR dashboard — leave requests
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
@@ -657,6 +676,16 @@ function StaffPageContent() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'On Leave' }),
+    });
+  }
+
+  async function handleArchive(s: StaffMember) {
+    updateRow(s.id, { status: "Off-boarded" });
+    toast.success(`${s.name} archived (off-boarded)`);
+    await fetch(`/api/staff/${s.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Off-boarded' }),
     });
   }
 
@@ -1022,6 +1051,7 @@ function StaffPageContent() {
                             onEdit={() => { setEditStaff(s); setOpenMenu(null); }}
                             onMarkOnLeave={() => { handleMarkOnLeave(s); setOpenMenu(null); }}
                             onDeactivate={() => { setDeactivateStaff(s); setOpenMenu(null); }}
+                            onArchive={() => { setArchiveStaff(s); setOpenMenu(null); }}
                           />
                         </td>
                       </tr>
@@ -1406,6 +1436,13 @@ function StaffPageContent() {
         open={deactivateStaff !== null}
         onOpenChange={(o) => { if (!o) setDeactivateStaff(null); }}
         onConfirm={() => { if (deactivateStaff) handleDeactivate(deactivateStaff); }}
+      />
+
+      <ArchiveStaffDialog
+        staff={archiveStaff}
+        open={archiveStaff !== null}
+        onOpenChange={(o) => { if (!o) setArchiveStaff(null); }}
+        onConfirm={() => { if (archiveStaff) handleArchive(archiveStaff); }}
       />
 
       <RequestLeaveDialog
