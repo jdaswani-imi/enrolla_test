@@ -20,7 +20,7 @@ export const orgSettings: { logoUrl: string | null } = {
 
 // ─── Students ─────────────────────────────────────────────────────────────────
 
-export type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni";
+export type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni" | "Archived";
 
 export interface Student {
   id: string;

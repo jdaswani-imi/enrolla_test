@@ -54,6 +54,15 @@ export async function PATCH(
   delete body.student_ref
   delete body.created_at
 
+  // Set archived_at when archiving
+  if (body.status === 'Archived') {
+    body.archived_at = new Date().toISOString()
+  }
+  // Clear archived_at when unarchiving
+  if (body.status && body.status !== 'Archived') {
+    body.archived_at = null
+  }
+
   const { data, error } = await supabase
     .from('students')
     .update({ ...body, updated_at: new Date().toISOString() })
@@ -76,23 +85,71 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const { data, error } = await supabase
+
+  // Guard: must be Archived first
+  const { data: student, error: fetchErr } = await supabase
     .from('students')
-    .update({
-      status: 'Withdrawn',
-      withdrawn_at: new Date().toISOString().split('T')[0],
-      updated_at: new Date().toISOString(),
-    })
+    .select('id, status')
     .eq('id', id)
-    .select()
     .single()
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (fetchErr || !student) {
+    return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+  }
+  if (student.status !== 'Archived') {
+    return NextResponse.json(
+      { error: 'Student must be Archived before deletion.' },
+      { status: 422 }
+    )
   }
 
-  return NextResponse.json({ data })
+  // Guard: no enrolments (including historical)
+  const { count: enrolCount } = await supabase
+    .from('enrolments')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', id)
+
+  if (enrolCount && enrolCount > 0) {
+    return NextResponse.json(
+      { error: 'Cannot delete: student has enrolment records.' },
+      { status: 422 }
+    )
+  }
+
+  // Guard: no attendance records
+  const { count: attCount } = await supabase
+    .from('attendance_records')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', id)
+
+  if (attCount && attCount > 0) {
+    return NextResponse.json(
+      { error: 'Cannot delete: student has attendance records.' },
+      { status: 422 }
+    )
+  }
+
+  // Guard: no invoices
+  const { count: invCount } = await supabase
+    .from('invoices')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', id)
+
+  if (invCount && invCount > 0) {
+    return NextResponse.json(
+      { error: 'Cannot delete: student has financial records.' },
+      { status: 422 }
+    )
+  }
+
+  const { error: delErr } = await supabase
+    .from('students')
+    .delete()
+    .eq('id', id)
+
+  if (delErr) {
+    return NextResponse.json({ error: delErr.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
 }

@@ -17,6 +17,8 @@ import {
   UserX,
   Download,
   AlertTriangle,
+  Archive,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -49,7 +51,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni";
+export type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni" | "Archived";
 
 export interface Student {
   id: string;
@@ -137,6 +139,7 @@ function getStatusBadgeClass(status: Student["status"]): string {
     case "Withdrawn": return "bg-red-100 text-red-700 border border-red-200";
     case "Graduated": return "bg-blue-100 text-blue-700 border border-blue-200";
     case "Alumni":    return "bg-slate-100 text-slate-600 border border-slate-200";
+    case "Archived":  return "bg-amber-100 text-amber-700 border border-amber-200";
   }
 }
 
@@ -152,6 +155,8 @@ function RowActions({
   onNewTask,
   onLogNote,
   onWithdraw,
+  onArchive,
+  onDelete,
 }: {
   student: Student;
   isOpen: boolean;
@@ -162,6 +167,8 @@ function RowActions({
   onNewTask: (s: Student) => void;
   onLogNote: (s: Student) => void;
   onWithdraw: (s: Student) => void;
+  onArchive: (s: Student) => void;
+  onDelete: (s: Student) => void;
 }) {
   const router = useRouter();
   const { can } = usePermission();
@@ -175,7 +182,9 @@ function RowActions({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [isOpen, onClose]);
 
-  const alreadyWithdrawn = student.status === "Withdrawn";
+  const isOperational = student.status === "Active";
+  const canBeArchived = can('students.archive') && (student.status === "Withdrawn" || student.status === "Graduated" || student.status === "Alumni");
+  const canBeDeleted  = can('students.delete') && student.status === "Archived";
 
   type Item = {
     kind: "action";
@@ -188,11 +197,14 @@ function RowActions({
 
   const rawItems: Item[] = [
     { kind: "action", icon: Eye,           label: "View profile",     onClick: () => router.push(`/students/${student.id}`), show: true },
-    { kind: "action", icon: BookOpen,      label: "Add enrolment",    onClick: () => onAddEnrolment(student),                show: can('enrolment.create') && !alreadyWithdrawn },
+    { kind: "action", icon: BookOpen,      label: "Add enrolment",    onClick: () => onAddEnrolment(student),                show: can('enrolment.create') && isOperational },
     { kind: "action", icon: ClipboardList, label: "New task",         onClick: () => onNewTask(student),                     show: can('tasks.create') },
     { kind: "action", icon: MessageSquare, label: "Log contact note", onClick: () => onLogNote(student),                     show: true },
-    { kind: "separator", show: can('enrolment.withdraw') && !alreadyWithdrawn },
-    { kind: "action", icon: UserX,         label: "Withdraw student", onClick: () => onWithdraw(student), danger: true,       show: can('enrolment.withdraw') && !alreadyWithdrawn },
+    { kind: "separator", show: can('enrolment.withdraw') && isOperational },
+    { kind: "action", icon: UserX,         label: "Withdraw student", onClick: () => onWithdraw(student), danger: true,      show: can('enrolment.withdraw') && isOperational },
+    { kind: "separator", show: canBeArchived || canBeDeleted },
+    { kind: "action", icon: Archive,       label: "Archive student",  onClick: () => onArchive(student),  danger: true,      show: canBeArchived },
+    { kind: "action", icon: Trash2,        label: "Delete student",   onClick: () => onDelete(student),   danger: true,      show: canBeDeleted },
   ];
   const items = rawItems.filter((i) => i.show);
 
@@ -290,7 +302,7 @@ function SaveSegmentPopover({
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS    = ["Active", "Withdrawn", "Graduated", "Alumni"];
+const STATUS_OPTIONS    = ["Active", "Withdrawn", "Graduated", "Alumni", "Archived"];
 const YEAR_OPTIONS      = ["FS1", "FS2", "Y1", "Y2", "Y3", "Y4", "Y5", "Y6", "Y7", "Y8", "Y9", "Y10", "Y11", "Y12", "Y13"];
 const DEPT_OPTIONS      = ["Primary", "Lower Secondary", "Senior"];
 const ENROLMENT_OPTIONS = ["0 subjects", "1 subject", "2+ subjects", "3+ subjects"];
@@ -464,6 +476,8 @@ export default function StudentsPage() {
   const [taskStudent,      setTaskStudent]      = useState<Student | null>(null);
   const [noteStudent,      setNoteStudent]      = useState<Student | null>(null);
   const [withdrawStudent,  setWithdrawStudent]  = useState<Student | null>(null);
+  const [archiveStudent,   setArchiveStudent]   = useState<Student | null>(null);
+  const [deleteStudent,    setDeleteStudent]    = useState<Student | null>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -630,7 +644,10 @@ export default function StudentsPage() {
                 gender: data.gender || null,
                 nationality: data.nationality || null,
                 year_group: data.yearGroup,
-                school_other: data.school,
+                department: data.department,
+                department_id: data.departmentId || null,
+                school_id: data.schoolId || null,
+                school_other: data.schoolId ? null : data.school,
                 status: "Active",
                 enrolled_at: new Date().toISOString().slice(0, 10),
                 ...(pg ? {
@@ -983,6 +1000,8 @@ export default function StudentsPage() {
                           onNewTask={setTaskStudent}
                           onLogNote={setNoteStudent}
                           onWithdraw={setWithdrawStudent}
+                          onArchive={setArchiveStudent}
+                          onDelete={setDeleteStudent}
                         />
                       </td>
                     </tr>
@@ -1027,6 +1046,18 @@ export default function StudentsPage() {
       <WithdrawStudentDialog
         student={withdrawStudent}
         onClose={() => setWithdrawStudent(null)}
+        onConfirmed={fetchStudents}
+      />
+
+      <ArchiveStudentDialog
+        student={archiveStudent}
+        onClose={() => setArchiveStudent(null)}
+        onConfirmed={fetchStudents}
+      />
+
+      <DeleteStudentDialog
+        student={deleteStudent}
+        onClose={() => setDeleteStudent(null)}
         onConfirmed={fetchStudents}
       />
     </div>
@@ -1402,6 +1433,151 @@ function WithdrawStudentDialog({
             className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors cursor-pointer"
           >
             Withdraw student
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Archive Student ──────────────────────────────────────────────────────────
+
+function ArchiveStudentDialog({
+  student,
+  onClose,
+  onConfirmed,
+}: {
+  student: Student | null;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  useEffect(() => {}, [student]);
+
+  async function handleConfirm() {
+    if (!student) return;
+    try {
+      const res = await fetch(`/api/students/${student.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Archived" }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`${student.name} has been archived`);
+      onConfirmed();
+      onClose();
+    } catch {
+      toast.error("Failed to archive student");
+    }
+  }
+
+  return (
+    <Dialog open={!!student} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-[460px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle>Archive student</DialogTitle>
+          <DialogDescription>
+            {student?.name ?? "This student"} will be hidden from all active lists and pickers. The record is retained in full. Admin Head and above can unarchive at any time. This is a required step before permanent deletion.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Only Withdrawn, Graduated, or Alumni students with no active enrolments can be archived. Archiving does not delete any data.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 transition-colors cursor-pointer"
+          >
+            Archive student
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Delete Student ───────────────────────────────────────────────────────────
+
+function DeleteStudentDialog({
+  student,
+  onClose,
+  onConfirmed,
+}: {
+  student: Student | null;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  async function handleConfirm() {
+    if (!student) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/students/${student.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? "Failed to delete student");
+        return;
+      }
+      toast.success(`${student.name} has been permanently deleted`);
+      onConfirmed();
+      onClose();
+    } catch {
+      toast.error("Failed to delete student");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!student} onOpenChange={(v) => { if (!v && !busy) onClose(); }}>
+      <DialogContent className="w-[460px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle className="text-red-700">Delete student {student?.name}?</DialogTitle>
+          <DialogDescription>
+            This action cannot be undone. The student record and all associated data will be permanently removed. This is only permitted for Archived students with no enrolment, attendance, or financial records.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="px-6 py-5">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-800 leading-relaxed">
+              Permanent deletion cannot be reversed. If the record has any linked history the server will block this action and return an error.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-slate-200 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={busy}
+            className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {busy ? "Deleting…" : "Delete student"}
           </button>
         </div>
       </DialogContent>

@@ -52,6 +52,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'students.view':            ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
   'students.create':          ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'students.edit':            ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
+  'students.archive':         ['Super Admin','Admin Head'],
   'students.delete':          ['Super Admin'],
   'students.merge':           ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'students.export':          ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
