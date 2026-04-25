@@ -71,161 +71,7 @@ export const DUBAI_AREAS = [
   "Umm Suqeim", "Wadi Al Safa", "Warsan", "World Islands", "Zabeel",
 ];
 
-// 130+ UAE schools (Dubai, Abu Dhabi, Sharjah, Ras Al Khaimah).
-const UAE_SCHOOLS = [
-  // GEMS network
-  "GEMS Wellington Academy — Al Khail",
-  "GEMS Wellington Academy — Silicon Oasis",
-  "GEMS Wellington International School",
-  "GEMS Wellington Primary School",
-  "GEMS World Academy",
-  "GEMS Modern Academy",
-  "GEMS FirstPoint School",
-  "GEMS Founders School — Al Barsha",
-  "GEMS Founders School — Mizhar",
-  "GEMS Royal Dubai School",
-  "GEMS Metropole School",
-  "GEMS Metropole School — Al Waha",
-  "GEMS Winchester School — Dubai",
-  "GEMS Winchester School — Jebel Ali",
-  "GEMS Winchester School — Oud Metha",
-  "GEMS Jumeirah Primary School",
-  "GEMS New Millennium School",
-  "GEMS Our Own English High School",
-  "GEMS Our Own Indian School",
-  "GEMS Heritage Indian School",
-  "GEMS Millennium School",
-  "GEMS Modern Academy Abu Dhabi",
-  "GEMS National School of Dubai",
-  "GEMS United Indian School",
-  "GEMS Westminster School — Dubai",
-  "GEMS Westminster School — Ras Al Khaimah",
-  "GEMS International School — Al Khail",
-  "GEMS Dubai American Academy",
-  "GEMS American Academy Abu Dhabi",
-  "GEMS Cambridge International School — Sharjah",
-  "GEMS Cambridge International Private School — Abu Dhabi",
-
-  // British curriculum
-  "Repton School Dubai",
-  "Repton School Abu Dhabi",
-  "Repton Al Barsha",
-  "Cranleigh Abu Dhabi",
-  "Cranleigh School",
-  "Brighton College Dubai",
-  "Brighton College Abu Dhabi",
-  "Brighton College Al Ain",
-  "Dubai British School — Jumeirah Park",
-  "Dubai British School — Emirates Hills",
-  "Dubai British Foundation",
-  "Dubai English Speaking College",
-  "Dubai English Speaking School",
-  "Dubai College",
-  "Jumeirah College",
-  "JESS Arabian Ranches",
-  "JESS Jumeirah",
-  "Hartland International School",
-  "Sunmarke School",
-  "Safa British School",
-  "Safa Community School",
-  "Horizon English School",
-  "Horizon International School",
-  "Kings' School Al Barsha",
-  "Kings' School Dubai",
-  "Kings' School Nad Al Sheba",
-  "Deira International School",
-  "Deira Private School",
-  "Dubai Heights Academy",
-  "Dubai Gem Private School",
-  "Formarke Hall Dubai",
-  "Clarion School",
-  "Victory Heights Primary School",
-  "Nord Anglia International School Dubai",
-  "Nord Anglia International School Abu Dhabi",
-  "The English College Dubai",
-  "The Aquila School",
-  "The Arbor School",
-  "The Wonder Years Nursery",
-  "Regent International School",
-
-  // IB curriculum
-  "Dubai International Academy — Emirates Hills",
-  "Dubai International Academy — Al Barsha",
-  "Dwight School Dubai",
-  "Uptown International School",
-  "Uptown School — Mirdif",
-  "Raffles World Academy",
-  "Raffles International School",
-  "Swiss International Scientific School Dubai",
-  "Greenfield International School",
-  "Universal American School",
-
-  // American curriculum
-  "American School of Dubai",
-  "American Academy for Girls",
-  "American Community School",
-  "Dubai American Academy",
-  "Collegiate American School",
-  "American International School Abu Dhabi",
-  "American Community School of Abu Dhabi",
-
-  // Indian curriculum
-  "The Indian High School — Dubai",
-  "The Indian High School — Branch",
-  "Delhi Private School — Dubai",
-  "Delhi Private School — Sharjah",
-  "JSS Private School",
-  "JSS International School",
-  "Modern High School International",
-  "Indian Academy Dubai",
-  "Our Own English High School",
-  "Our Own Indian School",
-  "Pakistan Education Academy",
-  "Shining Star International School",
-  "New Indian Model School",
-  "The Kindergarten Starters",
-
-  // French / German / Japanese / Others
-  "Lycée Georges Pompidou",
-  "Lycée Français International — Dubai",
-  "German International School Dubai",
-  "Japanese School Dubai",
-  "Scholars International Academy",
-  "International School of Arts and Sciences",
-  "International School of Choueifat — Dubai",
-  "International School of Choueifat — Abu Dhabi",
-  "International School of Creative Science",
-  "International Concept for Education",
-
-  // Abu Dhabi
-  "Aldar Academies — Al Yasmina Academy",
-  "Aldar Academies — Al Bateen Academy",
-  "Aldar Academies — Al Mamoura Academy",
-  "Aldar Academies — Al Muna Primary Academy",
-  "Aldar Academies — Pearl Academy",
-  "Aldar Academies — West Yas Academy",
-  "Raha International School",
-  "Yasmina British Academy",
-  "The British International School Abu Dhabi",
-  "The Sheikh Zayed Private Academy",
-
-  // Sharjah / RAK
-  "Wesgreen International School",
-  "Sharjah American International School",
-  "Sharjah English School",
-  "Victoria English School",
-  "RAK Academy",
-  "RAK English Speaking School",
-
-  // Star / chain schools
-  "Star International School — Mirdif",
-  "Star International School — Umm Sheif",
-  "Star International School — Al Twar",
-
-  // Alternatives
-  "Home Schooling",
-  "Online School",
-];
+type SchoolOption = { id: string; name: string; curriculum?: string | null };
 
 const YEAR_GROUPS: { value: string; label: string }[] = [
   { value: "FS1", label: "FS1 / Nursery" },
@@ -547,7 +393,9 @@ export interface NewStudentData {
   yearGroup: string;
   yearGroupLabel: string;
   department: Department;
+  departmentId?: string;
   school: string;
+  schoolId?: string;
   khdaFlag: boolean;
   primaryGuardian: GuardianData;
   secondaryGuardian?: GuardianData;
@@ -632,12 +480,14 @@ function SchoolSelect({
   error,
   onAddOther,
   hasOther,
+  schools,
 }: {
   value: string;
   onChange: (v: string) => void;
   error?: boolean;
   onAddOther: () => void;
   hasOther: boolean;
+  schools: SchoolOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -652,7 +502,7 @@ function SchoolSelect({
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = q ? UAE_SCHOOLS.filter((s) => s.toLowerCase().includes(q)) : UAE_SCHOOLS;
+  const filtered = q ? schools.filter((s) => s.name.toLowerCase().includes(q)) : schools;
 
   return (
     <div ref={ref} className="relative">
@@ -687,20 +537,20 @@ function SchoolSelect({
               <li className="px-3 py-2 text-sm text-slate-400">No matches</li>
             ) : (
               filtered.map((s) => (
-                <li key={s}>
+                <li key={s.id}>
                   <button
                     type="button"
                     onClick={() => {
-                      onChange(s);
+                      onChange(s.name);
                       setOpen(false);
                       setQuery("");
                     }}
                     className={cn(
                       "w-full text-left px-3 py-1.5 text-sm hover:bg-amber-50 cursor-pointer",
-                      value === s && "bg-amber-50 text-amber-700 font-medium",
+                      value === s.name && "bg-amber-50 text-amber-700 font-medium",
                     )}
                   >
-                    {s}
+                    {s.name}
                   </button>
                 </li>
               ))
@@ -1263,6 +1113,14 @@ export function AddStudentDialog({
   const [nationality, setNationality] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
 
+  const [schoolsList, setSchoolsList] = useState<SchoolOption[]>([]);
+  const [departmentsList, setDepartmentsList] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/schools").then((r) => r.json()).then((d) => Array.isArray(d) && setSchoolsList(d));
+    fetch("/api/departments").then((r) => r.json()).then((d) => Array.isArray(d) && setDepartmentsList(d));
+  }, []);
+
   // Step 2. `yearGroupExplicit` holds only what the user manually picked; the
   // effective year group falls back to the DOB-derived suggestion so it stays
   // reactive as the DOB changes without needing an effect.
@@ -1410,6 +1268,7 @@ export function AddStudentDialog({
       else setStep(3);
       return;
     }
+    const deptName = departmentForYear(yearGroup);
     const data: NewStudentData = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -1421,8 +1280,10 @@ export function AddStudentDialog({
       photoDataUrl,
       yearGroup,
       yearGroupLabel: yearGroupLabel(yearGroup),
-      department: departmentForYear(yearGroup),
+      department: deptName,
+      departmentId: departmentsList.find((d) => d.name === deptName)?.id,
       school: effectiveSchool,
+      schoolId: showCustomSchool ? undefined : schoolsList.find((s) => s.name === school)?.id,
       khdaFlag,
       primaryGuardian: primary,
       secondaryGuardian: hasSecondary ? secondary : undefined,
@@ -1680,6 +1541,7 @@ export function AddStudentDialog({
                       setShowCustomSchool(true);
                       setSchool("");
                     }}
+                    schools={schoolsList}
                   />
                 ) : (
                   <div className="flex items-stretch gap-2">
@@ -1705,7 +1567,7 @@ export function AddStudentDialog({
                   </div>
                 )}
                 <p className="mt-1 text-[11px] text-slate-400">
-                  {UAE_SCHOOLS.length} UAE schools available. Includes Home Schooling and Online School.
+                  {schoolsList.length > 0 ? `${schoolsList.length} schools available.` : "Loading schools…"} Includes Home Schooling and Online School.
                 </p>
               </div>
 

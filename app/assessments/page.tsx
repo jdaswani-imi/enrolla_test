@@ -13,10 +13,11 @@ import {
   Info,
   BookOpen,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { assessments, AVATAR_PALETTES, getAvatarPalette, getInitials, type AssessmentStatus } from "@/lib/mock-data";
+import { getAvatarPalette, getInitials, type Assessment, type AssessmentStatus } from "@/lib/mock-data";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -47,7 +48,7 @@ function outcomeClass(outcome: string): string {
 
 // ─── RowActionMenu ────────────────────────────────────────────────────────────
 
-function RowActionMenu() {
+function RowActionMenu({ assessmentId, onCancel }: { assessmentId: string; onCancel: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -70,22 +71,20 @@ function RowActionMenu() {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]">
-          {[
-            { icon: Eye, label: "View Details", danger: false },
-            { icon: X,   label: "Cancel",       danger: true  },
-          ].map(({ icon: Icon, label, danger }) => (
-            <button
-              key={label}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm transition-colors cursor-pointer",
-                danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {label}
-            </button>
-          ))}
+          <button
+            onClick={() => setOpen(false)}
+            className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            View Details
+          </button>
+          <button
+            onClick={() => { setOpen(false); onCancel(assessmentId); }}
+            className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+            Cancel
+          </button>
         </div>
       )}
     </div>
@@ -94,22 +93,9 @@ function RowActionMenu() {
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
-function StatCard({
-  label,
-  value,
-  amber,
-}: {
-  label: string;
-  value: string | number;
-  amber?: boolean;
-}) {
+function StatCard({ label, value, amber }: { label: string; value: string | number; amber?: boolean }) {
   return (
-    <div
-      className={cn(
-        "bg-white rounded-xl border border-slate-200 px-5 py-4 flex flex-col gap-1",
-        amber && "border-l-4 border-l-amber-400"
-      )}
-    >
+    <div className={cn("bg-white rounded-xl border border-slate-200 px-5 py-4 flex flex-col gap-1", amber && "border-l-4 border-l-amber-400")}>
       <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
       <p className="text-2xl font-bold text-slate-800">{value}</p>
     </div>
@@ -120,7 +106,11 @@ function StatCard({
 // Tab 1 — Upcoming
 // ─────────────────────────────────────────────────────────────────────────────
 
-function UpcomingTab() {
+function UpcomingTab({ assessments, loading, onCancel }: {
+  assessments: Assessment[];
+  loading: boolean;
+  onCancel: (id: string) => void;
+}) {
   const { can } = usePermission();
   const [deptFilter, setDeptFilter]     = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -137,6 +127,16 @@ function UpcomingTab() {
   }
 
   useEffect(() => { setPage(1); }, [deptFilter, statusFilter, dateRange, search]);
+
+  // Stat card counts
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1); weekStart.setHours(0, 0, 0, 0);
+  const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23, 59, 59, 999);
+
+  const thisWeekCount      = assessments.filter(a => a.date && new Date(a.date) >= weekStart && new Date(a.date) <= weekEnd).length;
+  const awaitingCount      = assessments.filter(a => a.status === "Awaiting Booking").length;
+  const linkSentCount      = assessments.filter(a => a.status === "Link Sent").length;
+  const outcomesPending    = assessments.filter(a => a.status === "Booked").length;
 
   const filtered = useMemo(() => {
     let data = assessments.filter((a) => {
@@ -158,7 +158,7 @@ function UpcomingTab() {
       });
     }
     return data;
-  }, [statusFilter, deptFilter, search, sortField, sortDir]);
+  }, [assessments, statusFilter, search, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -171,10 +171,10 @@ function UpcomingTab() {
     <div className="space-y-4">
       {/* Stat strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Assessments This Week" value={0} />
-        <StatCard label="Awaiting Booking"       value={0} amber />
-        <StatCard label="Links Sent (Unused)"    value={0} amber />
-        <StatCard label="Outcomes Pending"        value={0} />
+        <StatCard label="Assessments This Week" value={thisWeekCount} />
+        <StatCard label="Awaiting Booking"       value={awaitingCount} amber />
+        <StatCard label="Links Sent (Unused)"    value={linkSentCount} amber />
+        <StatCard label="Outcomes Pending"        value={outcomesPending} />
       </div>
 
       {/* Filter bar */}
@@ -184,7 +184,6 @@ function UpcomingTab() {
           <MultiSelectFilter label="Status" options={["Booked", "Link Sent", "Awaiting Booking", "Completed"]} selected={statusFilter} onChange={setStatusFilter} />
           <DateRangePicker value={dateRange} onChange={setDateRange} presets={DATE_PRESETS} placeholder="Date range" />
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
@@ -207,10 +206,10 @@ function UpcomingTab() {
         </div>
 
         {can('assessments.book') && (
-        <button className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer shadow-sm shrink-0">
-          <Plus className="w-4 h-4" />
-          Book Assessment
-        </button>
+          <button className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer shadow-sm shrink-0">
+            <Plus className="w-4 h-4" />
+            Book Assessment
+          </button>
         )}
       </div>
 
@@ -232,7 +231,12 @@ function UpcomingTab() {
               </tr>
             </thead>
             <tbody>
-              {paginated.map((a) => {
+              {loading && (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-slate-400 text-sm">Loading assessments…</td>
+                </tr>
+              )}
+              {!loading && paginated.map((a) => {
                 const isAwaitingBooking = a.status === "Awaiting Booking";
                 const isLinkSent        = a.status === "Link Sent";
                 const isBooked          = a.status === "Booked";
@@ -249,18 +253,12 @@ function UpcomingTab() {
                     {/* Student / Lead */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
-                            palette.bg,
-                            palette.text
-                          )}
-                        >
+                        <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0", palette.bg, palette.text)}>
                           {getInitials(a.name)}
                         </div>
                         <div>
                           <p className="font-semibold text-slate-800 leading-tight">{a.name}</p>
-                          <p className="text-[11px] text-slate-400 font-mono">{a.id}</p>
+                          <p className="text-[11px] text-slate-400 font-mono">{a.id.slice(0, 8)}</p>
                         </div>
                       </div>
                     </td>
@@ -268,18 +266,19 @@ function UpcomingTab() {
                     {/* Year Group */}
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
-                        {a.yearGroup}
+                        {a.yearGroup || "—"}
                       </span>
                     </td>
 
                     {/* Subjects */}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {a.subjects.map((s) => (
-                          <span key={s} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
-                            {s}
-                          </span>
-                        ))}
+                        {a.subjects.length > 0
+                          ? a.subjects.map((s) => (
+                              <span key={s} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">{s}</span>
+                            ))
+                          : <span className="text-slate-400">—</span>
+                        }
                       </div>
                     </td>
 
@@ -290,13 +289,10 @@ function UpcomingTab() {
 
                     {/* Date & Time */}
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
-                      {a.date && a.time ? (
-                        <span>
-                          {a.date} <span className="text-slate-400">·</span> {a.time}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
+                      {a.date && a.time
+                        ? <span>{a.date} <span className="text-slate-400">·</span> {a.time}</span>
+                        : <span className="text-slate-400">—</span>
+                      }
                     </td>
 
                     {/* Slot */}
@@ -320,7 +316,7 @@ function UpcomingTab() {
 
                     {/* Actions */}
                     <td className="px-4 py-3">
-                      {isBooked && <RowActionMenu />}
+                      {isBooked && <RowActionMenu assessmentId={a.id} onCancel={onCancel} />}
                       {isLinkSent && (
                         <button className="flex items-center gap-1 px-2.5 py-1 border border-amber-300 text-amber-700 text-xs font-medium rounded-md hover:bg-amber-50 transition-colors cursor-pointer whitespace-nowrap">
                           <Send className="w-3 h-3" />
@@ -339,7 +335,7 @@ function UpcomingTab() {
               })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <div className="py-12 text-center text-slate-400 text-sm">
               No assessments match the current filters.
             </div>
@@ -361,16 +357,26 @@ function UpcomingTab() {
 // Tab 2 — Outcomes
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OUTCOMES_DATA: { name: string; type: "Lead" | "Student"; yearGroup: string; subjects: string[]; assessor: string; completedDate: string; recommendedPlacement: string; outcome: string }[] = [];
+function outcomeLabel(recommendation: string | null): string {
+  if (!recommendation) return "Pending";
+  if (recommendation.startsWith("Enrol")) return "Recommended";
+  if (recommendation === "Do not enrol") return "Not recommended";
+  return recommendation;
+}
 
-function OutcomesTab() {
+function OutcomesTab({ assessments, loading }: { assessments: Assessment[]; loading: boolean }) {
+  const recommended = assessments.filter(a => a.outcome?.startsWith("Enrol")).length;
+  const convRate = assessments.length > 0
+    ? `${Math.round((recommended / assessments.length) * 100)}%`
+    : "—";
+
   return (
     <div className="space-y-4">
       {/* Stat strip */}
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Assessments Completed"     value={0} />
-        <StatCard label="Recommended for Enrolment" value={0} />
-        <StatCard label="Conversion Rate"            value="—" />
+        <StatCard label="Assessments Completed"     value={assessments.length} />
+        <StatCard label="Recommended for Enrolment" value={recommended} />
+        <StatCard label="Conversion Rate"            value={convRate} />
       </div>
 
       {/* Table */}
@@ -380,35 +386,29 @@ function OutcomesTab() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 {["Student / Lead", "Year Group", "Subject(s)", "Assessor", "Completed", "Recommended Placement", "Outcome", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap"
-                  >
+                  <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {OUTCOMES_DATA.map((o, i) => {
-                const palette    = getAvatarPalette(o.name);
-                const outcomeLabel =
-                  o.outcome === "Recommended"     ? "Recommended ✅"  :
-                  o.outcome === "Not recommended" ? "Not recommended ❌" :
-                  o.outcome;
+              {loading && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">Loading…</td>
+                </tr>
+              )}
+              {!loading && assessments.map((o) => {
+                const palette = getAvatarPalette(o.name);
+                const label   = outcomeLabel(o.outcome);
+                const display = label === "Recommended" ? "Recommended ✅" : label === "Not recommended" ? "Not recommended ❌" : label;
 
                 return (
-                  <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+                  <tr key={o.id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
                     {/* Name */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
-                            palette.bg,
-                            palette.text
-                          )}
-                        >
+                        <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0", palette.bg, palette.text)}>
                           {getInitials(o.name)}
                         </div>
                         <div>
@@ -420,41 +420,41 @@ function OutcomesTab() {
                       </div>
                     </td>
 
-                    {/* Year Group */}
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
-                        {o.yearGroup}
+                        {o.yearGroup || "—"}
                       </span>
                     </td>
 
-                    {/* Subjects */}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {o.subjects.map((s) => (
-                          <span key={s} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
-                            {s}
-                          </span>
-                        ))}
+                        {o.subjects.length > 0
+                          ? o.subjects.map((s) => (
+                              <span key={s} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">{s}</span>
+                            ))
+                          : <span className="text-slate-400">—</span>
+                        }
                       </div>
                     </td>
 
-                    {/* Assessor */}
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{o.assessor}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                      {o.assessor ?? <span className="text-slate-400">—</span>}
+                    </td>
 
-                    {/* Completed */}
-                    <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{o.completedDate}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                      {o.date ?? "—"}
+                    </td>
 
-                    {/* Recommended Placement */}
-                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[220px]">{o.recommendedPlacement}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 max-w-[220px]">
+                      {o.outcome ?? <span className="text-slate-400">—</span>}
+                    </td>
 
-                    {/* Outcome */}
                     <td className="px-4 py-3">
-                      <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap", outcomeClass(outcomeLabel))}>
-                        {outcomeLabel}
+                      <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap", outcomeClass(display))}>
+                        {display}
                       </span>
                     </td>
 
-                    {/* Actions */}
                     <td className="px-4 py-3">
                       <button className="flex items-center gap-1 px-2.5 py-1 border border-slate-300 text-slate-600 text-xs font-medium rounded-md hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap">
                         <BookOpen className="w-3 h-3" />
@@ -464,6 +464,11 @@ function OutcomesTab() {
                   </tr>
                 );
               })}
+              {!loading && assessments.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">No completed assessments yet.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -488,19 +493,10 @@ interface DaySlots {
   slots: Slot[];
 }
 
-const THIS_WEEK: DaySlots[] = [];
-
-const NEXT_WEEK: DaySlots[] = [];
-
 function SlotCard({ slot }: { slot: Slot }) {
   const booked = slot.student !== null;
   return (
-    <div
-      className={cn(
-        "rounded-lg border border-slate-200 border-l-4 px-3 py-2.5",
-        booked ? "border-l-blue-400 bg-white" : "border-l-green-400 bg-white"
-      )}
-    >
+    <div className={cn("rounded-lg border border-slate-200 border-l-4 px-3 py-2.5", booked ? "border-l-blue-400 bg-white" : "border-l-green-400 bg-white")}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -515,9 +511,7 @@ function SlotCard({ slot }: { slot: Slot }) {
           )}
         </div>
         {booked ? (
-          <span className="shrink-0 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-            Booked
-          </span>
+          <span className="shrink-0 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Booked</span>
         ) : (
           <button className="shrink-0 flex items-center gap-1 px-2.5 py-1 border border-green-300 text-green-700 text-xs font-medium rounded-md hover:bg-green-50 transition-colors cursor-pointer whitespace-nowrap">
             <CalendarCheck className="w-3 h-3" />
@@ -550,6 +544,9 @@ function WeekPanel({ title, days }: { title: string; days: DaySlots[] }) {
             </div>
           </div>
         ))}
+        {days.length === 0 && (
+          <p className="text-sm text-slate-400 text-center py-8">No slots configured.</p>
+        )}
       </div>
     </div>
   );
@@ -558,7 +555,6 @@ function WeekPanel({ title, days }: { title: string; days: DaySlots[] }) {
 function SlotManagementTab() {
   return (
     <div className="space-y-4">
-      {/* Info banner */}
       <div className="flex items-start gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
         <Info className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
         <p>
@@ -567,12 +563,10 @@ function SlotManagementTab() {
           This prevents front-desk congestion at class start times.
         </p>
       </div>
-
-      {/* Two-week grid */}
       <div className="flex gap-6 flex-col lg:flex-row">
-        <WeekPanel title="This Week (19–25 Apr)" days={THIS_WEEK} />
+        <WeekPanel title="This Week" days={[]} />
         <div className="hidden lg:block w-px bg-slate-200 self-stretch" />
-        <WeekPanel title="Next Week (26 Apr – 2 May)" days={NEXT_WEEK} />
+        <WeekPanel title="Next Week" days={[]} />
       </div>
     </div>
   );
@@ -595,46 +589,79 @@ function AssessmentsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const raw = searchParams.get('tab');
-  const tab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : 'upcoming';
+  const [allAssessments, setAllAssessments] = useState<Assessment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function fetchAssessments() {
+    try {
+      const res = await fetch("/api/assessments");
+      const json = await res.json();
+      if (res.ok) setAllAssessments(json);
+    } catch {
+      // leave list empty on network error
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchAssessments(); }, []);
+
+  async function handleCancel(id: string) {
+    const res = await fetch(`/api/assessments?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Assessment cancelled");
+      setAllAssessments((prev) => prev.filter((a) => a.id !== id));
+    } else {
+      const json = await res.json().catch(() => ({}));
+      toast.error((json as { error?: string }).error ?? "Failed to cancel assessment");
+    }
+  }
+
+  const raw = searchParams.get("tab");
+  const tab: Tab = (raw && TABS.some(t => t.key === raw)) ? (raw as Tab) : "upcoming";
 
   function handleTabChange(key: Tab) {
     router.replace(`?tab=${key}`, { scroll: false });
   }
 
-  if (!can('assessments.view')) return <AccessDenied />;
+  if (!can("assessments.view")) return <AccessDenied />;
+
+  const upcoming  = allAssessments.filter(a => a.status !== "Completed");
+  const completed = allAssessments.filter(a => a.status === "Completed");
 
   return (
     <div className="flex flex-col gap-4">
       {/* Page header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">0 assessments in pipeline · 0 slots available this week</p>
+        <p className="text-sm text-slate-500">
+          {loading ? "Loading…" : `${upcoming.length} assessment${upcoming.length === 1 ? "" : "s"} in pipeline · 0 slots available this week`}
+        </p>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-200">
         {TABS.map(({ key, label }) => {
-          if (key === 'slots' && !can('assessments.manageSlots')) return null;
+          if (key === "slots" && !can("assessments.manageSlots")) return null;
           return (
-          <button
-            key={key}
-            onClick={() => handleTabChange(key)}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px",
-              tab === key
-                ? "border-amber-500 text-amber-600"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {label}
-          </button>
+            <button
+              key={key}
+              onClick={() => handleTabChange(key)}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px",
+                tab === key
+                  ? "border-amber-500 text-amber-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {label}
+            </button>
           );
         })}
       </div>
 
       {/* Tab content */}
-      {tab === "upcoming" && <UpcomingTab />}
-      {tab === "outcomes" && <OutcomesTab />}
+      {tab === "upcoming" && <UpcomingTab assessments={upcoming}  loading={loading} onCancel={handleCancel} />}
+      {tab === "outcomes" && <OutcomesTab assessments={completed} loading={loading} />}
       {tab === "slots"    && <SlotManagementTab />}
     </div>
   );

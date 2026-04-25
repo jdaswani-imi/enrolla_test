@@ -10,6 +10,7 @@ const supabase = createClient(
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
+  const q = searchParams.get('q')?.trim() ?? ''
 
   let query = supabase
     .from('students')
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
 
   if (status) {
     query = query.eq('status', status)
+  }
+
+  if (q) {
+    query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
   }
 
   const { data, error } = await query
@@ -89,8 +94,10 @@ export async function POST(request: NextRequest) {
 
   const { primaryGuardian, department, id, created_at, updated_at, ...rest } = body
 
-  let department_id: string | undefined
-  if (department) {
+  // Prefer the pre-resolved department_id from the form; fall back to name lookup
+  let department_id: string | undefined = rest.department_id || undefined
+  delete rest.department_id
+  if (!department_id && department) {
     const { data: dept } = await supabase
       .from('departments')
       .select('id')

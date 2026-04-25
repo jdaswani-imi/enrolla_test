@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -10,11 +10,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  inventoryItems, inventorySuppliers, reorderAlerts, stockLedgerEntries,
-  currentUser, staffMembers, tasks,
+  currentUser, staffMembers,
   type InventoryItem, type AutoDeductRule, type LedgerEntry,
   type ReorderAlert, type StockLedgerEntry, type InventorySupplier,
-  type Task, type TaskType,
+  type TaskType,
 } from '@/lib/mock-data';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -194,14 +193,17 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
 function AdjustStockSheet({
   item,
   onClose,
+  onRefresh,
 }: {
   item: InventoryItem;
   onClose: () => void;
+  onRefresh: () => void;
 }) {
   const [adjustType, setAdjustType] = useState<'add' | 'remove' | 'stocktake'>('add');
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState('');
   const [reference, setReference] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const newStock =
     adjustType === 'add'       ? item.currentStock + qty
@@ -310,8 +312,29 @@ function AdjustStockSheet({
         </div>
 
         <DialogFooter className="flex items-center gap-2">
-          <button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-4 py-2.5 transition-colors cursor-pointer">
-            Apply Adjustment
+          <button
+            onClick={async () => {
+              setSaving(true);
+              try {
+                const res = await fetch('/api/inventory/stock-adjust', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ itemId: item.id, adjustType, qty, reason, reference, actorName: currentUser.name }),
+                });
+                if (!res.ok) throw new Error((await res.json()).error);
+                toast.success('Stock adjusted');
+                onRefresh();
+                onClose();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : 'Failed to adjust stock');
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving}
+            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-4 py-2.5 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Apply Adjustment'}
           </button>
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer">
             Cancel
@@ -341,30 +364,31 @@ function formatLedgerTimestamp(d: Date): string {
   return `${formatStockTakeDate(d)}, ${hh}:${mm}`;
 }
 
-function StockTakeDialog({ onClose }: { onClose: () => void }) {
+function StockTakeDialog({ items, onClose, onRefresh }: { items: InventoryItem[]; onClose: () => void; onRefresh: () => void }) {
   const [counted, setCounted] = useState<Record<string, string>>({});
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const today = useMemo(() => new Date(), []);
   const todayLabel = formatStockTakeDate(today);
 
   const presentCategories = useMemo(
-    () => ALL_CATEGORIES.filter(c => inventoryItems.some(i => i.category === c)),
-    [],
+    () => ALL_CATEGORIES.filter(c => items.some(i => i.category === c)),
+    [items],
   );
 
   const visibleItems = useMemo(() => {
-    const items = selectedCats.length
-      ? inventoryItems.filter(i => selectedCats.includes(i.category))
-      : inventoryItems;
-    return [...items].sort((a, b) => {
+    const filtered = selectedCats.length
+      ? items.filter(i => selectedCats.includes(i.category))
+      : items;
+    return [...filtered].sort((a, b) => {
       const ca = a.category.localeCompare(b.category);
       return ca !== 0 ? ca : a.name.localeCompare(b.name);
     });
-  }, [selectedCats]);
+  }, [selectedCats, items]);
 
   const itemsCounted = Object.values(counted).filter(v => v !== '' && v !== undefined).length;
-  const totalItems = inventoryItems.length;
+  const totalItems = items.length;
   const canComplete = itemsCounted >= 1;
 
   function toggleCategory(cat: string) {
@@ -373,7 +397,7 @@ function StockTakeDialog({ onClose }: { onClose: () => void }) {
 
   function fillAllWithSystem() {
     const next: Record<string, string> = {};
-    for (const item of inventoryItems) next[item.id] = String(item.currentStock);
+    for (const item of items) next[item.id] = String(item.currentStock);
     setCounted(next);
   }
 
@@ -381,34 +405,35 @@ function StockTakeDialog({ onClose }: { onClose: () => void }) {
     toast.success(`Progress saved — ${itemsCounted} of ${totalItems} items counted`);
   }
 
-  function handleComplete() {
-    let variances = 0;
-    let checked = 0;
-    for (const item of inventoryItems) {
-      const raw = counted[item.id];
-      if (raw === undefined || raw === '') continue;
-      const countedQty = Math.max(0, parseInt(raw, 10));
-      if (Number.isNaN(countedQty)) continue;
-      checked += 1;
-      if (countedQty !== item.currentStock) variances += 1;
-      item.currentStock = countedQty;
-      item.health = computeHealth(countedQty, item.minStock);
+  async function handleComplete() {
+    const counts = items
+      .filter(item => {
+        const raw = counted[item.id];
+        return raw !== undefined && raw !== '';
+      })
+      .map(item => ({
+        itemId: item.id,
+        counted: Math.max(0, parseInt(counted[item.id]!, 10)),
+      }))
+      .filter(c => !Number.isNaN(c.counted));
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/inventory/stock-take', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ counts, actorName: currentUser.name }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const { data } = await res.json();
+      toast.success(`Stock-take completed — ${data.variances} variance${data.variances === 1 ? '' : 's'} recorded`);
+      onRefresh();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to complete stock-take');
+    } finally {
+      setSaving(false);
     }
-
-    const now = new Date();
-    stockLedgerEntries.unshift({
-      id: `sl-stkt-${now.getTime()}`,
-      itemName: 'Stock-take',
-      category: 'Stock-take',
-      changeType: 'stock_take_correction',
-      quantityChange: 0,
-      actor: currentUser.name,
-      reference: `${checked} items checked, ${variances} variance${variances === 1 ? '' : 's'} found`,
-      timestamp: formatLedgerTimestamp(now),
-    });
-
-    toast.success(`Stock-take completed — ${variances} variance${variances === 1 ? '' : 's'} recorded`);
-    onClose();
   }
 
   return (
@@ -542,15 +567,15 @@ function StockTakeDialog({ onClose }: { onClose: () => void }) {
             </button>
             <button
               onClick={handleComplete}
-              disabled={!canComplete}
+              disabled={!canComplete || saving}
               className={cn(
                 'px-4 py-2 rounded-xl text-sm font-medium transition-colors',
-                canComplete
+                canComplete && !saving
                   ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed',
               )}
             >
-              Complete stock-take
+              {saving ? 'Saving…' : 'Complete stock-take'}
             </button>
           </div>
         </DialogFooter>
@@ -563,10 +588,14 @@ function StockTakeDialog({ onClose }: { onClose: () => void }) {
 
 function ItemDetailSheet({
   item,
+  suppliers,
   onClose,
+  onRefresh,
 }: {
   item: InventoryItem;
+  suppliers: InventorySupplier[];
   onClose: () => void;
+  onRefresh: () => void;
 }) {
   const [sheetTab, setSheetTab] = useState<'Details' | 'Auto-Deduct Rules' | 'Stock History'>('Details');
   const [autoDeductEnabled, setAutoDeductEnabled] = useState(item.autoDeduct);
@@ -576,8 +605,54 @@ function ItemDetailSheet({
   const [ruleYears, setRuleYears] = useState<string[]>([]);
   const [ruleQty, setRuleQty] = useState(1);
   const [ruleCondition, setRuleCondition] = useState('First enrolment only');
+  const [editCategory, setEditCategory] = useState(item.category);
+  const [editUnit, setEditUnit] = useState(item.unit);
+  const [editSupplier, setEditSupplier] = useState(item.supplier);
+  const [editNotes, setEditNotes] = useState(item.notes);
+  const [editAmazonLink, setEditAmazonLink] = useState(item.amazonLink ?? '');
+  const [editMinStock, setEditMinStock] = useState(String(item.minStock));
+  const [editMaxStock, setEditMaxStock] = useState(item.maxStock != null ? String(item.maxStock) : '');
+  const [editReorderQty, setEditReorderQty] = useState(String(item.reorderQty));
+  const [saving, setSaving] = useState(false);
 
-  const supplierNames = inventorySuppliers.map(s => s.name);
+  const supplierNames = suppliers.map(s => s.name);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const supplierId = suppliers.find(s => s.name === editSupplier)?.id ?? null;
+      const res = await fetch(`/api/inventory/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category:    editCategory,
+          unit:        editUnit,
+          supplierId,
+          notes:       editNotes,
+          amazonLink:  editAmazonLink || null,
+          minStock:    parseInt(editMinStock) || 0,
+          maxStock:    editMaxStock ? parseInt(editMaxStock) : null,
+          reorderQty:  parseInt(editReorderQty) || 0,
+          autoDeduct:  autoDeductEnabled,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success('Item saved');
+      onRefresh();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save item');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeactivate() {
+    await fetch(`/api/inventory/items/${item.id}`, { method: 'DELETE' });
+    toast.success('Item deactivated');
+    onRefresh();
+    onClose();
+  }
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
@@ -614,19 +689,19 @@ function ItemDetailSheet({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Category</label>
-                  <FilterSelect value={item.category} onChange={() => {}} options={ALL_CATEGORIES} />
+                  <FilterSelect value={editCategory} onChange={setEditCategory} options={ALL_CATEGORIES} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Unit</label>
-                  <input defaultValue={item.unit} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                  <input value={editUnit} onChange={e => setEditUnit(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Supplier</label>
-                  <FilterSelect value={item.supplier} onChange={() => {}} options={supplierNames} />
+                  <FilterSelect value={editSupplier} onChange={setEditSupplier} options={supplierNames.length ? supplierNames : [editSupplier]} />
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Notes</label>
-                  <textarea defaultValue={item.notes} rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
+                  <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
                 </div>
               </div>
 
@@ -635,7 +710,8 @@ function ItemDetailSheet({
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Amazon Link</label>
                 <input
                   type="text"
-                  defaultValue={item.amazonLink ?? ''}
+                  value={editAmazonLink}
+                  onChange={e => setEditAmazonLink(e.target.value)}
                   placeholder="https://amazon.ae/..."
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                 />
@@ -656,15 +732,16 @@ function ItemDetailSheet({
                 <p className="text-xs uppercase text-slate-400 tracking-wide mb-3 font-semibold">Stock Thresholds</p>
                 <div className="grid grid-cols-3 gap-4">
                   {[
-                    { label: 'Min Stock', defaultValue: item.minStock, helper: 'Triggers reorder alert' },
-                    { label: 'Max Stock', defaultValue: item.maxStock, helper: 'Informational cap' },
-                    { label: 'Reorder Qty', defaultValue: item.reorderQty, helper: 'Suggested order quantity' },
+                    { label: 'Min Stock', value: editMinStock, onChange: setEditMinStock, helper: 'Triggers reorder alert' },
+                    { label: 'Max Stock', value: editMaxStock, onChange: setEditMaxStock, helper: 'Informational cap' },
+                    { label: 'Reorder Qty', value: editReorderQty, onChange: setEditReorderQty, helper: 'Suggested order quantity' },
                   ].map(f => (
                     <div key={f.label}>
                       <label className="text-xs font-medium text-slate-600 mb-1 block">{f.label}</label>
                       <input
                         type="number"
-                        defaultValue={f.defaultValue}
+                        value={f.value}
+                        onChange={e => f.onChange(e.target.value)}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                       />
                       <p className="text-[10px] text-slate-400 mt-0.5">{f.helper}</p>
@@ -822,10 +899,17 @@ function ItemDetailSheet({
         </div>
 
         <DialogFooter className="flex items-center gap-2 flex-wrap">
-          <button className="flex-1 min-w-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-colors cursor-pointer">
-            Save Changes
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 min-w-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl px-5 py-2.5 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
-          <button className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors cursor-pointer">
+          <button
+            onClick={handleDeactivate}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors cursor-pointer"
+          >
             <Trash2 className="w-4 h-4" />Deactivate
           </button>
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition-colors cursor-pointer">
@@ -870,7 +954,7 @@ function ReorderStatusBadge({ status }: { status: ReorderAlert['status'] }) {
 }
 
 function ReorderAlertsTab() {
-  const [alerts, setAlerts] = useState<ReorderAlert[]>(reorderAlerts);
+  const [alerts, setAlerts] = useState<ReorderAlert[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -878,13 +962,20 @@ function ReorderAlertsTab() {
   const [receivedQty, setReceivedQty] = useState(0);
   const [receivedNote, setReceivedNote] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
-
-  const [assigneeMap, setAssigneeMap] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    reorderAlerts.forEach(a => { if (a.responsibleStaffId) init[a.id] = a.responsibleStaffId; });
-    return init;
-  });
+  const [assigneeMap, setAssigneeMap] = useState<Record<string, string>>({});
   const [taskCreatedSet, setTaskCreatedSet] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/inventory/reorder-alerts')
+      .then(r => r.json())
+      .then(d => {
+        const data: ReorderAlert[] = d.data ?? [];
+        setAlerts(data);
+        const init: Record<string, string> = {};
+        data.forEach(a => { if (a.responsibleStaffId) init[a.id] = a.responsibleStaffId; });
+        setAssigneeMap(init);
+      });
+  }, []);
 
   const { sortField, sortDir, toggleSort, sortData } = useSortState(null);
 
@@ -893,46 +984,56 @@ function ReorderAlertsTab() {
     setTimeout(() => setStatusMsg(''), 2000);
   }
 
-  function createReorderTask(alert: ReorderAlert) {
+  async function createReorderTask(alert: ReorderAlert) {
     const staffId = assigneeMap[alert.id] || '';
     const staffMember = staffMembers.find(s => s.id === staffId);
     const assigneeName = staffMember?.name ?? 'Unassigned';
-    const maxId = Math.max(...tasks.map(t => parseInt(t.id.replace('TK-', ''), 10)));
-    const nextId = `TK-${String(maxId + 1).padStart(3, '0')}`;
     const d = new Date();
     d.setDate(d.getDate() + 3);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const dueDate = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    const newTask: Task = {
-      id: nextId,
-      title: `Reorder: ${alert.itemName}`,
-      type: 'Admin' as TaskType,
-      priority: alert.currentStock === 0 ? 'High' : 'Medium',
-      status: 'Open',
-      assignee: assigneeName,
-      dueDate,
-      linkedRecord: null,
-      description: `Stock at ${alert.currentStock} — reorder qty ${alert.reorderQty} from ${alert.supplierName}`,
-      subtasks: [],
-      overdue: false,
-      linkedInventoryItemId: alert.id,
-    };
-    tasks.push(newTask);
+    const dueDateIso = d.toISOString().slice(0, 10);
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title:       `Reorder: ${alert.itemName}`,
+        type:        'Admin' as TaskType,
+        priority:    alert.currentStock === 0 ? 'High' : 'Medium',
+        assignee:    assigneeName,
+        dueDateIso,
+        description: `Stock at ${alert.currentStock} — reorder qty ${alert.reorderQty} from ${alert.supplierName}`,
+        subtasks:    [],
+      }),
+    });
     setTaskCreatedSet(prev => new Set([...prev, alert.id]));
     toast.success(`Reorder task created for ${alert.itemName}`);
   }
 
-  function markOrdered(id: string) {
+  async function markOrdered(id: string) {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'ordered' as const } : a));
+    await fetch(`/api/inventory/reorder-alerts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'ordered' }),
+    });
     showToast('Marked as ordered — stock will update when received');
   }
 
-  function markIgnored(id: string) {
+  async function markIgnored(id: string) {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'ignored' as const } : a));
+    await fetch(`/api/inventory/reorder-alerts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'ignored' }),
+    });
   }
 
-  function reopen(id: string) {
+  async function reopen(id: string) {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'open' as const } : a));
+    await fetch(`/api/inventory/reorder-alerts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
   }
 
   function openReceived(alert: ReorderAlert) {
@@ -941,14 +1042,28 @@ function ReorderAlertsTab() {
     setReceivedNote('');
   }
 
-  function confirmReceived() {
+  async function confirmReceived() {
     if (!receivedAlert) return;
+    const invItemId = (receivedAlert as ReorderAlert & { inventoryItemId?: string }).inventoryItemId;
+    if (invItemId) {
+      await fetch('/api/inventory/stock-adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId:    invItemId,
+          adjustType: 'reorder_received',
+          qty:       receivedQty,
+          reference: receivedNote,
+          actorName: currentUser.name,
+        }),
+      });
+    }
     setAlerts(prev => prev.filter(a => a.id !== receivedAlert.id));
     setReceivedAlert(null);
     showToast('Stock updated — reorder alert resolved');
   }
 
-  const categories = Array.from(new Set(reorderAlerts.map(a => a.category)));
+  const categories = Array.from(new Set(alerts.map(a => a.category)));
 
   const filtered = useMemo(() => {
     let items = alerts;
@@ -1222,13 +1337,20 @@ function ReorderAlertsTab() {
 
 // ─── StockLedgerTab ────────────────────────────────────────────────────────────
 
-function StockLedgerTab() {
+function StockLedgerTab({ items }: { items: InventoryItem[] }) {
+  const [entries, setEntries] = useState<StockLedgerEntry[]>([]);
   const [search, setSearch] = useState('');
   const [selectedChangeTypes, setSelectedChangeTypes] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    fetch('/api/inventory/stock-ledger?pageSize=500')
+      .then(r => r.json())
+      .then(d => setEntries(d.data ?? []));
+  }, []);
 
   const { sortField, sortDir, toggleSort, sortData } = useSortState(null);
 
@@ -1244,39 +1366,39 @@ function StockLedgerTab() {
   };
 
   const allItemNames = useMemo(() =>
-    Array.from(new Set(stockLedgerEntries.map(e => e.itemName))).sort(),
-  []);
+    Array.from(new Set(entries.map(e => e.itemName))).sort(),
+  [entries]);
 
   const filtered = useMemo(() => {
-    let entries = stockLedgerEntries;
+    let list = entries;
     if (search.trim()) {
       const q = search.toLowerCase();
-      entries = entries.filter(e =>
+      list = list.filter(e =>
         e.itemName.toLowerCase().includes(q) || e.actor.toLowerCase().includes(q),
       );
     }
     if (selectedChangeTypes.length) {
       const types = selectedChangeTypes.map(t => changeTypeLookup[t]);
-      entries = entries.filter(e => types.includes(e.changeType));
+      list = list.filter(e => types.includes(e.changeType));
     }
     if (dateRange.from || dateRange.to) {
-      entries = entries.filter(e => {
+      list = list.filter(e => {
         const d = parseTimestamp(e.timestamp);
         if (dateRange.from && d < dateRange.from) return false;
         if (dateRange.to && d > dateRange.to) return false;
         return true;
       });
     }
-    if (selectedItems.length) entries = entries.filter(e => selectedItems.includes(e.itemName));
-    return sortData(entries as unknown as Record<string, unknown>[]) as unknown as StockLedgerEntry[];
+    if (selectedItems.length) list = list.filter(e => selectedItems.includes(e.itemName));
+    return sortData(list as unknown as Record<string, unknown>[]) as unknown as StockLedgerEntry[];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, selectedChangeTypes, dateRange, selectedItems, sortField, sortDir]);
+  }, [entries, search, selectedChangeTypes, dateRange, selectedItems, sortField, sortDir]);
 
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const totalEntries        = stockLedgerEntries.length;
-  const autoDeductThisMonth = stockLedgerEntries.filter(e => e.changeType === 'auto_deduct' && isThisMonth(e.timestamp)).length;
-  const manualAdjustments   = stockLedgerEntries.filter(e =>
+  const totalEntries        = entries.length;
+  const autoDeductThisMonth = entries.filter(e => e.changeType === 'auto_deduct' && isThisMonth(e.timestamp)).length;
+  const manualAdjustments   = entries.filter(e =>
     ['manual_add', 'manual_deduct', 'waste', 'stock_take_correction'].includes(e.changeType),
   ).length;
 
@@ -1343,7 +1465,7 @@ function StockLedgerTab() {
               </thead>
               <tbody>
                 {paginated.map(entry => {
-                  const item = inventoryItems.find(i => i.name === entry.itemName);
+                  const item = items.find(i => i.name === entry.itemName);
                   const afterColor = entry.stockAfter !== undefined && item
                     ? entry.stockAfter <= item.minStock
                       ? 'text-red-600'
@@ -1419,15 +1541,21 @@ function StockLedgerTab() {
 
 // ─── SuppliersTab ──────────────────────────────────────────────────────────────
 
-function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void }) {
+function SuppliersTab({ suppliers, items, onRefresh, onSwitchToCatalogue }: {
+  suppliers: InventorySupplier[];
+  items: InventoryItem[];
+  onRefresh: () => void;
+  onSwitchToCatalogue: () => void;
+}) {
   const [search, setSearch] = useState('');
   const [supplierSheet, setSupplierSheet] = useState<null | 'add' | InventorySupplier>(null);
   const [editForm, setEditForm] = useState({ name: '', contactName: '', phone: '', email: '', notes: '' });
-  const [toast, setToast] = useState('');
+  const [savingSupplier, setSavingSupplier] = useState(false);
+  const [localToast, setLocalToast] = useState('');
 
   function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(''), 1500);
+    setLocalToast(msg);
+    setTimeout(() => setLocalToast(''), 1500);
   }
 
   function openAdd() {
@@ -1436,7 +1564,7 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
   }
 
   function openEdit(s: InventorySupplier) {
-    setEditForm({ name: s.name, contactName: '', phone: s.phone ?? '', email: s.email ?? '', notes: s.notes ?? '' });
+    setEditForm({ name: s.name, contactName: s.contactName ?? '', phone: s.phone ?? '', email: s.email ?? '', notes: s.notes ?? '' });
     setSupplierSheet(s);
   }
 
@@ -1446,17 +1574,17 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
   }
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return inventorySuppliers;
+    if (!search.trim()) return suppliers;
     const q = search.toLowerCase();
-    return inventorySuppliers.filter(s =>
+    return suppliers.filter(s =>
       s.name.toLowerCase().includes(q) ||
       (s.phone && s.phone.includes(q)) ||
       (s.email && s.email.toLowerCase().includes(q)),
     );
-  }, [search]);
+  }, [search, suppliers]);
 
   function getSupplierItems(supplierName: string) {
-    return inventoryItems.filter(i => i.supplier === supplierName);
+    return items.filter(i => i.supplier === supplierName);
   }
 
   const isEdit = supplierSheet !== null && supplierSheet !== 'add';
@@ -1464,17 +1592,52 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
   const editedItems = editedSupplier ? getSupplierItems(editedSupplier.name) : [];
 
   const amazonSupplierCount = new Set(
-    inventoryItems.filter(i => i.amazonLink).map(i => i.supplier),
+    items.filter(i => i.amazonLink).map(i => i.supplier),
   ).size;
+
+  async function handleSaveSupplier() {
+    if (!editForm.name.trim()) return;
+    setSavingSupplier(true);
+    try {
+      const isEditMode = isEdit && editedSupplier;
+      const url    = isEditMode ? `/api/inventory/suppliers/${editedSupplier!.id}` : '/api/inventory/suppliers';
+      const method = isEditMode ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success(isEditMode ? 'Supplier updated' : 'Supplier added');
+      onRefresh();
+      setSupplierSheet(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save supplier');
+    } finally {
+      setSavingSupplier(false);
+    }
+  }
+
+  async function handleDeleteSupplier() {
+    if (!editedSupplier) return;
+    const res = await fetch(`/api/inventory/suppliers/${editedSupplier.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      toast.error('Cannot delete supplier with active items');
+      return;
+    }
+    toast.success('Supplier removed');
+    onRefresh();
+    setSupplierSheet(null);
+  }
 
   return (
     <div>
       {/* Stat row + Add button */}
       <div className="flex items-start gap-4 mb-4">
         <div className="flex gap-4 flex-1">
-          <StatCard label="Total Suppliers"  value={inventorySuppliers.length} color="slate" />
-          <StatCard label="Active Items"     value={0}                         color="blue"  />
-          <StatCard label="Have Amazon Link" value={amazonSupplierCount}       color="amber" />
+          <StatCard label="Total Suppliers"  value={suppliers.length}    color="slate" />
+          <StatCard label="Active Items"     value={items.length}        color="blue"  />
+          <StatCard label="Have Amazon Link" value={amazonSupplierCount} color="amber" />
         </div>
         <button
           onClick={openAdd}
@@ -1650,11 +1813,18 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
               )}
             </div>
             <DialogFooter className="flex items-center gap-2 flex-wrap">
-              <button className="flex-1 min-w-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors cursor-pointer">
-                Save
+              <button
+                onClick={handleSaveSupplier}
+                disabled={savingSupplier || !editForm.name.trim()}
+                className="flex-1 min-w-0 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {savingSupplier ? 'Saving…' : 'Save'}
               </button>
               {isEdit && editedItems.length === 0 && (
-                <button className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap">
+                <button
+                  onClick={handleDeleteSupplier}
+                  className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors cursor-pointer whitespace-nowrap"
+                >
                   Remove Supplier
                 </button>
               )}
@@ -1669,9 +1839,9 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
         </Dialog>
       )}
 
-      {toast && (
+      {localToast && (
         <div className="fixed bottom-6 right-6 bg-green-600 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50">
-          {toast}
+          {localToast}
         </div>
       )}
     </div>
@@ -1681,9 +1851,11 @@ function SuppliersTab({ onSwitchToCatalogue }: { onSwitchToCatalogue: () => void
 // ─── CatalogueTab ──────────────────────────────────────────────────────────────
 
 function CatalogueTab({
+  items,
   onEdit,
   onAdjust,
 }: {
+  items: InventoryItem[];
   onEdit: (item: InventoryItem) => void;
   onAdjust: (item: InventoryItem) => void;
 }) {
@@ -1699,31 +1871,31 @@ function CatalogueTab({
   const { sortField, sortDir, toggleSort, sortData } = useSortState(null);
 
   const filtered = useMemo(() => {
-    let items = inventoryItems;
+    let list = items;
     if (search.trim()) {
       const q = search.toLowerCase();
-      items = items.filter(i =>
+      list = list.filter(i =>
         i.name.toLowerCase().includes(q) ||
         i.supplier.toLowerCase().includes(q) ||
         i.category.toLowerCase().includes(q),
       );
     }
     if (selectedCategories.length) {
-      items = items.filter(i => selectedCategories.includes(i.category));
+      list = list.filter(i => selectedCategories.includes(i.category));
     }
     if (selectedDepts.length) {
-      items = items.filter(i =>
+      list = list.filter(i =>
         selectedDepts.some(d => i.departmentScope.includes(d)),
       );
     }
-    if (autoDeductFilter === 'Active') items = items.filter(i => i.autoDeduct);
-    if (autoDeductFilter === 'Off')    items = items.filter(i => !i.autoDeduct);
-    if (healthFilter === 'Healthy')           items = items.filter(i => i.health === 'healthy');
-    if (healthFilter === 'Approaching')       items = items.filter(i => i.health === 'approaching');
-    if (healthFilter === 'Below Reorder')     items = items.filter(i => i.health === 'below');
-    return sortData(items as unknown as Record<string, unknown>[]) as unknown as InventoryItem[];
+    if (autoDeductFilter === 'Active') list = list.filter(i => i.autoDeduct);
+    if (autoDeductFilter === 'Off')    list = list.filter(i => !i.autoDeduct);
+    if (healthFilter === 'Healthy')        list = list.filter(i => i.health === 'healthy');
+    if (healthFilter === 'Approaching')    list = list.filter(i => i.health === 'approaching');
+    if (healthFilter === 'Below Reorder')  list = list.filter(i => i.health === 'below');
+    return sortData(list as unknown as Record<string, unknown>[]) as unknown as InventoryItem[];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, selectedCategories, selectedDepts, autoDeductFilter, healthFilter, sortField, sortDir]);
+  }, [items, search, selectedCategories, selectedDepts, autoDeductFilter, healthFilter, sortField, sortDir]);
 
   const grouped = useMemo(() => {
     const map: Record<string, InventoryItem[]> = {};
@@ -1921,6 +2093,27 @@ function InventoryPageContent() {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [stockTakeOpen, setStockTakeOpen] = useState(false);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [suppliers, setSuppliers] = useState<InventorySupplier[]>([]);
+
+  async function refreshItems() {
+    const res = await fetch('/api/inventory/items');
+    const d = await res.json();
+    setItems(d.data ?? []);
+  }
+
+  async function refreshSuppliers() {
+    const res = await fetch('/api/inventory/suppliers');
+    const d = await res.json();
+    setSuppliers(d.data ?? []);
+  }
+
+  useEffect(() => {
+    refreshItems();
+    refreshSuppliers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!can('inventory.view')) return <AccessDenied />;
 
   const raw = searchParams.get('tab');
@@ -1936,7 +2129,7 @@ function InventoryPageContent() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-bold text-slate-900 text-2xl">Inventory</h1>
-          <p className="text-sm text-slate-500 mt-0.5">0 items — IMI reference catalogue</p>
+          <p className="text-sm text-slate-500 mt-0.5">{items.length} items — IMI reference catalogue</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {can('stock.take') && (
@@ -1955,10 +2148,10 @@ function InventoryPageContent() {
 
       {/* Stat bar */}
       <div className="flex gap-4">
-        <StatCard label="Total Items"          value={inventoryItems.length}     color="slate" />
-        <StatCard label="Below Reorder Point"  value={inventoryItems.filter(i => i.health === 'below').length} color="red"   />
-        <StatCard label="Auto-Deduct Active"   value={inventoryItems.filter(i => i.autoDeduct).length}        color="amber" />
-        <StatCard label="Suppliers"            value={inventorySuppliers.length} color="blue"  />
+        <StatCard label="Total Items"          value={items.length}                                      color="slate" />
+        <StatCard label="Below Reorder Point"  value={items.filter(i => i.health === 'below').length}    color="red"   />
+        <StatCard label="Auto-Deduct Active"   value={items.filter(i => i.autoDeduct).length}            color="amber" />
+        <StatCard label="Suppliers"            value={suppliers.length}                                  color="blue"  />
       </div>
 
       {/* Tab strip */}
@@ -1982,6 +2175,7 @@ function InventoryPageContent() {
       {/* Tab content */}
       {activeTab === 'catalogue' && (
         <CatalogueTab
+          items={items}
           onEdit={item => setSelectedItem(item)}
           onAdjust={item => setAdjustItem(item)}
         />
@@ -1989,25 +2183,43 @@ function InventoryPageContent() {
 
       {activeTab === 'reorder-alerts' && <ReorderAlertsTab />}
 
-      {activeTab === 'stock-ledger' && <StockLedgerTab />}
+      {activeTab === 'stock-ledger' && <StockLedgerTab items={items} />}
 
       {activeTab === 'suppliers' && (
-        <SuppliersTab onSwitchToCatalogue={() => handleTabChange('catalogue')} />
+        <SuppliersTab
+          suppliers={suppliers}
+          items={items}
+          onRefresh={() => { refreshItems(); refreshSuppliers(); }}
+          onSwitchToCatalogue={() => handleTabChange('catalogue')}
+        />
       )}
 
       {/* Item detail sheet */}
       {selectedItem && (
-        <ItemDetailSheet item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <ItemDetailSheet
+          item={selectedItem}
+          suppliers={suppliers}
+          onClose={() => setSelectedItem(null)}
+          onRefresh={refreshItems}
+        />
       )}
 
       {/* Adjust stock sheet */}
       {adjustItem && (
-        <AdjustStockSheet item={adjustItem} onClose={() => setAdjustItem(null)} />
+        <AdjustStockSheet
+          item={adjustItem}
+          onClose={() => setAdjustItem(null)}
+          onRefresh={refreshItems}
+        />
       )}
 
       {/* Stock-take dialog */}
       {stockTakeOpen && (
-        <StockTakeDialog onClose={() => setStockTakeOpen(false)} />
+        <StockTakeDialog
+          items={items}
+          onClose={() => setStockTakeOpen(false)}
+          onRefresh={refreshItems}
+        />
       )}
     </div>
   );

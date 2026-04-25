@@ -20,8 +20,12 @@ export async function GET(
     .from('guardians')
     .select(`
       *,
+      co_parent:guardians!guardians_co_parent_id_fkey (
+        id, first_name, last_name, phone
+      ),
       students!students_primary_guardian_id_fkey (
         id, first_name, last_name, year_group, status,
+        primary_guardian_relationship,
         departments (id, name, colour)
       )
     `)

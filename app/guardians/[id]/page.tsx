@@ -27,7 +27,6 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { guardians, students, type Guardian } from "@/lib/mock-data";
 import {
   Dialog,
   DialogContent,
@@ -152,7 +151,15 @@ interface ApiLinkedStudent {
   last_name: string;
   year_group: string | null;
   status: string | null;
+  primary_guardian_relationship: string | null;
   departments: { id: string; name: string; colour: string } | null;
+}
+
+interface ApiGuardianSearchResult {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
 }
 
 // ─── Seeded guardian profiles ────────────────────────────────────────────────
@@ -161,29 +168,26 @@ interface ApiLinkedStudent {
 const GUARDIAN_DETAILS: Record<string, GuardianDetail> = {};
 
 
-function buildFallbackDetail(g: Guardian): GuardianDetail {
-  const parts = g.name.split(" ");
-  const firstName = parts[0];
-  const lastName = parts.slice(1).join(" ") || "—";
+function buildFallbackDetail(id: string): GuardianDetail {
   const profile: GuardianProfile = {
-    id: g.id,
-    firstName,
-    lastName,
+    id,
+    firstName: "Unknown",
+    lastName: "",
     relationship: "Mother",
-    phone: g.phone,
+    phone: "",
     whatsappSame: true,
-    whatsapp: g.phone,
-    email: g.email,
-    nationality: "—",
-    homeArea: "—",
+    whatsapp: "",
+    email: "",
+    nationality: "",
+    homeArea: "",
     preferredChannel: "WhatsApp",
     dnc: false,
     dncReason: "",
     unsubscribed: false,
     mediaOptOut: false,
-    linkedStudents: g.students.map((s) => ({ id: s.id, relationship: "Mother" as Relationship })),
+    linkedStudents: [],
     coParentId: null,
-    referralCode: `IMI-REF-${g.id.replace("G-", "")}`,
+    referralCode: `IMI-REF-${id.slice(0, 6).toUpperCase()}`,
     totalReferrals: 0,
     creditBalance: 0,
     outstandingBalance: 0,
@@ -193,9 +197,7 @@ function buildFallbackDetail(g: Guardian): GuardianDetail {
   };
   return {
     profile,
-    activity: [
-      { type: "message",  description: `No recent activity logged for ${g.name}.`, timeAgo: "—" },
-    ],
+    activity: [],
     upcomingSessions: [],
     invoices: [],
     messages: [],
@@ -307,6 +309,7 @@ function EditCommunicationStatusDialog({
   const [unsubscribed, setUnsubscribed] = useState(profile.unsubscribed);
   const [mediaOptOut, setMediaOptOut] = useState(profile.mediaOptOut);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -316,16 +319,36 @@ function EditCommunicationStatusDialog({
       setUnsubscribed(profile.unsubscribed);
       setMediaOptOut(profile.mediaOptOut);
       setErrors({});
+      setSaving(false);
     }
   }, [open, profile]);
 
-  function submit() {
+  async function submit() {
     const next: Record<string, string | null> = {};
     if (dnc && !dncReason.trim()) next.dncReason = "Reason is required when DNC is active";
     if (Object.keys(next).length) { setErrors(next); return; }
-    setProfile({ ...profile, preferredChannel: channel, dnc, dncReason: dnc ? dncReason.trim() : "", unsubscribed, mediaOptOut });
-    fireToast("Saved");
-    onOpenChange(false);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/guardians/${profile.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          preferred_channel: channel,
+          is_dnc: dnc,
+          dnc_reason: dnc ? dncReason.trim() : null,
+          is_unsubscribed: unsubscribed,
+          media_opt_out: mediaOptOut,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setProfile({ ...profile, preferredChannel: channel, dnc, dncReason: dnc ? dncReason.trim() : "", unsubscribed, mediaOptOut });
+      fireToast("Saved");
+      onOpenChange(false);
+    } catch {
+      fireToast("Failed to save", "warning");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -578,6 +601,11 @@ function EditLinkedStudentsDialog({
   const [links, setLinks] = useState<LinkedStudentRef[]>(profile.linkedStudents);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const students = studentCache.map(s => ({
+    ...s,
+    name: `${s.first_name} ${s.last_name}`.trim(),
+    yearGroup: s.year_group ?? '',
+  }));
 
   useEffect(() => {
     if (open) {
@@ -724,17 +752,27 @@ function EditCoParentDialog({
 }) {
   const [coParentId, setCoParentId] = useState<string | null>(profile.coParentId);
   const [query, setQuery] = useState("");
+  const [guardianSearch, setGuardianSearch] = useState<{ id: string; name: string; phone?: string | null }[]>([]);
 
   useEffect(() => {
     if (open) {
       setCoParentId(profile.coParentId);
       setQuery("");
+      fetch('/api/guardians')
+        .then(r => r.json())
+        .then(d => setGuardianSearch(
+          (d.data ?? []).map((g: Record<string, string | null>) => ({
+            id:    g.id,
+            name:  `${g.first_name ?? ''} ${g.last_name ?? ''}`.trim(),
+            phone: g.phone ?? null,
+          }))
+        ));
     }
   }, [open, profile]);
 
-  const selected = coParentId ? guardians.find((g) => g.id === coParentId) : null;
+  const selected = coParentId ? guardianSearch.find((g) => g.id === coParentId) : null;
   const matches = query.trim()
-    ? guardians
+    ? guardianSearch
         .filter(
           (g) =>
             g.id !== profile.id &&
@@ -1131,7 +1169,8 @@ function LeftSidebar({
   linkedStudentData: ApiLinkedStudent[];
   onEdit: (s: EditSection) => void;
 }) {
-  const coParent = profile.coParentId ? guardians.find((g) => g.id === profile.coParentId) : null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const coParent = (null as any) as { id: string; name: string } | null;
   return (
     <div className="px-4 py-4 space-y-5">
 
@@ -1665,9 +1704,7 @@ export default function GuardianProfilePage() {
 
   const baseDetail = useMemo<GuardianDetail>(() => {
     if (GUARDIAN_DETAILS[id]) return GUARDIAN_DETAILS[id];
-    const raw = guardians.find((g) => g.id === id);
-    if (raw) return buildFallbackDetail(raw);
-    return buildFallbackDetail({ id, name: "Unknown", email: "", phone: "", students: [], status: "active", linkedStudents: [], communicationPreference: "whatsapp", createdOn: "", department: "primary" });
+    return buildFallbackDetail(id);
   }, [id]);
 
   const [profile, setProfile] = useState<GuardianProfile>(baseDetail.profile);

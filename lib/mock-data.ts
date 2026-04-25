@@ -1197,6 +1197,7 @@ export interface InventoryItem {
 export interface InventorySupplier {
   id: string
   name: string
+  contactName?: string | null
   phone: string | null
   email: string | null
   itemCount: number
@@ -1205,6 +1206,7 @@ export interface InventorySupplier {
 
 export interface ReorderAlert {
   id: string
+  inventoryItemId?: string
   itemName: string
   category: string
   currentStock: number

@@ -34,11 +34,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  enrolments as seedEnrolments,
-  trials,
-  withdrawals as seedWithdrawals,
-  students,
-  AVATAR_PALETTES,
   getAvatarPalette,
   getInitials,
   type Enrolment,
@@ -48,6 +43,9 @@ import {
   type Trial,
   type TrialOutcome,
 } from "@/lib/mock-data";
+
+type EnrolmentRow = Enrolment & { studentUuid: string };
+type WithdrawalRow = Withdrawal & { studentUuid: string };
 import {
   LogTrialOutcomeDialog,
   ConvertTrialDialog,
@@ -302,9 +300,9 @@ function EnrolmentSlideOver({
   onClose,
   onWithdraw,
 }: {
-  enrolment: Enrolment;
+  enrolment: EnrolmentRow;
   onClose: () => void;
-  onWithdraw: (enrolment: Enrolment) => void;
+  onWithdraw: (enrolment: EnrolmentRow) => void;
 }) {
   const { can } = usePermission();
   const palette = getAvatarPalette(enrolment.student);
@@ -469,8 +467,9 @@ function EnrolmentSlideOver({
 function ActiveEnrolmentsTab() {
   const { can } = usePermission();
   const router = useRouter();
-  const [, bumpVersion] = useState(0);
-  const forceRefresh = () => bumpVersion((v) => v + 1);
+
+  const [enrolments, setEnrolments] = useState<EnrolmentRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [exportOpen, setExportOpen] = useState(false);
   const [dept, setDept]     = useState<string[]>([]);
@@ -478,8 +477,8 @@ function ActiveEnrolmentsTab() {
   const [year, setYear]     = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [enrolledOnRange, setEnrolledOnRange] = useState<DateRange>({ from: null, to: null });
-  const [selected, setSelected] = useState<Enrolment | null>(null);
-  const [withdrawTarget, setWithdrawTarget] = useState<Enrolment | null>(null);
+  const [selected, setSelected] = useState<EnrolmentRow | null>(null);
+  const [withdrawTarget, setWithdrawTarget] = useState<EnrolmentRow | null>(null);
 
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDir, setSortDir]     = useState<"asc" | "desc">("asc");
@@ -491,15 +490,34 @@ function ActiveEnrolmentsTab() {
   const [pageSize, setPageSize] = useState(20);
   useEffect(() => { setPage(1); }, [dept, status, year, search, enrolledOnRange]);
 
-  function applyWithdraw(data: WithdrawConfirmData) {
-    createWithdrawals(data);
-    forceRefresh();
-    setWithdrawTarget(null);
-    toast.success(buildWithdrawToast(data));
+  async function refetch() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/enrolments');
+      if (res.ok) setEnrolments(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { refetch(); }, []);
+
+  async function applyWithdraw(data: WithdrawConfirmData) {
+    const res = await fetch('/api/enrolments/withdrawals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      await refetch();
+      setWithdrawTarget(null);
+      toast.success(buildWithdrawToast(data));
+    } else {
+      toast.error('Failed to record withdrawal');
+    }
   }
 
   const filtered = useMemo(() => {
-    let data = seedEnrolments.filter((e) => {
+    let data = enrolments.filter((e) => {
       if (e.enrolmentStatus === "Withdrawn")                               return false;
       if (dept.length > 0   && !dept.includes(e.department))               return false;
       if (status.length > 0 && !status.includes(e.enrolmentStatus))        return false;
@@ -530,7 +548,7 @@ function ActiveEnrolmentsTab() {
       });
     }
     return data;
-  }, [dept, status, year, search, enrolledOnRange, sortField, sortDir]);
+  }, [enrolments, dept, status, year, search, enrolledOnRange, sortField, sortDir]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * pageSize;
@@ -541,10 +559,10 @@ function ActiveEnrolmentsTab() {
     <div className="space-y-5">
       {/* Summary strip */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Active Enrolments" value="0" />
+        <StatCard label="Active Enrolments" value={loading ? "—" : enrolments.filter(e => e.enrolmentStatus === "Active").length} />
         <StatCard label="New This Term"      value="0" />
-        <StatCard label="Pending Payment"    value="0" accent="amber" />
-        <StatCard label="Expiring This Week" value="0" accent="red"   />
+        <StatCard label="Pending Payment"    value={loading ? "—" : enrolments.filter(e => e.invoiceStatus === "Pending").length} accent="amber" />
+        <StatCard label="Expiring This Week" value={loading ? "—" : enrolments.filter(e => e.enrolmentStatus === "Expiring").length} accent="red"   />
       </div>
 
       {/* Filter bar */}
@@ -700,7 +718,7 @@ function ActiveEnrolmentsTab() {
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <ActionMenu
                         items={[
-                          { label: "View Student", icon: <Eye className="w-3.5 h-3.5" />, onClick: () => router.push(`/students/${enr.studentId}`) },
+                          { label: "View Student", icon: <Eye className="w-3.5 h-3.5" />, onClick: () => router.push(`/students/${enr.studentUuid}`) },
                           ...(can('enrolment.edit') ? [{ label: "Edit Enrolment", icon: <BookOpen className="w-3.5 h-3.5" /> }] : []),
                           ...(can('enrolment.edit') ? [{ label: "Add Subject", icon: <Plus className="w-3.5 h-3.5" /> }] : []),
                           ...(can('enrolment.withdraw') ? [{ label: "Withdraw", icon: <UserMinus className="w-3.5 h-3.5" />, danger: true as const, onClick: () => setWithdrawTarget(enr) }] : []),
@@ -742,6 +760,7 @@ function ActiveEnrolmentsTab() {
       {withdrawTarget && (
         <WithdrawEnrolmentDialog
           initialEnrolment={withdrawTarget}
+          enrolments={enrolments}
           onClose={() => setWithdrawTarget(null)}
           onConfirm={applyWithdraw}
         />
@@ -761,12 +780,23 @@ function departmentForYearGroup(yg: string): string {
 }
 
 function TrialsTab() {
-  const [, bumpVersion] = useState(0);
-  const forceRefresh = () => bumpVersion((v) => v + 1);
+  const [localTrials, setLocalTrials] = useState<Trial[]>([]);
+  const [loadingTrials, setLoadingTrials] = useState(true);
 
   const [logTrial, setLogTrial] = useState<Trial | null>(null);
   const [convertTrial, setConvertTrial] = useState<Trial | null>(null);
   const [cancelTrial, setCancelTrial] = useState<Trial | null>(null);
+
+  async function refetchTrials() {
+    setLoadingTrials(true);
+    try {
+      const res = await fetch('/api/enrolments/trials');
+      if (res.ok) setLocalTrials(await res.json());
+    } finally {
+      setLoadingTrials(false);
+    }
+  }
+  useEffect(() => { refetchTrials(); }, []);
 
   function getOutcomeClass(outcome: string): string {
     if (outcome.startsWith("Recommended") || outcome === "Converted")
@@ -780,59 +810,50 @@ function TrialsTab() {
     return "bg-slate-100 text-slate-500 border border-slate-200";
   }
 
-  function applyLogOutcome(
+  async function applyLogOutcome(
     trial: Trial,
     patch: { outcome: TrialOutcome; notes: string; followUpDate?: string },
   ) {
-    const idx = trials.findIndex((x) => x.id === trial.id);
-    if (idx < 0) return;
-    trials[idx] = {
-      ...trials[idx],
-      outcome: patch.outcome,
-      notes: patch.notes,
-      followUpDate: patch.followUpDate,
-    };
-    forceRefresh();
-  }
-
-  function applyConvert(trial: Trial) {
-    const idx = trials.findIndex((x) => x.id === trial.id);
-    if (idx >= 0) {
-      trials[idx] = { ...trials[idx], outcome: "Converted" };
-    }
-    const nextNum = seedEnrolments.length + 1;
-    seedEnrolments.push({
-      id: `E-${String(nextNum).padStart(3, "0")}`,
-      studentId: `IMI-T-${trial.id.replace("T-", "")}`,
-      student: trial.student,
-      yearGroup: trial.yearGroup,
-      department: departmentForYearGroup(trial.yearGroup),
-      subject: trial.subject,
-      teacher: trial.teacher,
-      sessionsTotal: 20,
-      sessionsRemaining: 20,
-      frequency: "1×/week",
-      package: "Term — 20 sessions",
-      invoiceStatus: "Pending",
-      enrolmentStatus: "Pending",
+    const res = await fetch(`/api/enrolments/trials/${trial.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome: patch.outcome, notes: patch.notes, followUpDate: patch.followUpDate }),
     });
-    forceRefresh();
+    if (res.ok) await refetchTrials();
+    else toast.error('Failed to update trial');
   }
 
-  function applyCancel(trial: Trial, reason: string) {
-    const idx = trials.findIndex((x) => x.id === trial.id);
-    if (idx < 0) return;
-    trials[idx] = { ...trials[idx], outcome: "Cancelled", cancellationReason: reason };
-    forceRefresh();
+  async function applyConvert(trial: Trial) {
+    const res = await fetch(`/api/enrolments/trials/${trial.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome: 'Converted' }),
+    });
+    if (res.ok) {
+      await refetchTrials();
+      toast.success(`${trial.student} marked as converted — create a formal enrolment from the Active tab.`);
+    } else {
+      toast.error('Failed to convert trial');
+    }
+  }
+
+  async function applyCancel(trial: Trial, reason: string) {
+    const res = await fetch(`/api/enrolments/trials/${trial.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome: 'Cancelled', cancellationReason: reason }),
+    });
+    if (res.ok) await refetchTrials();
+    else toast.error('Failed to cancel trial');
   }
 
   return (
     <div className="space-y-5">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Trials This Term"        value="0" />
-        <StatCard label="Pending Outcome"         value="0" accent="amber" />
-        <StatCard label="Converted to Enrolment"  value="0" />
+        <StatCard label="Trials This Term"        value={loadingTrials ? "—" : localTrials.length} />
+        <StatCard label="Pending Outcome"         value={loadingTrials ? "—" : localTrials.filter(t => t.outcome === "Pending").length} accent="amber" />
+        <StatCard label="Converted to Enrolment"  value={loadingTrials ? "—" : localTrials.filter(t => t.outcome === "Converted").length} />
       </div>
 
       {/* Table */}
@@ -849,7 +870,7 @@ function TrialsTab() {
               </tr>
             </thead>
             <tbody>
-              {trials.map((t) => {
+              {localTrials.map((t) => {
                 const palette  = getAvatarPalette(t.student);
                 const initials = getInitials(t.student);
 
@@ -941,14 +962,19 @@ function TrialsTab() {
 
 function WithdrawalsTab() {
   const router = useRouter();
-  const [, bumpVersion] = useState(0);
-  const forceRefresh = () => bumpVersion((v) => v + 1);
 
-  const [reinstateTarget, setReinstateTarget] = useState<Withdrawal | null>(null);
+  const [localWithdrawals, setLocalWithdrawals] = useState<WithdrawalRow[]>([]);
+  const [reinstateTarget, setReinstateTarget] = useState<WithdrawalRow | null>(null);
   const [initiateOpen, setInitiateOpen] = useState(false);
   const [withdrawalDateRange, setWithdrawalDateRange] = useState<DateRange>({ from: null, to: null });
 
-  const displayedWithdrawals = useMemo(() => seedWithdrawals.filter((w) => {
+  async function refetchWithdrawals() {
+    const res = await fetch('/api/enrolments/withdrawals');
+    if (res.ok) setLocalWithdrawals(await res.json());
+  }
+  useEffect(() => { refetchWithdrawals(); }, []);
+
+  const displayedWithdrawals = useMemo(() => localWithdrawals.filter((w) => {
     if (!withdrawalDateRange.from && !withdrawalDateRange.to) return true;
     if (w.withdrawalDate === 'Pending') return true;
     const d = new Date(w.withdrawalDate);
@@ -959,13 +985,21 @@ function WithdrawalsTab() {
       if (d > to) return false;
     }
     return true;
-  }), [withdrawalDateRange]);
+  }), [localWithdrawals, withdrawalDateRange]);
 
-  function applyInitiate(data: WithdrawConfirmData) {
-    createWithdrawals(data);
-    forceRefresh();
-    setInitiateOpen(false);
-    toast.success(buildWithdrawToast(data));
+  async function applyInitiate(data: WithdrawConfirmData) {
+    const res = await fetch('/api/enrolments/withdrawals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      await refetchWithdrawals();
+      setInitiateOpen(false);
+      toast.success(buildWithdrawToast(data));
+    } else {
+      toast.error('Failed to record withdrawal');
+    }
   }
 
   function getInvoiceCellClass(status: string): string {
@@ -973,36 +1007,37 @@ function WithdrawalsTab() {
     return "";
   }
 
-  function handleViewProfile(w: Withdrawal) {
-    const id = w.studentId ?? students.find((s) => s.name === w.student)?.id;
-    if (id) {
-      router.push(`/students/${id}`);
+  function handleViewProfile(w: WithdrawalRow) {
+    router.push(`/students/${w.studentUuid}`);
+  }
+
+  async function applyReinstate(w: WithdrawalRow) {
+    const res = await fetch(`/api/enrolments/withdrawals/${w.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reinstate', enrolmentId: w.enrolmentId }),
+    });
+    if (res.ok) {
+      await refetchWithdrawals();
+      setReinstateTarget(null);
+      toast.success(`${w.student} reinstated successfully`);
     } else {
-      toast.error("Student profile not found");
+      toast.error('Failed to reinstate');
     }
   }
 
-  function applyReinstate(w: Withdrawal) {
-    if (w.enrolmentId) {
-      const idx = seedEnrolments.findIndex((x) => x.id === w.enrolmentId);
-      if (idx >= 0) {
-        seedEnrolments[idx] = { ...seedEnrolments[idx], enrolmentStatus: "Active" };
-      }
+  async function applyResolve(w: WithdrawalRow) {
+    const res = await fetch(`/api/enrolments/withdrawals/${w.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resolve' }),
+    });
+    if (res.ok) {
+      await refetchWithdrawals();
+      toast.success('Marked as resolved');
+    } else {
+      toast.error('Failed to resolve');
     }
-    const wIdx = seedWithdrawals.findIndex((x) => x.id === w.id);
-    if (wIdx >= 0) seedWithdrawals.splice(wIdx, 1);
-    forceRefresh();
-    setReinstateTarget(null);
-    toast.success(`${w.student} reinstated successfully`);
-  }
-
-  function applyResolve(w: Withdrawal) {
-    const idx = seedWithdrawals.findIndex((x) => x.id === w.id);
-    if (idx >= 0) {
-      seedWithdrawals.splice(idx, 1, { ...seedWithdrawals[idx], recordStatus: "Resolved" });
-    }
-    forceRefresh();
-    toast.success("Marked as resolved");
   }
 
   return (
@@ -1010,8 +1045,8 @@ function WithdrawalsTab() {
       {/* Summary */}
       <div className="flex items-start justify-between gap-4">
         <div className="grid grid-cols-2 gap-4 flex-1">
-          <StatCard label="Withdrawn This Term" value="0" />
-          <StatCard label="Pending Withdrawal"  value="0" accent="amber" />
+          <StatCard label="Withdrawn This Term" value={localWithdrawals.filter(w => w.recordStatus !== "Resolved").length} />
+          <StatCard label="Pending Withdrawal"  value={localWithdrawals.filter(w => w.withdrawalDate === "Pending").length} accent="amber" />
         </div>
         <div className="pt-1">
           <button
@@ -1116,7 +1151,7 @@ function WithdrawalsTab() {
                   </tr>
                 );
               })}
-              {seedWithdrawals.length === 0 && (
+              {localWithdrawals.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-400">
                     No withdrawals on record.
@@ -1150,43 +1185,14 @@ function WithdrawalsTab() {
 // ─── Withdraw Enrolment Dialog ────────────────────────────────────────────────
 
 interface WithdrawConfirmData {
-  enrolments: Enrolment[];
+  enrolments: EnrolmentRow[];
+  studentUuid: string;
   reason: WithdrawReason;
   notes: string;
   retention: string[];
   fullWithdrawal: boolean;
 }
 
-function createWithdrawals(data: WithdrawConfirmData) {
-  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  const stamp = Date.now().toString(36).toUpperCase();
-  data.enrolments.forEach((enrolment, i) => {
-    const idx = seedEnrolments.findIndex((x) => x.id === enrolment.id);
-    if (idx >= 0) {
-      seedEnrolments[idx] = { ...seedEnrolments[idx], enrolmentStatus: "Withdrawn" };
-    }
-    seedWithdrawals.unshift({
-      id: `W-${stamp}-${i}`,
-      student: enrolment.student,
-      studentId: enrolment.studentId,
-      enrolmentId: enrolment.id,
-      yearGroup: enrolment.yearGroup,
-      department: enrolment.department,
-      subjects: [enrolment.subject],
-      withdrawalDate: today,
-      reason: data.reason,
-      invoiceStatus: enrolment.invoiceStatus,
-      notes: data.notes || undefined,
-      sessionsRemaining: enrolment.sessionsRemaining,
-      recordStatus: "Active",
-    });
-  });
-  if (data.fullWithdrawal && data.enrolments.length > 0) {
-    const sId = data.enrolments[0].studentId;
-    const sIdx = students.findIndex((s) => s.id === sId);
-    if (sIdx >= 0) students[sIdx] = { ...students[sIdx], status: "Withdrawn" };
-  }
-}
 
 function buildWithdrawToast(data: WithdrawConfirmData): string {
   const first = data.enrolments[0];
@@ -1201,13 +1207,16 @@ function WithdrawEnrolmentDialog({
   pickStudent,
   onClose,
   onConfirm,
+  enrolments: enrolmentsProp,
 }: {
-  initialEnrolment?: Enrolment;
+  initialEnrolment?: EnrolmentRow;
   pickStudent?: boolean;
   onClose: () => void;
   onConfirm: (data: WithdrawConfirmData) => void;
+  enrolments?: EnrolmentRow[];
 }) {
   const [studentId, setStudentId] = useState<string>(initialEnrolment?.studentId ?? "");
+  const [studentUuidState, setStudentUuidState] = useState<string>(initialEnrolment?.studentUuid ?? "");
   const [studentSearch, setStudentSearch] = useState("");
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>(
@@ -1217,24 +1226,54 @@ function WithdrawEnrolmentDialog({
   const [notes, setNotes] = useState("");
   const [retention, setRetention] = useState<string[]>([]);
 
-  const studentActiveEnrolments = useMemo(
-    () => seedEnrolments.filter((e) => e.studentId === studentId && e.enrolmentStatus !== "Withdrawn"),
-    [studentId]
-  );
+  // For pickStudent=true: fetch students and per-student enrolments from API
+  const [apiStudentList, setApiStudentList] = useState<{id:string;first_name:string;last_name:string;student_ref:string;year_group:string;status:string}[]>([]);
+  const [fetchedEnrolments, setFetchedEnrolments] = useState<EnrolmentRow[]>([]);
 
-  const selectedStudent = useMemo(() => students.find((s) => s.id === studentId), [studentId]);
-  const studentName = selectedStudent?.name ?? initialEnrolment?.student ?? "";
+  useEffect(() => {
+    if (!pickStudent) return;
+    fetch('/api/students')
+      .then(r => r.json())
+      .then(d => setApiStudentList(d.data ?? []))
+      .catch(() => {});
+  }, [pickStudent]);
+
+  useEffect(() => {
+    if (!pickStudent || !studentUuidState) return;
+    fetch(`/api/enrolments?studentId=${studentUuidState}`)
+      .then(r => r.json())
+      .then(data => setFetchedEnrolments(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [pickStudent, studentUuidState]);
+
+  const studentActiveEnrolments = useMemo(() => {
+    if (pickStudent) {
+      return fetchedEnrolments.filter(e => e.enrolmentStatus !== "Withdrawn");
+    }
+    return (enrolmentsProp ?? []).filter(
+      (e) => e.studentUuid === studentUuidState && e.enrolmentStatus !== "Withdrawn"
+    );
+  }, [pickStudent, fetchedEnrolments, enrolmentsProp, studentUuidState]);
+
+  const selectedApiStudent = useMemo(
+    () => apiStudentList.find((s) => s.id === studentUuidState),
+    [apiStudentList, studentUuidState]
+  );
+  const studentName = selectedApiStudent
+    ? `${selectedApiStudent.first_name} ${selectedApiStudent.last_name}`
+    : initialEnrolment?.student ?? "";
 
   const studentOptions = useMemo(() => {
     const q = studentSearch.trim().toLowerCase();
-    return students
+    return apiStudentList
       .filter((s) => s.status === "Active")
       .filter((s) => {
         if (!q) return true;
-        return s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
+        const name = `${s.first_name} ${s.last_name}`.toLowerCase();
+        return name.includes(q) || (s.student_ref ?? "").toLowerCase().includes(q);
       })
       .slice(0, 8);
-  }, [studentSearch]);
+  }, [apiStudentList, studentSearch]);
 
   const allSelected =
     studentActiveEnrolments.length > 0 &&
@@ -1260,8 +1299,11 @@ function WithdrawEnrolmentDialog({
   }
 
   function pickStudentById(id: string) {
+    // When pickStudent=true the picker gives us the student's UUID directly
     setStudentId(id);
+    setStudentUuidState(id);
     setSelectedIds([]);
+    setFetchedEnrolments([]);
     setStudentPickerOpen(false);
     setStudentSearch("");
   }
@@ -1270,9 +1312,10 @@ function WithdrawEnrolmentDialog({
 
   function handleConfirm() {
     if (!canConfirm) return;
-    const chosen = studentActiveEnrolments.filter((e) => selectedIds.includes(e.id));
+    const chosen = studentActiveEnrolments.filter((e) => selectedIds.includes(e.id)) as EnrolmentRow[];
     onConfirm({
       enrolments: chosen,
+      studentUuid: studentUuidState,
       reason: reason as WithdrawReason,
       notes,
       retention,
@@ -1303,7 +1346,7 @@ function WithdrawEnrolmentDialog({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
-                  value={studentPickerOpen || !studentId ? studentSearch : `${studentName} (${studentId})`}
+                  value={studentPickerOpen || !studentId ? studentSearch : `${studentName} (${selectedApiStudent?.student_ref ?? studentId})`}
                   onFocus={() => { setStudentPickerOpen(true); setStudentSearch(""); }}
                   onChange={(e) => { setStudentSearch(e.target.value); setStudentPickerOpen(true); }}
                   placeholder="Search by name or student ID…"
@@ -1317,8 +1360,9 @@ function WithdrawEnrolmentDialog({
                         <div className="px-3 py-2 text-xs text-slate-400">No matching students.</div>
                       ) : (
                         studentOptions.map((s) => {
-                          const pal = getAvatarPalette(s.name);
-                          const init = getInitials(s.name);
+                          const name = `${s.first_name} ${s.last_name}`;
+                          const pal = getAvatarPalette(name);
+                          const init = getInitials(name);
                           return (
                             <button
                               key={s.id}
@@ -1330,8 +1374,8 @@ function WithdrawEnrolmentDialog({
                                 {init}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="text-slate-800 font-medium truncate">{s.name}</div>
-                                <div className="text-xs text-slate-400">{s.id} · {s.yearGroup}</div>
+                                <div className="text-slate-800 font-medium truncate">{name}</div>
+                                <div className="text-xs text-slate-400">{s.student_ref} · {s.year_group}</div>
                               </div>
                             </button>
                           );
