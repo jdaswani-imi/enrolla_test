@@ -15,7 +15,6 @@ import {
   currentUser,
   staffMembers,
   students,
-  tasks as tasksStore,
   type Task,
   type TaskPriority,
   type TaskType,
@@ -31,23 +30,10 @@ const PRIORITY_PILLS: TaskPriority[] = ["Low", "Medium", "High", "Urgent"];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Reference "today" for this prototype (matches TODAY_DATE used across the tasks page).
-const TODAY_ISO = "2026-04-21";
-const TODAY_LABEL = "21 Apr 2026";
-
-function formatDueDateLabel(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  return `${d} ${MONTHS[m - 1]} ${y}`;
-}
-
-function nextTaskId(): string {
-  let maxSeq = 0;
-  for (const t of tasksStore) {
-    const match = t.id.match(/TK-(\d+)/);
-    if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
-  }
-  return `TK-${String(maxSeq + 1).padStart(3, "0")}`;
+function todayIso(): string { return new Date().toISOString().slice(0, 10); }
+function todayLabel(): string {
+  const d = new Date();
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 type StudentLite = (typeof students)[number];
@@ -63,7 +49,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
   const [description, setDescription] = useState("");
   const [type, setType]               = useState<TaskType>("Student Follow-up");
   const [priority, setPriority]       = useState<TaskPriority>("Medium");
-  const [dueDateIso, setDueDateIso]   = useState<string>(TODAY_ISO);
+  const [dueDateIso, setDueDateIso]   = useState<string>(todayIso());
   const [assignee, setAssignee]       = useState<string>(currentUser.name);
   const [linkedStudent, setLinkedStudent] = useState<StudentLite | null>(null);
 
@@ -76,7 +62,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
     setDescription("");
     setType("Student Follow-up");
     setPriority("Medium");
-    setDueDateIso(TODAY_ISO);
+    setDueDateIso(todayIso());
     setAssignee(currentUser.name);
     setLinkedStudent(null);
     setStudentQuery("");
@@ -108,30 +94,33 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
   const titleTrimmed = title.trim();
   const canSubmit = titleTrimmed.length > 0 && dueDateIso.length > 0;
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!canSubmit) return;
 
-    const dueLabel = formatDueDateLabel(dueDateIso);
-    const isOverdue = dueDateIso < TODAY_ISO;
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title:       titleTrimmed,
+        description: description.trim(),
+        type,
+        priority,
+        assignee:    assignee || currentUser.name,
+        dueDateIso,
+        linkedRecord: linkedStudent
+          ? { type: "student", name: linkedStudent.name, id: linkedStudent.id }
+          : null,
+        subtasks: [],
+      }),
+    });
 
-    const newTask: Task = {
-      id: nextTaskId(),
-      title: titleTrimmed,
-      type,
-      priority,
-      status: "Open",
-      assignee: assignee || currentUser.name,
-      dueDate: dueLabel,
-      linkedRecord: linkedStudent
-        ? { type: "student", name: linkedStudent.name, id: linkedStudent.id }
-        : null,
-      description: description.trim(),
-      subtasks: [],
-      overdue: isOverdue,
-    };
+    if (!res.ok) {
+      toast.error("Failed to create task");
+      return;
+    }
 
-    tasksStore.push(newTask);
-    onCreated(newTask);
+    const { data } = await res.json();
+    onCreated(data as Task);
     toast.success("Task created");
     onOpenChange(false);
   }
@@ -232,8 +221,8 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
                 onChange={(e) => setDueDateIso(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
               />
-              {dueDateIso === TODAY_ISO && (
-                <p className="text-[11px] text-amber-600 mt-1">Today — {TODAY_LABEL}</p>
+              {dueDateIso === todayIso() && (
+                <p className="text-[11px] text-amber-600 mt-1">Today — {todayLabel()}</p>
               )}
             </div>
 

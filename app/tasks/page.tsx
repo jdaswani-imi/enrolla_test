@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { tasks as allTasks, currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type Task, type TaskStatus } from "@/lib/mock-data";
+import { currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type Task, type TaskStatus } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -35,9 +35,23 @@ import { NewTaskDialog } from "@/components/tasks/new-task-dialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TODAY_DATE = "21 Apr 2026";
-const TODAY_DAY = 21;
-const MONTH_YEAR = "April 2026";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function getTodayLabel(): string {
+  const d = new Date();
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function getTodayDay(): number { return new Date().getDate(); }
+
+function getMonthYear(): string {
+  const d = new Date();
+  return `${d.toLocaleString("default", { month: "long" })} ${d.getFullYear()}`;
+}
+
+const TODAY_DATE = getTodayLabel();
+const TODAY_DAY  = getTodayDay();
+const MONTH_YEAR = getMonthYear();
 
 const ASSIGNEE_OPTIONS: string[] = [];
 const TYPE_OPTIONS     = ["Admin", "Academic", "Finance", "HR", "Student Follow-up", "Cover", "Personal"];
@@ -96,8 +110,9 @@ function getDueDateClass(task: Task, isDone: boolean): string {
   return "text-slate-500";
 }
 
-function parseDayNumber(dueDate: string): number | null {
-  const match = dueDate.match(/(\d+) Apr/);
+function parseDayNumber(dueDate: string, monthAbbr: string): number | null {
+  const re = new RegExp(`(\\d+) ${monthAbbr}`);
+  const match = dueDate.match(re);
   return match ? parseInt(match[1]) : null;
 }
 
@@ -581,9 +596,15 @@ function KanbanCard({
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
 
-// April 2026 starts on a Wednesday (index 2 in Mon–Sun week)
-const APRIL_START_DOF = 2;
-const APRIL_DAYS = 30;
+function getCalendarGrid(): { startDof: number; daysInMonth: number; monthAbbr: string } {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  // getDay() returns 0=Sun, convert to Mon=0
+  const startDof = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return { startDof, daysInMonth, monthAbbr: MONTHS[now.getMonth()] };
+}
+const { startDof: CURRENT_START_DOF, daysInMonth: CURRENT_DAYS, monthAbbr: CURRENT_MONTH_ABBR } = getCalendarGrid();
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function CalendarView({
@@ -598,7 +619,7 @@ function CalendarView({
   const tasksByDay = useMemo(() => {
     const map: Record<number, Task[]> = {};
     for (const task of tasks) {
-      const day = parseDayNumber(task.dueDate);
+      const day = parseDayNumber(task.dueDate, CURRENT_MONTH_ABBR);
       if (day !== null) {
         if (!map[day]) map[day] = [];
         map[day].push(task);
@@ -608,8 +629,8 @@ function CalendarView({
   }, [tasks]);
 
   const cells: (number | null)[] = [
-    ...Array(APRIL_START_DOF).fill(null),
-    ...Array.from({ length: APRIL_DAYS }, (_, i) => i + 1),
+    ...Array(CURRENT_START_DOF).fill(null),
+    ...Array.from({ length: CURRENT_DAYS }, (_, i) => i + 1),
   ];
 
   return (
@@ -704,22 +725,30 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [dueDateRange, setDueDateRange] = useState<DateRange>({ from: null, to: null });
   const [createdOnRange, setCreatedOnRange] = useState<DateRange>({ from: null, to: null });
-  const [doneTasks, setDoneTasks] = useState<Set<string>>(
-    new Set(allTasks.filter((t) => t.status === "Done").map((t) => t.id))
-  );
+  const [apiTasks, setApiTasks] = useState<Task[]>([]);
+  const [doneTasks, setDoneTasks] = useState<Set<string>>(new Set());
   const [taskStatusOverrides, setTaskStatusOverrides] = useState<Record<string, TaskStatus>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<"todo" | "inprogress" | "done" | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
-  const [tasksVersion, setTasksVersion] = useState(0);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    fetch("/api/tasks")
+      .then((r) => r.json())
+      .then(({ data }: { data: Task[] }) => {
+        setApiTasks(data ?? []);
+        setDoneTasks(new Set(data?.filter((t) => t.status === "Done").map((t) => t.id) ?? []));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || apiTasks.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const taskId = params.get("taskId");
     if (!taskId) return;
-    const task = allTasks.find((t) => t.id === taskId);
+    const task = apiTasks.find((t) => t.id === taskId);
     if (!task) return;
     setMyTasksOnly(false);
     setSelectedTask(task);
@@ -730,23 +759,29 @@ export default function TasksPage() {
     });
     const timer = window.setTimeout(() => setHighlightTaskId(null), 3200);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [apiTasks]);
 
   function openLead(leadId: string) {
     router.push(`/leads?leadId=${leadId}&panel=chat`);
   }
 
   function toggleDone(id: string) {
+    const nowDone = !doneTasks.has(id);
     setDoneTasks((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (nowDone) next.add(id);
+      else next.delete(id);
       return next;
     });
+    fetch(`/api/tasks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: nowDone ? "Done" : "Open" }),
+    }).catch(() => {});
   }
 
   const filtered = useMemo(() => {
-    return allTasks.filter((t) => {
+    return apiTasks.filter((t) => {
       if (myTasksOnly && t.assignee !== currentUser.name) return false;
       if (fromLeadsOnly && !t.sourceLeadId) return false;
       if (assigneeFilter.length > 0 && !assigneeFilter.includes(t.assignee)) return false;
@@ -781,7 +816,7 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, tasksVersion, dueDateRange, createdOnRange]);
+  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, apiTasks, dueDateRange, createdOnRange]);
 
   // List view groups
   const overdue  = filtered.filter((t) => t.overdue && !doneTasks.has(t.id));
@@ -790,8 +825,8 @@ export default function TasksPage() {
   const done     = filtered.filter((t) => doneTasks.has(t.id));
 
   // Header counts (global, not filtered)
-  const openCount    = allTasks.filter((t) => !doneTasks.has(t.id)).length;
-  const overdueCount = allTasks.filter((t) => t.overdue && !doneTasks.has(t.id)).length;
+  const openCount    = apiTasks.filter((t) => !doneTasks.has(t.id)).length;
+  const overdueCount = apiTasks.filter((t) => t.overdue && !doneTasks.has(t.id)).length;
 
   // Kanban columns
   const priorityOrder: Record<string, number> = { Urgent: -1, High: 0, Medium: 1, Low: 2 };
@@ -809,10 +844,20 @@ export default function TasksPage() {
     if (col === "done") {
       setDoneTasks((prev) => { const next = new Set(prev); next.add(id); return next; });
       setTaskStatusOverrides((prev) => { const next = { ...prev }; delete next[id]; return next; });
+      fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Done" }),
+      }).catch(() => {});
     } else {
       setDoneTasks((prev) => { const next = new Set(prev); next.delete(id); return next; });
       const newStatus: TaskStatus = col === "todo" ? "Open" : "In Progress";
       setTaskStatusOverrides((prev) => ({ ...prev, [id]: newStatus }));
+      fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      }).catch(() => {});
     }
   }
 
@@ -1193,13 +1238,10 @@ export default function TasksPage() {
         open={newTaskOpen}
         onOpenChange={setNewTaskOpen}
         onCreated={(created) => {
-          // Ensure the new task is visible: clear "my tasks" filter when the
-          // creator assigned it to someone else, and bump the tasks version so
-          // the filtered useMemo recomputes.
+          setApiTasks((prev) => [...prev, created]);
           if (myTasksOnly && created.assignee !== currentUser.name) {
             setMyTasksOnly(false);
           }
-          setTasksVersion((v) => v + 1);
         }}
       />
 
