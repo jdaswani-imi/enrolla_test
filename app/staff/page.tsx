@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { staffMembers, currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
+import { currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -628,8 +628,14 @@ function StaffPageContent() {
   const [openMenu,      setOpenMenu]      = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
-  // Mutable staff list — seeded from mock data, edited in-memory.
-  const [rows, setRows] = useState<StaffMember[]>(() => staffMembers.map((s) => ({ ...s })));
+  const [rows, setRows] = useState<StaffMember[]>([]);
+
+  useEffect(() => {
+    fetch('/api/staff')
+      .then(r => r.json())
+      .then(({ data }) => { if (Array.isArray(data)) setRows(data); })
+      .catch(() => {});
+  }, []);
 
   // Dialog state
   const [addOpen, setAddOpen] = useState(false);
@@ -644,57 +650,62 @@ function StaffPageContent() {
     setRows((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  function handleMarkOnLeave(s: StaffMember) {
+  async function handleMarkOnLeave(s: StaffMember) {
     updateRow(s.id, { status: "On Leave" });
     toast.success(`${s.name} marked as on leave`);
+    await fetch(`/api/staff/${s.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'On Leave' }),
+    });
   }
 
-  function handleDeactivate(s: StaffMember) {
+  async function handleDeactivate(s: StaffMember) {
     updateRow(s.id, { status: "Inactive" });
     toast.success(`${s.name} deactivated`);
+    await fetch(`/api/staff/${s.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Inactive' }),
+    });
   }
 
-  function handleAddStaff(data: NewStaffData) {
+  async function handleAddStaff(data: NewStaffData) {
     const name = `${data.firstName} ${data.lastName}`.trim();
-    const id = `ST-${String(rows.length + 1).padStart(3, "0")}`;
-    const startDisplay = (() => {
-      if (!data.startDate) return "";
-      const [y, m, d] = data.startDate.split("-");
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      return `${Number(d)} ${months[Number(m) - 1]} ${y}`;
-    })();
-    const next: StaffMember = {
-      id,
-      name,
-      email: data.email,
-      role: data.role,
-      department: data.department,
-      subjects: data.subjects,
-      sessionsThisWeek: 0,
-      cpdHours: 0,
-      cpdTarget: 20,
-      status: "Active",
-      hireDate: startDisplay,
-      contractType: "Full-time",
-      lineManager: "—",
-      workloadLevel: "Low",
-    };
-    setRows((prev) => [next, ...prev]);
+    const res  = await fetch('/api/staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast.error(json.error ?? 'Failed to add staff'); return; }
+    setRows((prev) => [json.data, ...prev]);
     toast.success(`${name} added to staff`);
   }
 
-  function handleEditStaff(data: NewStaffData) {
+  async function handleEditStaff(data: NewStaffData) {
     if (!editStaff) return;
     const name = `${data.firstName} ${data.lastName}`.trim();
     updateRow(editStaff.id, {
       name,
       email: data.email,
-      role: data.role,
+      role:  data.role,
       department: data.department,
       subjects: data.subjects,
     });
     toast.success(`${name} updated`);
     setEditStaff(null);
+    await fetch(`/api/staff/${editStaff.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        email:      data.email,
+        role:       data.role,
+        department: data.department,
+        subjects:   data.subjects,
+      }),
+    });
   }
 
   function handleLeaveDecision(id: string, decision: "Approved" | "Rejected") {
@@ -861,10 +872,10 @@ function StaffPageContent() {
 
           {/* Summary strip */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={UserCheck} label="Total Staff"        value={staffMembers.length}                                         accent="slate" />
-            <StatCard icon={UserCheck} label="Active"             value={staffMembers.filter(s => s.status === 'Active').length}    accent="green" />
-            <StatCard icon={Clock}     label="On Leave"           value={staffMembers.filter(s => s.status === 'On Leave').length}  accent="amber" />
-            <StatCard icon={UserX}     label="Pending Onboarding" value={0}                                                         accent="slate" />
+            <StatCard icon={UserCheck} label="Total Staff"        value={rows.length}                                           accent="slate" />
+            <StatCard icon={UserCheck} label="Active"             value={rows.filter(s => s.status === 'Active').length}      accent="green" />
+            <StatCard icon={Clock}     label="On Leave"           value={rows.filter(s => s.status === 'On Leave').length}    accent="amber" />
+            <StatCard icon={UserX}     label="Pending Onboarding" value={0}                                                   accent="slate" />
           </div>
 
           {/* Filter bar */}
