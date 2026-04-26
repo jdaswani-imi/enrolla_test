@@ -18,9 +18,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (body.name !== undefined) updates.name = body.name
   if (body.branch_id !== undefined) updates.branch_id = body.branch_id
   if (body.capacity !== undefined) updates.capacity = body.capacity
-  if (body.soft !== undefined) updates.soft_cap = body.soft
-  if (body.hard !== undefined) updates.hard_cap = body.hard
-  if (body.type !== undefined) updates.room_type = body.type
   if (body.active !== undefined) updates.is_active = body.active
   updates.updated_at = new Date().toISOString()
 
@@ -29,7 +26,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .update(updates)
     .eq('id', id)
     .eq('tenant_id', TENANT_ID)
-    .select('id, name, capacity, soft_cap, hard_cap, room_type, is_active, branch_id, branches(name)')
+    .select('id, name, capacity, is_active, branch_id, branches(name)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: error.code === 'PGRST116' ? 404 : 500 })
@@ -40,9 +37,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     branch: (data.branches as unknown as { name: string } | null)?.name ?? '',
     branch_id: data.branch_id,
     capacity: data.capacity,
-    soft: data.soft_cap ?? data.capacity,
-    hard: data.hard_cap ?? data.capacity,
-    type: data.room_type ?? 'Classroom',
+    soft: data.capacity,
+    hard: data.capacity,
+    type: 'Classroom',
     active: data.is_active,
   })
 }
@@ -58,8 +55,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     .select('id', { count: 'exact', head: true })
     .eq('room_id', id)
     .eq('tenant_id', TENANT_ID)
-    .gte('date', today)
-    .neq('status', 'Cancelled')
+    .gte('session_date', today)
+    .neq('status', 'cancelled')
 
   if ((count ?? 0) > 0) {
     return NextResponse.json(

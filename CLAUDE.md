@@ -69,7 +69,7 @@ When adding a new gated action: add the action ID to `PERMISSIONS`, then `const 
 
 ### Backend — Supabase
 
-The backend is **Supabase** (hosted PostgreSQL + Auth + Edge Functions). Project URL: `https://yqqdzrsaiwvjgbqsqptc.supabase.co`.
+The backend is **Supabase** (hosted PostgreSQL + Auth + Edge Functions). Project URL: `https://fkpvfolgmhayenidsaxc.supabase.co` (project: `enrolla-band1-clean`, ID: `fkpvfolgmhayenidsaxc`).
 
 **Supabase client helpers** (always use these, never instantiate the client directly):
 

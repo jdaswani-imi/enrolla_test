@@ -1,6 +1,6 @@
 # Enrolla Prototype — Feature Coverage Audit
 
-> Generated: 2026-04-24  
+> Generated: 2026-04-24 · Updated: 2026-04-25  
 > Scope: PRD Band 1 + Band 2 + Band 3 vs prototype codebase  
 > Status legend: ✅ Built · 🟡 Partial · ❌ Not built · 🔵 Phase 2 · ⬜ Backend only
 
@@ -8,7 +8,7 @@
 
 | Module | Feature / Workflow | PRD Band | Built in Prototype | Status | Notes |
 |---|---|---|---|---|---|
-| **PL-01** Platform | Multi-tenant isolation (tenant_id RLS) | 1 | No (single-tenant mock data) | ⬜ Backend only | Backend architecture concern; no frontend surface required |
+| **PL-01** Platform | Multi-tenant isolation (tenant_id RLS) | 1 | Implemented in Supabase Band 1 schema | ✅ Built | `tenant_id` RLS on all tables; `TENANT_ID` constant in `lib/api-constants.ts`; all route handlers enforce it |
 | **PL-01** Platform | Audit trail (append-only audit_log) | 1 | Audit Log settings section exists (static) | 🟡 Partial | `/settings` Audit Log section is a UI shell only |
 | **PL-01** Platform | Approval gateway (pending_approvals queue) | 1 | Approvals referenced in dashboard HOD pending approvals | 🟡 Partial | No dedicated `/approvals` screen; pending approvals shown in HOD dashboard only |
 | **PL-01** Platform | 30-day Graduated→Alumni transition | 1 | Not implemented | ⬜ Backend only | Background job, no UI surface |
@@ -19,7 +19,7 @@
 | **PL-02** RBAC | Lead pipeline role tiers (Tier 1a/1b/2a/2b/3) | 2 | `leads.advanceBeyondScheduled`, `leads.convertToStudent` keys present | ✅ Built | Tier enforcement via permission keys |
 | **PL-02** RBAC | Settings → Roles & Permissions editor | 1/2 | Roles section exists with editable matrix | ✅ Built | Interactive permissions table in `/settings` |
 | **PL-02** RBAC | Developer role (platform-only) | 1 | Not exposed in role switcher | ❌ Not built | Explicitly excluded per PRD |
-| **PL-04** Security | Login screen (email + password) | 1 | `/login` page with email/password/MFA visual | 🟡 Partial | UI only — no real auth; accepts any input |
+| **PL-04** Security | Login screen (email + password) | 1 | `/login` + Supabase Auth session via `requireAuth()` | ✅ Built | Real session-based auth wired; `/api/auth/me` resolves role from `staff` table; MFA and password-reset not yet built |
 | **PL-04** Security | MFA enrolment | 1 | Not in prototype | ❌ Not built | No MFA flow |
 | **PL-04** Security | Password reset flow | 1 | Not in prototype | ❌ Not built | No forgot-password screen |
 | **PL-04** Security | Profile update link (tokenised, time-bound) | 1/2 | Mentioned only in people page forms list | 🟡 Partial | Entry exists in forms catalogue; no token UI |
@@ -242,7 +242,7 @@
 | **M20** Tenant Settings | Organisation (interactive) | 1 | Yes | ✅ Built | Editable |
 | **M20** Tenant Settings | Branches (interactive) | 1 | Yes | ✅ Built | Add/edit/archive |
 | **M20** Tenant Settings | Departments (interactive) | 1 | Yes | ✅ Built | Add/edit/archive, colour picker |
-| **M20** Tenant Settings | Rooms (interactive) | 1 | Yes | ✅ Built | Capacity, branch, soft/hard caps |
+| **M20** Tenant Settings | Rooms (interactive) | 1 | Yes | ✅ Built | Capacity and branch; soft/hard caps removed in Band 1 schema |
 | **M20** Tenant Settings | Academic calendar (interactive) | 1 | Yes | ✅ Built | Terms, holidays, department pauses, ribbon view |
 | **M20** Tenant Settings | Billing & invoicing (incl. revenue tags) | 1/2 | Billing section with Revenue Tags | ✅ Built | Includes bank/revenue routing |
 | **M20** Tenant Settings | Payment plans | 2 | Section exists | 🟡 Partial | Static content; no interactive plan builder |
@@ -315,3 +315,61 @@ Ranked by visibility and user-facing importance for a stakeholder demo:
 
 10. **M16 — Recurring tasks** (`❌ Not built`)  
     The PRD makes recurring tasks a first-class feature shared with timetable recurrence. There is no recurrence UI or management tab in `/tasks`, despite list/kanban/calendar all being built.
+
+---
+
+## Backend Wiring Status
+
+> As of 2026-04-25. Supabase project: `enrolla-band1-clean` (`fkpvfolgmhayenidsaxc`).  
+> Auth: Supabase Auth (email + password) via `requireAuth()` in `lib/supabase/route-auth.ts`.  
+> Constants: `TENANT_ID` + `BRANCH_ID` in `lib/api-constants.ts` match live Supabase rows.
+
+### Route Handlers (wired to real Supabase)
+
+| Route | Methods | Notes |
+|---|---|---|
+| `/api/auth/me` | GET | Returns role + name from `staff` table by `user_id` |
+| `/api/students` | GET, POST | List + create; guardian links via `student_guardians` |
+| `/api/students/[id]` | GET, PATCH, DELETE | Single student |
+| `/api/staff` | GET, POST | List + create; snake_case roles mapped to display names |
+| `/api/staff/[id]` | GET, PATCH | Single staff member |
+| `/api/settings/branches` | GET, POST | Branches CRUD |
+| `/api/settings/branches/[id]` | PATCH, DELETE | Single branch |
+| `/api/settings/rooms` | GET, POST | Rooms CRUD (Band 1: capacity only, no soft/hard caps) |
+| `/api/settings/rooms/[id]` | PATCH, DELETE | Single room |
+| `/api/settings/departments` | GET, POST | Departments CRUD |
+| `/api/settings/departments/[id]` | PATCH, DELETE | Single department |
+| `/api/attendance/sessions` | GET, POST | Sessions list (week/day range) + create with recurrence |
+| `/api/attendance/sessions/[id]` | PATCH | Update session status |
+| `/api/attendance/sessions/[id]/records` | GET, POST | Attendance records for a session |
+| `/api/concerns` | GET, POST | Concerns list + create |
+| `/api/concerns/[id]` | PATCH | Update concern status |
+
+### Still on mock data (tables do not exist in Band 1 yet)
+
+| Route | Blocking table |
+|---|---|
+| `/api/leads` | `leads` — not in Band 1 schema |
+| `/api/assessments` | `assessments` — not in Band 1 schema |
+| `/api/tasks`, `/api/tasks/[id]` | `tasks` — not in Band 1 schema |
+| `/api/courses`, `/api/courses/[id]` | `courses` — replaced by `subjects` in Band 1 |
+| `/api/pricing-tiers`, `/api/pricing-tiers/[id]` | `pricing_tiers` — not in Band 1 schema |
+| `/api/inventory/*` | `inventory_items`, `suppliers`, etc. — not in Band 1 schema |
+| `/api/enrolments/*` | `enrolments` — table exists but column names changed; route not yet verified |
+| `/api/finance/*` | `invoices`, `payments` — table exists but route not yet verified against Band 1 column names |
+| `/api/guardians`, `/api/guardians/[id]` | `guardians` — table exists; route not yet audited |
+| `/api/schools` | `schools` — table exists; route not yet audited |
+
+### Database seed status
+
+| Table | Row count (2026-04-25) |
+|---|---|
+| tenants | 1 (IMI Test) |
+| branches | 1 (Main Branch) |
+| staff | 1 (auth user only) |
+| departments | 0 — needs seeding |
+| subjects | 0 — needs seeding |
+| rooms | 0 — needs seeding |
+| students | 0 — needs seeding |
+| sessions | 0 — needs seeding |
+| enrolments | 0 — needs seeding |

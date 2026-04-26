@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
+import { TENANT_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -18,18 +18,16 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from('students')
     .select(`
-      *,
-      departments (id, name, colour),
-      guardians!students_primary_guardian_id_fkey (
-        id, first_name, last_name, phone, email, whatsapp_number,
-        is_dnc, is_unsubscribed
+      id, tenant_id, student_number, first_name, last_name,
+      date_of_birth, gender, email, phone, address,
+      school_id, status, notes, created_at, updated_at,
+      student_guardians (
+        guardian_id, is_primary, relationship,
+        guardians (id, first_name, last_name, phone, email)
       ),
       enrolments (
-        id, status, enrolled_at, withdrawn_at, frequency_tier,
-        sessions_per_week,
-        courses (id, name, rate_per_session,
-          subjects (id, name)
-        )
+        id, status, sessions_remaining,
+        subjects (id, name)
       )
     `)
     .eq('tenant_id', TENANT_ID)
@@ -57,22 +55,8 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response
   const body = await request.json()
 
-  // Auto-generate next student_ref
-  const { data: maxRow } = await supabase
-    .from('students')
-    .select('student_ref')
-    .eq('tenant_id', TENANT_ID)
-    .order('student_ref', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const nextNum = maxRow?.student_ref
-    ? parseInt(maxRow.student_ref.replace(/\D/g, ''), 10) + 1
-    : 1
-  const student_ref = `STU-${String(nextNum).padStart(3, '0')}`
-
   // Create primary guardian first if provided
-  let primary_guardian_id: string | null = null
+  let primaryGuardianId: string | null = null
   if (body.primaryGuardian) {
     const g = body.primaryGuardian
     const { data: guardian, error: gErr } = await supabase
@@ -83,10 +67,7 @@ export async function POST(request: NextRequest) {
         last_name: g.last_name,
         email: g.email || null,
         phone: g.phone || null,
-        whatsapp_number: g.whatsapp_number || null,
-        preferred_channel: g.preferred_channel || 'WhatsApp',
-        home_area: g.home_area || null,
-        nationality: g.nationality || null,
+        notes: g.notes || null,
       })
       .select('id')
       .single()
@@ -94,39 +75,36 @@ export async function POST(request: NextRequest) {
     if (gErr) {
       return NextResponse.json({ error: gErr.message }, { status: 500 })
     }
-    primary_guardian_id = guardian.id
+    primaryGuardianId = guardian.id
   }
 
-  const { primaryGuardian, department, id, created_at, updated_at, ...rest } = body
-
-  // Prefer the pre-resolved department_id from the form; fall back to name lookup
-  let department_id: string | undefined = rest.department_id || undefined
-  delete rest.department_id
-  if (!department_id && department) {
-    const { data: dept } = await supabase
-      .from('departments')
-      .select('id')
-      .eq('tenant_id', TENANT_ID)
-      .eq('name', department)
-      .single()
-    department_id = dept?.id
-  }
+  const { primaryGuardian, department, id, created_at, updated_at,
+    department_id, branch_id, student_ref, primary_guardian_id,
+    year_group, frequency_tier, sessions_per_week, rate_per_session,
+    enrolled_at, withdrawn_at, archived_at, ...rest } = body
 
   const { data, error } = await supabase
     .from('students')
     .insert({
       ...rest,
       tenant_id: TENANT_ID,
-      branch_id: BRANCH_ID,
-      student_ref,
-      ...(department_id ? { department_id } : {}),
-      ...(primary_guardian_id ? { primary_guardian_id } : {}),
     })
     .select()
     .single()
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Link guardian via junction table
+  if (primaryGuardianId && data?.id) {
+    await supabase.from('student_guardians').insert({
+      tenant_id: TENANT_ID,
+      student_id: data.id,
+      guardian_id: primaryGuardianId,
+      relationship: body.primaryGuardian?.relationship || 'Parent',
+      is_primary: true,
+    })
   }
 
   return NextResponse.json({ data }, { status: 201 })

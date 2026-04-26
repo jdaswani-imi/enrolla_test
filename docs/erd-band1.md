@@ -1173,3 +1173,7 @@ $$;
 ## 4. Schema Status
 
 All ambiguities resolved as of 2026-04-25. Schema is final for Band 1.
+
+### Notes
+
+`sessions` has no free-form `notes` column. Use `cancellation_reason` (when cancelling) or `admin_override_reason` (when bypassing a term-boundary block) to annotate sessions — the PATCH handler in `app/api/attendance/sessions/[id]/route.ts` exposes both.

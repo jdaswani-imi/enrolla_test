@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { ORG_ID } from '@/lib/api-constants'
+import { TENANT_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -26,7 +26,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from('branches')
     .update(updates)
     .eq('id', id)
-    .eq('organisation_id', ORG_ID)
+    .eq('tenant_id', TENANT_ID)
     .select('id, name, address, phone, email, is_active')
     .single()
 
@@ -43,7 +43,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     .from('branches')
     .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('organisation_id', ORG_ID)
+    .eq('tenant_id', TENANT_ID)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

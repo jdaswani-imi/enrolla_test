@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/api-constants'
+import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
     .from('academic_years')
     .insert({
       tenant_id: TENANT_ID,
+      branch_id: BRANCH_ID,
       name: name.trim(),
       start_date: startDate,
       end_date: endDate,

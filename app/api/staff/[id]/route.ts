@@ -8,8 +8,19 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const FRONTEND_TO_DB_ROLE: Record<string, string> = {
+  'Super Admin':   'super_admin',
+  'Admin Head':    'admin_head',
+  'Admin':         'admin',
+  'Academic Head': 'academic_head',
+  'HOD':           'hod',
+  'Teacher':       'teacher',
+  'TA':            'ta',
+  'HR-Finance':    'hr_finance',
+}
+
 function toDbRole(role: string) {
-  return role === 'HR-Finance' ? 'HR/Finance' : role
+  return FRONTEND_TO_DB_ROLE[role] ?? role.toLowerCase().replace(/[/ ]/g, '_')
 }
 
 export async function PATCH(
@@ -18,58 +29,28 @@ export async function PATCH(
 ) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
-  const { id }   = await params
-  const body     = await request.json()
-  const { status, role, department, subjects, email, name } = body
+  const { id } = await params
+  const body   = await request.json()
+  const { status, role, email, name } = body
 
-  // Build staff_profiles patch
-  const profilePatch: Record<string, unknown> = {}
-  if (status    !== undefined) profilePatch.status          = status
-  if (subjects  !== undefined) profilePatch.subjects_taught = subjects
-
-  // Resolve department → id if provided
-  if (department !== undefined) {
-    const { data: dept } = await supabase
-      .from('departments')
-      .select('id')
-      .eq('tenant_id', TENANT_ID)
-      .eq('name', department)
-      .maybeSingle()
-    profilePatch.department_id = dept?.id ?? null
+  const patch: Record<string, unknown> = {}
+  if (status !== undefined) patch.status = status
+  if (email  !== undefined) patch.email  = email
+  if (role   !== undefined) patch.role   = toDbRole(role)
+  if (name   !== undefined) {
+    const parts = String(name).trim().split(' ')
+    patch.first_name = parts[0] ?? ''
+    patch.last_name  = parts.slice(1).join(' ') || ''
   }
+  patch.updated_at = new Date().toISOString()
 
-  if (Object.keys(profilePatch).length > 0) {
-    const { error } = await supabase
-      .from('staff_profiles')
-      .update(profilePatch)
-      .eq('id', id)
-      .eq('tenant_id', TENANT_ID)
+  const { error } = await supabase
+    .from('staff')
+    .update(patch)
+    .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  // Update user record if name / email / role changed
-  const userPatch: Record<string, unknown> = {}
-  if (name  !== undefined) userPatch.full_name = name
-  if (email !== undefined) userPatch.email     = email
-  if (role  !== undefined) userPatch.role      = toDbRole(role)
-
-  if (Object.keys(userPatch).length > 0) {
-    const { data: profile } = await supabase
-      .from('staff_profiles')
-      .select('user_id')
-      .eq('id', id)
-      .single()
-
-    if (profile?.user_id) {
-      const { error } = await supabase
-        .from('users')
-        .update(userPatch)
-        .eq('id', profile.user_id)
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })
 }

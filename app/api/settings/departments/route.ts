@@ -19,16 +19,22 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Count students per department
-  const { data: counts } = await supabase
+  // Count students per department (Active + Trial + Graduated + Alumni)
+  const { data: allStudents } = await supabase
     .from('students')
-    .select('department_id')
+    .select('department_id, status')
     .eq('tenant_id', TENANT_ID)
-    .in('status', ['Active', 'Trial'])
+    .in('status', ['Active', 'Trial', 'Graduated', 'Alumni'])
+
+  // Find the highest-sort-order (last) department for Graduated/Alumni fallback
+  const sortedDepts = (depts ?? []).slice().sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0))
+  const fallbackDeptId = sortedDepts[0]?.id ?? null
 
   const countMap: Record<string, number> = {}
-  for (const s of counts ?? []) {
-    if (s.department_id) countMap[s.department_id] = (countMap[s.department_id] ?? 0) + 1
+  for (const s of allStudents ?? []) {
+    const deptId = s.department_id
+      ?? ((s.status === 'Graduated' || s.status === 'Alumni') ? fallbackDeptId : null)
+    if (deptId) countMap[deptId] = (countMap[deptId] ?? 0) + 1
   }
 
   const result = (depts ?? []).map((d) => ({

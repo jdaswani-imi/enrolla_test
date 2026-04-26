@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { ORG_ID } from '@/lib/api-constants'
+import { TENANT_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -14,7 +14,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('branches')
     .select('id, name, address, phone, email, is_active')
-    .eq('organisation_id', ORG_ID)
+    .eq('tenant_id', TENANT_ID)
     .order('name', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('branches')
-    .insert({ organisation_id: ORG_ID, name: name.trim(), address, phone, email, is_active: true })
+    .insert({ tenant_id: TENANT_ID, name: name.trim(), address, phone, email, is_active: true })
     .select('id, name, address, phone, email, is_active')
     .single()
 

@@ -23,8 +23,6 @@ import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { RoleBanner } from "@/components/ui/role-banner";
 import {
-  timetableSessions,
-  rooms,
   type TimetableSession,
 } from "@/lib/mock-data";
 import {
@@ -569,15 +567,22 @@ function SessionDetailModal({
     router.push("/attendance");
   }
 
-  function handleConfirmCancel() {
+  async function handleConfirmCancel() {
     const trimmed = reason.trim();
     if (!trimmed) {
       setReasonError("Please provide a reason for cancelling this session.");
       return;
     }
-    const idx = timetableSessions.findIndex((s) => s.id === session.id);
-    if (idx >= 0) {
-      timetableSessions[idx] = { ...timetableSessions[idx], status: "Cancelled" };
+    try {
+      const res = await fetch(`/api/attendance/sessions/${session.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Cancelled', notes: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      sonnerToast.error("Failed to cancel session");
+      return;
     }
     setConfirmOpen(false);
     setReason("");
@@ -836,12 +841,14 @@ export default function TimetablePage() {
   const { assessments, markDone, cancel } = useAssessments();
   const [showNewSession,  setShowNewSession]  = useState(false);
   const [sessionTick,     setSessionTick]     = useState(0);
+  const [liveSessions,    setLiveSessions]    = useState<TimetableSession[]>([]);
   const [filterLocation,  setFilterLocation]  = useState("All");
   const [filterDept,      setFilterDept]      = useState("All");
   const [filterTeacher,   setFilterTeacher]   = useState("All");
   const [filterRoom,      setFilterRoom]      = useState("All");
   const [filterType,      setFilterType]      = useState("All");
   const [toast,           setToast]           = useState<string | null>(null);
+  const [rooms,           setRooms]           = useState<{ id: string; name: string; capacity: number | null }[]>([]);
 
   useEffect(() => {
     if (!toast) return;
@@ -849,15 +856,52 @@ export default function TimetablePage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    fetch('/api/settings/rooms')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: string; name: string; capacity: number | null }[]) => setRooms(data ?? []))
+      .catch(() => {});
+  }, []);
+
   const gridScrollRef = useRef<HTMLDivElement>(null);
+
+  // Fetch live sessions from API whenever the week or tick changes
+  useEffect(() => {
+    // Use local date parts — toISOString() converts to UTC which shifts the date for non-UTC timezones
+    const d = weekStart
+    const weekIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    fetch(`/api/attendance/sessions?week_start=${weekIso}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(({ data }) => setLiveSessions(
+        (data ?? []).map((s: Record<string, unknown>) => ({
+          id: s.id,
+          day: s.day,
+          date: s.date,
+          subject: s.subject,
+          department: s.department,
+          teacher: s.teacher,
+          teacherId: s.teacherId,
+          room: s.room,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          duration: s.duration,
+          type: s.type,
+          status: s.status,
+          students: (s.students as Array<{ id: string; name: string }> ?? []).map((st) => st.name),
+          studentCount: s.studentCount,
+          existingRecords: s.existingRecords,
+          attendanceMarked: s.attendanceMarked,
+          assignedTAs: s.assignedTAs,
+        }))
+      ))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart, sessionTick]);
 
   const allSessions = useMemo<ExtendedSession[]>(() => {
     const derived = assessments.flatMap(assessmentToSessions);
-    return [...timetableSessions, ...derived];
-    // sessionTick participates in the dep array to pick up new sessions pushed
-    // into the mock timetableSessions array after user creates one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assessments, sessionTick]);
+    return [...liveSessions, ...derived];
+  }, [assessments, liveSessions]);
 
   const teachers = useMemo(() => {
     const names = Array.from(new Set(allSessions.map((s) => s.teacher))).sort();
@@ -1603,7 +1647,11 @@ export default function TimetablePage() {
       <NewSessionDialog
         open={showNewSession}
         onOpenChange={setShowNewSession}
-        onCreated={() => setSessionTick((n) => n + 1)}
+        onCreated={(sessions) => {
+          setSessionTick((n) => n + 1);
+          const firstDay = sessions[0]?.day;
+          if (firstDay) setActiveDay(firstDay);
+        }}
       />
       <NewSessionDialog
         open={!!editSession}

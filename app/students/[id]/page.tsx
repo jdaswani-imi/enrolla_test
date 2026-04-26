@@ -289,6 +289,8 @@ function ProfileHeader({
   journeyStatusBadge,
   invoices,
   onPaymentRecorded,
+  studentId,
+  onConcernRaised,
 }: {
   profile: StudentProfile;
   fireToast: FireToast;
@@ -297,6 +299,8 @@ function ProfileHeader({
   journeyStatusBadge?: { label: string; className: string } | null;
   invoices: StudentInvoice[];
   onPaymentRecorded: (invoiceId: string, paidAmount: number, fullyPaid: boolean) => void;
+  studentId?: string;
+  onConcernRaised?: () => void;
 }) {
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
@@ -424,6 +428,8 @@ function ProfileHeader({
         open={openDialog === "raiseConcern"}
         onOpenChange={(o) => !o && setOpenDialog(null)}
         fireToast={fireToast}
+        studentId={studentId}
+        onRaised={onConcernRaised}
       />
       <LogNoteDialog
         open={openDialog === "logNote"}
@@ -494,22 +500,45 @@ function RaiseConcernDialog({
   open,
   onOpenChange,
   fireToast,
+  studentId,
+  onRaised,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fireToast: FireToast;
+  studentId?: string;
+  onRaised?: () => void;
 }) {
   const [subject, setSubject] = useState("");
   const [level, setLevel] = useState("L1");
   const [description, setDescription] = useState("");
-  const valid = subject && description.trim().length > 0;
+  const [submitting, setSubmitting] = useState(false);
+  const valid = description.trim().length > 0;
 
-  function submit() {
-    fireToast(`Concern raised — ${level} ${subject}`);
-    setSubject("");
-    setLevel("L1");
-    setDescription("");
-    onOpenChange(false);
+  async function submit() {
+    if (!studentId) {
+      fireToast(`Concern raised — ${level}`);
+      setSubject(""); setLevel("L1"); setDescription("");
+      onOpenChange(false);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/concerns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId, level, description: description.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      fireToast(`Concern raised — ${level}`);
+      setSubject(""); setLevel("L1"); setDescription("");
+      onOpenChange(false);
+      onRaised?.();
+    } catch {
+      fireToast("Failed to raise concern", "warning");
+    } finally {
+      setSubmitting(false);
+    }
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -549,8 +578,8 @@ function RaiseConcernDialog({
         <DialogActions
           onCancel={() => onOpenChange(false)}
           onSubmit={submit}
-          submitLabel="Submit"
-          submitDisabled={!valid}
+          submitLabel={submitting ? "Submitting…" : "Submit"}
+          submitDisabled={!valid || submitting}
         />
       </DialogContent>
     </Dialog>
@@ -3143,17 +3172,43 @@ function DismissConcernDialog({
   open,
   onOpenChange,
   fireToast,
+  concernId,
+  onDismissed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fireToast: FireToast;
+  concernId?: string;
+  onDismissed?: () => void;
 }) {
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const valid = reason.trim().length > 0;
-  function submit() {
-    fireToast("Concern dismissed — reason required", "warning");
-    setReason("");
-    onOpenChange(false);
+
+  async function submit() {
+    if (!concernId) {
+      fireToast("Concern dismissed", "warning");
+      setReason("");
+      onOpenChange(false);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/concerns/${concernId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Dismissed', resolution_notes: reason.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      fireToast("Concern dismissed");
+      setReason("");
+      onOpenChange(false);
+      onDismissed?.();
+    } catch {
+      fireToast("Failed to dismiss concern", "warning");
+    } finally {
+      setSubmitting(false);
+    }
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -3171,26 +3226,66 @@ function DismissConcernDialog({
             placeholder="Why is this concern being dismissed?"
           />
         </div>
-        <DialogActions onCancel={() => onOpenChange(false)} onSubmit={submit} submitLabel="Dismiss" submitDisabled={!valid} />
+        <DialogActions onCancel={() => onOpenChange(false)} onSubmit={submit} submitLabel={submitting ? "Dismissing…" : "Dismiss"} submitDisabled={!valid || submitting} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToast: FireToast }) {
+type ConcernRow = {
+  id: string;
+  subject: string;
+  trigger: string;
+  raised: string;
+  raisedBy: string;
+  level: string;
+  levelLabel: string;
+  assignedTo: string;
+  status: string;
+  resolution_notes: string | null;
+  created_at: string;
+};
+
+function ConcernsTab({
+  canEscalate,
+  fireToast,
+  studentId,
+  concernTick,
+}: {
+  canEscalate: boolean;
+  fireToast: FireToast;
+  studentId?: string;
+  concernTick?: number;
+}) {
   const { can } = usePermission();
   const [openDialog, setOpenDialog] = useState<"note" | "dismiss" | null>(null);
+  const [selectedConcernId, setSelectedConcernId] = useState<string | undefined>(undefined);
+  const [concerns, setConcerns] = useState<ConcernRow[]>(() =>
+    studentId ? [] : (studentDetail.concerns as unknown as ConcernRow[])
+  );
+
+  useEffect(() => {
+    if (!studentId) return;
+    fetch(`/api/concerns?student_id=${studentId}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(({ data }) => setConcerns(data ?? []))
+      .catch(() => {});
+  }, [studentId, concernTick]);
+
+  const active = concerns.filter((c) => c.status === 'Active' || c.status === 'Open');
+  const dismissed = concerns.filter((c) => c.status === 'Dismissed' || c.status === 'Resolved');
+
   return (
     <div className="space-y-4">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Active Concerns</p>
-      {studentDetail.concerns.map((c, i) => (
-        <div key={i} className="bg-white rounded-lg border-2 border-amber-300 shadow-sm p-4 space-y-3">
+      {active.map((c) => (
+        <div key={c.id} className="bg-white rounded-lg border-2 border-amber-300 shadow-sm p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
                 {c.level}
               </span>
-              <span className="text-sm font-bold text-slate-800">{c.subject}</span>
+              {c.subject && <span className="text-sm font-bold text-slate-800">{c.subject}</span>}
             </div>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
               {c.status}
@@ -3238,7 +3333,7 @@ function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToa
             {can('students.edit') && (
               <button
                 type="button"
-                onClick={() => setOpenDialog("dismiss")}
+                onClick={() => { setSelectedConcernId(c.id); setOpenDialog("dismiss"); }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-600 transition-colors cursor-pointer ml-auto"
               >
                 <XCircle className="w-3 h-3" />
@@ -3248,9 +3343,36 @@ function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToa
           </div>
         </div>
       ))}
-      <div className="mt-2 px-4 py-3 rounded-lg border border-slate-100 bg-slate-50 text-xs text-slate-400 text-center">
-        No dismissed concerns
-      </div>
+      {active.length === 0 && (
+        <div className="px-4 py-3 rounded-lg border border-slate-100 bg-slate-50 text-xs text-slate-400 text-center">
+          No active concerns
+        </div>
+      )}
+
+      {dismissed.length > 0 && (
+        <>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-6">Dismissed / Resolved</p>
+          {dismissed.map((c) => (
+            <div key={c.id} className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 space-y-2 opacity-70">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                  {c.level}
+                </span>
+                <span className="text-xs text-slate-500">{c.status} · {c.raised}</span>
+              </div>
+              <p className="text-xs text-slate-600">{c.trigger}</p>
+              {c.resolution_notes && (
+                <p className="text-xs text-slate-400 italic">{c.resolution_notes}</p>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+      {dismissed.length === 0 && (
+        <div className="mt-2 px-4 py-3 rounded-lg border border-slate-100 bg-slate-50 text-xs text-slate-400 text-center">
+          No dismissed concerns
+        </div>
+      )}
 
       <AddNoteDialog
         open={openDialog === "note"}
@@ -3259,8 +3381,10 @@ function ConcernsTab({ canEscalate, fireToast }: { canEscalate: boolean; fireToa
       />
       <DismissConcernDialog
         open={openDialog === "dismiss"}
-        onOpenChange={(o) => !o && setOpenDialog(null)}
+        onOpenChange={(o) => { if (!o) { setOpenDialog(null); setSelectedConcernId(undefined); } }}
         fireToast={fireToast}
+        concernId={selectedConcernId}
+        onDismissed={() => setConcerns((prev) => prev.map((c) => c.id === selectedConcernId ? { ...c, status: 'Dismissed' } : c))}
       />
     </div>
   );
@@ -3594,6 +3718,7 @@ function StudentProfilePageContent() {
   const [journeyPaymentOpen, setJourneyPaymentOpen] = useState(false);
   const isApiStudent = routeId !== BILAL_STUDENT_ID;
   const [invoicesState, setInvoicesState] = useState<StudentInvoice[]>(() => isApiStudent ? [] : studentDetail.invoices);
+  const [concernTick, setConcernTick] = useState(0);
 
   function handlePaymentRecorded(invoiceId: string, _paidAmount: number, fullyPaid: boolean) {
     setInvoicesState((list) =>
@@ -3666,6 +3791,8 @@ function StudentProfilePageContent() {
         journeyStatusBadge={journeyStatusBadge}
         invoices={invoicesState}
         onPaymentRecorded={handlePaymentRecorded}
+        studentId={isApiStudent ? routeId : undefined}
+        onConcernRaised={() => setConcernTick((t) => t + 1)}
       />
 
       {isJourneyStudent && (
@@ -3705,7 +3832,7 @@ function StudentProfilePageContent() {
             {activeTab === "courses"     && <CoursesTab />}
             {activeTab === "comms"       && <CommLogTab     canExport={canExport} fireToast={fireToast} />}
             {activeTab === "tasks"       && <TasksTab       />}
-            {activeTab === "concerns"    && <ConcernsTab    canEscalate={canEscalate} fireToast={fireToast} />}
+            {activeTab === "concerns"    && <ConcernsTab    canEscalate={canEscalate} fireToast={fireToast} studentId={isApiStudent ? routeId : undefined} concernTick={concernTick} />}
             {activeTab === "tickets"     && <TicketsTab     fireToast={fireToast} />}
             {activeTab === "files"       && <FilesTab       canDelete={canDelete} canExport={canExport} fireToast={fireToast} />}
           </div>

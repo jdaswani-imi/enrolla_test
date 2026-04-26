@@ -13,7 +13,7 @@ export async function GET() {
   if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('rooms')
-    .select('id, name, capacity, soft_cap, hard_cap, room_type, is_active, branch_id, branches(name)')
+    .select('id, name, capacity, is_active, branch_id, branches(name)')
     .eq('tenant_id', TENANT_ID)
     .order('name', { ascending: true })
 
@@ -25,9 +25,9 @@ export async function GET() {
     branch: (r.branches as unknown as { name: string } | null)?.name ?? '',
     branch_id: r.branch_id,
     capacity: r.capacity,
-    soft: r.soft_cap ?? r.capacity,
-    hard: r.hard_cap ?? r.capacity,
-    type: r.room_type ?? 'Classroom',
+    soft: r.capacity,
+    hard: r.capacity,
+    type: 'Classroom',
     active: r.is_active,
   }))
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
   const body = await request.json()
-  const { name, branch_id, capacity, soft, hard, type } = body
+  const { name, branch_id, capacity } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
 
@@ -49,12 +49,9 @@ export async function POST(request: NextRequest) {
       branch_id: branch_id ?? BRANCH_ID,
       name: name.trim(),
       capacity,
-      soft_cap: soft ?? capacity,
-      hard_cap: hard ?? capacity,
-      room_type: type ?? 'Classroom',
       is_active: true,
     })
-    .select('id, name, capacity, soft_cap, hard_cap, room_type, is_active, branch_id, branches(name)')
+    .select('id, name, capacity, is_active, branch_id, branches(name)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -65,9 +62,9 @@ export async function POST(request: NextRequest) {
     branch: (data.branches as unknown as { name: string } | null)?.name ?? '',
     branch_id: data.branch_id,
     capacity: data.capacity,
-    soft: data.soft_cap ?? data.capacity,
-    hard: data.hard_cap ?? data.capacity,
-    type: data.room_type ?? 'Classroom',
+    soft: data.capacity,
+    hard: data.capacity,
+    type: 'Classroom',
     active: data.is_active,
   }, { status: 201 })
 }

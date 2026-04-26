@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
+import { TENANT_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -8,47 +8,52 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// frontend "HR-Finance" ↔ DB "HR/Finance"
-function toDbRole(role: string) {
-  return role === 'HR-Finance' ? 'HR/Finance' : role
+// Band 1 role enum → frontend display label
+const DB_ROLE_TO_FRONTEND: Record<string, string> = {
+  super_admin:   'Super Admin',
+  admin_head:    'Admin Head',
+  admin:         'Admin',
+  academic_head: 'Academic Head',
+  hod:           'HOD',
+  teacher:       'Teacher',
+  ta:            'TA',
+  hr_finance:    'HR-Finance',
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const [y, m, d] = iso.split('-').map(Number)
-  return `${d} ${months[m - 1]} ${y}`
+// Frontend label → Band 1 role enum
+const FRONTEND_TO_DB_ROLE: Record<string, string> = {
+  'Super Admin':   'super_admin',
+  'Admin Head':    'admin_head',
+  'Admin':         'admin',
+  'Academic Head': 'academic_head',
+  'HOD':           'hod',
+  'Teacher':       'teacher',
+  'TA':            'ta',
+  'HR-Finance':    'hr_finance',
+}
+
+function toDbRole(role: string) {
+  return FRONTEND_TO_DB_ROLE[role] ?? role.toLowerCase().replace(/[/ ]/g, '_')
 }
 
 function toFrontend(row: Record<string, unknown>) {
-  const user     = row.users as Record<string, unknown>
-  const dept     = row.departments as Record<string, unknown> | null
-  const cpds     = (row.cpd_records as { hours: number; activity_date: string }[]) ?? []
-  const yearStart = `${new Date().getFullYear()}-01-01`
-  const cpdHours  = cpds
-    .filter(c => c.activity_date >= yearStart)
-    .reduce((sum, c) => sum + Number(c.hours ?? 0), 0)
-
-  const dbRole        = String(user.role ?? '')
-  const frontendRole  = dbRole === 'HR/Finance' ? 'HR-Finance' : dbRole
-  const sessionsThisWeek = 0
-  const workloadLevel = sessionsThisWeek >= 10 ? 'High' : sessionsThisWeek >= 5 ? 'Moderate' : 'Low'
-
+  const dbRole = String(row.role ?? '')
   return {
-    id:                row.id,
-    name:              user.full_name,
-    email:             user.email,
-    role:              frontendRole,
-    department:        dept?.name ?? '—',
-    subjects:          (row.subjects_taught as string[]) ?? [],
-    sessionsThisWeek,
-    cpdHours:          Math.round(cpdHours * 10) / 10,
-    cpdTarget:         (row.cpd_annual_target as number) ?? 20,
-    status:            row.status,
-    hireDate:          formatDate(row.start_date as string | null),
-    contractType:      (row.employment_type as string) ?? 'Full-time',
-    lineManager:       (row.line_manager_name as string) ?? '—',
-    workloadLevel,
+    id:            row.id,
+    name:          `${row.first_name} ${row.last_name}`.trim(),
+    email:         row.email,
+    phone:         row.phone ?? '',
+    role:          DB_ROLE_TO_FRONTEND[dbRole] ?? dbRole,
+    department:    '—',
+    subjects:      [],
+    sessionsThisWeek: 0,
+    cpdHours:      0,
+    cpdTarget:     20,
+    status:        row.status,
+    hireDate:      '—',
+    contractType:  'Full-time',
+    lineManager:   '—',
+    workloadLevel: 'Low',
   }
 }
 
@@ -60,106 +65,41 @@ export async function GET(request: NextRequest) {
   const role   = searchParams.get('role')
 
   let query = supabase
-    .from('staff_profiles')
-    .select(`
-      id,
-      employment_type,
-      start_date,
-      subjects_taught,
-      cpd_annual_target,
-      status,
-      line_manager_name,
-      users!inner (
-        id,
-        full_name,
-        email,
-        role,
-        is_active
-      ),
-      departments (
-        id,
-        name
-      ),
-      cpd_records (
-        hours,
-        activity_date
-      )
-    `)
+    .from('staff')
+    .select('id, first_name, last_name, email, phone, role, status, created_at')
     .eq('tenant_id', TENANT_ID)
 
   if (status) query = (query as typeof query).eq('status', status)
-  if (role)   query = (query as typeof query).eq('users.role', toDbRole(role))
+  if (role)   query = (query as typeof query).eq('role', toDbRole(role))
 
   const { data, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ data: (data ?? []).map(toFrontend) })
+  return NextResponse.json({ data: (data ?? []).map(r => toFrontend(r as Record<string, unknown>)) })
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
   const body = await request.json()
-  const { firstName, lastName, role, department, email, phone, startDate, subjects } = body
+  const { firstName, lastName, role, email, phone, startDate } = body
 
-  // Resolve department → id
-  let department_id: string | null = null
-  if (department) {
-    const { data: dept } = await supabase
-      .from('departments')
-      .select('id')
-      .eq('tenant_id', TENANT_ID)
-      .eq('name', department)
-      .maybeSingle()
-    department_id = dept?.id ?? null
-  }
-
-  // Create user record
-  const { data: user, error: userErr } = await supabase
-    .from('users')
+  const { data, error } = await supabase
+    .from('staff')
     .insert({
       tenant_id:  TENANT_ID,
-      branch_id:  BRANCH_ID,
-      full_name:  `${firstName} ${lastName}`.trim(),
+      first_name: firstName,
+      last_name:  lastName,
       email,
-      role:       toDbRole(role),
       phone:      phone || null,
-      is_active:  true,
+      role:       toDbRole(role),
+      status:     'active',
     })
-    .select('id')
+    .select('id, first_name, last_name, email, phone, role, status, created_at')
     .single()
 
-  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Create staff profile
-  const { data: profile, error: profErr } = await supabase
-    .from('staff_profiles')
-    .insert({
-      tenant_id:       TENANT_ID,
-      user_id:         user.id,
-      department_id,
-      subjects_taught: subjects ?? [],
-      start_date:      startDate || null,
-      employment_type: 'Full-time',
-      cpd_annual_target: 20,
-      status:          'Active',
-    })
-    .select(`
-      id,
-      employment_type,
-      start_date,
-      subjects_taught,
-      cpd_annual_target,
-      status,
-      line_manager_name,
-      users!inner ( id, full_name, email, role, is_active ),
-      departments ( id, name ),
-      cpd_records ( hours, activity_date )
-    `)
-    .single()
-
-  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 })
-
-  return NextResponse.json({ data: toFrontend(profile as Record<string, unknown>) }, { status: 201 })
+  return NextResponse.json({ data: toFrontend(data as Record<string, unknown>) }, { status: 201 })
 }

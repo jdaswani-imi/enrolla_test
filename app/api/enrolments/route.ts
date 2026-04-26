@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
   const { searchParams } = new URL(request.url)
-  const studentId = searchParams.get('studentId') // UUID of the student
+  const studentId = searchParams.get('studentId')
   const includeWithdrawn = searchParams.get('includeWithdrawn') === 'true'
 
   let query = supabase
@@ -20,37 +20,31 @@ export async function GET(request: NextRequest) {
     .select(`
       id,
       status,
-      sessions_total,
       sessions_remaining,
-      sessions_per_week,
-      frequency_tier,
-      package_name,
-      invoice_status,
-      enrolled_at,
-      students!inner (
+      price_at_enrolment,
+      start_date,
+      end_date,
+      notes,
+      created_at,
+      students (
         id,
-        student_ref,
+        student_number,
         first_name,
-        last_name,
-        year_group
+        last_name
       ),
-      departments (
-        name
-      ),
-      courses (
-        name
-      ),
-      staff_profiles!enrolments_teacher_id_fkey (
-        users (
-          full_name
-        )
+      subjects (
+        id,
+        name,
+        session_duration_minutes,
+        departments ( name ),
+        year_groups ( name )
       )
     `)
     .eq('tenant_id', TENANT_ID)
-    .order('enrolled_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (!includeWithdrawn) {
-    query = query.neq('status', 'Withdrawn')
+    query = query.neq('status', 'withdrawn')
   }
 
   if (studentId) {
@@ -58,29 +52,33 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await query
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json([], { status: 200 })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = (data ?? []).map((e: any) => ({
-    id: e.id,
-    studentUuid: e.students?.id ?? '',
-    studentId: e.students?.student_ref ?? '',
-    student: `${e.students?.first_name ?? ''} ${e.students?.last_name ?? ''}`.trim(),
-    yearGroup: e.students?.year_group ?? '',
-    department: e.departments?.name ?? '',
-    subject: e.courses?.name ?? '',
-    teacher: e.staff_profiles?.users?.full_name ?? '—',
-    sessionsTotal: e.sessions_total ?? 0,
-    sessionsRemaining: e.sessions_remaining ?? 0,
-    frequency: e.sessions_per_week
-      ? `${e.sessions_per_week}×/week`
-      : (e.frequency_tier ?? '—'),
-    package: e.package_name ?? '—',
-    invoiceStatus: (e.invoice_status ?? 'Pending') as string,
-    enrolmentStatus: e.status as string,
-    enrolledOn: e.enrolled_at ?? undefined,
-  }))
+  const rows = (data ?? []).map((e: any) => {
+    const s = e.students
+    const subj = e.subjects
+    const dept = subj?.departments
+    const yg = subj?.year_groups
+
+    return {
+      id: e.id,
+      studentUuid: s?.id ?? '',
+      studentId: s ? `IMI-${String(s.student_number).padStart(4, '0')}` : '',
+      student: s ? `${s.first_name} ${s.last_name}`.trim() : '',
+      yearGroup: yg?.name ?? '—',
+      department: dept?.name ?? '—',
+      subject: subj?.name ?? '—',
+      teacher: '—',
+      sessionsTotal: 0,
+      sessionsRemaining: e.sessions_remaining ?? 0,
+      frequency: '—',
+      package: '—',
+      invoiceStatus: 'Pending',
+      enrolmentStatus: e.status,
+      enrolledOn: e.created_at ?? undefined,
+    }
+  })
 
   return NextResponse.json(rows)
 }
@@ -94,22 +92,19 @@ export async function POST(request: NextRequest) {
     .from('enrolments')
     .insert({
       tenant_id: TENANT_ID,
-      student_id: body.studentUuid,
-      course_id: body.courseId,
-      department_id: body.departmentId ?? null,
-      teacher_id: body.teacherId ?? null,
-      sessions_per_week: body.sessionsPerWeek ?? 1,
-      sessions_total: body.sessionsTotal ?? 0,
-      sessions_remaining: body.sessionsTotal ?? 0,
-      package_name: body.packageName ?? null,
-      invoice_status: body.invoiceStatus ?? 'Pending',
-      status: body.status ?? 'Pending',
-      enrolled_at: body.enrolledAt ?? new Date().toISOString().split('T')[0],
+      student_id: body.studentId,
+      subject_id: body.subjectId,
+      branch_id: body.branchId,
+      status: body.status ?? 'active',
+      sessions_remaining: body.sessionsRemaining ?? 0,
+      price_at_enrolment: body.priceAtEnrolment ?? 0,
+      start_date: body.startDate ?? null,
+      end_date: body.endDate ?? null,
+      notes: body.notes ?? null,
     })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
   return NextResponse.json({ data }, { status: 201 })
 }

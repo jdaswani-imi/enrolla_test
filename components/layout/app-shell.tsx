@@ -7,7 +7,10 @@ import { TopBar } from "@/components/layout/top-bar";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === "/login" || pathname?.startsWith("/login/")) {
+  if (
+    pathname === "/login" || pathname?.startsWith("/login/") ||
+    pathname === "/onboarding" || pathname?.startsWith("/onboarding/")
+  ) {
     return <div className="flex-1">{children}</div>;
   }
 

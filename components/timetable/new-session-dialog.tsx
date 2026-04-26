@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -11,15 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import {
-  rooms,
-  staffMembers,
-  students as allStudents,
-  timetableSessions,
-  type SessionType,
-  type TimetableSession,
-} from "@/lib/mock-data";
-import { departmentFor } from "@/lib/journey-store";
+import { type SessionType, type TimetableSession } from "@/lib/mock-data";
 
 // ─── Time slots (30-min increments) ───────────────────────────────────────────
 
@@ -32,7 +23,7 @@ const TIME_SLOTS: string[] = (() => {
   return out;
 })();
 
-const START_OPTIONS = TIME_SLOTS.filter((t) => t !== "20:00"); // 08:00 → 19:30
+const START_OPTIONS = TIME_SLOTS.filter((t) => t !== "20:00");
 
 function toMins(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -64,22 +55,11 @@ function dateLabelFromIso(iso: string): string {
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
 }
 
-function addDaysIso(iso: string, days: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+// ─── API option types ─────────────────────────────────────────────────────────
 
-// ─── Subject catalogue derived from staff teaching assignments ────────────────
-
-const SUBJECT_CATALOGUE: string[] = Array.from(
-  new Set(staffMembers.flatMap((s) => s.subjects)),
-).sort((a, b) => a.localeCompare(b));
-
-function deptFromSubject(subject: string): string {
-  const m = subject.match(/^(KG\d*|Y\d+)/);
-  return m ? departmentFor(m[1]) : "Lower Secondary";
-}
+interface SubjectOption { id: string; name: string; department: string }
+interface StaffOption   { id: string; name: string; role: string; status: string }
+interface RoomOption    { id: string; name: string; capacity: number | null }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -91,6 +71,7 @@ const REPEAT_OPTIONS = ["None", "Weekly", "Bi-weekly"] as const;
 type RepeatMode = (typeof REPEAT_OPTIONS)[number];
 
 const SESSION_TYPES: SessionType[] = ["Regular", "Trial", "Assessment", "Makeup"];
+const TEACHABLE_ROLES = new Set(["Teacher", "HOD"]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -114,123 +95,108 @@ export function NewSessionDialog({
   sessionToEdit,
 }: NewSessionDialogProps) {
   const isEditing = Boolean(sessionToEdit);
-  const [subject, setSubject] = useState("");
-  const [teacher, setTeacher] = useState("");
-  const [studentIds, setStudentIds] = useState<string[]>([]);
-  const [room, setRoom] = useState("");
-  const [date, setDate] = useState<string>(() => defaultDateIso ?? todayIso());
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [repeat, setRepeat] = useState<RepeatMode>("None");
+
+  // Reference data from API
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [allStaff, setAllStaff] = useState<StaffOption[]>([]);
+  const [rooms, setRooms]       = useState<RoomOption[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Form state — names for display, IDs for the API
+  const [subject,   setSubject]   = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [teacher,   setTeacher]   = useState("");
+  const [teacherId, setTeacherId] = useState("");
+  const [room,      setRoom]      = useState("");
+  const [roomId,    setRoomId]    = useState("");
+  const [date,       setDate]      = useState<string>(() => defaultDateIso ?? todayIso());
+  const [startTime,  setStartTime] = useState("");
+  const [endTime,    setEndTime]   = useState("");
+  const [repeat,     setRepeat]    = useState<RepeatMode>("None");
   const [repeatUntil, setRepeatUntil] = useState("");
   const [sessionType, setSessionType] = useState<SessionType>("Regular");
-  const [studentSearch, setStudentSearch] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors,     setErrors]    = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch reference data once (cache across opens)
+  useEffect(() => {
+    if (!open || dataLoaded) return;
+    Promise.all([
+      fetch('/api/courses').then(r => r.json()),
+      fetch('/api/staff').then(r => r.json()),
+      fetch('/api/settings/rooms').then(r => r.json()),
+    ]).then(([courseRes, staffRes, roomsRes]) => {
+      setSubjects(
+        (courseRes.subjects ?? []).map((s: { id: string; name: string; department: string }) => ({
+          id: s.id, name: s.name, department: s.department ?? '',
+        }))
+      );
+      setAllStaff(
+        (staffRes.data ?? []).map((s: { id: string; name: string; role: string; status: string }) => ({
+          id: s.id, name: s.name, role: s.role, status: s.status,
+        }))
+      );
+      setRooms(
+        (Array.isArray(roomsRes) ? roomsRes : []).map((r: { id: string; name: string; capacity?: number }) => ({
+          id: r.id, name: r.name, capacity: r.capacity ?? null,
+        }))
+      );
+      setDataLoaded(true);
+    }).catch(() => toast.error("Failed to load session options"));
+  }, [open, dataLoaded]);
 
   const reset = useCallback(() => {
-    setSubject("");
-    setTeacher("");
-    setStudentIds([]);
-    setRoom("");
+    setSubject(""); setSubjectId("");
+    setTeacher(""); setTeacherId("");
+    setRoom("");    setRoomId("");
     setDate(defaultDateIso ?? todayIso());
-    setStartTime("");
-    setEndTime("");
-    setRepeat("None");
-    setRepeatUntil("");
+    setStartTime(""); setEndTime("");
+    setRepeat("None"); setRepeatUntil("");
     setSessionType("Regular");
-    setStudentSearch("");
     setErrors({});
   }, [defaultDateIso]);
 
   useEffect(() => {
-    if (!open) {
-      reset();
-      return;
-    }
+    if (!open) { reset(); return; }
     if (sessionToEdit) {
       setSubject(sessionToEdit.subject);
+      setSubjectId("");
       setTeacher(sessionToEdit.teacher);
-      setStudentIds(
-        sessionToEdit.students
-          .map((name) => allStudents.find((s) => s.name === name)?.id)
-          .filter((id): id is string => Boolean(id)),
-      );
+      setTeacherId(sessionToEdit.teacherId ?? "");
       setRoom(sessionToEdit.room);
+      setRoomId("");
       setDate(sessionToEdit.dateIso ?? defaultDateIso ?? todayIso());
       setStartTime(sessionToEdit.startTime);
       setEndTime(sessionToEdit.endTime);
       setSessionType(sessionToEdit.type as SessionType);
-      setRepeat("None");
-      setRepeatUntil("");
-      setStudentSearch("");
+      setRepeat("None"); setRepeatUntil("");
       setErrors({});
     }
   }, [open, sessionToEdit, reset, defaultDateIso]);
 
-  // Teachers filtered to active Teachers/HODs, then by subject if selected.
-  const teacherOptions = useMemo(() => {
-    const teachable = new Set(["Teacher", "HOD"]);
-    return staffMembers.filter((s) => {
-      if (!teachable.has(s.role)) return false;
-      if (s.status !== "Active") return false;
-      if (subject && !s.subjects.includes(subject)) return false;
-      return true;
-    });
-  }, [subject]);
-
-  // Clear teacher if it's no longer in the filtered set.
-  useEffect(() => {
-    if (!teacher) return;
-    if (!teacherOptions.some((t) => t.name === teacher)) setTeacher("");
-  }, [teacherOptions, teacher]);
+  const teacherOptions = useMemo(
+    () => allStaff.filter(s => TEACHABLE_ROLES.has(s.role) && s.status === 'active'),
+    [allStaff]
+  );
 
   const endTimeOptions = useMemo(() => {
     if (!startTime) return [];
-    return TIME_SLOTS.filter((t) => toMins(t) > toMins(startTime));
+    return TIME_SLOTS.filter(t => toMins(t) > toMins(startTime));
   }, [startTime]);
 
-  // Clear endTime if start moves past it.
   useEffect(() => {
     if (!endTime) return;
     if (!startTime || toMins(endTime) <= toMins(startTime)) setEndTime("");
   }, [startTime, endTime]);
 
-  const filteredStudents = useMemo(() => {
-    const needle = studentSearch.trim().toLowerCase();
-    return allStudents
-      .filter((s) => s.status === "Active")
-      .filter((s) => {
-        if (!needle) return true;
-        return (
-          s.name.toLowerCase().includes(needle) ||
-          s.yearGroup.toLowerCase().includes(needle)
-        );
-      });
-  }, [studentSearch]);
-
-  const selectedStudents = useMemo(
-    () =>
-      studentIds
-        .map((id) => allStudents.find((s) => s.id === id))
-        .filter((s): s is (typeof allStudents)[number] => Boolean(s)),
-    [studentIds],
-  );
-
-  function toggleStudent(id: string) {
-    setStudentIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  }
-
   function validate(): Record<string, string> {
     const e: Record<string, string> = {};
-    if (!subject) e.subject = "Subject is required";
-    if (!teacher) e.teacher = "Teacher is required";
-    if (studentIds.length === 0) e.students = "Select at least one student";
-    if (!room) e.room = "Room is required";
-    if (!date) e.date = "Date is required";
-    if (!startTime) e.startTime = "Start time is required";
-    if (!endTime) e.endTime = "End time is required";
+    if (!subject)    e.subject    = "Subject is required";
+    if (!teacher)    e.teacher    = "Teacher is required";
+    if (!room)       e.room       = "Room is required";
+    if (!date)       e.date       = "Date is required";
+    if (!startTime)  e.startTime  = "Start time is required";
+    if (!endTime)    e.endTime    = "End time is required";
     if (startTime && endTime && toMins(endTime) <= toMins(startTime)) {
       e.endTime = "End time must be after start time";
     }
@@ -243,77 +209,75 @@ export function NewSessionDialog({
     return e;
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     const e = validate();
-    if (Object.keys(e).length > 0) {
-      setErrors(e);
-      return;
-    }
+    if (Object.keys(e).length > 0) { setErrors(e); return; }
     setErrors({});
 
-    const duration = toMins(endTime) - toMins(startTime);
-    const department = deptFromSubject(subject);
-    const studentNames = selectedStudents.map((s) => s.name);
+    const duration   = toMins(endTime) - toMins(startTime);
+    const department = subjects.find(s => s.name === subject)?.department ?? '';
 
     if (sessionToEdit) {
-      const idx = timetableSessions.findIndex((s) => s.id === sessionToEdit.id);
-      const updated: TimetableSession = {
-        ...sessionToEdit,
-        day: dayKeyFromIso(date),
-        date: dateLabelFromIso(date),
-        subject,
-        department,
-        teacher,
-        room,
-        startTime,
-        endTime,
-        duration,
-        students: [...studentNames],
-        studentCount: studentNames.length,
-        type: sessionType,
-        isTrial: sessionType === "Trial" ? true : undefined,
-      };
-      if (idx >= 0) timetableSessions[idx] = updated;
-      onUpdated?.(updated);
-      toast.success("Session updated");
-      onOpenChange(false);
+      setSubmitting(true);
+      try {
+        const res = await fetch(`/api/attendance/sessions/${sessionToEdit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject, subjectId, teacher, teacherId, room, roomId, startTime, endTime }),
+        });
+        if (!res.ok) throw new Error();
+        const updated: TimetableSession = {
+          ...sessionToEdit,
+          day: dayKeyFromIso(date),
+          date: dateLabelFromIso(date),
+          subject, department, teacher, teacherId, room, startTime, endTime, duration,
+          type: sessionType,
+          isTrial: sessionType === "Trial" ? true : undefined,
+        };
+        onUpdated?.(updated);
+        toast.success("Session updated");
+        onOpenChange(false);
+      } catch {
+        toast.error("Failed to update session");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
-    const dates: string[] = [date];
-    if (repeat !== "None") {
-      const step = repeat === "Weekly" ? 7 : 14;
-      let cur = addDaysIso(date, step);
-      while (cur <= repeatUntil) {
-        dates.push(cur);
-        cur = addDaysIso(cur, step);
-      }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/attendance/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject, subjectId, teacher, teacherId, room, roomId,
+          date, startTime, endTime, sessionType, repeat, repeatUntil,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const { data: created } = await res.json();
+
+      const optimistic: TimetableSession[] = (created as { id: string; session_date: string }[]).map((row) => ({
+        id: row.id,
+        day: dayKeyFromIso(row.session_date),
+        date: dateLabelFromIso(row.session_date),
+        subject, department, teacher, teacherId, room,
+        startTime, endTime, duration,
+        students: [], studentCount: 0,
+        type: sessionType,
+        status: "Scheduled",
+        isTrial: sessionType === "Trial" ? true : undefined,
+      }));
+
+      onCreated?.(optimistic);
+      toast.success(`Session${optimistic.length > 1 ? 's' : ''} added to timetable`);
+      onOpenChange(false);
+    } catch {
+      toast.error("Failed to create session");
+    } finally {
+      setSubmitting(false);
     }
-
-    const stamp = Date.now().toString(36);
-    const created: TimetableSession[] = dates.map((iso, i) => ({
-      id: `s-${stamp}-${i}`,
-      day: dayKeyFromIso(iso),
-      date: dateLabelFromIso(iso),
-      subject,
-      department,
-      teacher,
-      teacherId: '',
-      room,
-      startTime,
-      endTime,
-      duration,
-      students: [...studentNames],
-      studentCount: studentNames.length,
-      type: sessionType,
-      status: "Scheduled",
-      isTrial: sessionType === "Trial" ? true : undefined,
-    }));
-
-    for (const s of created) timetableSessions.push(s);
-    onCreated?.(created);
-    toast.success("Session added to timetable");
-    onOpenChange(false);
   }
 
   return (
@@ -335,12 +299,16 @@ export function NewSessionDialog({
             <select
               id="ns-subject"
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              onChange={(e) => {
+                const opt = subjects.find(s => s.name === e.target.value);
+                setSubject(e.target.value);
+                setSubjectId(opt?.id ?? "");
+              }}
               className={cn(FIELD, errors.subject && FIELD_ERROR)}
             >
               <option value="">Select a subject…</option>
-              {SUBJECT_CATALOGUE.map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.name}>{s.name}</option>
               ))}
             </select>
             {errors.subject && <ErrorText>{errors.subject}</ErrorText>}
@@ -352,109 +320,21 @@ export function NewSessionDialog({
             <select
               id="ns-teacher"
               value={teacher}
-              onChange={(e) => setTeacher(e.target.value)}
-              disabled={subject !== "" && teacherOptions.length === 0}
+              onChange={(e) => {
+                const opt = teacherOptions.find(t => t.name === e.target.value);
+                setTeacher(e.target.value);
+                setTeacherId(opt?.id ?? "");
+              }}
               className={cn(FIELD, errors.teacher && FIELD_ERROR)}
             >
-              <option value="">
-                {subject && teacherOptions.length === 0
-                  ? "No teachers match this subject"
-                  : "e.g. Lucius Fox"}
-              </option>
+              <option value="">Select a teacher…</option>
               {teacherOptions.map((t) => (
                 <option key={t.id} value={t.name}>
-                  {t.name}
-                  {t.role === "HOD" ? " · HOD" : ""}
+                  {t.name}{t.role === "HOD" ? " · HOD" : ""}
                 </option>
               ))}
             </select>
-            {subject && (
-              <p className="mt-1 text-[11px] text-slate-500">
-                Showing teachers who teach {subject}.
-              </p>
-            )}
             {errors.teacher && <ErrorText>{errors.teacher}</ErrorText>}
-          </div>
-
-          {/* Students */}
-          <div>
-            <Label required>Student(s)</Label>
-            {selectedStudents.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {selectedStudents.map((s) => (
-                  <span
-                    key={s.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 pl-2 pr-1 py-0.5 text-xs font-medium text-amber-800"
-                  >
-                    {s.name}
-                    <span className="text-[10px] font-semibold text-amber-700/80">
-                      {s.yearGroup}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => toggleStudent(s.id)}
-                      aria-label={`Remove ${s.name}`}
-                      className="ml-0.5 rounded-full p-0.5 hover:bg-amber-200/60 cursor-pointer"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div
-              className={cn(
-                "rounded-lg border bg-white",
-                errors.students ? "border-red-300" : "border-slate-300",
-              )}
-            >
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200">
-                <Search className="w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
-                  placeholder="Search students…"
-                  className="flex-1 text-sm outline-none placeholder:text-slate-400"
-                />
-              </div>
-              <div className="max-h-40 overflow-y-auto">
-                {filteredStudents.length === 0 ? (
-                  <p className="px-3 py-3 text-xs text-slate-400">
-                    No active students match your search.
-                  </p>
-                ) : (
-                  filteredStudents.slice(0, 50).map((s) => {
-                    const on = studentIds.includes(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => toggleStudent(s.id)}
-                        className={cn(
-                          "w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors cursor-pointer",
-                          on ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-slate-50",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "w-4 h-4 rounded border flex items-center justify-center shrink-0",
-                            on ? "bg-amber-500 border-amber-500" : "border-slate-300 bg-white",
-                          )}
-                        >
-                          {on && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                        </span>
-                        <span className="flex-1 text-slate-800">{s.name}</span>
-                        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                          {s.yearGroup}
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-            {errors.students && <ErrorText>{errors.students}</ErrorText>}
           </div>
 
           {/* Room */}
@@ -463,13 +343,17 @@ export function NewSessionDialog({
             <select
               id="ns-room"
               value={room}
-              onChange={(e) => setRoom(e.target.value)}
+              onChange={(e) => {
+                const opt = rooms.find(r => r.name === e.target.value);
+                setRoom(e.target.value);
+                setRoomId(opt?.id ?? "");
+              }}
               className={cn(FIELD, errors.room && FIELD_ERROR)}
             >
               <option value="">Select a room…</option>
               {rooms.map((r) => (
                 <option key={r.id} value={r.name}>
-                  {r.name} (capacity {r.capacity})
+                  {r.name}{r.capacity ? ` (capacity ${r.capacity})` : ""}
                 </option>
               ))}
             </select>
@@ -585,10 +469,11 @@ export function NewSessionDialog({
           <button
             type="button"
             onClick={handleConfirm}
-            className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer"
+            disabled={submitting}
+            className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: "#F59E0B" }}
           >
-            {isEditing ? "Save changes" : "Add session"}
+            {submitting ? "Saving…" : isEditing ? "Save changes" : "Add session"}
           </button>
         </div>
       </DialogContent>
@@ -599,19 +484,12 @@ export function NewSessionDialog({
 // ─── Local primitives ─────────────────────────────────────────────────────────
 
 function Label({
-  children,
-  required,
-  htmlFor,
+  children, required, htmlFor,
 }: {
-  children: React.ReactNode;
-  required?: boolean;
-  htmlFor?: string;
+  children: React.ReactNode; required?: boolean; htmlFor?: string;
 }) {
   return (
-    <label
-      htmlFor={htmlFor}
-      className="block text-xs font-semibold text-slate-700 mb-1.5"
-    >
+    <label htmlFor={htmlFor} className="block text-xs font-semibold text-slate-700 mb-1.5">
       {children}
       {required && <span className="text-red-500 ml-0.5">*</span>}
     </label>
@@ -619,13 +497,9 @@ function Label({
 }
 
 function Pill({
-  children,
-  selected,
-  onClick,
+  children, selected, onClick,
 }: {
-  children: React.ReactNode;
-  selected: boolean;
-  onClick: () => void;
+  children: React.ReactNode; selected: boolean; onClick: () => void;
 }) {
   return (
     <button

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
@@ -172,6 +173,79 @@ function FormSelect({
           <option key={o}>{o}</option>
         ))}
       </select>
+    </div>
+  );
+}
+
+// ─── Controlled form helpers (used by wired settings sections) ──────────────────
+
+function CField({
+  label, value, onChange, type = "text", span2 = false, disabled = false,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  type?: string; span2?: boolean; disabled?: boolean;
+}) {
+  return (
+    <div className={span2 ? "col-span-2" : ""}>
+      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors disabled:opacity-50"
+      />
+    </div>
+  );
+}
+
+function CSelect({
+  label, value, onChange, options,
+}: {
+  label: string; value: string; onChange: (v: string) => void; options: string[];
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors cursor-pointer appearance-none"
+      >
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function CTextarea({
+  label, value, onChange,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <div className="col-span-2">
+      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors resize-none"
+      />
+    </div>
+  );
+}
+
+function CSaveButton({ saving, onClick }: { saving: boolean; onClick: () => void }) {
+  return (
+    <div className="flex justify-end pt-4 border-t border-slate-100 mt-6">
+      <button
+        onClick={onClick}
+        disabled={saving}
+        className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-md hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-60"
+      >
+        {saving ? "Saving…" : "Save Changes"}
+      </button>
     </div>
   );
 }
@@ -349,12 +423,90 @@ type FeatureState = "On" | "Off" | "Later";
 
 // ─── Section 1: Organisation ───────────────────────────────────────────────────
 
-function OrganisationSection() {
-  const [toast, setToast] = useState("");
+type OrgFields = {
+  org_name: string; legal_name: string; student_id_format: string; vat_number: string;
+  currency: string; timezone: string; default_language: string; start_day_of_week: string;
+  weekly_closure_days: string; office_hours: string;
+  invoice_number_prefix: string; invoice_number_format: string; vat_rate: string;
+  default_payment_terms: string; enrolment_fee: string; enrolment_fee_type: string;
+  invoice_footer_text: string; min_first_instalment: string; late_payment_fee: string;
+  cpd_annual_target: string; performance_review_cadence: string; org_domain_restriction: string;
+};
 
-  function handleUploadLogo() {
-    setToast("Logo updated — refresh to see changes");
-    setTimeout(() => setToast(""), 3000);
+const BLANK_ORG: OrgFields = {
+  org_name: "", legal_name: "", student_id_format: "", vat_number: "",
+  currency: "AED", timezone: "UTC+4 (Gulf Standard Time)", default_language: "English",
+  start_day_of_week: "Monday", weekly_closure_days: "", office_hours: "",
+  invoice_number_prefix: "", invoice_number_format: "", vat_rate: "",
+  default_payment_terms: "", enrolment_fee: "", enrolment_fee_type: "",
+  invoice_footer_text: "", min_first_instalment: "", late_payment_fee: "None",
+  cpd_annual_target: "", performance_review_cadence: "Annual", org_domain_restriction: "Off",
+};
+
+function useOrgSettings() {
+  const [fields, setFields] = useState<OrgFields>(BLANK_ORG);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/settings/org')
+      .then((r) => r.json())
+      .then((data) => {
+        setFields((prev) => {
+          const next = { ...prev };
+          (Object.keys(BLANK_ORG) as (keyof OrgFields)[]).forEach((k) => {
+            if (data[k] != null && data[k] !== "") next[k] = data[k];
+          });
+          return next;
+        });
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  function set(field: keyof OrgFields) {
+    return (v: string) => setFields((prev) => ({ ...prev, [field]: v }));
+  }
+
+  async function save(subset: (keyof OrgFields)[]) {
+    const body: Partial<OrgFields> = {};
+    subset.forEach((k) => { body[k] = fields[k]; });
+    const res = await fetch('/api/settings/org', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) toast.success("Settings saved");
+    else toast.error("Failed to save settings");
+  }
+
+  return { fields, set, save, loading };
+}
+
+const ORG_SECTION_KEYS: (keyof OrgFields)[] = [
+  'org_name', 'legal_name', 'student_id_format', 'vat_number',
+  'currency', 'timezone', 'default_language', 'start_day_of_week',
+  'weekly_closure_days', 'office_hours',
+];
+
+function OrganisationSection() {
+  const router = useRouter();
+  const { fields, set, save, loading } = useOrgSettings();
+  const [saving, setSaving] = useState(false);
+  const [onboardingCompletedAt, setOnboardingCompletedAt] = useState<string | null>(null);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    fetch('/api/settings/org').then((r) => r.json()).then((d) => {
+      setOnboardingCompletedAt(d.onboarding_completed_at ?? null);
+    }).catch(() => {});
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    await save(ORG_SECTION_KEYS);
+    setSaving(false);
   }
 
   return (
@@ -366,22 +518,18 @@ function OrganisationSection() {
 
       <Card className="p-6 mb-5">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Organisation Name" defaultValue="" />
-          <FormField label="Legal Name" defaultValue="" />
-          <FormField label="Student ID Format" defaultValue="" />
-          <FormField label="VAT Registration Number" defaultValue="" />
-          <FormSelect label="Currency" value="" options={["", "AED", "USD", "GBP", "EUR"]} />
-          <FormSelect
-            label="Timezone"
-            value=""
-            options={["", "UTC+4 (Gulf Standard Time)", "UTC+0 (GMT)", "UTC+3 (AST)"]}
-          />
-          <FormSelect label="Default Language" value="" options={["", "English", "Arabic"]} />
-          <FormSelect label="Start Day of Week" value="" options={["", "Monday", "Sunday"]} />
-          <FormField label="Weekly Closure Days" defaultValue="" />
-          <FormField label="Office Hours" defaultValue="" />
+          <CField label="Organisation Name" value={fields.org_name} onChange={set('org_name')} disabled={loading} />
+          <CField label="Legal Name" value={fields.legal_name} onChange={set('legal_name')} disabled={loading} />
+          <CField label="Student ID Format" value={fields.student_id_format} onChange={set('student_id_format')} disabled={loading} />
+          <CField label="VAT Registration Number" value={fields.vat_number} onChange={set('vat_number')} disabled={loading} />
+          <CSelect label="Currency" value={fields.currency} onChange={set('currency')} options={["AED", "USD", "GBP", "EUR"]} />
+          <CSelect label="Timezone" value={fields.timezone} onChange={set('timezone')} options={["UTC+4 (Gulf Standard Time)", "UTC+0 (GMT)", "UTC+3 (AST)"]} />
+          <CSelect label="Default Language" value={fields.default_language} onChange={set('default_language')} options={["English", "Arabic"]} />
+          <CSelect label="Start Day of Week" value={fields.start_day_of_week} onChange={set('start_day_of_week')} options={["Monday", "Sunday", "Saturday"]} />
+          <CField label="Weekly Closure Days" value={fields.weekly_closure_days} onChange={set('weekly_closure_days')} disabled={loading} />
+          <CField label="Office Hours" value={fields.office_hours} onChange={set('office_hours')} disabled={loading} />
         </div>
-        <SaveButton />
+        <CSaveButton saving={saving} onClick={handleSave} />
       </Card>
 
       <Card className="p-6 mb-5">
@@ -393,23 +541,36 @@ function OrganisationSection() {
           <OutlineButton
             label="Upload Logo"
             icon={<Upload className="w-3.5 h-3.5" />}
-            onClick={handleUploadLogo}
+            onClick={() => toast.info("Logo upload coming soon")}
           />
         </div>
       </Card>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-        <p className="text-sm text-slate-500">
-          <span className="font-semibold text-slate-700">Onboarding completed</span> — 14 Mar 2025.{" "}
-          <a href="#" className="text-amber-600 hover:text-amber-700 hover:underline">
-            View onboarding summary →
-          </a>
-        </p>
-      </div>
-
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-green-600 text-white text-sm px-4 py-3 rounded-xl shadow-lg z-50">
-          {toast}
+      {onboardingCompletedAt ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            <span className="font-semibold text-slate-700">Onboarding completed</span>{" "}
+            — {new Date(onboardingCompletedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.
+          </p>
+          <button
+            onClick={() => router.push("/onboarding")}
+            className="text-xs text-amber-600 hover:text-amber-700 font-medium hover:underline cursor-pointer"
+          >
+            Re-run wizard →
+          </button>
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Onboarding not completed</p>
+            <p className="text-xs text-amber-700 mt-0.5">Use the setup wizard to configure your organisation quickly.</p>
+          </div>
+          <button
+            onClick={() => router.push("/onboarding")}
+            className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-md transition-colors cursor-pointer"
+          >
+            Start Onboarding →
+          </button>
         </div>
       )}
     </div>
@@ -1512,8 +1673,21 @@ function RoomsSection() {
 
 // ─── Section 5: Billing & Invoicing ───────────────────────────────────────────
 
+const BILLING_SECTION_KEYS: (keyof OrgFields)[] = [
+  'invoice_number_prefix', 'invoice_number_format', 'vat_rate',
+  'default_payment_terms', 'enrolment_fee', 'enrolment_fee_type', 'invoice_footer_text',
+];
+
 function BillingSection() {
-  const revenue: { dept: string; account: string; iban: string }[] = [];
+  const { fields, set, save, loading } = useOrgSettings();
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await save(BILLING_SECTION_KEYS);
+    setSaving(false);
+  }
+
   return (
     <div>
       <SectionHeader
@@ -1522,27 +1696,20 @@ function BillingSection() {
       />
       <Card className="p-6 mb-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Invoice Number Prefix" defaultValue="" />
-          <FormField label="Invoice Number Format" defaultValue="" />
-          <FormField label="VAT Rate" defaultValue="" />
-          <FormField label="Default Payment Terms" defaultValue="" />
-          <FormField label="Enrolment Fee" defaultValue="" />
-          <FormSelect
+          <CField label="Invoice Number Prefix" value={fields.invoice_number_prefix} onChange={set('invoice_number_prefix')} disabled={loading} />
+          <CField label="Invoice Number Format" value={fields.invoice_number_format} onChange={set('invoice_number_format')} disabled={loading} />
+          <CField label="VAT Rate" value={fields.vat_rate} onChange={set('vat_rate')} disabled={loading} />
+          <CField label="Default Payment Terms" value={fields.default_payment_terms} onChange={set('default_payment_terms')} disabled={loading} />
+          <CField label="Enrolment Fee" value={fields.enrolment_fee} onChange={set('enrolment_fee')} disabled={loading} />
+          <CSelect
             label="Enrolment Fee Type"
-            value=""
-            options={[
-              "",
-              "Lifetime (charged once per student)",
-              "Annual",
-              "Per Enrolment",
-            ]}
+            value={fields.enrolment_fee_type || "Lifetime (charged once per student)"}
+            onChange={set('enrolment_fee_type')}
+            options={["Lifetime (charged once per student)", "Annual", "Per Enrolment"]}
           />
-          <FormTextarea
-            label="Invoice Footer Text"
-            defaultValue=""
-          />
+          <CTextarea label="Invoice Footer Text" value={fields.invoice_footer_text} onChange={set('invoice_footer_text')} />
         </div>
-        <SaveButton />
+        <CSaveButton saving={saving} onClick={handleSave} />
       </Card>
 
       <div className="mb-4">
@@ -1552,7 +1719,7 @@ function BillingSection() {
         </p>
       </div>
       <Table headers={["Department", "Bank Account", "IBAN"]}>
-        {revenue.map((r) => (
+        {([] as { dept: string; account: string; iban: string }[]).map((r) => (
           <tr key={r.dept} className="hover:bg-slate-50 transition-colors">
             <td className="px-4 py-3.5 text-sm font-medium text-slate-800">{r.dept}</td>
             <td className="px-4 py-3.5 text-sm text-slate-600">{r.account}</td>
@@ -1566,7 +1733,18 @@ function BillingSection() {
 
 // ─── Section 6: Payment Plans ──────────────────────────────────────────────────
 
+const PAYMENT_SECTION_KEYS: (keyof OrgFields)[] = ['min_first_instalment', 'late_payment_fee'];
+
 function PaymentPlansSection() {
+  const { fields, set, save, loading } = useOrgSettings();
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await save(PAYMENT_SECTION_KEYS);
+    setSaving(false);
+  }
+
   return (
     <div>
       <SectionHeader
@@ -1575,46 +1753,27 @@ function PaymentPlansSection() {
       />
       <Card className="p-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="Minimum First Instalment" defaultValue="" />
-          <FormSelect
+          <CField label="Minimum First Instalment" value={fields.min_first_instalment} onChange={set('min_first_instalment')} disabled={loading} />
+          <CSelect
             label="Late Payment Fee"
-            value=""
-            options={["", "None", "AED 50 flat", "5% of outstanding"]}
+            value={fields.late_payment_fee}
+            onChange={set('late_payment_fee')}
+            options={["None", "AED 50 flat", "5% of outstanding"]}
           />
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Payment Plan Splits Available
             </label>
-            <div className="flex flex-wrap gap-2">
-              {([] as string[]).map((plan) => (
-                <span
-                  key={plan}
-                  className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200"
-                >
-                  {plan}
-                </span>
-              ))}
-            </div>
+            <p className="text-xs text-slate-400 italic">Configurable payment plan splits — coming soon.</p>
           </div>
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Overdue Auto-Reminder Schedule
             </label>
-            <div className="flex flex-wrap gap-2">
-              {([] as string[]).map(
-                (r) => (
-                  <span
-                    key={r}
-                    className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full"
-                  >
-                    {r}
-                  </span>
-                )
-              )}
-            </div>
+            <p className="text-xs text-slate-400 italic">Automated reminder schedules — coming soon.</p>
           </div>
         </div>
-        <SaveButton />
+        <CSaveButton saving={saving} onClick={handleSave} />
       </Card>
     </div>
   );
@@ -2992,7 +3151,20 @@ function AcademicCalendarSection() {
 
 // ─── Section 9: Staff & HR ─────────────────────────────────────────────────────
 
+const STAFF_SECTION_KEYS: (keyof OrgFields)[] = [
+  'cpd_annual_target', 'performance_review_cadence', 'org_domain_restriction',
+];
+
 function StaffHRSection() {
+  const { fields, set, save, loading } = useOrgSettings();
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await save(STAFF_SECTION_KEYS);
+    setSaving(false);
+  }
+
   return (
     <div>
       <SectionHeader
@@ -3001,62 +3173,37 @@ function StaffHRSection() {
       />
       <Card className="p-6 mb-5">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <FormField label="CPD Annual Target" defaultValue="" />
-          <FormSelect
+          <CField label="CPD Annual Target (hours/year)" value={fields.cpd_annual_target} onChange={set('cpd_annual_target')} disabled={loading} />
+          <CSelect
             label="Performance Review Cadence"
-            value=""
-            options={["", "Annual", "Bi-annual", "Quarterly"]}
+            value={fields.performance_review_cadence}
+            onChange={set('performance_review_cadence')}
+            options={["Annual", "Bi-annual", "Quarterly"]}
           />
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Off-boarding Notification Lead Times
             </label>
-            <div className="flex flex-wrap gap-2">
-              {([] as string[]).map((d) => (
-                <span
-                  key={d}
-                  className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full"
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
+            <p className="text-xs text-slate-400 italic">Configurable lead times — coming soon.</p>
           </div>
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
               Mandatory Staff Profile Fields
             </label>
-            <div className="flex flex-wrap gap-2">
-              {([] as string[]).map((f) => (
-                <span
-                  key={f}
-                  className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200"
-                >
-                  {f}
-                </span>
-              ))}
-            </div>
+            <p className="text-xs text-slate-400 italic">Mandatory field configuration — coming soon.</p>
           </div>
-          <FormSelect
+          <CSelect
             label="Org Domain Restriction"
-            value="Off"
-            options={["Off", "On — @improveме.ae"]}
+            value={fields.org_domain_restriction}
+            onChange={set('org_domain_restriction')}
+            options={["Off", "On — @improveme.ae"]}
           />
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">Staff Milestones</label>
-            <div className="flex flex-wrap gap-2">
-              {([] as string[]).map((m) => (
-                <span
-                  key={m}
-                  className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full"
-                >
-                  {m}
-                </span>
-              ))}
-            </div>
+            <p className="text-xs text-slate-400 italic">Staff milestone config — coming soon.</p>
           </div>
         </div>
-        <SaveButton />
+        <CSaveButton saving={saving} onClick={handleSave} />
       </Card>
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">

@@ -8,20 +8,36 @@ const admin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const DB_ROLE_TO_FRONTEND: Record<string, string> = {
+  super_admin:   'Super Admin',
+  admin_head:    'Admin Head',
+  admin:         'Admin',
+  academic_head: 'Academic Head',
+  hod:           'HOD',
+  teacher:       'Teacher',
+  ta:            'TA',
+  hr_finance:    'HR-Finance',
+}
+
 export async function GET() {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
 
   const { data } = await admin
-    .from('users')
-    .select('role, full_name')
-    .eq('email', auth.user.email)
+    .from('staff')
+    .select('role, first_name, last_name')
+    .eq('user_id', auth.user.id)
     .eq('tenant_id', TENANT_ID)
     .maybeSingle()
 
+  const dbRole = data?.role ?? 'admin'
+  const name = data
+    ? `${data.first_name} ${data.last_name}`.trim()
+    : auth.user.email ?? ''
+
   return NextResponse.json({
     email: auth.user.email,
-    role: data?.role ?? 'Admin',
-    name: data?.full_name ?? auth.user.email,
+    role:  DB_ROLE_TO_FRONTEND[dbRole] ?? dbRole,
+    name,
   })
 }

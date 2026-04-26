@@ -1,6 +1,6 @@
-# Enrolla Frontend Prototype — Developer Handover Summary
+# Enrolla — Developer Handover Summary
 
-> **Generated:** 23 April 2026 (updated Session 10)  
+> **Generated:** 23 April 2026 (updated Session 10 · backend status updated 25 April 2026)  
 > **Source:** Derived entirely from the codebase at the time of writing. No assumptions — everything below is read directly from source files.
 
 ---
@@ -26,11 +26,11 @@
 
 ## 1. Project Overview
 
-**Enrolla** is a white-label multi-tenant education management SaaS platform. **IMI (Improve ME Institute)**, a tutoring centre at Gold & Diamond Park, Dubai, is the reference customer. This repository contains the **Tenant Super Admin portal** — the frontend-only prototype used for stakeholder sign-off before backend build begins.
+**Enrolla** is a white-label multi-tenant education management SaaS platform. **IMI (Improve ME Institute)**, a tutoring centre at Gold & Diamond Park, Dubai, is the reference customer. This repository contains the **Tenant Super Admin portal** — transitioning from a frontend prototype to a fullstack app backed by **Supabase** (PostgreSQL + Auth).
 
-The prototype covers everything an IMI administrator would do day-to-day: lead intake and CRM pipeline, student and guardian records, session timetabling, attendance marking, academic progress and reporting, finance/invoicing, staff management, task management, automations, inventory, and analytics.
+The app covers everything an IMI administrator would do day-to-day: lead intake and CRM pipeline, student and guardian records, session timetabling, attendance marking, academic progress and reporting, finance/invoicing, staff management, task management, automations, inventory, and analytics.
 
-**No backend. All data is mocked.** The single source of truth for seed data is `lib/mock-data.ts` (~3,423 lines).
+**Backend:** Supabase project `enrolla-band1-clean` (`fkpvfolgmhayenidsaxc`). Real Supabase Auth (email + password) is wired. Core modules (students, staff, sessions, attendance, settings — branches/rooms/departments) are backed by real Route Handlers. Remaining modules still read from `lib/mock-data.ts` during the incremental migration. See [FEATURE_COVERAGE_AUDIT.md — Backend Wiring Status](../FEATURE_COVERAGE_AUDIT.md) for the current per-route breakdown.
 
 ---
 
@@ -43,6 +43,7 @@ The prototype covers everything an IMI administrator would do day-to-day: lead i
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS v4 (`@tailwindcss/postcss`) — `@theme` syntax, no `tailwind.config.js` |
 | Component system | Base UI (`@base-ui/react ^1.4.0`) + `class-variance-authority ^0.7.1` — shadcn style `base-nova` |
+| Backend / DB | Supabase (`@supabase/supabase-js ^2`) — PostgreSQL + Auth + Storage |
 | Utility | `clsx ^2.1.1` + `tailwind-merge ^3.5.0` (combined in `cn()`) |
 | Icons | `lucide-react ^1.8.0` (only library used) |
 | Charts | `recharts ^3.8.1` |
@@ -157,6 +158,35 @@ enrolla_frontend_prototype/
 │   ├── globals.css                   # Tailwind v4 @theme tokens + animations
 │   │
 │   ├── login/page.tsx                # Login page (bypasses AppShell)
+│   ├── api/                          # Next.js Route Handlers (real Supabase data)
+│   │   ├── auth/me/route.ts          # GET — resolve role + name from staff table
+│   │   ├── students/route.ts         # GET, POST
+│   │   ├── students/[id]/route.ts    # GET, PATCH, DELETE
+│   │   ├── staff/route.ts            # GET, POST
+│   │   ├── staff/[id]/route.ts       # GET, PATCH
+│   │   ├── guardians/route.ts        # GET, POST
+│   │   ├── guardians/[id]/route.ts   # GET, PATCH
+│   │   ├── concerns/route.ts         # GET, POST
+│   │   ├── concerns/[id]/route.ts    # PATCH
+│   │   ├── attendance/
+│   │   │   ├── sessions/route.ts     # GET (week/day), POST (with recurrence)
+│   │   │   └── sessions/[id]/
+│   │   │       ├── route.ts          # PATCH (status/notes)
+│   │   │       └── records/route.ts  # GET, POST (attendance records)
+│   │   ├── enrolments/route.ts       # GET, POST (Band 1 column names)
+│   │   ├── enrolments/[id]/route.ts  # PATCH
+│   │   ├── finance/
+│   │   │   ├── invoices/route.ts     # GET, POST
+│   │   │   ├── invoices/[id]/route.ts # PATCH
+│   │   │   └── payments/route.ts    # GET, POST
+│   │   └── settings/
+│   │       ├── branches/route.ts     # GET, POST
+│   │       ├── branches/[id]/route.ts # PATCH, DELETE
+│   │       ├── rooms/route.ts        # GET, POST
+│   │       ├── rooms/[id]/route.ts   # PATCH, DELETE
+│   │       ├── departments/route.ts  # GET, POST
+│   │       └── departments/[id]/route.ts # PATCH, DELETE
+│   │   (+ schools, assessments, leads, tasks, pricing-tiers, inventory — still mock/stub)
 │   ├── dashboard/page.tsx            # Role-scoped dashboard (8 views)
 │   ├── students/
 │   │   ├── page.tsx                  # Students list (search, filter, sort, RBAC)
@@ -261,7 +291,12 @@ enrolla_frontend_prototype/
 │   └── invoice-builder.tsx           # Full-screen invoice builder component
 │
 ├── lib/
-│   ├── mock-data.ts                  # ~3423 lines — all seed data + interfaces
+│   ├── mock-data.ts                  # ~3423 lines — all seed data + interfaces (deprecated incrementally)
+│   ├── api-constants.ts              # TENANT_ID, BRANCH_ID — real Supabase UUIDs
+│   ├── supabase/
+│   │   ├── client.ts                 # Browser client (anon key, respects RLS) — use in 'use client' components
+│   │   ├── server.ts                 # Server client (anon key + cookie session) — use in Route Handlers / Server Components
+│   │   └── route-auth.ts             # requireAuth() — validates Supabase session in Route Handlers
 │   ├── role-config.ts                # Role type, PERMISSIONS matrix, canDo(), canAccess()
 │   ├── role-context.tsx              # RoleProvider + useRole()
 │   ├── use-permission.ts             # usePermission() hook → { can, sees, role }
@@ -1984,62 +2019,47 @@ These are intentional scope decisions for the prototype, noted in `project_enrol
 | Student Profile | Courses tab, Files tab, Communication Log tab are static/empty |
 | Settings sections | Most settings fields are display-only; form save handlers fire toast only |
 | Automations / Trigger Library | Tab renders static content |
-| Finance route group | Invoice builder saves to component state only, not to `invoices` array |
+| Finance route group | Invoice builder saves to component state only; `/api/finance/*` routes exist but not yet wired to page |
 | Progress / Reports | Report generation fires toast but does not add to report list |
-| No real auth | Role is set in context, `currentUser` is hardcoded in mock-data |
-| No backend | Zero API calls. All mutations (create, edit, delete) update local state only and reset on page refresh |
+| Auth | Real Supabase Auth is wired for API routes via `requireAuth()`; `/login` page still navigates directly to `/dashboard` without a real form submission — needs hooking up to `supabase.auth.signInWithPassword()` |
+| Unmigrated modules | Leads, assessments, tasks, inventory, pricing-tiers still read from `lib/mock-data.ts`; those tables do not exist in Band 1 schema yet |
 
 ---
 
 ## 14. Recommended Next Steps
 
-### 14.1 Backend Build (Immediate Priority)
+### 14.1 Backend Status (as of 2026-04-25)
 
-The prototype is signed off. Backend build is the next phase:
+The Supabase backend (`enrolla-band1-clean`) is live. The following is complete:
 
-- **Database:** Supabase (PostgreSQL)
-- **API layer:** Next.js Route Handlers (`app/api/`)
-- **Auth:** Supabase Auth with role stored in user metadata
-- **Reference:** `Enrolla_Handoff_01_Tech_Stack.md` contains the full tech stack decision
+- ✅ Supabase Auth (email + password) — `requireAuth()` guards all Route Handlers
+- ✅ Multi-tenant RLS on all Band 1 tables
+- ✅ `TENANT_ID` / `BRANCH_ID` constants wired to real Supabase rows
+- ✅ Route Handlers for students, staff, sessions, attendance records, concerns, branches, rooms, departments
+- ✅ Session creation with recurrence (Weekly / Bi-weekly)
+- 🟡 Login page UI exists but `supabase.auth.signInWithPassword()` call not yet wired to the form
+- ❌ Database seed — departments, subjects, rooms, students, sessions are all empty
 
-**Critical first decisions:**
-1. Data model migrations — every TypeScript interface in `mock-data.ts` maps to a table
-2. Multi-tenancy strategy — tenant isolation at row level (RLS) or schema level
-3. File storage — Supabase Storage for student documents, profile photos
-4. Real-time — Supabase Realtime for internal messages and dispatch queue
-5. WhatsApp integration — decide on provider (360dialog / Twilio) for automation dispatch
+See [FEATURE_COVERAGE_AUDIT.md — Backend Wiring Status](../FEATURE_COVERAGE_AUDIT.md) for the full per-route breakdown.
 
-### 14.2 High-Priority Frontend Completions (Before Backend)
+### 14.2 Immediate Priorities
 
-These gaps should be wired before backend integration:
+1. **Seed real data** — Insert departments, subjects, rooms, staff (teachers), students, and a week of sessions into Supabase. Until this is done all wired pages show empty states.
+2. **Wire login form** — Call `supabase.auth.signInWithPassword()` from the `/login` page and redirect on success.
+3. **Wire timetable to real data** — The timetable page already fetches sessions from `/api/attendance/sessions`; the rooms dropdown in `new-session-dialog.tsx` still reads from mock data and needs to call `/api/settings/rooms`.
+4. **Audit + fix remaining routes** — `/api/enrolments`, `/api/finance/*`, `/api/guardians` have route files but their column names need verification against Band 1 schema before wiring pages to them.
+5. **Add Band 1 tables for deferred modules** — `leads`, `tasks`, `assessments`, `inventory_items`, `pricing_tiers` don't exist in the DB yet. Either stub those routes to return `[]` gracefully, or add the tables.
 
-1. ~~**Tasks kanban persistence**~~ — done in Session 10 (drag persists within session via `taskStatusOverrides` state)
-2. **Assessments row actions** — wire "Enter Outcome" button to a dialog
-3. **Duplicates merge wizard** — build steps 2–4 (field comparison → merge → confirm)
-4. **Student profile tabs** — Courses and Files tabs need minimal static content
+### 14.3 Environment Variables
 
-### 14.3 Auth & Role Context
-
-Replace the mock role switcher with Supabase session:
-
-```typescript
-// lib/role-context.tsx — replace useState with Supabase session
-const { data: { user } } = await supabase.auth.getUser();
-const role = user?.user_metadata?.role as Role;
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://fkpvfolgmhayenidsaxc.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+SUPABASE_SERVICE_ROLE_KEY=<service role key>   # server-side only — never expose to browser
 ```
 
-Remove `RoleBanner` component from production build.
+### 14.4 Data Mutation Pattern
 
-### 14.4 Data Mutations
-
-Every `toast.success('...')` in the prototype represents a mutation that needs a real API call:
-- Student create → `POST /api/students`
-- Lead stage advance → `PATCH /api/leads/:id`
-- Invoice create → `POST /api/invoices`
-- Attendance mark → `POST /api/attendance`
-- etc.
-
-Pattern to follow:
 ```typescript
 async function handleSave() {
   const res = await fetch('/api/students', { method: 'POST', body: JSON.stringify(data) });
@@ -2053,29 +2073,20 @@ async function handleSave() {
 
 The `(invoice)` route group must remain separate — the invoice builder requires a full-screen layout without sidebar interference. Do not merge it into the root layout.
 
-### 14.6 Environment Variables Needed
+### 14.6 Performance Considerations
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=      # server-side only
-NEXT_PUBLIC_APP_URL=
-```
-
-### 14.7 Performance Considerations
-
-- `lib/mock-data.ts` will be split into separate API responses. The 2,952-line file is a prototype convenience — do not ship it to production.
+- `lib/mock-data.ts` is the source of truth for unmigrated modules. Deprecate exports module-by-module once the real data layer is verified; do not delete until confirmed.
 - Implement `loading.tsx` skeleton states (patterns already exist in `components/ui/skeleton-loader.tsx`)
-- The dashboard's 200ms skeleton delay simulates an API call — replace with actual `Suspense` boundaries
+- The dashboard's 200ms skeleton delay simulates an API call — replace with actual `Suspense` boundaries once the dashboard KPIs hit real APIs.
 
-### 14.8 Playwright Tests
+### 14.7 Playwright Tests
 
 Tests reference `http://localhost:3000`. Update `playwright.config.ts` for staging/CI:
 ```typescript
 baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
 ```
 
-Add the `/students/[id]`, `/guardians/[id]` dynamic routes to the smoke suite with fixed IDs.
+Add the `/students/[id]`, `/guardians/[id]` dynamic routes to the smoke suite with real Supabase IDs once data is seeded.
 
 ---
 
