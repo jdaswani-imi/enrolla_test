@@ -23,6 +23,15 @@ function toDbRole(role: string) {
   return FRONTEND_TO_DB_ROLE[role] ?? role.toLowerCase().replace(/[/ ]/g, '_')
 }
 
+const FRONTEND_TO_DB_STATUS: Record<string, string> = {
+  'Active':      'active',
+  'Invited':     'invited',
+  'On Leave':    'on_leave',
+  'Inactive':    'inactive',
+  'Suspended':   'suspended',
+  'Off-boarded': 'off_boarded',
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,7 +43,7 @@ export async function PATCH(
   const { status, role, email, name } = body
 
   const patch: Record<string, unknown> = {}
-  if (status !== undefined) patch.status = status
+  if (status !== undefined) patch.status = FRONTEND_TO_DB_STATUS[status] ?? status
   if (email  !== undefined) patch.email  = email
   if (role   !== undefined) patch.role   = toDbRole(role)
   if (name   !== undefined) {

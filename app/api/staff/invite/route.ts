@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   // Derive the app URL for the invite redirect
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${new URL(request.url).origin}`
-  const redirectTo = `${appUrl}/auth/callback?next=/profile`
+  const redirectTo = `${appUrl}/auth/callback?next=/welcome`
 
   // Create auth user and send invite email
   const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       sessionsThisWeek: 0,
       cpdHours:      0,
       cpdTarget:     20,
-      status:        data.status,
+      status:        'Invited',
       hireDate:      '—',
       contractType:  'Full-time',
       lineManager:   '—',

@@ -9,7 +9,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (
     pathname === "/login" || pathname?.startsWith("/login/") ||
-    pathname === "/onboarding" || pathname?.startsWith("/onboarding/")
+    pathname === "/onboarding" || pathname?.startsWith("/onboarding/") ||
+    pathname === "/welcome" || pathname?.startsWith("/welcome/") ||
+    pathname === "/auth/callback" || pathname?.startsWith("/auth/")
   ) {
     return <div className="flex-1">{children}</div>;
   }

@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
-type StaffStatus = "Active" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
+type StaffStatus = "Active" | "Invited" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
 type WorkloadLevel = "Low" | "Moderate" | "High";
 type ContractType = "Full-time" | "Part-time" | "Sessional";
 
@@ -94,6 +94,7 @@ const ROLE_BADGE: Record<string, string> = {
 
 const STATUS_BADGE: Record<StaffStatus, string> = {
   "Active":       "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  "Invited":      "bg-blue-100 text-blue-700 border border-blue-200",
   "On Leave":     "bg-amber-100 text-amber-700 border border-amber-200",
   "Inactive":     "bg-slate-200 text-slate-700 border border-slate-300",
   "Suspended":    "bg-red-100 text-red-700 border border-red-200",
@@ -146,6 +147,7 @@ function RowActionsMenu({
   onMarkOnLeave,
   onDeactivate,
   onArchive,
+  onResendInvite,
 }: {
   staff: StaffMember;
   isOpen: boolean;
@@ -156,6 +158,7 @@ function RowActionsMenu({
   onMarkOnLeave: () => void;
   onDeactivate: () => void;
   onArchive: () => void;
+  onResendInvite: () => void;
 }) {
   const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
@@ -169,6 +172,7 @@ function RowActionsMenu({
   }, [isOpen, onClose]);
 
   const canEdit         = can('staff.edit');
+  const canResendInvite = can('staff.create') && staff.status === "Invited";
   const canSetLeave     = can('staff.edit') && staff.status === "Active";
   const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive" && staff.status !== "Off-boarded";
   const canArchive      = can('staff.archive') && staff.status === "Inactive";
@@ -203,6 +207,17 @@ function RowActionsMenu({
             >
               <Edit2 className="w-3.5 h-3.5 shrink-0" />
               Edit details
+            </button>
+          )}
+
+          {canResendInvite && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onResendInvite(); onClose(); }}
+              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              <Send className="w-3.5 h-3.5 shrink-0" />
+              Resend invite
             </button>
           )}
 
@@ -723,6 +738,17 @@ function StaffPageContent() {
     });
   }
 
+  async function handleResendInvite(s: StaffMember) {
+    const res = await fetch('/api/staff/invite/resend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffId: s.id }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast.error(json.error ?? 'Failed to resend invite'); return; }
+    toast.success(`Invite resent to ${s.email}`);
+  }
+
   async function handleAddStaff(data: NewStaffData) {
     const name = `${data.firstName} ${data.lastName}`.trim();
     const res  = await fetch('/api/staff/invite', {
@@ -1082,6 +1108,7 @@ function StaffPageContent() {
                             onMarkOnLeave={() => { handleMarkOnLeave(s); setOpenMenu(null); }}
                             onDeactivate={() => { setDeactivateStaff(s); setOpenMenu(null); }}
                             onArchive={() => { setArchiveStaff(s); setOpenMenu(null); }}
+                            onResendInvite={() => { handleResendInvite(s); setOpenMenu(null); }}
                           />
                         </td>
                       </tr>

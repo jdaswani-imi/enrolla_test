@@ -36,8 +36,18 @@ function toDbRole(role: string) {
   return FRONTEND_TO_DB_ROLE[role] ?? role.toLowerCase().replace(/[/ ]/g, '_')
 }
 
+const DB_STATUS_TO_FRONTEND: Record<string, string> = {
+  active:      'Active',
+  invited:     'Invited',
+  on_leave:    'On Leave',
+  inactive:    'Inactive',
+  suspended:   'Suspended',
+  off_boarded: 'Off-boarded',
+}
+
 function toFrontend(row: Record<string, unknown>) {
-  const dbRole = String(row.role ?? '')
+  const dbRole   = String(row.role   ?? '')
+  const dbStatus = String(row.status ?? '')
   return {
     id:            row.id,
     name:          `${row.first_name} ${row.last_name}`.trim(),
@@ -49,7 +59,7 @@ function toFrontend(row: Record<string, unknown>) {
     sessionsThisWeek: 0,
     cpdHours:      0,
     cpdTarget:     20,
-    status:        row.status,
+    status:        DB_STATUS_TO_FRONTEND[dbStatus] ?? dbStatus,
     hireDate:      '—',
     contractType:  'Full-time',
     lineManager:   '—',

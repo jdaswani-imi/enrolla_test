@@ -14,7 +14,7 @@ import { PhoneInput } from "@/components/add-student-dialog";
 import { cn } from "@/lib/utils";
 // ─── Inline types (previously from mock-data) ────────────────────────────────
 
-export type StaffStatus = "Active" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
+export type StaffStatus = "Active" | "Invited" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
 
 export interface StaffMember {
   id: string;
@@ -229,6 +229,7 @@ function defaultState(): {
   phone: string;
   startDate: string;
   subjects: string[];
+  email: string;
 } {
   return {
     firstName: "",
@@ -239,6 +240,7 @@ function defaultState(): {
     phone: "",
     startDate: "",
     subjects: [],
+    email: "",
   };
 }
 
@@ -284,6 +286,7 @@ export function AddStaffDialog({
         phone: "",
         startDate: "",
         subjects: [...s.subjects],
+        email: s.email ?? "",
       });
     } else {
       setState(defaultState());
@@ -295,12 +298,23 @@ export function AddStaffDialog({
     setState((s) => ({ ...s, [key]: value }));
   }
 
-  const workEmail = suggestedEmail(state.firstName, state.lastName);
+  // Auto-fill the email suggestion as the user types their name, but only
+  // while the email still matches the previous suggestion (not manually edited).
+  const prevSuggestionRef = useRef("");
+  useEffect(() => {
+    const suggestion = suggestedEmail(state.firstName, state.lastName);
+    if (state.email === "" || state.email === prevSuggestionRef.current) {
+      patch("email", suggestion);
+    }
+    prevSuggestionRef.current = suggestion;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.firstName, state.lastName]);
 
   const errors: Record<string, string> = {};
   if (!state.firstName.trim()) errors.firstName = "Required";
   if (!state.lastName.trim()) errors.lastName = "Required";
   if (!state.startDate) errors.startDate = "Required";
+  if (!state.email.trim() || !state.email.includes("@")) errors.email = "Valid email required";
 
   const canSubmit = Object.keys(errors).length === 0;
 
@@ -314,7 +328,7 @@ export function AddStaffDialog({
       lastName: last,
       role: state.role,
       department: state.department,
-      email: workEmail,
+      email: state.email.trim(),
       dialCode: state.dialCode,
       phone: state.phone.trim(),
       startDate: state.startDate,
@@ -404,27 +418,32 @@ export function AddStaffDialog({
             </div>
           </div>
 
-          {/* Work email (auto-generated, display only) */}
-          {workEmail && (
-            <div>
-              <FieldLabel>
-                Work email (auto-generated){" "}
-                <span className="text-slate-400 font-normal normal-case tracking-normal">
-                  — setup invite will be sent here
-                </span>
-              </FieldLabel>
-              <input
-                type="email"
-                value={workEmail}
-                readOnly
-                tabIndex={-1}
-                className={cn(FIELD, "bg-slate-50 text-slate-500 cursor-default")}
-              />
-              <p className="mt-1 text-[11px] text-slate-400">
-                They will receive a one-time link to set their password and access the app. They can reset it later.
-              </p>
-            </div>
-          )}
+          {/* Invite email */}
+          <div>
+            <FieldLabel htmlFor="as-email" required>
+              Invite email
+              <span className="text-slate-400 font-normal normal-case tracking-normal">
+                {" "}— setup link will be sent here
+              </span>
+            </FieldLabel>
+            <input
+              id="as-email"
+              type="email"
+              value={state.email}
+              onChange={(e) => patch("email", e.target.value)}
+              placeholder="e.g. j.smith@improvemeinstitute.com"
+              className={cn(
+                FIELD,
+                attempted && errors.email && "border-red-300 focus:ring-red-300 focus:border-red-400",
+              )}
+            />
+            {attempted && errors.email && (
+              <p className="mt-1 text-[11px] text-red-500">{errors.email}</p>
+            )}
+            <p className="mt-1 text-[11px] text-slate-400">
+              They will receive a one-time link to set their password and access the app.
+            </p>
+          </div>
 
           {/* Phone (optional) */}
           <div>

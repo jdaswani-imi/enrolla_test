@@ -14,14 +14,13 @@ export async function GET() {
 
   const { data, error } = await adminSupabase
     .from('staff')
-    .select('id, first_name, last_name, email, phone, role, created_at')
+    .select('id, first_name, last_name, email, phone, role, avatar_url, profile_complete, created_at')
     .eq('user_id', auth.user.id)
     .eq('tenant_id', TENANT_ID)
     .single()
 
   if (error || !data) {
-    // No staff record yet — return auth email as fallback
-    return NextResponse.json({ email: auth.user.email ?? '', first_name: '', last_name: '', phone: '', role: '' })
+    return NextResponse.json({ email: auth.user.email ?? '', first_name: '', last_name: '', phone: '', role: '', avatar_url: null, profile_complete: false })
   }
 
   return NextResponse.json(data)
@@ -48,6 +47,11 @@ export async function PATCH(request: NextRequest) {
   if (body.first_name !== undefined) updates.first_name = body.first_name
   if (body.last_name !== undefined) updates.last_name = body.last_name
   if (body.phone !== undefined) updates.phone = body.phone
+  if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url
+  if (body.profile_complete !== undefined) {
+    updates.profile_complete = body.profile_complete
+    if (body.profile_complete === true) updates.status = 'active'
+  }
   // Email is intentionally excluded — it cannot be changed via profile
 
   const { data, error } = await adminSupabase
@@ -55,7 +59,7 @@ export async function PATCH(request: NextRequest) {
     .update(updates)
     .eq('id', staff.id)
     .eq('tenant_id', TENANT_ID)
-    .select('id, first_name, last_name, email, phone, role, created_at')
+    .select('id, first_name, last_name, email, phone, role, avatar_url, profile_complete, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
