@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import type { LeadStage } from "@/lib/mock-data";
+import type { LeadStage } from "@/types/leads";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

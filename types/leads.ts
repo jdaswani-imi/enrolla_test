@@ -1,0 +1,15 @@
+export type LeadStage =
+  | "New"
+  | "Contacted"
+  | "Assessment Booked"
+  | "Assessment Done"
+  | "Trial Booked"
+  | "Trial Done"
+  | "Schedule Offered"
+  | "Schedule Confirmed"
+  | "Invoice Sent"
+  | "Won"
+  | "Lost"
+
+export type LeadSource = "Website" | "Phone" | "Walk-in" | "Referral" | "Event"
+export type PreferredWindow = "Morning" | "Afternoon" | "Evening" | "Any"

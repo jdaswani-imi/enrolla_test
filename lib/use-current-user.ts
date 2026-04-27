@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { currentUser as mockCurrentUser } from '@/lib/mock-data'
 
 export interface CurrentUser {
   name: string
@@ -9,16 +8,11 @@ export interface CurrentUser {
   role: string
 }
 
-const FALLBACK: CurrentUser = {
-  name: mockCurrentUser.name,
-  email: '',
-  role: mockCurrentUser.role,
-}
-
+const LOADING: CurrentUser = { name: '', email: '', role: '' }
 let cached: CurrentUser | null = null
 
 export function useCurrentUser(): CurrentUser {
-  const [user, setUser] = useState<CurrentUser>(cached ?? FALLBACK)
+  const [user, setUser] = useState<CurrentUser>(cached ?? LOADING)
 
   useEffect(() => {
     if (cached) return
