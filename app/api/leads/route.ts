@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const stage = searchParams.get('stage')
   const terminal_status = searchParams.get('terminal_status')
+  const q = searchParams.get('q')?.trim() ?? ''
 
   let query = supabase
     .from('leads')
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
 
   if (stage) query = query.eq('stage', stage)
   if (terminal_status) query = query.eq('terminal_status', terminal_status)
+  if (q) query = query.or(`child_first_name.ilike.%${q}%,child_last_name.ilike.%${q}%,lead_ref.ilike.%${q}%`)
 
   const { data, error } = await query
 

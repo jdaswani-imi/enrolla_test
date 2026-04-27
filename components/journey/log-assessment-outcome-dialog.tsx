@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useJourney, BILAL_LEAD_ID } from "@/lib/journey-store";
 import { useAssessments } from "@/lib/assessment-store";
-import { tasks as taskStore, type Lead, type TaskStatus } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
 
 const RECOMMENDATIONS = [
@@ -66,28 +66,18 @@ export function LogAssessmentOutcomeDialog({
       }
     }
 
-    // Mark auto-created teacher tasks as Done
-    const previousTaskStatuses: { id: string; status: TaskStatus }[] = [];
-    for (const t of taskStore) {
-      if (
-        t.sourceLeadId === leadId &&
-        t.title.startsWith("Log assessment outcome —") &&
-        t.status !== "Done"
-      ) {
-        previousTaskStatuses.push({ id: t.id, status: t.status });
-        t.status = "Done";
-      }
-    }
+    // Mark auto-created teacher tasks as Done via API
+    fetch(`/api/tasks?sourceLeadId=${encodeURIComponent(leadId)}&titlePrefix=Log+assessment+outcome`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "Done" }),
+    }).catch(() => {});
 
     toast.success(`Assessment outcome logged — ${recommendation}`, {
       action: {
         label: "Undo",
         onClick: () => {
           revertAssessmentOutcome();
-          for (const { id, status } of previousTaskStatuses) {
-            const t = taskStore.find((x) => x.id === id);
-            if (t) t.status = status;
-          }
         },
       },
     });

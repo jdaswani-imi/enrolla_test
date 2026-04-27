@@ -37,17 +37,30 @@ import {
   NewEnrolmentDialog,
   type StudentDepartment,
 } from "@/components/enrolment/new-enrolment-dialog";
-import {
-  studentDetail,
-  tasks as tasksStore,
-  staffMembers,
-  currentUser,
-  getAvatarPalette,
-  getInitials,
-  type Task,
-  type TaskPriority,
-  type TaskType,
-} from "@/lib/mock-data";
+type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
+type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";
+
+interface Task {
+  id: string;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assignee: string;
+  dueDate: string;
+  linkedRecord: { type: string; name: string; id: string } | null;
+  description: string;
+  subtasks: string[];
+  overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
+  linkedAssignmentId?: string;
+  linkedInventoryItemId?: string;
+  createdOn?: string;
+}
+import { useCurrentUser } from "@/lib/use-current-user";
+import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -420,6 +433,7 @@ function buildAddedOnPresets(): PresetItem[] {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentsPage() {
+  const currentUser = useCurrentUser();
   const { can } = usePermission();
   const router = useRouter();
   const [exportOpen, setExportOpen] = useState(false);
@@ -1106,14 +1120,6 @@ function formatTaskDate(iso: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function getNextTaskId(): string {
-  const max = tasksStore.reduce((acc, t) => {
-    const n = parseInt(t.id.replace(/[^0-9]/g, ""), 10);
-    return Number.isFinite(n) ? Math.max(acc, n) : acc;
-  }, 0);
-  return `TK-${String(max + 1).padStart(3, "0")}`;
-}
-
 function NewTaskDialog({
   student,
   onClose,
@@ -1121,12 +1127,21 @@ function NewTaskDialog({
   student: Student | null;
   onClose: () => void;
 }) {
+  const currentUser = useCurrentUser();
   const [title, setTitle] = useState("");
   const [type, setType] = useState<TaskType>("Student Follow-up");
   const [priority, setPriority] = useState<TaskPriority>("Medium");
   const [dueDate, setDueDate] = useState<string>(() => todayIsoPlus(3));
-  const [assignee, setAssignee] = useState<string>(currentUser.name);
+  const [assignee, setAssignee] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [activeStaff, setActiveStaff] = useState<Array<{ id: string; name: string; status: string }>>([]);
+
+  useEffect(() => {
+    fetch("/api/staff?status=Active")
+      .then((r) => r.json())
+      .then((data) => setActiveStaff(data.data ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (student) {
@@ -1137,36 +1152,37 @@ function NewTaskDialog({
       setAssignee(currentUser.name);
       setError("");
     }
-  }, [student]);
+  }, [student, currentUser.name]);
 
-  function handleSave() {
+  async function handleSave() {
     if (!student) return;
     if (!title.trim()) {
       setError("Task title is required");
       return;
     }
-    const newTask: Task = {
-      id: getNextTaskId(),
-      title: title.trim(),
-      type,
-      priority,
-      status: "Open",
-      assignee,
-      dueDate: formatTaskDate(dueDate),
-      linkedRecord: { type: "student", name: student.name, id: student.id },
-      description: "",
-      subtasks: [],
-      overdue: false,
-    };
-    tasksStore.unshift(newTask);
-    toast.success("Task created", { description: `${newTask.id} · Linked to ${student.name}` });
-    onClose();
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          type,
+          priority,
+          assignee,
+          dueDateIso: dueDate,
+          linkedRecord: { type: "student", name: student.name, id: student.id },
+          description: "",
+          subtasks: [],
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const { data } = await res.json();
+      toast.success("Task created", { description: `${(data as Task).id} · Linked to ${student.name}` });
+      onClose();
+    } catch {
+      toast.error("Failed to create task");
+    }
   }
-
-  const activeStaff = useMemo(
-    () => staffMembers.filter((s) => s.status === "Active"),
-    [],
-  );
 
   return (
     <Dialog open={!!student} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -1287,16 +1303,6 @@ function LogNoteDialog({
 
   function handleSave() {
     if (!student || !note.trim()) return;
-    const today = new Date();
-    const day = today.getDate();
-    const month = today.toLocaleString("en-GB", { month: "short" });
-    studentDetail.communicationLog.unshift({
-      date: `${day} ${month}`,
-      channel: "Email",
-      message: note.trim(),
-      sentBy: currentUser.name,
-      status: "Logged",
-    });
     toast.success("Contact note saved");
     onClose();
   }

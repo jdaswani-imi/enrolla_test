@@ -10,7 +10,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { type SessionType, type TimetableSession } from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+
+export type SessionType = "Regular" | "Trial" | "Makeup" | "Assessment" | "Meeting" | "Blocked" | "Cover Required";
+
+export interface TimetableSession {
+  id: string;
+  day: string;
+  date: string;
+  subject: string;
+  department: string;
+  teacher: string;
+  teacherId: string;
+  assignedTAs?: string[];
+  room: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  students: string[];
+  studentCount: number;
+  type: SessionType;
+  status: string;
+  isTrial?: boolean;
+  attendanceMarked?: boolean;
+}
 
 // ─── Time slots (30-min increments) ───────────────────────────────────────────
 

@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useJourney, formatDate } from "@/lib/journey-store";
-import type { Lead } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { cn } from "@/lib/utils";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
 import { WhatsAppBlock } from "./whatsapp-block";

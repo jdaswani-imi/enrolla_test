@@ -57,37 +57,139 @@ import {
 import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
 import { OccupancyDetailModal } from "@/components/dashboard/occupancy-detail-modal";
 import { SkeletonKpi, SkeletonTable, SkeletonCard } from "@/components/ui/skeleton-loader";
-import {
-  currentUser,
-  churnRiskStudents,
-  operationalThresholds,
-  revenueData,
-  occupancyHeatmap,
-  activityFeed,
-  reportsInbox,
-  teacherTodaySessions,
-  taTodaySessions,
-  teacherPendingActions,
-  teacherTopTasks,
-  taTopTasks,
-  hodTeacherWorkload,
-  hodAcademicAlerts,
-  academicAlerts,
-  hodUpcomingSessions,
-  hodPendingApprovals,
-  invoiceStatusBreakdown,
-  staffCpdProgress,
-  inventoryItems,
-  reorderAlerts,
-  type KpiCard,
-  type ChurnRiskStudent,
-  type OperationalThreshold,
-  type ActivityEvent,
-  type ReportItem,
-  type DashboardSessionRow,
-  type DashboardTaskRow,
-  type AcademicAlertRow,
-} from "@/lib/mock-data";
+type TrendDirection = "up" | "down" | "neutral";
+type TrendSentiment = "positive" | "negative" | "warning" | "neutral";
+
+interface KpiCard {
+  id: string;
+  label: string;
+  value: string;
+  trend: string;
+  trendDirection: TrendDirection;
+  trendSentiment: TrendSentiment;
+  subValue?: string;
+  icon: string;
+}
+
+type ChurnLevel = "Critical" | "High" | "Medium" | "Low";
+
+interface ChurnReason {
+  label: string;
+  weight: number;
+  detail: string;
+}
+
+interface RetentionFactor {
+  label: string;
+  weight: number;
+}
+
+interface ChurnRiskStudent {
+  id: string;
+  studentId: string;
+  name: string;
+  yearGroup: string;
+  department: string;
+  churnScore: number;
+  churnLevel: ChurnLevel;
+  topSignal: string;
+  daysSinceContact: number;
+  trend: "rising" | "stable" | "falling";
+  reasons: ChurnReason[];
+  retentionConfidence: number;
+  retentionFactors: RetentionFactor[];
+}
+
+type ThresholdStatus = "ok" | "warning" | "critical";
+
+interface OperationalThreshold {
+  id: string;
+  metric: string;
+  current: string;
+  target: string;
+  status: ThresholdStatus;
+  statusLabel: string;
+}
+
+type ActivityType =
+  | "enrolment"
+  | "payment"
+  | "concern"
+  | "invoice"
+  | "trial"
+  | "assessment"
+  | "lead"
+  | "staff"
+  | "task"
+  | "re-enrolment"
+  | "report";
+
+interface ActivityEvent {
+  id: string;
+  type: ActivityType;
+  description: string;
+  timeAgo: string;
+  link: string;
+  actionedBy: { name: string; role: string } | "system";
+}
+
+interface ReportItem {
+  id: string;
+  icon: string;
+  title: string;
+  date: string;
+  read: boolean;
+  periodLabel?: string;
+}
+
+interface DashboardSessionRow {
+  id: string;
+  time: string;
+  subject: string;
+  room: string;
+  studentCount: number;
+  students: string;
+}
+
+interface DashboardTaskRow {
+  id: string;
+  title: string;
+  priority: "High" | "Medium" | "Low";
+  dueLabel: string;
+  href: string;
+}
+
+interface AcademicAlertRow {
+  id: string;
+  title: string;
+  student: string;
+  subject: string;
+  level: "L1" | "L2" | "L3";
+  opened: string;
+  href: string;
+}
+
+// ─── Empty-array stubs (no API endpoints yet) ─────────────────────────────────
+
+const churnRiskStudents:      ChurnRiskStudent[]    = [];
+const operationalThresholds:  OperationalThreshold[] = [];
+const revenueData:            { month: string; invoiced: number; collected: number }[] = [];
+const occupancyHeatmap:       { day: string; time: string; occupancy: number }[] = [];
+const activityFeed:           ActivityEvent[] = [];
+const reportsInbox:           ReportItem[]   = [];
+const teacherTodaySessions:   DashboardSessionRow[] = [];
+const taTodaySessions:        DashboardSessionRow[] = [];
+const teacherPendingActions:  { id: string; label: string; count: number; severity: string; href: string }[] = [];
+const teacherTopTasks:        DashboardTaskRow[] = [];
+const taTopTasks:             DashboardTaskRow[] = [];
+const hodTeacherWorkload:     { id: string; name: string; subjects: string; sessionsThisWeek: number; level: "Low" | "Moderate" | "High" }[] = [];
+const hodAcademicAlerts:      AcademicAlertRow[] = [];
+const academicAlerts:         AcademicAlertRow[] = [];
+const hodUpcomingSessions:    { id: string; day: string; time: string; subject: string; teacher: string; room: string; students: number }[] = [];
+const hodPendingApprovals:    { id: string; label: string; count: number; href: string }[] = [];
+const invoiceStatusBreakdown: { label: string; count: number; amount: string; color: string }[] = [];
+const staffCpdProgress:       { id: string; name: string; role: string; cpdHours: number; cpdTarget: number }[] = [];
+import { useCurrentUser } from "@/lib/use-current-user";
 import { useRole } from "@/lib/role-context";
 import { usePermission } from "@/lib/use-permission";
 import { getDashboardConfig, type DashboardSectionId } from "@/lib/dashboard-config";
@@ -1066,16 +1168,32 @@ function StaffCpdPanel() {
 
 function InventorySummaryCards() {
   const { can } = usePermission();
+  const [inventoryItems,  setInventoryItems]  = useState<{ health: string }[]>([]);
+  const [reorderAlerts,   setReorderAlerts]   = useState<{ openedAt: string }[]>([]);
+
+  useEffect(() => {
+    if (!can('inventory.view')) return;
+    fetch('/api/inventory/items')
+      .then((r) => r.ok ? r.json() : { data: [] })
+      .then((json) => setInventoryItems(json.data ?? []))
+      .catch(() => {});
+    fetch('/api/inventory/reorder-alerts')
+      .then((r) => r.ok ? r.json() : { data: [] })
+      .then((json) => setReorderAlerts(json.data ?? []))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!can('inventory.view')) return null;
 
   const lowStockCount = inventoryItems.filter(item => item.health === 'below').length;
 
-  // Prototype today: 21 Apr 2026. "Last 14 days" = Apr 7-21.
+  // Last 14 days from today (2026-04-27).
   const recentlyOrderedCount = reorderAlerts.filter(alert => {
     const match = alert.openedAt.match(/^(\d+) Apr 2026/);
     if (!match) return false;
     const day = parseInt(match[1]);
-    return day >= 7 && day <= 21;
+    return day >= 13 && day <= 27;
   }).length;
 
   return (
@@ -1346,6 +1464,7 @@ const KPI_PERMISSIONS: Record<string, string | null> = {
 };
 
 export default function DashboardPage() {
+  const currentUser = useCurrentUser();
   const { role } = useRole();
   const { can } = usePermission();
   const config = getDashboardConfig(role);

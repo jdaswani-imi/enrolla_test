@@ -33,18 +33,121 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import {
-  studentDetail,
-  guardians,
-  staffMembers,
-  trials,
-  assessments,
-  churnRiskStudents,
-  unbilledSessions,
-  type StudentInvoice,
-  type Trial,
-  type Assessment,
-} from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ─────────────────────────────────
+
+type StudentInvoice = {
+  id: string;
+  date: string;
+  description: string;
+  amount: string;
+  status: "Draft" | "Issued" | "Part" | "Paid" | "Overdue" | "Cancelled" | "Partial";
+};
+
+type TrialOutcome = "Pending" | "Passed" | "Failed" | "No Show" | "Cancelled";
+
+type Trial = {
+  id: string;
+  student: string;
+  yearGroup: string;
+  subject: string;
+  teacher: string;
+  trialDate: string;
+  invoiceStatus: "Paid" | "Pending";
+  outcome: TrialOutcome;
+  notes?: string;
+  followUpDate?: string;
+  cancellationReason?: string;
+};
+
+type AssessmentStatus = "Booked" | "Link Sent" | "Awaiting Booking" | "Completed";
+type AssessmentType = "Lead" | "Student";
+
+type Assessment = {
+  id: string;
+  name: string;
+  type: AssessmentType;
+  yearGroup: string;
+  subjects: string[];
+  assessor: string | null;
+  date: string | null;
+  time: string | null;
+  room: string | null;
+  status: AssessmentStatus;
+  outcome: string | null;
+};
+
+// ─── Local stubs (no API yet) ─────────────────────────────────────────────────
+
+const guardians: { id: string; name: string; phone: string }[] = [];
+const staffMembers: { name: string; status: string; role: string; department: string; subjects: string[] }[] = [];
+const trials: Trial[] = [];
+const assessments: Assessment[] = [];
+const churnRiskStudents: {
+  id: string;
+  studentId: string;
+  name: string;
+  yearGroup: string;
+  department: string;
+  churnScore: number;
+  churnLevel: "Critical" | "High" | "Medium" | "Low";
+  topSignal: string;
+  daysSinceContact: number;
+  trend: "rising" | "stable" | "falling";
+  reasons: { label: string; weight: number; detail: string }[];
+  retentionConfidence: number;
+  retentionFactors: { label: string; weight: number }[];
+}[] = [];
+const unbilledSessions: {
+  id: string;
+  studentId: string;
+  studentName: string;
+  sessionsCount: number;
+  status: "open" | "written_off";
+}[] = [];
+
+// ─── studentDetail stub (used for demo/journey student only) ──────────────────
+const studentDetail = {
+  enrolments: [] as {
+    id: string;
+    subject: string;
+    color: "amber" | "teal" | "blue";
+    teacher: string;
+    schedule: string;
+    packageStatus: string;
+    packageStart: string;
+    sessionsAttended: number;
+    sessionsAbsent: number;
+    sessionsRemaining: number;
+    sessionsTotal: number;
+    sessionsPurchased: number;
+  }[],
+  upcomingSessions: [] as { date: string; time: string; subject: string; teacher: string; room: string }[],
+  activityTimeline: [] as { type: string; description: string; timeAgo: string }[],
+  attendanceSummary: {
+    termRate: "—",
+    allTimeRate: "—",
+    consecutiveAbsences: 0,
+    noShows: 0,
+  },
+  attendanceBySubject: [] as {
+    subject: string;
+    rate: string;
+    attended: number;
+    absent: number;
+    makeupAllowance: number;
+    makeupUsed: number;
+  }[],
+  makeupLog: [] as { session: string; subject: string; makeupDate: string; status: string; expiring?: boolean }[],
+  attendanceHistory: [] as { date: string; subject: string; status: "Present" | "Absent" }[],
+  invoices: [] as StudentInvoice[],
+  grades: {
+    maths:   { target: "—", predicted: "—", assignments: [] as { title: string; due: string; submitted: string; score: string; status: string }[] },
+    english: { target: "—", predicted: "—", assignments: [] as { title: string; due: string; submitted: string; score: string; status: string }[] },
+  },
+  tasks: [] as { task: string; priority: string; assignedTo: string; due: string }[],
+  concerns: [] as unknown[],
+  communicationLog: [] as { date: string; channel: string; message: string; sentBy: string; status: string }[],
+};
 import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
 import { subjectsForYearGroup } from "@/components/journey/subjects";
 import { useJourney, BILAL_STUDENT_ID } from "@/lib/journey-store";

@@ -21,7 +21,30 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { getAvatarPalette, getInitials, type Guardian } from "@/lib/mock-data";
+import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+
+interface GuardianStudent {
+  id: string;
+  name: string;
+  initials: string;
+}
+
+type GuardianStatus = 'active' | 'inactive';
+type GuardianDepartment = 'primary' | 'lower-secondary' | 'senior' | 'mixed';
+type CommunicationPreference = 'whatsapp' | 'email' | 'both' | 'none';
+
+interface Guardian {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  students: GuardianStudent[];
+  status: GuardianStatus;
+  linkedStudents: string[];
+  communicationPreference: CommunicationPreference;
+  createdOn: string;
+  department: GuardianDepartment;
+}
 import { EmptyState } from "@/components/ui/empty-state";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";

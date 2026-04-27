@@ -11,7 +11,35 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { enrolments, staffMembers, type Enrolment } from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+
+export type EnrolmentStatus = "Active" | "Pending" | "Expiring" | "Expired" | "Withdrawn";
+export type EnrolmentInvoiceStatus = "Paid" | "Part" | "Overdue" | "Pending";
+
+export interface Enrolment {
+  id: string;
+  studentId: string;
+  student: string;
+  yearGroup: string;
+  department: string;
+  subject: string;
+  teacher: string;
+  sessionsTotal: number;
+  sessionsRemaining: number;
+  frequency: string;
+  enrolledOn?: string;
+  package: string;
+  invoiceStatus: EnrolmentInvoiceStatus;
+  enrolmentStatus: EnrolmentStatus;
+}
+
+interface StaffLite {
+  id: string;
+  name: string;
+  role: string;
+  status: string;
+  subjects: string[];
+}
 import {
   SUBJECTS,
   type SubjectBand,
@@ -115,6 +143,9 @@ export function NewEnrolmentDialog({
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
+  // Fetched reference data
+  const [staffList, setStaffList] = useState<StaffLite[]>([]);
+
   // Step 1
   const [subject, setSubject] = useState("");
   const [frequency, setFrequency] = useState<Frequency | null>(null);
@@ -137,15 +168,15 @@ export function NewEnrolmentDialog({
   // name — staff `subjects` are prefixed like "Y8 Maths", so a contains match
   // on the subject display name is the right heuristic here).
   const availableTeachers = useMemo(() => {
-    if (!subject) return [] as typeof staffMembers;
+    if (!subject) return [] as StaffLite[];
     const needle = subject.toLowerCase();
-    return staffMembers.filter(
+    return staffList.filter(
       (s) =>
         (s.role === "Teacher" || s.role === "HOD") &&
         s.status === "Active" &&
         s.subjects.some((sub) => sub.toLowerCase().includes(needle)),
     );
-  }, [subject]);
+  }, [subject, staffList]);
 
   const resetAll = useCallback(() => {
     setStep(1);
@@ -160,7 +191,11 @@ export function NewEnrolmentDialog({
   }, []);
 
   useEffect(() => {
-    if (!open) resetAll();
+    if (!open) { resetAll(); return; }
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then(({ data }: { data: StaffLite[] }) => setStaffList(data ?? []))
+      .catch(() => {});
   }, [open, resetAll]);
 
   // When subject changes, clear teacher if it's no longer valid.
@@ -226,23 +261,27 @@ export function NewEnrolmentDialog({
       return;
     }
 
-    const nextNum = enrolments.length + 1;
-    const newEnrolment: Enrolment = {
-      id: `E-${String(nextNum).padStart(3, "0")}`,
+    const payload = {
       studentId,
       student: studentName,
       yearGroup,
       department,
       subject: `${yearGroup} ${subject}`,
-      teacher: teacher || "—",
+      teacher: teacher || null,
       sessionsTotal: sessions,
       sessionsRemaining: sessions,
       frequency: `${frequency}×/week`,
       package: `Term — ${sessions} sessions`,
       invoiceStatus: "Pending",
       enrolmentStatus: "Pending",
+      startDate,
     };
-    enrolments.push(newEnrolment);
+
+    fetch("/api/enrolments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
 
     toast.success("Enrolment added — go to Invoices to issue the invoice");
     onOpenChange(false);

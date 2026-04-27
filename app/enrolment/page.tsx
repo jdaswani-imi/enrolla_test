@@ -33,16 +33,70 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  getAvatarPalette,
-  getInitials,
-  type Enrolment,
-  type EnrolmentStatus,
-  type EnrolmentInvoiceStatus,
-  type Withdrawal,
-  type Trial,
-  type TrialOutcome,
-} from "@/lib/mock-data";
+import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+
+type EnrolmentStatus = "Active" | "Pending" | "Expiring" | "Expired" | "Withdrawn";
+type EnrolmentInvoiceStatus = "Paid" | "Part" | "Overdue" | "Pending";
+
+interface Enrolment {
+  id: string;
+  studentId: string;
+  student: string;
+  yearGroup: string;
+  department: string;
+  subject: string;
+  teacher: string;
+  sessionsTotal: number;
+  sessionsRemaining: number;
+  frequency: string;
+  enrolledOn?: string;
+  package: string;
+  invoiceStatus: EnrolmentInvoiceStatus;
+  enrolmentStatus: EnrolmentStatus;
+}
+
+type TrialOutcome =
+  | "Pending"
+  | "Recommended ✅"
+  | "Parent to decide"
+  | "Not recommended"
+  | "Converted"
+  | "No Show"
+  | "Needs More Time"
+  | "Not Interested"
+  | "Cancelled";
+
+interface Trial {
+  id: string;
+  student: string;
+  yearGroup: string;
+  subject: string;
+  teacher: string;
+  trialDate: string;
+  invoiceStatus: "Paid" | "Pending";
+  outcome: TrialOutcome;
+  notes?: string;
+  followUpDate?: string;
+  cancellationReason?: string;
+}
+
+type WithdrawalRecordStatus = "Active" | "Resolved";
+
+interface Withdrawal {
+  id: string;
+  student: string;
+  studentId?: string;
+  enrolmentId?: string;
+  yearGroup: string;
+  department: string;
+  subjects: string[];
+  withdrawalDate: string;
+  reason: string;
+  invoiceStatus: "Paid" | "Overdue" | "Part" | "Pending";
+  notes?: string;
+  sessionsRemaining?: number;
+  recordStatus?: WithdrawalRecordStatus;
+}
 
 type EnrolmentRow = Enrolment & { studentUuid: string };
 type WithdrawalRow = Withdrawal & { studentUuid: string };

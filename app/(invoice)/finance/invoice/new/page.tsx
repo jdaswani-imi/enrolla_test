@@ -7,7 +7,11 @@ import {
   Building2, AlertCircle, CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { students, staffMembers, invoices, leads, type Student, type Invoice, type Lead } from '@/lib/mock-data';
+import { type Lead } from '@/lib/types/lead';
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+interface Student { id: string; name: string; yearGroup: string; department: string; school: string; guardian: string; guardianPhone: string; enrolments: number; churnScore: number | null; status: string; lastContact: string; createdOn: string; sourceLeadId?: string; }
+interface Invoice { id: string; studentId: string; student: string; yearGroup: string; department: string; guardian: string; description: string; issueDate: string; dueDate: string; amount: number; amountPaid: number; status: string; leadId?: string; }
+interface StaffStub { id: string; name: string; }
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
 import { useJourney, BILAL_STUDENT_ID, enrolmentRateFor } from '@/lib/journey-store';
@@ -73,8 +77,8 @@ const numFmt = new Intl.NumberFormat('en-AE', { minimumFractionDigits: 2, maximu
 const fmtAED = (n: number) => `AED ${numFmt.format(n)}`;
 const todayStr = () => new Date().toISOString().split('T')[0];
 
-function nextInvoiceNumber(): string {
-  const nums = invoices.map((inv) => parseInt(inv.id.replace(/\D/g, ''), 10)).filter(Boolean);
+function nextInvoiceNumber(existingInvoices: Invoice[]): string {
+  const nums = existingInvoices.map((inv) => parseInt(inv.id.replace(/\D/g, ''), 10)).filter(Boolean);
   const next = nums.length > 0 ? Math.max(...nums) + 1 : 1001;
   return `INV-${next}`;
 }
@@ -391,7 +395,17 @@ export default function NewInvoicePage() {
   const router = useRouter();
   const { can } = usePermission();
   const today = todayStr();
-  const invoiceNo = useMemo(() => nextInvoiceNumber(), []);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffStub[]>([]);
+  const [invoiceNo, setInvoiceNo] = useState('INV-1001');
+
+  useEffect(() => {
+    fetch('/api/students').then(r => r.ok ? r.json() : []).then(d => setStudents(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/leads').then(r => r.ok ? r.json() : []).then(d => setLeads(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/staff').then(r => r.ok ? r.json() : []).then(d => setStaffMembers(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/finance/invoices').then(r => r.ok ? r.json() : []).then(d => { const list = Array.isArray(d) ? d : []; setInvoiceNo(nextInvoiceNumber(list)); }).catch(() => {});
+  }, []);
   const [status, setStatus] = useState<'Draft' | 'Issued'>('Draft');
   const journey = useJourney();
   const [isJourneyInvoice, setIsJourneyInvoice] = useState(false);
@@ -503,11 +517,11 @@ export default function NewInvoicePage() {
   const filteredStudents = useMemo<Student[]>(() => {
     if (!searchQuery || selectedStudent) return [];
     return students.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8);
-  }, [searchQuery, selectedStudent]);
+  }, [searchQuery, selectedStudent, students]);
 
   const linkedLead = useMemo<Lead | null>(
     () => (linkedLeadId ? (leads.find((l) => l.id === linkedLeadId) ?? null) : null),
-    [linkedLeadId],
+    [linkedLeadId, leads],
   );
 
   const filteredLeads = useMemo<Lead[]>(() => {
@@ -521,7 +535,7 @@ export default function NewInvoicePage() {
           (l.childName.toLowerCase().includes(q) || l.ref.toLowerCase().includes(q)),
       )
       .slice(0, 8);
-  }, [leadSearchQuery, linkedLeadId]);
+  }, [leadSearchQuery, linkedLeadId, leads]);
 
   function handleConfirmIssue() {
     const subjects = lineItems.filter((i) => i.subject).map((i) => i.subject).join(' + ');
@@ -543,15 +557,11 @@ export default function NewInvoicePage() {
       status: 'Issued',
       ...(linkedLeadId ? { leadId: linkedLeadId } : {}),
     };
-    invoices.unshift(newInvoice);
+    fetch('/api/finance/invoices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newInvoice) }).catch(() => {});
     setConfirmOpen(false);
     setStatus('Issued');
     if (isJourneyInvoice) {
       journey.setInvoiceIssued(invoiceNo, totals.totalDue);
-    }
-    if (linkedLeadId) {
-      const lead = leads.find((l) => l.id === linkedLeadId);
-      if (lead) lead.stage = 'Invoice Sent';
     }
     toast.success(`Invoice ${invoiceNo} issued successfully`);
     if (!linkedLeadId) setTimeout(() => router.push('/finance'), 800);

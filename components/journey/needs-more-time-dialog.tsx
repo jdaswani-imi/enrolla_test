@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { tasks as taskStore, type Lead, type Task } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { cn } from "@/lib/utils";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
 
@@ -117,22 +117,25 @@ export function NeedsMoreTimeDialog({
       note.trim().length > 0
         ? note.trim()
         : `Parent needs more time at ${currentStage}. Follow up with ${lead.guardian}.`;
-    const newTask: Task = {
-      id: taskId,
-      title,
-      type: "Admin",
-      priority: "Medium",
-      status: "Open",
-      assignee,
-      dueDate: formatDueLabel(dueIso),
-      linkedRecord: null,
-      description,
-      subtasks: [],
-      overdue: false,
-      sourceLeadId: lead.id,
-      sourceLeadName: lead.childName,
-    };
-    taskStore.push(newTask);
+    fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: taskId,
+        title,
+        type: "Admin",
+        priority: "Medium",
+        status: "Open",
+        assignee,
+        dueDate: formatDueLabel(dueIso),
+        linkedRecord: null,
+        description,
+        subtasks: [],
+        overdue: false,
+        sourceLeadId: lead.id,
+        sourceLeadName: lead.childName,
+      }),
+    }).catch(() => {});
     const dueShort = shortDate(dueIso);
     toast.success(`Follow-up task created · due ${dueShort}`);
     onCreated({ taskId, assignee, dueLabel: dueShort, note: description });

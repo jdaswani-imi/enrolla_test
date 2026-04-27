@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { departmentFor } from "@/lib/journey-store";
-import type { Lead } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
 
 export interface ConvertFormData {

@@ -4,9 +4,28 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Clock, X, GraduationCap, Users, Briefcase, UserPlus, Receipt } from "lucide-react";
 
-import { students, guardians, staffMembers, leads, invoices } from "@/lib/mock-data";
-import type { Student, Guardian, StaffMember, Lead, Invoice, InvoiceStatus, LeadStage, StudentStatus } from "@/lib/mock-data";
+type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni" | "Archived";
+type LeadStage =
+  | "New"
+  | "Contacted"
+  | "Assessment Booked"
+  | "Assessment Done"
+  | "Trial Booked"
+  | "Trial Done"
+  | "Schedule Offered"
+  | "Schedule Confirmed"
+  | "Invoice Sent"
+  | "Won"
+  | "Lost";
+type InvoiceStatus = "Draft" | "Issued" | "Part" | "Paid" | "Overdue" | "Cancelled";
 import { cn } from "@/lib/utils";
+
+// Lightweight shapes used only inside this component — not the full mock-data types
+type Student = { id: string; name: string; yearGroup: string; department: string; status: StudentStatus };
+type Guardian = { id: string; name: string; phone: string; students: { id: string }[] };
+type StaffMember = { id: string; name: string; email: string; role: string };
+type Lead = { id: string; childName: string; ref: string; yearGroup: string; stage: LeadStage };
+type Invoice = { id: string; student: string; amount: number; status: InvoiceStatus };
 
 type EntityKind = "student" | "guardian" | "staff" | "lead" | "invoice";
 
@@ -83,28 +102,83 @@ function formatAmount(n: number) {
   return `AED ${n.toLocaleString("en-AE")}`;
 }
 
-function searchAll(query: string): Grouped[] {
-  const q = normalize(query);
+// ─── API response mappers ────────────────────────────────────────────────────
 
-  const studentMatches = students.filter(
-    (s) => normalize(s.name).includes(q) || normalize(s.id).includes(q)
-  );
-  const guardianMatches = guardians.filter(
-    (g) => normalize(g.name).includes(q) || normalize(g.phone).includes(q)
-  );
-  const staffMatches = staffMembers.filter(
-    (s) => normalize(s.name).includes(q) || normalize(s.email).includes(q)
-  );
-  const leadMatches = leads.filter(
-    (l) =>
-      normalize(l.childName).includes(q) ||
-      normalize(l.id).includes(q) ||
-      normalize(l.ref).includes(q)
-  );
-  const invoiceMatches = invoices.filter(
-    (i) => normalize(i.id).includes(q) || normalize(i.student).includes(q)
-  );
+function mapStudents(raw: Record<string, unknown>[]): Student[] {
+  return raw.map((r) => {
+    const enrolments = (r.enrolments as { subjects: { name: string }[] }[] | null) ?? [];
+    const subject = enrolments[0]?.subjects?.[0]?.name ?? "—";
+    return {
+      id: String(r.id ?? ""),
+      name: `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim(),
+      yearGroup: String(r.year_group ?? "—"),
+      department: subject,
+      status: (r.status ?? "Inactive") as StudentStatus,
+    };
+  });
+}
 
+function mapGuardians(raw: Record<string, unknown>[]): Guardian[] {
+  return raw.map((r) => {
+    const linkedStudents = (r.students as { id: string }[] | null) ?? [];
+    return {
+      id: String(r.id ?? ""),
+      name: `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim(),
+      phone: String(r.phone ?? ""),
+      students: linkedStudents,
+    };
+  });
+}
+
+function mapStaff(raw: Record<string, unknown>[]): StaffMember[] {
+  // /api/staff already runs toFrontend() which builds a `name` field
+  return raw.map((r) => ({
+    id: String(r.id ?? ""),
+    name: String(r.name ?? ""),
+    email: String(r.email ?? ""),
+    role: String(r.role ?? ""),
+  }));
+}
+
+function mapLeads(raw: Record<string, unknown>[], q: string): Lead[] {
+  const nq = normalize(q);
+  return raw
+    .filter((r) => {
+      const childName = `${r.child_first_name ?? ""} ${r.child_last_name ?? ""}`.toLowerCase();
+      const ref = normalize(String(r.lead_ref ?? r.id ?? ""));
+      return childName.includes(nq) || ref.includes(nq);
+    })
+    .map((r) => ({
+      id: String(r.id ?? ""),
+      childName: `${r.child_first_name ?? ""} ${r.child_last_name ?? ""}`.trim(),
+      ref: String(r.lead_ref ?? ""),
+      yearGroup: String(r.child_year_group ?? "—"),
+      stage: (r.stage ?? "New") as LeadStage,
+    }));
+}
+
+function mapInvoices(raw: Record<string, unknown>[], q: string): Invoice[] {
+  const nq = normalize(q);
+  return raw
+    .filter((r) => {
+      return normalize(String(r.id ?? "")).includes(nq) || normalize(String(r.student ?? "")).includes(nq);
+    })
+    .map((r) => ({
+      id: String(r.id ?? ""),
+      student: String(r.student ?? ""),
+      amount: Number(r.amount ?? 0),
+      status: (r.status ?? "Issued") as InvoiceStatus,
+    }));
+}
+
+function buildGroups(
+  studentMatches: Student[],
+  guardianMatches: Guardian[],
+  staffMatches: StaffMember[],
+  leadMatches: Lead[],
+  invoiceMatches: Invoice[],
+  query: string,
+): Grouped[] {
   return [
     {
       kind: "student",
@@ -113,7 +187,7 @@ function searchAll(query: string): Grouped[] {
       seeAllHref: `/students?q=${encodeURIComponent(query)}`,
       total: studentMatches.length,
       items: studentMatches.slice(0, MAX_PER_GROUP).map((s) => ({
-        kind: "student",
+        kind: "student" as EntityKind,
         id: s.id,
         href: `/students/${s.id}`,
         data: s,
@@ -126,7 +200,7 @@ function searchAll(query: string): Grouped[] {
       seeAllHref: `/guardians?q=${encodeURIComponent(query)}`,
       total: guardianMatches.length,
       items: guardianMatches.slice(0, MAX_PER_GROUP).map((g) => ({
-        kind: "guardian",
+        kind: "guardian" as EntityKind,
         id: g.id,
         href: `/guardians`,
         data: g,
@@ -139,7 +213,7 @@ function searchAll(query: string): Grouped[] {
       seeAllHref: `/staff?q=${encodeURIComponent(query)}`,
       total: staffMatches.length,
       items: staffMatches.slice(0, MAX_PER_GROUP).map((s) => ({
-        kind: "staff",
+        kind: "staff" as EntityKind,
         id: s.id,
         href: `/staff`,
         data: s,
@@ -152,7 +226,7 @@ function searchAll(query: string): Grouped[] {
       seeAllHref: `/leads?q=${encodeURIComponent(query)}`,
       total: leadMatches.length,
       items: leadMatches.slice(0, MAX_PER_GROUP).map((l) => ({
-        kind: "lead",
+        kind: "lead" as EntityKind,
         id: l.id,
         href: `/leads`,
         data: l,
@@ -165,7 +239,7 @@ function searchAll(query: string): Grouped[] {
       seeAllHref: `/finance?q=${encodeURIComponent(query)}`,
       total: invoiceMatches.length,
       items: invoiceMatches.slice(0, MAX_PER_GROUP).map((i) => ({
-        kind: "invoice",
+        kind: "invoice" as EntityKind,
         id: i.id,
         href: `/finance`,
         data: i,
@@ -181,6 +255,8 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
+  const [groups, setGroups] = useState<Grouped[]>([]);
+  const [searching, setSearching] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -200,7 +276,43 @@ export function GlobalSearch() {
   const trimmed = debounced.trim();
   const hasQuery = trimmed.length >= MIN_CHARS;
 
-  const groups = useMemo(() => (hasQuery ? searchAll(trimmed) : []), [hasQuery, trimmed]);
+  // Async search: fire parallel fetches when query is long enough
+  useEffect(() => {
+    if (!hasQuery) {
+      setGroups([]);
+      return;
+    }
+
+    let cancelled = false;
+    setSearching(true);
+
+    const q = encodeURIComponent(trimmed);
+
+    Promise.all([
+      fetch(`/api/students?q=${q}`).then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/staff?q=${q}`).then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/guardians?q=${q}`).then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/leads?q=${q}`).then((r) => r.json()).catch(() => ({ data: [] })),
+      fetch(`/api/finance/invoices?q=${q}`).then((r) => r.json()).catch(() => []),
+    ]).then(([studentsRes, staffRes, guardiansRes, leadsRes, invoicesRes]) => {
+      if (cancelled) return;
+
+      const studentMatches = mapStudents((studentsRes?.data ?? []) as Record<string, unknown>[]);
+      const staffMatches = mapStaff((staffRes?.data ?? []) as Record<string, unknown>[]);
+      const guardianMatches = mapGuardians((guardiansRes?.data ?? []) as Record<string, unknown>[]);
+      // Leads and invoices don't support server-side ?q= filtering yet — filter client-side
+      const leadMatches = mapLeads((leadsRes?.data ?? []) as Record<string, unknown>[], trimmed);
+      // Invoices endpoint returns a plain array (not {data:[]})
+      const rawInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes?.data ?? []);
+      const invoiceMatches = mapInvoices(rawInvoices as Record<string, unknown>[], trimmed);
+
+      setGroups(buildGroups(studentMatches, guardianMatches, staffMatches, leadMatches, invoiceMatches, trimmed));
+      setSearching(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [hasQuery, trimmed]);
+
   const nonEmptyGroups = useMemo(() => groups.filter((g) => g.items.length > 0), [groups]);
   const totalResults = useMemo(
     () => groups.reduce((sum, g) => sum + g.total, 0),
@@ -349,6 +461,10 @@ export function GlobalSearch() {
               }}
               onClear={clearRecent}
             />
+          ) : searching ? (
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm text-slate-500">Searching…</p>
+            </div>
           ) : nonEmptyGroups.length === 0 ? (
             <NoResults query={trimmed} />
           ) : (

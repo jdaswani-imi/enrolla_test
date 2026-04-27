@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useJourney, BILAL_LEAD_ID, type PaymentData } from "@/lib/journey-store";
-import type { Lead } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
 
 const METHODS = ["Cash", "Bank Transfer", "Card", "Cheque"];

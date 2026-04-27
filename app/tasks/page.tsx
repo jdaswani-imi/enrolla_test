@@ -19,7 +19,30 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type Task, type TaskStatus } from "@/lib/mock-data";
+type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
+type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";
+
+interface Task {
+  id: string;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assignee: string;
+  dueDate: string;
+  linkedRecord: { type: string; name: string; id: string } | null;
+  description: string;
+  subtasks: string[];
+  overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
+  linkedAssignmentId?: string;
+  linkedInventoryItemId?: string;
+  createdOn?: string;
+}
+import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -181,6 +204,7 @@ interface TaskDetailDialogProps {
 }
 
 function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: TaskDetailDialogProps) {
+  const currentUser = useCurrentUser();
   const [subtasksDone, setSubtasksDone] = useState<boolean[]>(
     task.subtasks.map(() => isDone)
   );
@@ -701,6 +725,7 @@ function CalendarView({
 type ViewMode = "list" | "kanban" | "calendar";
 
 export default function TasksPage() {
+  const currentUser = useCurrentUser();
   const { can } = usePermission();
   const router = useRouter();
   const [view, setView] = useState<ViewMode>("list");

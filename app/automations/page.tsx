@@ -16,26 +16,28 @@ import {
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
 import { AccessDenied } from '@/components/ui/access-denied';
-import {
-  currentUser,
-  automationTemplates,
-  automationRules,
-  dispatchQueueItems,
-  marketingMoments,
-  marketingCampaigns,
-  executionLogs,
-  segments,
-  type AutomationTemplate,
-  type AutomationRule,
-  type AutomationTemplateType,
-  type AutomationTemplateOwner,
-  type AutomationRuleTrigger,
-  type AutomationRuleStatus,
-  type DispatchQueueItem,
-  type MarketingMoment,
-  type MarketingCampaign,
-  type ExecutionLog,
-} from '@/lib/mock-data';
+import { useCurrentUser } from '@/lib/use-current-user';
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+type AutomationTemplateType = 'Message' | 'Email' | 'Task' | 'Announcement';
+type AutomationTemplateOwner = 'Org-Wide' | 'Personal';
+interface AutomationTemplate { id: string; name: string; type: AutomationTemplateType; status: 'Active' | 'Draft' | 'Archived'; owner: AutomationTemplateOwner; body: string; mergeFields: string[]; version: number; usedInRules: string[]; locked: boolean; }
+type AutomationRuleTrigger = 'Status Change' | 'Time-based' | 'Threshold' | 'Form Submission' | 'Manual';
+type AutomationRuleStatus = 'Enabled' | 'Disabled' | 'Locked';
+interface AutomationRule { id: string; name: string; trigger?: AutomationRuleTrigger; triggerType: AutomationRuleTrigger; module: string; status: AutomationRuleStatus; lastFired: string; fireCount: number; lastRun?: string; runsThisMonth?: number; templateId?: string; locked: boolean; }
+interface DispatchQueueItem { id: string; templateName: string; contactName: string; generatedAt: string; sourceRule: string; claimedBy: string | null; claimedUntil: string | null; renderedBody: string; status: 'Unclaimed' | 'Claimed' | 'Sent'; }
+interface MarketingMoment { id: string; name: string; audience: string; template: string; status: 'Sent' | 'Scheduled' | 'Draft' | 'Cancelled'; scheduledFor: string; dispatched: number; total: number; calendarDate: number; }
+interface MarketingCampaign { id: string; campaign: string; audience: string; template: string; sent: number; delivered: number; failed: number; scheduledAt: string; status: 'Sent' | 'Scheduled' | 'Cancelled' | 'Draft'; }
+interface ExecutionLog { id: string; rule: string; triggerType: string; firedAt: string; executedAt?: string; recipients: number; live: number; queued: number; status: 'Success' | 'Failed' | 'Skipped'; duration: string; payload: { key: string; value: string }[]; conditionResults: { condition: string; result: 'pass' | 'fail' }[]; actionResults: { type: string; outcome: string; target: string }[]; recipientRouting: { recipient: string; channel: string; route: 'Live' | 'Queue'; outcome: string }[]; }
+interface Segment { id: string; name: string; scope: 'Org-Wide' | 'Personal'; recordType: 'Students' | 'Guardians' | 'Leads' | 'Staff'; members: number; count: number; filterSummary: string; lastRefreshed: string; lastUpdated: string; createdBy: string; filters: string; }
+
+// ─── Local stubs (all empty — wired to API per module) ───────────────────────
+const automationTemplates: AutomationTemplate[] = [];
+const automationRules: AutomationRule[] = [];
+const dispatchQueueItems: DispatchQueueItem[] = [];
+const marketingMoments: MarketingMoment[] = [];
+const marketingCampaigns: MarketingCampaign[] = [];
+const executionLogs: ExecutionLog[] = [];
+const segments: Segment[] = [];
 import {
   Dialog,
   DialogContent,
@@ -354,6 +356,7 @@ function TriggerLibraryTab() {
 // ─── Dispatch Queue Tab ───────────────────────────────────────────────────────
 
 function DispatchQueueTab() {
+  const currentUser = useCurrentUser();
   const [search, setSearch] = useState('');
   const [unclaimedOnly, setUnclaimedOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -621,10 +624,11 @@ const IM_THREAD_TYPES: { icon: string; label: string }[] = [
 
 const EMOJI_PALETTE = ['👍','✅','👀','🎉','❤️','😂','🙏','💪'];
 
+const _MODULE_USER_NAME = "Jason Daswani";
 const CURRENT_USER = {
-  id: currentUser.name.toLowerCase().replace(/\s+/g, '-'),
-  name: currentUser.name,
-  initials: currentUser.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+  id: _MODULE_USER_NAME.toLowerCase().replace(/\s+/g, '-'),
+  name: _MODULE_USER_NAME,
+  initials: _MODULE_USER_NAME.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
   color: 'bg-amber-500',
 };
 
@@ -799,6 +803,7 @@ function CreateTaskDialogInner({
   onOpenChange: (o: boolean) => void;
   onCreate: (chip: RecordChip) => void;
 }) {
+  const currentUser = useCurrentUser();
   const [title,    setTitle]    = useState('');
   const [priority, setPriority] = useState<'Low'|'Medium'|'High'>('Medium');
   const [assignee, setAssignee] = useState(currentUser.name);
@@ -3144,6 +3149,7 @@ function RulesTab() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 function AutomationsPageContent() {
+  const currentUser = useCurrentUser();
   const { can } = usePermission();
   const searchParams = useSearchParams();
   const router = useRouter();

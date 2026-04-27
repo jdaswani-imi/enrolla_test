@@ -28,13 +28,9 @@ import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { toast } from "sonner";
-import {
-  unbilledSessions,
-  students as allStudents,
-  ATTENDANCE_ROLE_USER,
-  getAvatarPalette,
-  getInitials,
-} from "@/lib/mock-data";
+import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+
+const ATTENDANCE_ROLE_USER: Record<string, { staffId: string; department: string }> = {};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -204,6 +200,10 @@ function AttendancePageContent() {
   const [makeupLog, setMakeupLog] = useState<ApiMakeupEntry[]>([]);
   const [overviewLoading, setOverviewLoading] = useState(false);
 
+  // ── Students + unbilled state ─────────────────────────────────────────────
+  const [allStudents, setAllStudents] = useState<{ id: string; name: string }[]>([]);
+  const [unbilledStudentIds, setUnbilledStudentIds] = useState<string[]>([]);
+
   // ── Interaction state ─────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -263,6 +263,25 @@ function AttendancePageContent() {
       })
       .catch(() => toast.error('Failed to load sessions'))
       .finally(() => setSessionsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/students')
+      .then(r => r.json())
+      .then(({ data }) => {
+        const students = (data ?? []) as { id: string; first_name: string; last_name: string }[];
+        setAllStudents(students.map(s => ({ id: s.id, name: `${s.first_name} ${s.last_name}`.trim() })));
+      })
+      .catch(() => toast.error('Failed to load students'));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/attendance/unmarked')
+      .then(r => r.json())
+      .then(({ data }) => {
+        setUnbilledStudentIds((data ?? []).map((r: { student_id: string }) => r.student_id));
+      })
+      .catch(() => toast.error('Failed to load unbilled sessions'));
   }, []);
 
   const fetchOverview = useCallback(() => {
@@ -477,10 +496,8 @@ function AttendancePageContent() {
       })
     : roleMakeup;
 
-  // Unbilled sessions warning (finance integration — still using mock data stub)
-  const openUnbilledIds = new Set(
-    unbilledSessions.filter(r => r.status === 'open').map(r => r.studentId)
-  );
+  // Unbilled sessions warning (finance integration)
+  const openUnbilledIds = new Set(unbilledStudentIds);
 
   // ── Render ────────────────────────────────────────────────────────────────
 

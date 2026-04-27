@@ -17,17 +17,67 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
-import {
-  feedbackItems,
-  classGroups,
-  tasks,
-  students,
-  currentUser,
-  type FeedbackItem,
-  type FeedbackStatus,
-  type PostType,
-  type Task,
-} from "@/lib/mock-data";
+// ─── Inline types (previously imported from @/lib/mock-data) ─────────────────
+
+type FeedbackStatus = "Draft" | "Pending Approval" | "Approved" | "Sent" | "Rejected";
+
+interface FeedbackSelector { label: string; value: string; }
+
+interface FeedbackItem {
+  id: string;
+  studentName: string;
+  subject: string;
+  teacher: string;
+  department: string;
+  sessionDate: string;
+  status: FeedbackStatus;
+  score: number;
+  aiSummary: string | null;
+  selectors: FeedbackSelector[];
+  teacherNotes: string;
+}
+
+type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
+type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";
+
+interface Task {
+  id: string;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assignee: string;
+  dueDate: string;
+  linkedRecord: { type: string; name: string; id: string } | null;
+  description: string;
+  subtasks: string[];
+  overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
+  linkedAssignmentId?: string;
+  linkedInventoryItemId?: string;
+  createdOn?: string;
+}
+
+type PostType = "Announcement" | "Discussion" | "Question";
+
+// ─── Local data stubs ─────────────────────────────────────────────────────────
+
+const feedbackItems: FeedbackItem[] = [];
+interface ClassPost {
+  id: string;
+  sender: string;
+  role: string;
+  timestamp: string;
+  type: PostType;
+  content: string;
+  removed: boolean;
+}
+const classGroups: { id: string; name: string; teacher: string; unreadCount: number; posts: ClassPost[] }[] = [];
+const tasks: Task[] = [];
+const students: { id: string; name: string }[] = [];
+import { useCurrentUser } from "@/lib/use-current-user";
 import {
   Dialog,
   DialogContent,
@@ -288,6 +338,7 @@ function RejectReasonDialog({
 }
 
 function FeedbackQueueTab() {
+  const currentUser = useCurrentUser();
   const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [teacherFilter, setTeacherFilter] = useState<string[]>([]);
   const [deptFilter, setDeptFilter]       = useState<string[]>([]);

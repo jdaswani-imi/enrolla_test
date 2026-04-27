@@ -44,7 +44,113 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { currentUser, tasks as taskStore, students as studentsStore, AVATAR_PALETTES, getAvatarPalette, getInitials, LEAD_STAGES, type Lead, type LeadStage, type LeadSource, type PreferredWindow, type Task, type Student } from "@/lib/mock-data";
+
+// ─── Inline types (previously from mock-data) ─────────────────────────────────
+
+type LeadStage =
+  | "New"
+  | "Contacted"
+  | "Assessment Booked"
+  | "Assessment Done"
+  | "Trial Booked"
+  | "Trial Done"
+  | "Schedule Offered"
+  | "Schedule Confirmed"
+  | "Invoice Sent"
+  | "Won"
+  | "Lost";
+
+type LeadSource = "Website" | "Phone" | "Walk-in" | "Referral" | "Event";
+type PreferredWindow = "Morning" | "Afternoon" | "Evening" | "Any";
+
+type Lead = {
+  id: string;
+  ref: string;
+  childName: string;
+  yearGroup: string;
+  department: string;
+  subjects: string[];
+  guardian: string;
+  guardianPhone: string;
+  source: LeadSource;
+  stage: LeadStage;
+  assignedTo: string;
+  lastActivity: string;
+  daysInStage: number;
+  daysInPipeline: number;
+  dnc: boolean;
+  sibling: boolean;
+  stageMessagePending: boolean;
+  preferredDays?: string[];
+  preferredWindow?: PreferredWindow;
+  createdOn?: string;
+  lostReason?: string;
+  lostNotes?: string;
+  reEngage?: boolean;
+  reEngageAfter?: string;
+  status?: 'active' | 'converted' | 'lost' | 'archived';
+  convertedStudentId?: string;
+  convertedOn?: string;
+};
+
+type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
+type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";
+
+type Task = {
+  id: string;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assignee: string;
+  dueDate: string;
+  linkedRecord: { type: string; name: string; id: string } | null;
+  description: string;
+  subtasks: string[];
+  overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
+};
+
+type StudentStatus = "Active" | "Withdrawn" | "Graduated" | "Alumni" | "Archived";
+
+type Student = {
+  id: string;
+  name: string;
+  studentRef?: string;
+  yearGroup: string;
+  department?: string;
+  school?: string;
+  status: StudentStatus;
+  enrolledDate?: string;
+  guardian?: string;
+  guardianPhone?: string;
+  guardianId?: string;
+  enrolments?: number;
+  churnScore?: number | null;
+  lastContact?: string;
+  createdOn?: string;
+  sourceLeadId?: string;
+};
+
+// ─── Inline constant (previously from mock-data) ──────────────────────────────
+
+const LEAD_STAGES: LeadStage[] = [
+  "New",
+  "Contacted",
+  "Assessment Booked",
+  "Assessment Done",
+  "Trial Booked",
+  "Trial Done",
+  "Schedule Offered",
+  "Schedule Confirmed",
+  "Invoice Sent",
+  "Won",
+  "Lost",
+];
+import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
@@ -94,6 +200,13 @@ type ApiLead = {
   updated_at: string
   last_activity_at: string | null
   guardians: { id: string; first_name: string; last_name: string; phone: string | null; whatsapp_number: string | null } | null
+}
+
+type ApiStudent = {
+  id: string
+  student_number: string | null
+  first_name: string
+  last_name: string
 }
 
 function _daysBetween(from: string, to: string) {
@@ -579,7 +692,7 @@ const DETAIL_TIMELINE: { label: string; text: string; dot: string }[] = [];
 // ─── Embedded Team Chat (types, seed, component) ──────────────────────────────
 
 const CHAT_STAFF: string[] = [];
-const CHAT_CURRENT_USER = currentUser.name;
+const CHAT_CURRENT_USER = "Jason Daswani";
 const CHAT_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "🔥", "✅", "👀"];
 
 type ChatChipKind = "student" | "invoice" | "task";
@@ -877,7 +990,23 @@ function CreateTaskDialogBody({
       sourceLeadId: lead.id,
       sourceLeadName: lead.childName,
     };
-    taskStore.push(newTask);
+    // Persist task to API (fire-and-forget; toast already shown below)
+    fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title:          newTask.title,
+        type:           newTask.type,
+        priority:       newTask.priority,
+        assignee:       newTask.assignee,
+        dueDateIso:     dueDate,
+        description:    newTask.description,
+        subtasks:       newTask.subtasks,
+        linkedRecord:   newTask.linkedRecord,
+        sourceLeadId:   newTask.sourceLeadId,
+        sourceLeadName: newTask.sourceLeadName,
+      }),
+    }).catch(() => { /* non-critical */ });
     onCreate({
       id: nextChatId("chip"),
       kind: "task",
@@ -3165,6 +3294,7 @@ function MoveStageDialog({
 type ViewMode = "kanban" | "list" | "table";
 
 export default function LeadsPage() {
+  const currentUser = useCurrentUser();
   const { can } = usePermission();
 
   const [leadsData, setLeadsData] = useState<Lead[]>([]);
@@ -3178,6 +3308,15 @@ export default function LeadsPage() {
     }
   }, []);
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // Students list — used for converted-student lookup and ID generation
+  const [studentsData, setStudentsData] = useState<ApiStudent[]>([]);
+  useEffect(() => {
+    fetch('/api/students')
+      .then((r) => r.json())
+      .then(({ data }) => { if (data) setStudentsData(data as ApiStudent[]); })
+      .catch(() => { /* non-critical */ });
+  }, []);
 
   const [exportOpen, setExportOpen] = useState(false);
   const [view, setView] = useState<ViewMode>(() => {
@@ -3738,9 +3877,15 @@ export default function LeadsPage() {
   const createdStudentsRef = useRef<Record<string, Student>>({});
 
   function nextStudentIdForNonBilal(): string {
-    const existing = [...studentsStore, ...Object.values(createdStudentsRef.current)];
+    // Derive next IMI number from API students (student_number field) + any
+    // locally-created non-Bilal records still in the ref (not yet persisted).
     let max = 0;
-    for (const s of existing) {
+    for (const s of studentsData) {
+      const raw = s.student_number ?? '';
+      const n = Number(raw.replace(/^IMI-/i, ''));
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    for (const s of Object.values(createdStudentsRef.current)) {
       const n = Number(s.id.replace("IMI-", ""));
       if (!Number.isNaN(n) && n > max) max = n;
     }
@@ -3786,8 +3931,12 @@ export default function LeadsPage() {
       lastContact: "Today",
       createdOn: new Date().toISOString().slice(0, 10),
     };
-    studentsStore.push(newStudent);
+    // Track locally for undo and ID generation; also optimistically add to state.
     createdStudentsRef.current[lead.id] = newStudent;
+    setStudentsData((prev) => [
+      ...prev,
+      { id: newStudent.id, student_number: newStudent.id, first_name: newStudent.name.split(' ')[0], last_name: newStudent.name.split(' ').slice(1).join(' ') },
+    ]);
 
     setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Won" }));
     setLeadActivity((prev) => ({
@@ -3812,8 +3961,8 @@ export default function LeadsPage() {
       if (!detail) return;
       const { leadId, studentId, previousStage } = detail;
       // Remove created student
-      const idx = studentsStore.findIndex((s) => s.id === studentId);
-      if (idx >= 0) studentsStore.splice(idx, 1);
+      // Remove the optimistically-added student from local state.
+      setStudentsData((prev) => prev.filter((s) => s.id !== studentId));
       delete createdStudentsRef.current[leadId];
       // Revert stage
       setLeadStageOverrides((prev) => ({ ...prev, [leadId]: previousStage }));
@@ -4098,7 +4247,10 @@ export default function LeadsPage() {
                   const palette = getAvatarPalette(lead.assignedTo);
                   const isConverted = lead.status === "converted";
                   const convertedStudentName = lead.convertedStudentId
-                    ? studentsStore.find(s => s.id === lead.convertedStudentId)?.name ?? lead.convertedStudentId
+                    ? (() => {
+                        const s = studentsData.find((s) => s.id === lead.convertedStudentId);
+                        return s ? `${s.first_name} ${s.last_name}`.trim() : lead.convertedStudentId;
+                      })()
                     : null;
                   return (
                     <tr
@@ -4618,8 +4770,11 @@ export default function LeadsPage() {
               createdOn: new Date().toISOString().slice(0, 10),
               sourceLeadId: lead.id,
             };
-            studentsStore.push(newStudent);
             createdStudentsRef.current[lead.id] = newStudent;
+            setStudentsData((prev) => [
+              ...prev,
+              { id: newStudent.id, student_number: newStudent.id, first_name: data.firstName, last_name: data.lastName },
+            ]);
             setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Won" }));
             setLeadConvertedData((prev) => ({ ...prev, [lead.id]: { studentId, studentName, convertedOn: today } }));
             setLeadActivity((prev) => ({

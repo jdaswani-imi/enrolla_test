@@ -9,12 +9,16 @@ import {
   Phone, Mail, Copy, Pencil, Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  currentUser, staffMembers,
-  type InventoryItem, type AutoDeductRule, type LedgerEntry,
-  type ReorderAlert, type StockLedgerEntry, type InventorySupplier,
-  type TaskType,
-} from '@/lib/mock-data';
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+interface AutoDeductRule { id: string; trigger: string; departments: string[]; yearGroups: string[]; quantity: number; condition: string; active: boolean; }
+interface LedgerEntry { id: string; changeType: 'auto_deduct' | 'manual_add' | 'reorder_received' | 'manual_deduct' | 'waste' | 'stock_take_correction'; quantityChange: number; actor: string; timestamp: string; }
+interface InventoryItem { id: string; name: string; category: string; unit: string; currentStock: number; minStock: number; maxStock: number; reorderQty: number; autoDeduct: boolean; departmentScope: string; enrolTrigger: string | null; supplier: string; amazonLink: string | null; notes: string; health: 'healthy' | 'approaching' | 'below'; autoDeductRules: AutoDeductRule[]; recentLedger: LedgerEntry[]; responsibleStaffId?: string; }
+interface InventorySupplier { id: string; name: string; contactName?: string | null; phone: string | null; email: string | null; itemCount: number; notes: string | null; }
+interface ReorderAlert { id: string; inventoryItemId?: string; itemName: string; category: string; currentStock: number; minStock: number; reorderQty: number; supplierName: string; supplierPhone: string | null; supplierEmail: string | null; amazonLink: string | null; status: 'open' | 'ordered' | 'ignored'; openedAt: string; responsibleStaffId?: string; }
+interface StockLedgerEntry { id: string; itemName: string; category: string; changeType: 'auto_deduct' | 'manual_add' | 'reorder_received' | 'manual_deduct' | 'waste' | 'stock_take_correction' | 'auto_deduct_failed'; quantityChange: number; stockBefore?: number; stockAfter?: number; actor: string; reference?: string; timestamp: string; }
+interface StaffMemberStub { id: string; name: string; status: string; }
+import { useCurrentUser } from '@/lib/use-current-user';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -199,6 +203,7 @@ function AdjustStockSheet({
   onClose: () => void;
   onRefresh: () => void;
 }) {
+  const currentUser = useCurrentUser();
   const [adjustType, setAdjustType] = useState<'add' | 'remove' | 'stocktake'>('add');
   const [qty, setQty] = useState(1);
   const [reason, setReason] = useState('');
@@ -365,6 +370,7 @@ function formatLedgerTimestamp(d: Date): string {
 }
 
 function StockTakeDialog({ items, onClose, onRefresh }: { items: InventoryItem[]; onClose: () => void; onRefresh: () => void }) {
+  const currentUser = useCurrentUser();
   const [counted, setCounted] = useState<Record<string, string>>({});
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -954,7 +960,9 @@ function ReorderStatusBadge({ status }: { status: ReorderAlert['status'] }) {
 }
 
 function ReorderAlertsTab() {
+  const currentUser = useCurrentUser();
   const [alerts, setAlerts] = useState<ReorderAlert[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffMemberStub[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -963,6 +971,10 @@ function ReorderAlertsTab() {
   const [receivedNote, setReceivedNote] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [assigneeMap, setAssigneeMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch('/api/staff').then(r => r.ok ? r.json() : []).then(data => setStaffMembers(Array.isArray(data) ? data : [])).catch(() => {});
+  }, []);
   const [taskCreatedSet, setTaskCreatedSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -2087,6 +2099,7 @@ function CatalogueTab({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 function InventoryPageContent() {
+  const currentUser = useCurrentUser();
   const { can } = usePermission();
   const searchParams = useSearchParams();
   const router = useRouter();

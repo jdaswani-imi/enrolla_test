@@ -11,14 +11,33 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  currentUser,
-  staffMembers,
-  students,
-  type Task,
-  type TaskPriority,
-  type TaskType,
-} from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+
+export type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+export type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
+export type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";
+
+export interface Task {
+  id: string;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assignee: string;
+  dueDate: string;
+  linkedRecord: { type: string; name: string; id: string } | null;
+  description: string;
+  subtasks: string[];
+  overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
+  linkedAssignmentId?: string;
+  linkedInventoryItemId?: string;
+  createdOn?: string;
+}
+
+// Fallback current-user name — replace with auth session when available.
+const CURRENT_USER_NAME = "Jason Daswani";
 
 const TYPE_PILLS: { label: string; value: TaskType }[] = [
   { label: "Student",  value: "Student Follow-up" },
@@ -36,7 +55,14 @@ function todayLabel(): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-type StudentLite = (typeof students)[number];
+interface StudentLite {
+  id: string;
+  name: string;
+  yearGroup: string;
+  department: string;
+  school: string;
+  status: string;
+}
 
 interface NewTaskDialogProps {
   open: boolean;
@@ -50,12 +76,16 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
   const [type, setType]               = useState<TaskType>("Student Follow-up");
   const [priority, setPriority]       = useState<TaskPriority>("Medium");
   const [dueDateIso, setDueDateIso]   = useState<string>(todayIso());
-  const [assignee, setAssignee]       = useState<string>(currentUser.name);
+  const [assignee, setAssignee]       = useState<string>(CURRENT_USER_NAME);
   const [linkedStudent, setLinkedStudent] = useState<StudentLite | null>(null);
 
   const [studentQuery, setStudentQuery] = useState("");
   const [studentOpen, setStudentOpen]   = useState(false);
   const studentBoxRef = useRef<HTMLDivElement>(null);
+
+  // Fetched reference data
+  const [staffList, setStaffList]       = useState<{ id: string; name: string; status: string }[]>([]);
+  const [studentList, setStudentList]   = useState<StudentLite[]>([]);
 
   function reset() {
     setTitle("");
@@ -63,14 +93,23 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
     setType("Student Follow-up");
     setPriority("Medium");
     setDueDateIso(todayIso());
-    setAssignee(currentUser.name);
+    setAssignee(CURRENT_USER_NAME);
     setLinkedStudent(null);
     setStudentQuery("");
     setStudentOpen(false);
   }
 
   useEffect(() => {
-    if (!open) reset();
+    if (!open) { reset(); return; }
+    // Fetch staff + students for dropdowns when dialog opens
+    Promise.all([
+      fetch("/api/staff").then((r) => r.json()),
+      fetch("/api/students").then((r) => r.json()),
+    ]).then(([staffRes, studentsRes]) => {
+      setStaffList(staffRes.data ?? []);
+      setStudentList(studentsRes.data ?? []);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -85,11 +124,11 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
 
   const studentResults = useMemo(() => {
     const q = studentQuery.trim().toLowerCase();
-    if (!q) return students.slice(0, 6);
-    return students
+    if (!q) return studentList.slice(0, 6);
+    return studentList
       .filter((s) => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
       .slice(0, 8);
-  }, [studentQuery]);
+  }, [studentQuery, studentList]);
 
   const titleTrimmed = title.trim();
   const canSubmit = titleTrimmed.length > 0 && dueDateIso.length > 0;
@@ -105,7 +144,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
         description: description.trim(),
         type,
         priority,
-        assignee:    assignee || currentUser.name,
+        assignee:    assignee || CURRENT_USER_NAME,
         dueDateIso,
         linkedRecord: linkedStudent
           ? { type: "student", name: linkedStudent.name, id: linkedStudent.id }
@@ -237,7 +276,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 cursor-pointer"
               >
                 <option value="">Unassigned</option>
-                {staffMembers
+                {staffList
                   .filter((s) => s.status !== "Off-boarded")
                   .map((s) => (
                     <option key={s.id} value={s.name}>

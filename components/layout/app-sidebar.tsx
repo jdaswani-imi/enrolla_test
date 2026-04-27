@@ -31,7 +31,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { currentUser } from "@/lib/mock-data";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { usePermission } from "@/lib/use-permission";
 import { useOrgLogo } from "@/lib/org-logo-context";
 
@@ -398,18 +398,12 @@ function FlyoutNavItem({
   );
 }
 
-// ─── Initials ─────────────────────────────────────────────────────────────────
-
-const initials = currentUser.name
-  .split(" ")
-  .map((n) => n[0])
-  .join("")
-  .slice(0, 2);
-
 // ─── Main sidebar ─────────────────────────────────────────────────────────────
 
 export function AppSidebar() {
+  const currentUser = useCurrentUser();
   const { sees, role } = usePermission();
+  const initials = currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2);
   const pathname = usePathname();
   const { logoUrl } = useOrgLogo();
   const [openFlyout, setOpenFlyout] = useState<string | null>(null);
@@ -455,7 +449,7 @@ export function AppSidebar() {
         {logoUrl ? (
           <img
             src={logoUrl}
-            alt={`${currentUser.org} logo`}
+            alt="Organisation logo"
             className="w-9 h-9 object-contain rounded-xl"
           />
         ) : (
@@ -514,15 +508,7 @@ export function AppSidebar() {
           "w-9 h-9 rounded-full bg-amber-500 flex items-center justify-center overflow-hidden transition-all",
           pathname === "/profile" ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-[#0F172A]" : "",
         ].join(" ")}>
-          {currentUser.avatarUrl ? (
-            <img
-              src={currentUser.avatarUrl}
-              alt={currentUser.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <span className="text-white text-xs font-bold">{initials}</span>
-          )}
+          <span className="text-white text-xs font-bold">{initials}</span>
         </div>
         <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
           My Profile

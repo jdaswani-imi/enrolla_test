@@ -9,7 +9,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ChurnRiskStudent } from "@/lib/mock-data";
+type ChurnLevel = "Critical" | "High" | "Medium" | "Low";
+
+interface ChurnReason {
+  label: string;
+  weight: number;
+  detail: string;
+}
+
+interface RetentionFactor {
+  label: string;
+  weight: number;
+}
+
+interface ChurnRiskStudent {
+  id: string;
+  studentId: string;
+  name: string;
+  yearGroup: string;
+  department: string;
+  churnScore: number;
+  churnLevel: ChurnLevel;
+  topSignal: string;
+  daysSinceContact: number;
+  trend: "rising" | "stable" | "falling";
+  reasons: ChurnReason[];
+  retentionConfidence: number;
+  retentionFactors: RetentionFactor[];
+}
 
 interface ChurnDetailModalProps {
   student: ChurnRiskStudent | null;

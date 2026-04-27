@@ -20,7 +20,7 @@ import {
   VAT_RATE,
   type ActivityEntry,
 } from "@/lib/journey-store";
-import { staffMembers, tasks as taskStore, type Lead, type Task } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { cn } from "@/lib/utils";
 import { FormActions } from "./dialog-parts";
 import { TimeSelect } from "./time-select";
@@ -56,14 +56,6 @@ function newRow(partial: Partial<Row> = {}): Row {
   };
 }
 
-function teachersForDept(dept: string) {
-  return staffMembers.filter(
-    (s) =>
-      (s.role === "Teacher" || s.role === "HOD") &&
-      s.department === dept &&
-      s.status === "Active",
-  );
-}
 
 let _autoTaskSeq = 800;
 function nextAutoTaskId(): string {
@@ -98,8 +90,28 @@ export function BookTrialDialog({
   const studentName = isBilal ? "Bilal Mahmood" : lead?.childName ?? "Bilal Mahmood";
   const yearGroup = isBilal ? "Y7" : lead?.yearGroup ?? "Y7";
   const dept = useMemo(() => departmentFor(yearGroup), [yearGroup]);
-  const teacherPool = useMemo(() => teachersForDept(dept), [dept]);
   const feePerRow = useMemo(() => trialRateFor(dept), [dept]);
+
+  const [allStaff, setAllStaff] = useState<{ id: string; first_name: string; last_name: string; name: string; role: string; department: string; status: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data.staff ?? []);
+        setAllStaff(list.map((s: { id: string; first_name?: string; last_name?: string; name?: string; role?: string; department?: string; status?: string }) => ({
+          ...s,
+          name: s.name ?? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim(),
+        })));
+      })
+      .catch(() => {});
+  }, []);
+
+  const teacherPool = allStaff.filter(
+    (s) =>
+      (s.role === "Teacher" || s.role === "HOD") &&
+      s.department === dept &&
+      s.status === "Active",
+  );
 
   const [rows, setRows] = useState<Row[]>([]);
 
@@ -155,22 +167,25 @@ export function BookTrialDialog({
     const leadId = lead?.id ?? BILAL_LEAD_ID;
 
     rows.forEach((r) => {
-      const task: Task = {
-        id: nextAutoTaskId(),
-        title: `Log trial outcome — ${studentName} · ${r.subject.trim()}`,
-        type: "Academic",
-        priority: "High",
-        status: "Open",
-        assignee: r.teacher,
-        dueDate: formatTaskDueDate(r.date),
-        linkedRecord: null,
-        description: `Trial booked for ${formatDate(r.date)} at ${r.time} · Room ${r.room || "TBC"}. Please log the outcome in Enrolla after the session.`,
-        subtasks: [],
-        overdue: false,
-        sourceLeadId: leadId,
-        sourceLeadName: studentName,
-      };
-      taskStore.push(task);
+      fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: nextAutoTaskId(),
+          title: `Log trial outcome — ${studentName} · ${r.subject.trim()}`,
+          type: "Academic",
+          priority: "High",
+          status: "Open",
+          assignee: r.teacher,
+          dueDate: formatTaskDueDate(r.date),
+          linkedRecord: null,
+          description: `Trial booked for ${formatDate(r.date)} at ${r.time} · Room ${r.room || "TBC"}. Please log the outcome in Enrolla after the session.`,
+          subtasks: [],
+          overdue: false,
+          sourceLeadId: leadId,
+          sourceLeadName: studentName,
+        }),
+      }).catch(() => {});
     });
 
     const teacherList = Array.from(new Set(rows.map((r) => r.teacher))).filter(Boolean);

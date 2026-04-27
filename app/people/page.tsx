@@ -38,32 +38,96 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  peopleAll,
-  duplicateDetections,
-  segments,
-  students,
-  extendedGuardians,
-  leads,
-  staffMembers,
-  studentOutstandingBalance,
-  broadcastLists,
-  broadcastListExclusions,
-  forms,
-  formSubmissions,
-  formSubmissionFields,
-  exportHistory,
-  type PersonRecord,
-  type PersonType,
-  type DuplicateDetection,
-  type DuplicateThreshold,
-  type DuplicateStatus,
-  type Segment,
-  type SegmentScope,
-  type SegmentRecordType,
-  type BroadcastList,
-  type Form,
-} from "@/lib/mock-data";
+// ─── Inline types (previously imported from @/lib/mock-data) ─────────────────
+
+type PersonType = "Student" | "Guardian" | "Lead" | "Staff";
+
+interface PersonRecord {
+  id: string;
+  name: string;
+  type: PersonType;
+  contact: string;
+  status: string;
+  departmentOrStage: string;
+  createdOn: string;
+  link: string;
+}
+
+type DuplicateThreshold = "High" | "Medium" | "Low";
+type DuplicateStatus = "Pending" | "Resolved" | "Dismissed";
+
+interface DuplicatePerson {
+  id: string; name: string; type: PersonType;
+  phone: string; email: string; contact: string; createdOn: string;
+}
+
+interface DuplicateDetection {
+  id: string;
+  threshold: DuplicateThreshold;
+  matchScore: number;
+  status: DuplicateStatus;
+  recordA: DuplicatePerson;
+  recordB: DuplicatePerson;
+  matchedFields: string[];
+  detected: string;
+}
+
+type SegmentScope = "Org-Wide" | "Personal";
+type SegmentRecordType = "Students" | "Guardians" | "Leads" | "Staff";
+
+interface Segment {
+  id: string;
+  name: string;
+  scope: SegmentScope;
+  recordType: SegmentRecordType;
+  members: number;
+  count: number;
+  filterSummary: string;
+  lastRefreshed: string;
+  lastUpdated: string;
+  createdBy: string;
+  filters: string;
+}
+
+interface BroadcastMember { name: string; type: PersonType; addedBy: "Auto" | "Manual"; }
+
+interface BroadcastList {
+  id: string;
+  name: string;
+  members: number;
+  autoRule: boolean;
+  autoRuleName?: string;
+  lastUpdated: string;
+  membersList: BroadcastMember[];
+}
+
+interface Form {
+  id: string;
+  name: string;
+  type: "Lead Enquiry" | "Profile Update" | "Custom";
+  status: "Active" | "Draft" | "Archived";
+  submissions: number;
+  lastSubmission: string | null;
+  createdBy: string;
+  pinned: boolean;
+}
+
+// ─── Local data stubs ─────────────────────────────────────────────────────────
+
+const peopleAll: PersonRecord[] = [];
+const duplicateDetections: DuplicateDetection[] = [];
+const segments: Segment[] = [];
+const students: any[] = [];
+const extendedGuardians: any[] = [];
+const leads: any[] = [];
+const staffMembers: any[] = [];
+const studentOutstandingBalance: Record<string, number> = {};
+const broadcastLists: BroadcastList[] = [];
+const broadcastListExclusions: Record<string, { name: string }[]> = {};
+const forms: Form[] = [];
+const formSubmissions: any[] = [];
+const formSubmissionFields: Record<string, { label: string; value: string }[]> = {};
+const exportHistory: any[] = [];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

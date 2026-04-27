@@ -36,7 +36,30 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { RoleBanner } from "@/components/ui/role-banner";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { currentUser, AVATAR_PALETTES, getAvatarPalette, getInitials, type StaffMember, type StaffStatus, ATTENDANCE_ROLE_USER } from "@/lib/mock-data";
+type StaffStatus = "Active" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
+type WorkloadLevel = "Low" | "Moderate" | "High";
+type ContractType = "Full-time" | "Part-time" | "Sessional";
+
+interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  subjects: string[];
+  sessionsThisWeek: number;
+  cpdHours: number;
+  cpdTarget: number;
+  status: StaffStatus;
+  hireDate: string;
+  contractType: ContractType;
+  lineManager: string;
+  workloadLevel: WorkloadLevel;
+}
+
+const ATTENDANCE_ROLE_USER: Record<string, { staffId: string; department: string }> = {};
+import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -631,6 +654,7 @@ interface LeaveRequest {
 const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [];
 
 function StaffPageContent() {
+  const currentUser = useCurrentUser();
   const { can, role } = usePermission();
   const searchParams = useSearchParams();
   const router = useRouter();

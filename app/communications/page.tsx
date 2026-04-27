@@ -18,19 +18,70 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import {
-  announcements,
-  complaintTickets,
-  surveyResponses,
-  surveyPending,
-  type Announcement,
-  type AnnouncementType,
-  type AnnouncementStatus,
-  type ComplaintTicket,
-  type ComplaintStatus,
-  type SurveyResponse,
-  type SurveyType,
-} from "@/lib/mock-data";
+// ─── Inline types (previously imported from @/lib/mock-data) ─────────────────
+
+type AnnouncementType = "Pre-session" | "Post-session";
+type AnnouncementStatus = "Draft" | "Pending Approval" | "Sent";
+
+interface Announcement {
+  id: string;
+  title: string;
+  type: AnnouncementType;
+  audience: string;
+  createdBy: string;
+  sendDate: string;
+  status: AnnouncementStatus;
+  message: string;
+}
+
+type ComplaintStatus = "New" | "Investigating" | "Resolved" | "Escalated" | "Closed";
+
+interface LinkedComplaintTicket {
+  id: string;
+  description: string;
+  assignee: string;
+  dueDate: string;
+  status: "Open" | "In Progress" | "Done";
+}
+
+interface SignOff { name: string; role: string; timestamp: string | null; }
+interface EscalationEvent { event: string; actor: string; timestamp: string; }
+
+interface ComplaintTicket {
+  id: string;
+  student: string;
+  guardianName: string;
+  category: string;
+  raisedBy: string;
+  assignedTo: string;
+  status: ComplaintStatus;
+  severity: "High" | "Medium" | "Low";
+  description: string;
+  createdDate: string;
+  linkedTickets: LinkedComplaintTicket[];
+  signOffs: [SignOff, SignOff];
+  escalationLog: EscalationEvent[];
+}
+
+type SurveyType = "Mid-term" | "End of term" | "Post-trial" | "Post-withdrawal" | "Manual";
+
+interface SurveyResponse {
+  id: string;
+  student: string;
+  guardian: string;
+  surveyType: SurveyType;
+  sentDate: string;
+  score: number;
+  category: "Promoter" | "Passive" | "Detractor";
+  comment: string;
+}
+
+// ─── Local data stubs ─────────────────────────────────────────────────────────
+
+const announcements: Announcement[] = [];
+const complaintTickets: ComplaintTicket[] = [];
+const surveyResponses: SurveyResponse[] = [];
+const surveyPending: { id: string; student: string; guardian: string; trigger: string; scheduledDate: string; status: "Scheduled" | "Sent" | "Expired" }[] = [];
 import {
   Dialog,
   DialogContent,

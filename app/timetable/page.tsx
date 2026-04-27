@@ -33,9 +33,6 @@ import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { RoleBanner } from "@/components/ui/role-banner";
 import {
-  type TimetableSession,
-} from "@/lib/mock-data";
-import {
   useAssessments,
   isoToDayKey,
   isoToDateLabel,
@@ -49,6 +46,32 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { NewSessionDialog } from "@/components/timetable/new-session-dialog";
+
+// ─── Inline types (mirrors mock-data.ts — no runtime import needed) ───────────
+
+type SessionType = "Regular" | "Trial" | "Makeup" | "Assessment" | "Meeting" | "Blocked" | "Cover Required";
+type SessionStatus = "Scheduled" | "Completed" | "Cancelled";
+
+interface TimetableSession {
+  id: string;
+  day: string;
+  date: string;
+  subject: string;
+  department: string;
+  teacher: string;
+  teacherId: string;
+  assignedTAs?: string[];
+  room: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  students: string[];
+  studentCount: number;
+  type: SessionType;
+  status: SessionStatus;
+  isTrial?: boolean;
+  attendanceMarked?: boolean;
+}
 
 // ─── Grid constants ───────────────────────────────────────────────────────────
 

@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const role   = searchParams.get('role')
+  const q      = searchParams.get('q')?.trim() ?? ''
 
   let query = supabase
     .from('staff')
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
 
   if (status) query = (query as typeof query).eq('status', status)
   if (role)   query = (query as typeof query).eq('role', toDbRole(role))
+  if (q)      query = (query as typeof query).or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
 
   const { data, error } = await query
 

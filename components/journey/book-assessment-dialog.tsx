@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useJourney, nextSaturdayIso, departmentFor, BILAL_LEAD_ID, formatDate, type ActivityEntry } from "@/lib/journey-store";
 import { useAssessments } from "@/lib/assessment-store";
-import { tasks as taskStore, type Lead, type PreferredWindow, type Task } from "@/lib/mock-data";
+import type { Lead, PreferredWindow } from "@/lib/types/lead";
 import { cn } from "@/lib/utils";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
 import { TimeSelect } from "./time-select";
@@ -475,22 +475,25 @@ export function BookAssessmentDialog({
     const leadId = lead?.id ?? BILAL_LEAD_ID;
     const dueLabel = formatTaskDueDate(date);
     rows.forEach((r) => {
-      const task: Task = {
-        id: nextAutoTaskId(),
-        title: `Log assessment outcome — ${studentName} · ${r.subject.trim()}`,
-        type: "Academic",
-        priority: "High",
-        status: "Open",
-        assignee: r.teacher,
-        dueDate: dueLabel,
-        linkedRecord: null,
-        description: `Assessment booked for ${formatDate(date)} at ${r.time} · Room ${r.room || "TBC"}. Please log the outcome in Enrolla after the session.`,
-        subtasks: [],
-        overdue: false,
-        sourceLeadId: leadId,
-        sourceLeadName: studentName,
-      };
-      taskStore.push(task);
+      fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: nextAutoTaskId(),
+          title: `Log assessment outcome — ${studentName} · ${r.subject.trim()}`,
+          type: "Academic",
+          priority: "High",
+          status: "Open",
+          assignee: r.teacher,
+          dueDate: dueLabel,
+          linkedRecord: null,
+          description: `Assessment booked for ${formatDate(date)} at ${r.time} · Room ${r.room || "TBC"}. Please log the outcome in Enrolla after the session.`,
+          subtasks: [],
+          overdue: false,
+          sourceLeadId: leadId,
+          sourceLeadName: studentName,
+        }),
+      }).catch(() => {});
       const activityEntry: ActivityEntry = {
         label: "Just now",
         text: `Assessment task created for ${r.teacher} — due ${formatDate(date)}`,

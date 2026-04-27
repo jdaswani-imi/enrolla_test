@@ -16,7 +16,7 @@ import {
   formatDate,
   type ScheduleRow,
 } from "@/lib/journey-store";
-import { staffMembers, type Lead } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types/lead";
 import { cn } from "@/lib/utils";
 import { FormActions } from "./dialog-parts";
 import { WhatsAppBlock } from "./whatsapp-block";
@@ -38,14 +38,6 @@ function newRow(subject = ""): ScheduleRow {
   };
 }
 
-function teachersForDept(dept: string) {
-  return staffMembers.filter(
-    (s) =>
-      (s.role === "Teacher" || s.role === "HOD") &&
-      s.department === dept &&
-      s.status === "Active",
-  );
-}
 
 export function ScheduleOfferDialog({
   open,
@@ -63,7 +55,30 @@ export function ScheduleOfferDialog({
   const leadId = lead?.id ?? "";
   const yearGroup = lead?.yearGroup ?? "Y7";
   const dept = useMemo(() => departmentFor(yearGroup), [yearGroup]);
-  const teacherPool = useMemo(() => teachersForDept(dept), [dept]);
+
+  const [allStaff, setAllStaff] = useState<{ id: string; name: string; role: string; department: string; status: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data.staff ?? []);
+        setAllStaff(list.map((s: { id: string; first_name?: string; last_name?: string; name?: string; role?: string; department?: string; status?: string }) => ({
+          id: s.id,
+          name: s.name ?? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim(),
+          role: s.role ?? "",
+          department: s.department ?? "",
+          status: s.status ?? "",
+        })));
+      })
+      .catch(() => {});
+  }, []);
+
+  const teacherPool = allStaff.filter(
+    (s) =>
+      (s.role === "Teacher" || s.role === "HOD") &&
+      s.department === dept &&
+      s.status === "Active",
+  );
   const guardianFirstName = (lead?.guardian ?? "Tariq Mahmood").split(" ")[0];
   const childName = lead?.childName ?? "Bilal Mahmood";
 

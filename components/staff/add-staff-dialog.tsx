@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import {
   Dialog,
@@ -12,7 +12,26 @@ import {
 import { FIELD, FieldLabel, FormActions } from "@/components/journey/dialog-parts";
 import { PhoneInput } from "@/components/add-student-dialog";
 import { cn } from "@/lib/utils";
-import { staffMembers, type StaffMember, type StaffStatus } from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+
+export type StaffStatus = "Active" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  subjects: string[];
+  sessionsThisWeek: number;
+  cpdHours: number;
+  cpdTarget: number;
+  status: StaffStatus;
+  hireDate: string;
+  contractType: string;
+  lineManager: string;
+  workloadLevel: string;
+}
 
 // ─── Options ──────────────────────────────────────────────────────────────────
 
@@ -185,11 +204,20 @@ function SubjectsSelect({
 // ─── Dialog ───────────────────────────────────────────────────────────────────
 
 function useSubjectCatalogue(): string[] {
-  return useMemo(() => {
-    const set = new Set<string>();
-    for (const s of staffMembers) for (const sub of s.subjects) set.add(sub);
-    return [...set].sort();
+  const [catalogue, setCatalogue] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then(({ data }: { data: StaffMember[] }) => {
+        const set = new Set<string>();
+        for (const s of data ?? []) for (const sub of s.subjects) set.add(sub);
+        setCatalogue([...set].sort());
+      })
+      .catch(() => {});
   }, []);
+
+  return catalogue;
 }
 
 function defaultState(): {
@@ -601,5 +629,3 @@ export function ArchiveStaffDialog({
   );
 }
 
-// Re-export for convenience
-export type { StaffStatus };

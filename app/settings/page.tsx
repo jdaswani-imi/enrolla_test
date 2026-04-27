@@ -50,19 +50,62 @@ import {
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
 import {
-  type Department as DeptData,
-  type PeriodType,
-  type AcademicYear,
-  type CalendarPeriod,
-  type DepartmentPause,
-  type PublicHoliday,
-} from "@/lib/mock-data";
-import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
 import SubjectsCatalogueSection from "./subjects-catalogue";
+
+// ─── Inline types (mirrors mock-data.ts — no runtime import needed) ───────────
+
+interface DeptData {
+  id: string;
+  name: string;
+  yearGroupFrom: string;
+  yearGroupTo: string;
+  colour: string;
+  active: boolean;
+  studentCount: number;
+  sortOrder: number;
+}
+
+type PeriodType =
+  | 'term' | 'half_term' | 'holiday_break' | 'summer_term'
+  | 'closure' | 'public_holiday';
+
+interface AcademicYear {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  financialYearStartMonth: number;
+}
+
+interface DepartmentPause {
+  departmentId: string;
+  departmentName: string;
+  paused: boolean;
+}
+
+interface CalendarPeriod {
+  id: string;
+  academicYearId: string;
+  type: PeriodType;
+  name: string;
+  startDate: string;
+  endDate: string;
+  sortOrder: number;
+  departmentPauses?: DepartmentPause[];
+}
+
+interface PublicHoliday {
+  id: string;
+  academicYearId: string;
+  name: string;
+  date: string;
+  source: 'uae_template' | 'custom';
+}
 
 // ─── Nav Structure ─────────────────────────────────────────────────────────────
 

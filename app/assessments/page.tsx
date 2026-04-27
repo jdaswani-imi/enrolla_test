@@ -17,7 +17,24 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
-import { getAvatarPalette, getInitials, type Assessment, type AssessmentStatus } from "@/lib/mock-data";
+import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+
+type AssessmentStatus = "Booked" | "Link Sent" | "Awaiting Booking" | "Completed";
+type AssessmentType = "Lead" | "Student";
+
+interface Assessment {
+  id: string;
+  name: string;
+  type: AssessmentType;
+  yearGroup: string;
+  subjects: string[];
+  assessor: string | null;
+  date: string | null;
+  time: string | null;
+  room: string | null;
+  status: AssessmentStatus;
+  outcome: string | null;
+}
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { PaginationBar } from "@/components/ui/pagination-bar";

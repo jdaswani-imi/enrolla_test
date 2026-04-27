@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useJourney, enrolmentRateFor, BILAL_STUDENT_ID } from "@/lib/journey-store";
-import { staffMembers } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { FIELD, FieldLabel, FormActions, SummaryRow } from "./dialog-parts";
 
@@ -31,7 +30,6 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const ENROLMENT_FEE = 300;
 const TERM_WEEKS = 12;
 
-const TEACHERS = staffMembers.filter((s) => s.role === "Teacher" || s.role === "HOD");
 
 export function CreateEnrolmentDialog({
   open,
@@ -42,6 +40,24 @@ export function CreateEnrolmentDialog({
 }) {
   const router = useRouter();
   const { student, enrolment, createEnrolment } = useJourney();
+
+  const [teachers, setTeachers] = useState<{ id: string; name: string; role: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/staff")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data.staff ?? []);
+        const mapped = list
+          .filter((s: { role?: string }) => s.role === "Teacher" || s.role === "HOD")
+          .map((s: { id: string; first_name?: string; last_name?: string; name?: string; role?: string }) => ({
+            id: s.id,
+            name: s.name ?? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim(),
+            role: s.role ?? "",
+          }));
+        setTeachers(mapped);
+      })
+      .catch(() => {});
+  }, []);
 
   const [subject, setSubject] = useState("Y7 Maths");
   const [term, setTerm] = useState(TERMS[0]);
@@ -141,7 +157,7 @@ export function CreateEnrolmentDialog({
             <div>
               <FieldLabel htmlFor="ce-teacher" required>Teacher</FieldLabel>
               <select id="ce-teacher" className={FIELD} value={teacher} onChange={(e) => setTeacher(e.target.value)}>
-                {TEACHERS.map((t) => (
+                {teachers.map((t) => (
                   <option key={t.id} value={t.name}>{t.name}</option>
                 ))}
               </select>

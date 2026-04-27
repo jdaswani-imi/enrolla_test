@@ -41,18 +41,69 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  students,
-  departments,
-  currentUser,
-  type Invoice,
-  type InvoiceStatus,
-  type PaymentMethod,
-  type Payment,
-  type Credit,
-  type CreditType,
-  type UnbilledSession,
-} from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ─────────────────────────────────
+
+type InvoiceStatus = "Draft" | "Issued" | "Part" | "Paid" | "Overdue" | "Cancelled";
+type PaymentMethod = "Cash" | "Card" | "Bank Transfer" | "Online" | "Cheque";
+type CreditStatus = "Applied" | "Unused";
+type CreditType = "manual" | "overpayment" | "refund" | "promotional";
+
+type Invoice = {
+  id: string;
+  studentId: string;
+  student: string;
+  yearGroup: string;
+  department: string;
+  guardian: string;
+  description: string;
+  issueDate: string;
+  dueDate: string;
+  amount: number;
+  amountPaid: number;
+  status: InvoiceStatus;
+  leadId?: string;
+};
+
+type Payment = {
+  date: string;
+  studentId: string;
+  student: string;
+  invoice: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string;
+  recordedBy: string;
+  department: string;
+};
+
+type Credit = {
+  date: string;
+  studentId: string;
+  student: string;
+  amount: number;
+  reason: string;
+  issuedBy: string;
+  status: CreditStatus;
+  department: string;
+  type: CreditType;
+};
+
+type UnbilledSession = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  department: string;
+  yearGroup: string;
+  subject: string;
+  sessionDate: string;
+  sessionId: string;
+  sessionsCount: number;
+  status: "open" | "written_off";
+  writeOffReason?: string;
+  writeOffBy?: string;
+  writeOffAt?: string;
+  createdAt: string;
+};
 
 type ApiInvoice = Invoice & { uuid: string };
 
@@ -703,6 +754,17 @@ function IssueCreditDialog({
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState(CREDIT_REASONS[0]);
   const [notes, setNotes]   = useState("");
+  const [apiStudents, setApiStudents] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/students')
+      .then((r) => r.json())
+      .then((d) => {
+        const rows = (d?.data ?? []) as { id: string; first_name: string; last_name: string; student_number: string }[];
+        setApiStudents(rows.map((s) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` })));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -717,8 +779,8 @@ function IssueCreditDialog({
   const matches = useMemo(() => {
     if (!studentQuery || studentPick) return [];
     const q = studentQuery.toLowerCase();
-    return students.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 5);
-  }, [studentQuery, studentPick]);
+    return apiStudents.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [studentQuery, studentPick, apiStudents]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -750,7 +812,6 @@ function IssueCreditDialog({
                     className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
                   >
                     <span className="font-medium text-slate-800">{s.name}</span>
-                    <span className="text-xs text-slate-400 ml-2">{s.yearGroup} · {s.department}</span>
                   </button>
                 ))}
               </div>
@@ -1875,14 +1936,16 @@ function fmtDateDDMMYYYY(dateStr: string): string {
   return `${String(d).padStart(2,"0")}/${String(m).padStart(2,"0")}/${y}`;
 }
 
-function getDeptColor(deptName: string): string {
-  const dept = departments.find(d => d.name === deptName);
+type ApiDepartment = { id: string; name: string; colour: string };
+
+function getDeptColor(deptName: string, depts: ApiDepartment[]): string {
+  const dept = depts.find(d => d.name === deptName);
   if (!dept) return "#94A3B8";
   return dept.colour;
 }
 
-function getDeptBadgeStyle(deptName: string): React.CSSProperties {
-  const color = getDeptColor(deptName);
+function getDeptBadgeStyle(deptName: string, depts: ApiDepartment[]): React.CSSProperties {
+  const color = getDeptColor(deptName, depts);
   return { backgroundColor: `${color}20`, color, border: `1px solid ${color}40` };
 }
 
@@ -1991,11 +2054,19 @@ function UnbilledTab() {
   const [records, setRecords] = useState<UnbilledSession[]>([]);
   const [writeOffTarget, setWriteOffTarget] = useState<UnbilledSession | null>(null);
   const [writtenOffOpen, setWrittenOffOpen] = useState(false);
+  const [apiDepartments, setApiDepartments] = useState<ApiDepartment[]>([]);
 
   useEffect(() => {
     fetch('/api/finance/unbilled')
       .then((r) => r.json())
       .then((d) => setRecords(d ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/settings/departments')
+      .then((r) => r.json())
+      .then((d) => setApiDepartments(d?.data ?? []))
       .catch(() => {});
   }, []);
 
@@ -2112,7 +2183,7 @@ function UnbilledTab() {
                     <td className="px-4 py-3">
                       <span
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
-                        style={getDeptBadgeStyle(rec.department)}
+                        style={getDeptBadgeStyle(rec.department, apiDepartments)}
                       >
                         {rec.department}
                       </span>
@@ -2190,7 +2261,7 @@ function UnbilledTab() {
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={getDeptBadgeStyle(rec.department)}>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" style={getDeptBadgeStyle(rec.department, apiDepartments)}>
                             {rec.department}
                           </span>
                         </td>

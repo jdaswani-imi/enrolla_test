@@ -20,18 +20,60 @@ import {
   Calendar,
   ExternalLink,
 } from "lucide-react";
-import {
-  timetableSessions,
-  assignments as seedAssignments,
-  tasks,
-  AVATAR_PALETTES,
-  getAvatarPalette,
-  getInitials,
-  type Assignment,
-  type AssignmentStatus,
-  type AssignmentType,
-  type Task,
-} from "@/lib/mock-data";
+// ─── Inline types (previously imported from @/lib/mock-data) ─────────────────
+
+type AssignmentStatus = "Complete" | "Partial" | "Pending" | "Upcoming" | "Overdue";
+type AssignmentType = "Test" | "Homework" | "Classwork" | "Past Paper";
+
+interface Assignment {
+  id: string;
+  assignment: string;
+  title?: string;
+  subject: string;
+  department?: string;
+  teacher: string;
+  teacherId?: string;
+  type: AssignmentType;
+  dueDate: string;
+  status: AssignmentStatus;
+  submissions: string;
+  marked: string;
+  submittedCount?: number;
+  totalCount?: number;
+  linkedSessionId?: string;
+  instructions?: string;
+  assignTo?: string;
+}
+
+type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
+type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
+type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";
+
+interface Task {
+  id: string;
+  title: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assignee: string;
+  dueDate: string;
+  linkedRecord: { type: string; name: string; id: string } | null;
+  description: string;
+  subtasks: string[];
+  overdue: boolean;
+  sourceLeadId?: string;
+  sourceLeadName?: string;
+  linkedAssignmentId?: string;
+  linkedInventoryItemId?: string;
+  createdOn?: string;
+}
+
+// ─── Local data stubs ─────────────────────────────────────────────────────────
+
+const timetableSessions: any[] = [];
+const seedAssignments: Assignment[] = [];
+const tasks: Task[] = [];
+import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
 import { SortableHeader } from "@/components/ui/sortable-header";

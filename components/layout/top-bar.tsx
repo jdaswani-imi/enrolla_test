@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { currentUser } from "@/lib/mock-data";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { useRole } from "@/lib/role-context";
 import { useUserAvatar } from "@/lib/user-avatar-context";
 import { type Role } from "@/lib/role-config";
@@ -66,12 +66,6 @@ const ROLES: Role[] = [
   "TA",
   "HR/Finance",
 ];
-
-const initials = currentUser.name
-  .split(" ")
-  .map((n) => n[0])
-  .join("")
-  .slice(0, 2);
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
@@ -190,6 +184,8 @@ function RoleSwitcher() {
 // ─── User Menu ────────────────────────────────────────────────────────────────
 
 function UserMenu() {
+  const currentUser = useCurrentUser();
+  const initials = currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2);
   const router = useRouter();
   const { avatarUrl } = useUserAvatar();
   const [open, setOpen] = useState(false);
@@ -307,6 +303,8 @@ function UserMenu() {
 // ─── TopBar ───────────────────────────────────────────────────────────────────
 
 export function TopBar() {
+  const currentUser = useCurrentUser();
+  const initials = currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2);
   const pathname = usePathname();
   const router = useRouter();
   const title = routeTitles[pathname] ?? "Enrolla";

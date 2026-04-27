@@ -12,7 +12,32 @@ import {
 } from "@/components/ui/dialog";
 import { FIELD, FieldLabel, FormActions, SummaryRow } from "@/components/journey/dialog-parts";
 import { cn } from "@/lib/utils";
-import type { Trial, TrialOutcome } from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+
+export type TrialOutcome =
+  | "Pending"
+  | "Recommended ✅"
+  | "Parent to decide"
+  | "Not recommended"
+  | "Converted"
+  | "No Show"
+  | "Needs More Time"
+  | "Not Interested"
+  | "Cancelled";
+
+export interface Trial {
+  id: string;
+  student: string;
+  yearGroup: string;
+  subject: string;
+  teacher: string;
+  trialDate: string;
+  invoiceStatus: "Paid" | "Pending";
+  outcome: TrialOutcome;
+  notes?: string;
+  followUpDate?: string;
+  cancellationReason?: string;
+}
 
 type LogOutcomePill = "Converted" | "No Show" | "Needs More Time" | "Not Interested";
 

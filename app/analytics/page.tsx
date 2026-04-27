@@ -30,17 +30,60 @@ import {
   type PresetItem,
 } from "@/components/ui/date-range-picker";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  churnRiskStudents,
-  staffMembers,
-  occupancyHeatmap,
-  revenueDeptData,
-  revenueWeeklyData,
-  revenueTermlyData,
-  revenueBySubject,
-  YEAR_GROUPS as BASE_YEAR_GROUPS,
-  type ChurnRiskStudent,
-} from "@/lib/mock-data";
+// ─── Inline type: ChurnRiskStudent ───────────────────────────────────────────
+
+type ChurnLevel = "Critical" | "High" | "Medium" | "Low";
+
+interface ChurnRiskStudent {
+  id: string;
+  studentId: string;
+  name: string;
+  yearGroup: string;
+  department: string;
+  churnScore: number;
+  churnLevel: ChurnLevel;
+  topSignal: string;
+  daysSinceContact: number;
+  trend: "rising" | "stable" | "falling";
+  reasons: { label: string; weight: number; detail: string }[];
+  retentionConfidence: number;
+  retentionFactors: { label: string; weight: number }[];
+}
+
+// ─── Inline StaffMember type (analytics uses a subset) ───────────────────────
+
+interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  subjects: string[];
+  sessionsThisWeek: number;
+  cpdHours: number;
+  cpdTarget: number;
+  status: string;
+  hireDate: string;
+  contractType: string;
+  lineManager: string;
+  workloadLevel: string;
+}
+
+// ─── Empty-array stubs (no API endpoints yet) ─────────────────────────────────
+
+const occupancyHeatmap:    { day: string; time: string; occupancy: number }[] = [];
+const revenueDeptData:     { date: Date; month: string; Primary: number; LowerSec: number; Senior: number }[] = [];
+const revenueWeeklyData:   { week: string; Primary: number; LowerSec: number; Senior: number }[] = [];
+const revenueTermlyData:   { term: string; Primary: number; LowerSec: number; Senior: number }[] = [];
+const revenueBySubject:    { subject: string; revenue: number }[] = [];
+
+// ─── YEAR_GROUPS inlined ──────────────────────────────────────────────────────
+
+const BASE_YEAR_GROUPS = [
+  "KG1", "KG2",
+  "Y1", "Y2", "Y3", "Y4", "Y5", "Y6",
+  "Y7", "Y8", "Y9", "Y10", "Y11", "Y12", "Y13",
+] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -640,6 +683,8 @@ const CHURN_SIGNAL_KEYWORDS: Record<string, string> = {
 };
 
 function ChurnTab() {
+  // churnRisk data: no API endpoint yet, stays empty until wired
+  const [churnRiskStudents] = useState<ChurnRiskStudent[]>([]);
   const [riskLevel,   setRiskLevel]   = useState("All");
   const [department,  setDepartment]  = useState("All");
   const [yearGroup,   setYearGroup]   = useState("All");
@@ -672,7 +717,7 @@ function ChurnTab() {
     }
 
     return data;
-  }, [riskLevel, department, yearGroup, signalType]);
+  }, [churnRiskStudents, riskLevel, department, yearGroup, signalType]);
 
   const filteredChurnByDept = useMemo(() => {
     const counts: Record<string, number> = { Primary: 0, "Lower Sec": 0, Senior: 0 };
@@ -915,9 +960,17 @@ function ChurnTab() {
 // ─── Tab: Staff Performance ───────────────────────────────────────────────────
 
 function StaffTab() {
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [department, setDepartment] = useState("All");
   const [role,       setRole]       = useState("All");
   const [dateRange,  setDateRange]  = useState<DateRange>({ from: null, to: null });
+
+  useEffect(() => {
+    fetch('/api/staff')
+      .then((r) => r.ok ? r.json() : { data: [] })
+      .then((json) => setStaffMembers(json.data ?? []))
+      .catch(() => {});
+  }, []);
 
   const teachingStaff = useMemo(() => {
     let data = staffMembers.filter(
@@ -926,7 +979,7 @@ function StaffTab() {
     if (department !== "All") data = data.filter((s) => s.department === department);
     if (role !== "All")       data = data.filter((s) => s.role === role);
     return data;
-  }, [department, role]);
+  }, [staffMembers, department, role]);
 
   const cpdData = useMemo(
     () =>

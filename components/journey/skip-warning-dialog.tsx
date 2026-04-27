@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { LeadStage } from "@/lib/mock-data";
+import type { LeadStage } from "@/lib/types/lead";
 import { FormActions } from "./dialog-parts";
 
 export const PIPELINE_STAGES: LeadStage[] = [

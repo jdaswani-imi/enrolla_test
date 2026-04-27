@@ -13,11 +13,13 @@ function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+  const { searchParams } = new URL(request.url)
+  const q = searchParams.get('q')?.trim() ?? ''
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('invoices')
     .select(`
       id,
@@ -45,6 +47,12 @@ export async function GET() {
     `)
     .eq('tenant_id', TENANT_ID)
     .order('created_at', { ascending: false })
+
+  if (q) {
+    query = query.or(`invoice_number.ilike.%${q}%`)
+  }
+
+  const { data, error } = await query
 
   if (error) return NextResponse.json([], { status: 200 })
 

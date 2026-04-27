@@ -11,12 +11,42 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import {
-  staffMembers,
-  timetableSessions,
-  type StaffMember,
-  type TimetableSession,
-} from "@/lib/mock-data";
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  subjects: string[];
+  sessionsThisWeek: number;
+  cpdHours: number;
+  cpdTarget: number;
+  status: string;
+  hireDate: string;
+  contractType: string;
+  lineManager: string;
+  workloadLevel: string;
+}
+
+export interface TimetableSession {
+  id: string;
+  day: string;
+  date: string;
+  subject: string;
+  department: string;
+  teacher: string;
+  teacherId: string;
+  room: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  students: string[];
+  studentCount: number;
+  type: string;
+  status: string;
+}
 
 // ─── Step indicator (same pattern as add-student-dialog) ─────────────────────
 
@@ -92,28 +122,38 @@ export function LeaveHandoverDialog({ open, staffName, leaveDates, onOpenChange,
   // sessionId -> teacher name or COVER_NONE
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
+  // Fetched reference data
+  const [allStaff, setAllStaff] = useState<StaffMember[]>([]);
+  const [allSessions, setAllSessions] = useState<TimetableSession[]>([]);
+
   // Filter that staff's non-meeting sessions. In this prototype, leave-window
   // date-range filtering is loose — we show all of their scheduled sessions.
   const sessions = useMemo<TimetableSession[]>(() => {
     if (!staffName) return [];
     const key = staffName.toLowerCase();
-    return timetableSessions
+    return allSessions
       .filter((s) => s.teacher.toLowerCase().includes(key))
       .filter((s) => s.type !== "Meeting" && s.type !== "Blocked")
       .slice(0, 8);
-  }, [staffName]);
+  }, [staffName, allSessions]);
 
-  // Reset state when the dialog opens.
+  // Reset state and fetch data when the dialog opens.
   useEffect(() => {
-    if (open) {
-      setStep(1);
-      setAssignments({});
-    }
+    if (!open) return;
+    setStep(1);
+    setAssignments({});
+    Promise.all([
+      fetch("/api/staff").then((r) => r.json()),
+      fetch("/api/timetable/sessions").then((r) => r.json()),
+    ]).then(([staffRes, sessionsRes]) => {
+      setAllStaff(staffRes.data ?? []);
+      setAllSessions(sessionsRes.data ?? []);
+    }).catch(() => {});
   }, [open, staffName]);
 
   function candidatesFor(session: TimetableSession): StaffMember[] {
     const subjectArea = extractSubjectArea(session.subject);
-    return staffMembers.filter((s) => {
+    return allStaff.filter((s) => {
       if (s.status !== "Active") return false;
       if (!["Teacher", "HOD", "TA"].includes(s.role)) return false;
       if (s.name.toLowerCase() === staffName.toLowerCase()) return false;

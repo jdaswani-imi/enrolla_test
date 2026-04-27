@@ -9,7 +9,24 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { roomOccupancyDetail, type RoomDetail } from "@/lib/mock-data";
+// ─── Inline types and stub data (previously from mock-data) ─────────────────
+
+export interface RoomDetail {
+  name: string;
+  type: "classroom" | "office" | "open-space";
+  totalSeats: number;
+  occupiedSeats: number;
+  sessions: { subject: string; teacher: string; students: number }[];
+}
+
+interface RoomSlotDetail {
+  day: string;
+  timeSlot: string;
+  rooms: RoomDetail[];
+}
+
+// Empty until wired to /api/occupancy; detail will be fetched lazily if needed.
+const roomOccupancyDetail = new Map<string, RoomSlotDetail>();
 
 interface OccupancyDetailModalProps {
   day: string | null;

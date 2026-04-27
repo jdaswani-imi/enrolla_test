@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Send, Plus, X, Building2, ChevronDown } from 'lucide-react';
-import { students, type Student } from '@/lib/mock-data';
+// ─── Inline types (previously from mock-data) ────────────────────────────────
+interface Student { id: string; name: string; yearGroup: string; department: string; school: string; guardian: string; guardianPhone: string; enrolments: number; churnScore: number | null; status: string; lastContact: string; createdOn: string; }
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,7 +102,12 @@ function StudentSearch({
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/students').then(r => r.ok ? r.json() : []).then(d => setStudents(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -115,7 +121,7 @@ function StudentSearch({
     if (!query) return students.slice(0, 8);
     const q = query.toLowerCase();
     return students.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
-  }, [query]);
+  }, [query, students]);
 
   if (selected) {
     return (
