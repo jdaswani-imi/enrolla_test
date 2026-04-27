@@ -65,18 +65,28 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
 
   if (body.type === 'subject') {
-    const { name, departmentId, isActive, sessionDurationMins } = body
+    const { name, departmentId, isActive, sessionDurationMins, price } = body
 
     if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
+
+    const { data: branch } = await supabase
+      .from('branches')
+      .select('id')
+      .eq('tenant_id', TENANT_ID)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single()
 
     const { data, error } = await supabase
       .from('subjects')
       .insert({
-        tenant_id:               TENANT_ID,
-        name:                    name.trim(),
-        department_id:           departmentId ?? null,
-        is_active:               isActive ?? true,
+        tenant_id:                TENANT_ID,
+        branch_id:                branch?.id ?? null,
+        name:                     name.trim(),
+        department_id:            departmentId ?? null,
+        is_active:                isActive ?? true,
         session_duration_minutes: sessionDurationMins ?? 60,
+        price:                    price != null ? parseFloat(price) : 0,
       })
       .select('id')
       .single()

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useUserAvatar } from "@/lib/user-avatar-context";
 import {
   Mail,
   Phone,
@@ -136,12 +137,12 @@ type TabId = "account" | "preferences" | "activity";
 export default function ProfilePage() {
   const { role } = usePermission();
   const isSuperAdmin = role === 'Super Admin';
+  const { avatarUrl: photoUrl, setAvatarUrl: setPhotoUrl } = useUserAvatar();
 
   const [tab, setTab] = useState<TabId>("account");
   const [editing, setEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Profile photo
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -161,10 +162,29 @@ export default function ProfilePage() {
     toast.success("Profile photo removed");
   }
 
-  // Editable account fields
+  // Editable account fields (seeded from API)
   const [displayName, setDisplayName] = useState(PROFILE.name);
   const [email, setEmail]             = useState(PROFILE.email);
   const [phone, setPhone]             = useState(PROFILE.phone);
+
+  // Snapshot for cancel/revert
+  const serverRef = useRef({ displayName: PROFILE.name, email: PROFILE.email, phone: PROFILE.phone });
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const name = [data.first_name, data.last_name].filter(Boolean).join(" ") || PROFILE.name;
+        const em   = data.email ?? PROFILE.email;
+        const ph   = data.phone ?? PROFILE.phone;
+        setDisplayName(name);
+        setEmail(em);
+        setPhone(ph);
+        serverRef.current = { displayName: name, email: em, phone: ph };
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   // Preferences
   const [emailNotifs, setEmailNotifs]   = useState(true);
@@ -177,15 +197,36 @@ export default function ProfilePage() {
   const [newPw, setNewPw]         = useState("");
   const [confirmPw, setConfirmPw] = useState("");
 
-  function handleSaveProfile() {
-    setEditing(false);
-    toast.success("Profile updated");
+  async function handleSaveProfile() {
+    const nameParts  = displayName.trim().split(/\s+/);
+    const first_name = nameParts[0] ?? "";
+    const last_name  = nameParts.slice(1).join(" ");
+
+    const res = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name, last_name, email, phone }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const name = [data.first_name, data.last_name].filter(Boolean).join(" ") || displayName;
+      setDisplayName(name);
+      setEmail(data.email ?? email);
+      setPhone(data.phone ?? phone);
+      serverRef.current = { displayName: name, email: data.email ?? email, phone: data.phone ?? phone };
+      setEditing(false);
+      toast.success("Profile updated");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "Failed to update profile");
+    }
   }
 
   function handleCancelEdit() {
-    setDisplayName(PROFILE.name);
-    setEmail(PROFILE.email);
-    setPhone(PROFILE.phone);
+    setDisplayName(serverRef.current.displayName);
+    setEmail(serverRef.current.email);
+    setPhone(serverRef.current.phone);
     setEditing(false);
   }
 

@@ -9,13 +9,14 @@ const supabase = createClient(
 )
 
 const FIELDS = [
-  'org_name', 'legal_name', 'student_id_format', 'vat_number',
+  'org_name', 'legal_name', 'website', 'student_id_format', 'vat_number',
   'currency', 'timezone', 'default_language', 'start_day_of_week',
-  'weekly_closure_days', 'office_hours',
+  'weekly_closure_days', 'office_hours', 'day_start_time', 'day_end_time', 'day_schedules',
   'invoice_number_prefix', 'invoice_number_format', 'vat_rate',
   'default_payment_terms', 'enrolment_fee', 'enrolment_fee_type',
   'invoice_footer_text', 'min_first_instalment', 'late_payment_fee',
   'cpd_annual_target', 'performance_review_cadence', 'org_domain_restriction',
+  'logo_url',
 ] as const
 
 export async function GET() {
@@ -38,7 +39,13 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const field of FIELDS) {
-    if (body[field] !== undefined) updates[field] = body[field]
+    if (body[field] !== undefined) {
+      if (field === 'day_schedules' && typeof body[field] === 'string') {
+        try { updates[field] = JSON.parse(body[field]) } catch { updates[field] = body[field] }
+      } else {
+        updates[field] = body[field]
+      }
+    }
   }
   if (body.complete === true) {
     updates.onboarding_completed_at = new Date().toISOString()

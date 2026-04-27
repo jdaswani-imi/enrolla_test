@@ -13,7 +13,7 @@ export async function GET() {
   if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('branches')
-    .select('id, name, address, phone, email, is_active')
+    .select('id, name, address, phone, email, location_url, currency, is_active')
     .eq('tenant_id', TENANT_ID)
     .order('name', { ascending: true })
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
   const body = await request.json()
-  const { name, address = '', phone = '', email = '' } = body
+  const { name, address = '', phone = '', email = '', location_url = '', currency = 'AED' } = body
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('branches')
-    .insert({ tenant_id: TENANT_ID, name: name.trim(), address, phone, email, is_active: true })
-    .select('id, name, address, phone, email, is_active')
+    .insert({ tenant_id: TENANT_ID, name: name.trim(), address, phone, email, location_url, currency, is_active: true })
+    .select('id, name, address, phone, email, location_url, currency, is_active')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

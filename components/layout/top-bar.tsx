@@ -26,6 +26,7 @@ import { toast } from "sonner";
 
 import { currentUser } from "@/lib/mock-data";
 import { useRole } from "@/lib/role-context";
+import { useUserAvatar } from "@/lib/user-avatar-context";
 import { type Role } from "@/lib/role-config";
 import { cn } from "@/lib/utils";
 import { GlobalSearch } from "./global-search";
@@ -190,6 +191,7 @@ function RoleSwitcher() {
 
 function UserMenu() {
   const router = useRouter();
+  const { avatarUrl } = useUserAvatar();
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -234,9 +236,9 @@ function UserMenu() {
           aria-expanded={open}
           className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-amber-400 hover:ring-offset-1 transition-all overflow-hidden"
         >
-          {currentUser.avatarUrl ? (
+          {avatarUrl ? (
             <img
-              src={currentUser.avatarUrl}
+              src={avatarUrl}
               alt={currentUser.name}
               className="w-full h-full object-cover"
             />
@@ -250,9 +252,9 @@ function UserMenu() {
             {/* Header */}
             <div className="px-3 py-3 border-b border-slate-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {currentUser.avatarUrl ? (
+                {avatarUrl ? (
                   <img
-                    src={currentUser.avatarUrl}
+                    src={avatarUrl}
                     alt={currentUser.name}
                     className="w-full h-full object-cover"
                   />

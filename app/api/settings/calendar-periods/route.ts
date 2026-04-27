@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
   if (departmentPauses.length > 0) {
     await supabase.from('calendar_period_dept_pauses').insert(
       departmentPauses.map((dp: { departmentId: string; paused: boolean }) => ({
+        tenant_id: TENANT_ID,
         calendar_period_id: data.id,
         department_id: dp.departmentId,
         paused: dp.paused,

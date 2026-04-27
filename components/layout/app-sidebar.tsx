@@ -31,8 +31,9 @@ import {
   Zap,
 } from "lucide-react";
 
-import { currentUser, orgSettings } from "@/lib/mock-data";
+import { currentUser } from "@/lib/mock-data";
 import { usePermission } from "@/lib/use-permission";
+import { useOrgLogo } from "@/lib/org-logo-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -410,6 +411,7 @@ const initials = currentUser.name
 export function AppSidebar() {
   const { sees, role } = usePermission();
   const pathname = usePathname();
+  const { logoUrl } = useOrgLogo();
   const [openFlyout, setOpenFlyout] = useState<string | null>(null);
 
   // Close flyout on route change
@@ -450,11 +452,11 @@ export function AppSidebar() {
         aria-label="Go to dashboard"
         className="mb-6 flex-shrink-0"
       >
-        {orgSettings.logoUrl ? (
+        {logoUrl ? (
           <img
-            src={orgSettings.logoUrl}
+            src={logoUrl}
             alt={`${currentUser.org} logo`}
-            className="w-8 h-8 object-contain rounded"
+            className="w-9 h-9 object-contain rounded-xl"
           />
         ) : (
           <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center">

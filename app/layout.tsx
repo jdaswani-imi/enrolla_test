@@ -9,6 +9,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { RoleProvider } from "@/lib/role-context";
 import { JourneyProvider } from "@/lib/journey-store";
 import { AssessmentProvider } from "@/lib/assessment-store";
+import { OrgLogoProvider } from "@/lib/org-logo-context";
+import { UserAvatarProvider } from "@/lib/user-avatar-context";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -30,16 +32,20 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakartaSans.variable} h-full antialiased`}>
       <body className="h-full">
         <TooltipProvider delay={300}>
-          <RoleProvider>
-            <JourneyProvider>
-              <AssessmentProvider>
-                <div className="flex h-full w-full">
-                  <AppShell>{children}</AppShell>
-                </div>
-                <Toaster position="bottom-right" richColors />
-              </AssessmentProvider>
-            </JourneyProvider>
-          </RoleProvider>
+          <OrgLogoProvider>
+            <UserAvatarProvider>
+            <RoleProvider>
+              <JourneyProvider>
+                <AssessmentProvider>
+                  <div className="flex h-full w-full">
+                    <AppShell>{children}</AppShell>
+                  </div>
+                  <Toaster position="bottom-right" richColors />
+                </AssessmentProvider>
+              </JourneyProvider>
+            </RoleProvider>
+            </UserAvatarProvider>
+          </OrgLogoProvider>
         </TooltipProvider>
       </body>
     </html>

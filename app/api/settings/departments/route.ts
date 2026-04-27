@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
+import { TENANT_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -68,11 +68,20 @@ export async function POST(request: NextRequest) {
 
   const nextSort = sortOrder ?? ((existing?.[0]?.sort_order ?? 0) + 1)
 
+  // Resolve branch_id from the actual branches table so we never hit a FK mismatch
+  const { data: branch } = await supabase
+    .from('branches')
+    .select('id')
+    .eq('tenant_id', TENANT_ID)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single()
+
   const { data, error } = await supabase
     .from('departments')
     .insert({
       tenant_id: TENANT_ID,
-      branch_id: BRANCH_ID,
+      branch_id: branch?.id ?? null,
       name: name.trim(),
       year_group_from: yearGroupFrom,
       year_group_to: yearGroupTo,

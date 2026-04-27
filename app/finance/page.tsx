@@ -1377,7 +1377,7 @@ function PaymentsTab() {
     if (!studentSearch || studentFilter) return [];
     const q = studentSearch.toLowerCase();
     return Array.from(new Set(paymentData.map((p) => p.student))).filter((n) => n.toLowerCase().includes(q));
-  }, [studentSearch, studentFilter]);
+  }, [studentSearch, studentFilter, paymentData]);
 
   const hasActiveFilters =
     deptFilter.length > 0 || methodFilter.length > 0 || dateRange.from != null ||
@@ -1626,7 +1626,7 @@ function CreditsTab() {
     if (!studentSearch || studentFilter) return [];
     const q = studentSearch.toLowerCase();
     return Array.from(new Set(creditData.map((c) => c.student))).filter((n) => n.toLowerCase().includes(q));
-  }, [studentSearch, studentFilter]);
+  }, [studentSearch, studentFilter, creditData]);
 
   const hasActiveFilters =
     deptFilter.length > 0 || typeFilter.length > 0 || dateRange.from != null ||

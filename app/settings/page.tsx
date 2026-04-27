@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { usePermission } from "@/lib/use-permission";
+import { useOrgLogo } from "@/lib/org-logo-context";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
   Dialog,
@@ -44,6 +45,7 @@ import {
   X,
   AlertTriangle,
   Info,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
@@ -128,6 +130,284 @@ const NAV_SECTIONS = [
   },
 ];
 
+// ─── Day-of-week multi-select ──────────────────────────────────────────────────
+
+const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
+function DaySelect({
+  label, value, onChange,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+}) {
+  const selected = value ? value.split(",").map((d) => d.trim()).filter(Boolean) : [];
+
+  function toggle(day: string) {
+    const next = selected.includes(day)
+      ? selected.filter((d) => d !== day)
+      : [...selected, day];
+    onChange(next.join(", "));
+  }
+
+  return (
+    <div className="col-span-2">
+      <label className="block text-xs font-medium text-slate-500 mb-2">{label}</label>
+      <div className="flex flex-wrap gap-1.5">
+        {DAYS_OF_WEEK.map((day) => {
+          const active = selected.includes(day);
+          return (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggle(day)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-semibold rounded-md border transition-colors cursor-pointer select-none",
+                active
+                  ? "bg-slate-800 text-white border-slate-800"
+                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              )}
+            >
+              {day.slice(0, 3)}
+            </button>
+          );
+        })}
+      </div>
+      {selected.length > 0 && (
+        <p className="text-xs text-slate-400 mt-2">
+          Closed: <span className="text-slate-600 font-medium">{selected.join(", ")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Time picker ───────────────────────────────────────────────────────────────
+
+const TIME_SLOTS: { value: string; label: string }[] = (() => {
+  const slots: { value: string; label: string }[] = [];
+  for (let h = 5; h <= 23; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const period = h >= 12 ? "PM" : "AM";
+      const label = `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+      slots.push({ value, label });
+    }
+  }
+  return slots;
+})();
+
+function TimeSelect({
+  label, value, onChange, disabled = false,
+}: {
+  label: string; value: string; onChange: (v: string) => void; disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <div className="relative">
+        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none z-10" />
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors cursor-pointer appearance-none disabled:opacity-50"
+        >
+          {TIME_SLOTS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+// ─── Compact time picker (no label, for table cells) ──────────────────────────
+
+function TimeSelectRaw({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none z-10" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pl-7 pr-2 py-1.5 text-xs border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500/20 focus:border-amber-400 transition-colors cursor-pointer appearance-none"
+      >
+        {TIME_SLOTS.map((s) => (
+          <option key={s.value} value={s.value}>{s.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// ─── Per-day schedule grid ──────────────────────────────────────────────────────
+
+type DayRowState = { open: boolean; start: string; end: string };
+type ScheduleMap = Record<string, DayRowState>;
+
+function parseScheduleMap(
+  scheduleJson: string,
+  closureDays: string,
+  globalStart: string,
+  globalEnd: string,
+): ScheduleMap {
+  const closed = new Set(
+    closureDays ? closureDays.split(",").map((d) => d.trim()).filter(Boolean) : [],
+  );
+  let saved: Record<string, Partial<DayRowState>> = {};
+  try { saved = JSON.parse(scheduleJson || "{}"); } catch {}
+  return Object.fromEntries(
+    DAYS_OF_WEEK.map((day) => [
+      day,
+      {
+        open: saved[day]?.open !== undefined ? Boolean(saved[day].open) : !closed.has(day),
+        start: (saved[day]?.start as string | undefined) || globalStart || "08:00",
+        end:   (saved[day]?.end   as string | undefined) || globalEnd   || "18:00",
+      },
+    ]),
+  ) as ScheduleMap;
+}
+
+function DayScheduleGrid({
+  globalStart, globalEnd, closureDays, scheduleJson, onChange,
+}: {
+  globalStart: string; globalEnd: string; closureDays: string; scheduleJson: string;
+  onChange: (u: { day_start_time: string; day_end_time: string; weekly_closure_days: string; day_schedules: string }) => void;
+}) {
+  const [schedule, setSchedule] = useState<ScheduleMap>(() =>
+    parseScheduleMap(scheduleJson, closureDays, globalStart, globalEnd),
+  );
+  const [defStart, setDefStart] = useState(globalStart || "08:00");
+  const [defEnd,   setDefEnd]   = useState(globalEnd   || "18:00");
+
+  const initKey = useRef("");
+  useEffect(() => {
+    const key = scheduleJson + "|" + closureDays + "|" + globalStart + "|" + globalEnd;
+    if (key !== initKey.current && (scheduleJson || closureDays || globalStart !== "08:00" || globalEnd !== "18:00")) {
+      initKey.current = key;
+      setSchedule(parseScheduleMap(scheduleJson, closureDays, globalStart, globalEnd));
+      if (globalStart) setDefStart(globalStart);
+      if (globalEnd)   setDefEnd(globalEnd);
+    }
+  }, [scheduleJson, closureDays, globalStart, globalEnd]);
+
+  function emit(sched: ScheduleMap, ds: string, de: string) {
+    onChange({
+      day_start_time: ds,
+      day_end_time: de,
+      weekly_closure_days: DAYS_OF_WEEK.filter((d) => !sched[d].open).join(", "),
+      day_schedules: JSON.stringify(sched),
+    });
+  }
+
+  function toggleDay(day: string) {
+    const next = { ...schedule, [day]: { ...schedule[day], open: !schedule[day].open } };
+    setSchedule(next);
+    emit(next, defStart, defEnd);
+  }
+
+  function setDayTime(day: string, field: "start" | "end", val: string) {
+    const next = { ...schedule, [day]: { ...schedule[day], [field]: val } };
+    setSchedule(next);
+    emit(next, defStart, defEnd);
+  }
+
+  function updateDefault(field: "start" | "end", val: string) {
+    const ns = field === "start" ? val : defStart;
+    const ne = field === "end"   ? val : defEnd;
+    if (field === "start") setDefStart(val); else setDefEnd(val);
+    const oldDef = field === "start" ? defStart : defEnd;
+    const next: ScheduleMap = {};
+    for (const day of DAYS_OF_WEEK) {
+      next[day] = {
+        ...schedule[day],
+        [field]: schedule[day].open && schedule[day][field] === oldDef ? val : schedule[day][field],
+      };
+    }
+    setSchedule(next);
+    emit(next, ns, ne);
+  }
+
+  function applyToAll() {
+    const next: ScheduleMap = {};
+    for (const day of DAYS_OF_WEEK) {
+      next[day] = { ...schedule[day], start: defStart, end: defEnd };
+    }
+    setSchedule(next);
+    emit(next, defStart, defEnd);
+  }
+
+  return (
+    <div className="col-span-2 space-y-3">
+      <label className="block text-xs font-medium text-slate-500">Daily Schedule</label>
+
+      <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+        <span className="text-xs text-slate-500 font-medium shrink-0">Default hours:</span>
+        <div className="flex items-center gap-2 flex-1">
+          <TimeSelectRaw value={defStart} onChange={(v) => updateDefault("start", v)} />
+          <span className="text-xs text-slate-400 shrink-0">to</span>
+          <TimeSelectRaw value={defEnd} onChange={(v) => updateDefault("end", v)} />
+        </div>
+        <button
+          type="button"
+          onClick={applyToAll}
+          className="text-xs text-amber-600 hover:text-amber-700 font-medium whitespace-nowrap cursor-pointer shrink-0"
+        >
+          Apply to all
+        </button>
+      </div>
+
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Day</th>
+              <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+              <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Open From</th>
+              <th className="px-4 py-2 text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Open Until</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {DAYS_OF_WEEK.map((day) => {
+              const row = schedule[day];
+              return (
+                <tr key={day} className={cn(!row.open ? "bg-slate-50/60" : "bg-white")}>
+                  <td className="px-4 py-2.5 text-sm font-medium text-slate-700 w-28">{day}</td>
+                  <td className="px-4 py-2.5 w-24">
+                    <button
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border transition-colors cursor-pointer",
+                        row.open
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200 hover:text-slate-600",
+                      )}
+                    >
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", row.open ? "bg-emerald-500" : "bg-slate-300")} />
+                      {row.open ? "Open" : "Closed"}
+                    </button>
+                  </td>
+                  <td className="px-4 py-2">
+                    {row.open
+                      ? <TimeSelectRaw value={row.start} onChange={(v) => setDayTime(day, "start", v)} />
+                      : <span className="text-xs text-slate-300 pl-1">—</span>}
+                  </td>
+                  <td className="px-4 py-2">
+                    {row.open
+                      ? <TimeSelectRaw value={row.end} onChange={(v) => setDayTime(day, "end", v)} />
+                      : <span className="text-xs text-slate-300 pl-1">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ─── Shared UI ─────────────────────────────────────────────────────────────────
 
 function FormField({
@@ -180,20 +460,21 @@ function FormSelect({
 // ─── Controlled form helpers (used by wired settings sections) ──────────────────
 
 function CField({
-  label, value, onChange, type = "text", span2 = false, disabled = false,
+  label, value, onChange, type = "text", span2 = false, disabled = false, placeholder,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; span2?: boolean; disabled?: boolean;
+  type?: string; span2?: boolean; disabled?: boolean; placeholder?: string;
 }) {
   return (
     <div className={span2 ? "col-span-2" : ""}>
       <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
       <input
         type={type}
-        value={value}
+        value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors disabled:opacity-50"
+        placeholder={placeholder}
+        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors disabled:opacity-50 placeholder:text-slate-400"
       />
     </div>
   );
@@ -424,9 +705,9 @@ type FeatureState = "On" | "Off" | "Later";
 // ─── Section 1: Organisation ───────────────────────────────────────────────────
 
 type OrgFields = {
-  org_name: string; legal_name: string; student_id_format: string; vat_number: string;
+  org_name: string; legal_name: string; website: string; student_id_format: string; vat_number: string;
   currency: string; timezone: string; default_language: string; start_day_of_week: string;
-  weekly_closure_days: string; office_hours: string;
+  weekly_closure_days: string; office_hours: string; day_start_time: string; day_end_time: string; day_schedules: string;
   invoice_number_prefix: string; invoice_number_format: string; vat_rate: string;
   default_payment_terms: string; enrolment_fee: string; enrolment_fee_type: string;
   invoice_footer_text: string; min_first_instalment: string; late_payment_fee: string;
@@ -434,9 +715,10 @@ type OrgFields = {
 };
 
 const BLANK_ORG: OrgFields = {
-  org_name: "", legal_name: "", student_id_format: "", vat_number: "",
+  org_name: "", legal_name: "", website: "", student_id_format: "", vat_number: "",
   currency: "AED", timezone: "UTC+4 (Gulf Standard Time)", default_language: "English",
   start_day_of_week: "Monday", weekly_closure_days: "", office_hours: "",
+  day_start_time: "08:00", day_end_time: "18:00", day_schedules: "",
   invoice_number_prefix: "", invoice_number_format: "", vat_rate: "",
   default_payment_terms: "", enrolment_fee: "", enrolment_fee_type: "",
   invoice_footer_text: "", min_first_instalment: "", late_payment_fee: "None",
@@ -454,7 +736,11 @@ function useOrgSettings() {
         setFields((prev) => {
           const next = { ...prev };
           (Object.keys(BLANK_ORG) as (keyof OrgFields)[]).forEach((k) => {
-            if (data[k] != null && data[k] !== "") next[k] = data[k];
+            if (k === 'day_schedules') {
+              if (data[k] != null) next[k] = typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k]);
+            } else if (data[k] != null && data[k] !== "") {
+              next[k] = data[k];
+            }
           });
           return next;
         });
@@ -465,6 +751,10 @@ function useOrgSettings() {
 
   function set(field: keyof OrgFields) {
     return (v: string) => setFields((prev) => ({ ...prev, [field]: v }));
+  }
+
+  function setMultiple(updates: Partial<OrgFields>) {
+    setFields((prev) => ({ ...prev, ...updates }));
   }
 
   async function save(subset: (keyof OrgFields)[]) {
@@ -479,29 +769,67 @@ function useOrgSettings() {
     else toast.error("Failed to save settings");
   }
 
-  return { fields, set, save, loading };
+  return { fields, set, setMultiple, save, loading };
+}
+
+function useSystemLocks() {
+  const [hasStudents, setHasStudents] = useState(false);
+  const [hasInvoices, setHasInvoices] = useState(false);
+  useEffect(() => {
+    fetch('/api/settings/lock-state')
+      .then((r) => r.json())
+      .then((d) => {
+        setHasStudents(d.hasStudents ?? false);
+        setHasInvoices(d.hasInvoices ?? false);
+      })
+      .catch(() => {});
+  }, []);
+  return { hasStudents, hasInvoices };
 }
 
 const ORG_SECTION_KEYS: (keyof OrgFields)[] = [
-  'org_name', 'legal_name', 'student_id_format', 'vat_number',
+  'org_name', 'legal_name', 'website', 'student_id_format', 'vat_number',
   'currency', 'timezone', 'default_language', 'start_day_of_week',
-  'weekly_closure_days', 'office_hours',
+  'weekly_closure_days', 'day_start_time', 'day_end_time', 'day_schedules',
 ];
 
 function OrganisationSection() {
   const router = useRouter();
-  const { fields, set, save, loading } = useOrgSettings();
+  const { fields, set, setMultiple, save, loading } = useOrgSettings();
+  const { hasStudents } = useSystemLocks();
+  const { logoUrl, setLogoUrl } = useOrgLogo();
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [onboardingCompletedAt, setOnboardingCompletedAt] = useState<string | null>(null);
   const loaded = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
     fetch('/api/settings/org').then((r) => r.json()).then((d) => {
       setOnboardingCompletedAt(d.onboarding_completed_at ?? null);
+      if (d.logo_url) setLogoUrl(d.logo_url);
     }).catch(() => {});
   }, []);
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/settings/org/logo', { method: 'POST', body: form });
+    if (res.ok) {
+      const { url } = await res.json();
+      setLogoUrl(url);
+      toast.success('Logo updated');
+    } else {
+      toast.error('Failed to upload logo');
+    }
+    setLogoUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -520,14 +848,39 @@ function OrganisationSection() {
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
           <CField label="Organisation Name" value={fields.org_name} onChange={set('org_name')} disabled={loading} />
           <CField label="Legal Name" value={fields.legal_name} onChange={set('legal_name')} disabled={loading} />
-          <CField label="Student ID Format" value={fields.student_id_format} onChange={set('student_id_format')} disabled={loading} />
+          <CField label="Website" value={fields.website} onChange={set('website')} disabled={loading} placeholder="https://example.com" />
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <label className="block text-xs font-medium text-slate-500">Student ID Format</label>
+              {hasStudents && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <LockIcon className="w-3 h-3 text-slate-400" />
+                  </TooltipTrigger>
+                  <TooltipContent>Locked — students already exist with this format</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+            <input
+              type="text"
+              value={fields.student_id_format}
+              onChange={(e) => set('student_id_format')(e.target.value)}
+              disabled={loading || hasStudents}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </div>
           <CField label="VAT Registration Number" value={fields.vat_number} onChange={set('vat_number')} disabled={loading} />
           <CSelect label="Currency" value={fields.currency} onChange={set('currency')} options={["AED", "USD", "GBP", "EUR"]} />
           <CSelect label="Timezone" value={fields.timezone} onChange={set('timezone')} options={["UTC+4 (Gulf Standard Time)", "UTC+0 (GMT)", "UTC+3 (AST)"]} />
           <CSelect label="Default Language" value={fields.default_language} onChange={set('default_language')} options={["English", "Arabic"]} />
           <CSelect label="Start Day of Week" value={fields.start_day_of_week} onChange={set('start_day_of_week')} options={["Monday", "Sunday", "Saturday"]} />
-          <CField label="Weekly Closure Days" value={fields.weekly_closure_days} onChange={set('weekly_closure_days')} disabled={loading} />
-          <CField label="Office Hours" value={fields.office_hours} onChange={set('office_hours')} disabled={loading} />
+          <DayScheduleGrid
+            globalStart={fields.day_start_time || "08:00"}
+            globalEnd={fields.day_end_time || "18:00"}
+            closureDays={fields.weekly_closure_days}
+            scheduleJson={fields.day_schedules || ""}
+            onChange={(u) => setMultiple(u)}
+          />
         </div>
         <CSaveButton saving={saving} onClick={handleSave} />
       </Card>
@@ -535,14 +888,28 @@ function OrganisationSection() {
       <Card className="p-6 mb-5">
         <p className="text-sm font-semibold text-slate-700 mb-4">Logo</p>
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
-            <Building2 className="w-6 h-6 text-slate-400" />
+          <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Organisation logo" className="w-full h-full object-contain p-1" />
+            ) : (
+              <Building2 className="w-6 h-6 text-slate-400" />
+            )}
           </div>
-          <OutlineButton
-            label="Upload Logo"
-            icon={<Upload className="w-3.5 h-3.5" />}
-            onClick={() => toast.info("Logo upload coming soon")}
-          />
+          <div className="flex flex-col gap-1.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+            <OutlineButton
+              label={logoUploading ? "Uploading…" : logoUrl ? "Change Logo" : "Upload Logo"}
+              icon={<Upload className="w-3.5 h-3.5" />}
+              onClick={() => !logoUploading && fileInputRef.current?.click()}
+            />
+            <p className="text-xs text-slate-400">PNG, JPG, WebP or SVG · max 2 MB</p>
+          </div>
         </div>
       </Card>
 
@@ -553,7 +920,7 @@ function OrganisationSection() {
             — {new Date(onboardingCompletedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.
           </p>
           <button
-            onClick={() => router.push("/onboarding")}
+            onClick={() => router.push("/onboarding?rerun=1")}
             className="text-xs text-amber-600 hover:text-amber-700 font-medium hover:underline cursor-pointer"
           >
             Re-run wizard →
@@ -579,7 +946,7 @@ function OrganisationSection() {
 
 // ─── Section 2: Branches ───────────────────────────────────────────────────────
 
-type Branch = { id: string; name: string; address: string; phone: string };
+type Branch = { id: string; name: string; address: string; phone: string; location_url: string; currency: string };
 
 function BranchDialog({
   open,
@@ -590,17 +957,21 @@ function BranchDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   initial: Branch | null;
-  onSave: (branch: { name: string; address: string; phone: string }) => void;
+  onSave: (branch: { name: string; address: string; phone: string; location_url: string; currency: string }) => void;
 }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
+  const [currency, setCurrency] = useState("AED");
 
   useEffect(() => {
     if (open) {
       setName(initial?.name ?? "");
       setAddress(initial?.address ?? "");
       setPhone(initial?.phone ?? "");
+      setLocationUrl(initial?.location_url ?? "");
+      setCurrency(initial?.currency ?? "AED");
     }
   }, [open, initial]);
 
@@ -643,12 +1014,33 @@ function BranchDialog({
               placeholder="+971 4 000 0000"
             />
           </div>
+          <div>
+            <FieldLabel>Location URL</FieldLabel>
+            <input
+              className={FIELD}
+              value={locationUrl}
+              onChange={(e) => setLocationUrl(e.target.value)}
+              placeholder="https://maps.google.com/?q=..."
+            />
+          </div>
+          <div>
+            <FieldLabel>Currency</FieldLabel>
+            <select
+              className={FIELD + " cursor-pointer appearance-none"}
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+            >
+              {["AED", "USD", "GBP", "EUR"].map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <FormActions
           onCancel={() => onOpenChange(false)}
           onSubmit={() => {
             if (!canSubmit) return;
-            onSave({ name: name.trim(), address: address.trim(), phone: phone.trim() });
+            onSave({ name: name.trim(), address: address.trim(), phone: phone.trim(), location_url: locationUrl.trim(), currency });
             onOpenChange(false);
           }}
           submitLabel={initial ? "Save changes" : "Add branch"}
@@ -708,8 +1100,8 @@ function BranchesSection() {
     fetch('/api/settings/branches')
       .then((r) => r.json())
       .then((data) => setBranches(
-        (data ?? []).map((b: { id: string; name: string; address: string; phone: string }) => ({
-          id: b.id, name: b.name, address: b.address ?? '', phone: b.phone ?? '',
+        (data ?? []).map((b: { id: string; name: string; address: string; phone: string; location_url: string; currency: string }) => ({
+          id: b.id, name: b.name, address: b.address ?? '', phone: b.phone ?? '', location_url: b.location_url ?? '', currency: b.currency ?? 'AED',
         }))
       ))
       .catch(() => {});
@@ -724,7 +1116,7 @@ function BranchesSection() {
     setDialogOpen(true);
   }
 
-  async function handleSave(data: { name: string; address: string; phone: string }) {
+  async function handleSave(data: { name: string; address: string; phone: string; location_url: string; currency: string }) {
     if (editing) {
       const res = await fetch(`/api/settings/branches/${editing.id}`, {
         method: 'PATCH',
@@ -745,7 +1137,7 @@ function BranchesSection() {
       });
       if (res.ok) {
         const created = await res.json();
-        setBranches((prev) => [...prev, { id: created.id, name: created.name, address: created.address ?? '', phone: created.phone ?? '' }]);
+        setBranches((prev) => [...prev, { id: created.id, name: created.name, address: created.address ?? '', phone: created.phone ?? '', location_url: created.location_url ?? '', currency: created.currency ?? 'AED' }]);
         toast.success("Branch added");
       } else {
         toast.error("Failed to add branch");
@@ -1678,8 +2070,39 @@ const BILLING_SECTION_KEYS: (keyof OrgFields)[] = [
   'default_payment_terms', 'enrolment_fee', 'enrolment_fee_type', 'invoice_footer_text',
 ];
 
+function LockedCField({
+  label, value, onChange, disabled, locked, lockedReason,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  disabled?: boolean; locked?: boolean; lockedReason?: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="block text-xs font-medium text-slate-500">{label}</label>
+        {locked && (
+          <Tooltip>
+            <TooltipTrigger>
+              <LockIcon className="w-3 h-3 text-slate-400" />
+            </TooltipTrigger>
+            <TooltipContent>{lockedReason}</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled || locked}
+        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      />
+    </div>
+  );
+}
+
 function BillingSection() {
   const { fields, set, save, loading } = useOrgSettings();
+  const { hasInvoices } = useSystemLocks();
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -1696,8 +2119,22 @@ function BillingSection() {
       />
       <Card className="p-6 mb-6">
         <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-          <CField label="Invoice Number Prefix" value={fields.invoice_number_prefix} onChange={set('invoice_number_prefix')} disabled={loading} />
-          <CField label="Invoice Number Format" value={fields.invoice_number_format} onChange={set('invoice_number_format')} disabled={loading} />
+          <LockedCField
+            label="Invoice Number Prefix"
+            value={fields.invoice_number_prefix}
+            onChange={set('invoice_number_prefix')}
+            disabled={loading}
+            locked={hasInvoices}
+            lockedReason="Locked — invoices already exist with this prefix"
+          />
+          <LockedCField
+            label="Invoice Number Format"
+            value={fields.invoice_number_format}
+            onChange={set('invoice_number_format')}
+            disabled={loading}
+            locked={hasInvoices}
+            lockedReason="Locked — invoices already exist with this format"
+          />
           <CField label="VAT Rate" value={fields.vat_rate} onChange={set('vat_rate')} disabled={loading} />
           <CField label="Default Payment Terms" value={fields.default_payment_terms} onChange={set('default_payment_terms')} disabled={loading} />
           <CField label="Enrolment Fee" value={fields.enrolment_fee} onChange={set('enrolment_fee')} disabled={loading} />
@@ -2099,12 +2536,16 @@ function PeriodCard({
   onEdit,
   onDelete,
   onTogglePause,
+  onAddHalfTerm,
+  isCurrentYear,
 }: {
   period: CalendarPeriod;
   allPeriods: CalendarPeriod[];
   onEdit: (p: CalendarPeriod) => void;
   onDelete: (id: string) => void;
   onTogglePause: (periodId: string, deptId: string) => void;
+  onAddHalfTerm?: (termId: string) => void;
+  isCurrentYear?: boolean;
 }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
@@ -2152,8 +2593,15 @@ function PeriodCard({
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => setDeleteConfirm(true)}
-              className="p-1.5 rounded transition-colors text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+              onClick={() => !isCurrentYear && setDeleteConfirm(true)}
+              disabled={isCurrentYear}
+              title={isCurrentYear ? "Cannot delete periods in the live academic year" : undefined}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                isCurrentYear
+                  ? "text-slate-200 cursor-not-allowed"
+                  : "text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+              )}
               aria-label="Delete period"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -2161,9 +2609,18 @@ function PeriodCard({
           </div>
         </div>
 
-        {/* Term: billable weeks table */}
+        {/* Term: billable weeks table + add half-term shortcut */}
         {period.type === "term" && (
-          <TermBillableTable termId={period.id} periods={allPeriods} />
+          <>
+            <TermBillableTable termId={period.id} periods={allPeriods} />
+            <button
+              onClick={() => onAddHalfTerm?.(period.id)}
+              className="mt-3 flex items-center gap-1.5 text-xs font-medium text-amber-600 hover:text-amber-700 cursor-pointer transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Half-Term Break
+            </button>
+          </>
         )}
 
         {/* Summer term: ad hoc billing note */}
@@ -2493,6 +2950,7 @@ function AddEditPeriodModal({
   existingPeriods,
   academicYearId,
   onSave,
+  initialType,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -2500,6 +2958,7 @@ function AddEditPeriodModal({
   existingPeriods: CalendarPeriod[];
   academicYearId: string;
   onSave: (data: Omit<CalendarPeriod, "sortOrder" | "id"> & { id?: string }) => void;
+  initialType?: PeriodType;
 }) {
   const [type, setType]             = useState<PeriodType>("term");
   const [name, setName]             = useState("");
@@ -2522,13 +2981,14 @@ function AddEditPeriodModal({
           : DEFAULT_PAUSES.map((d) => ({ ...d }))
       );
     } else {
-      setType("term");
-      setName("");
+      const t = initialType ?? "term";
+      setType(t);
+      setName(t === "half_term" ? "Half-Term Break" : "");
       setStartDate("");
       setEndDate("");
       setDeptPauses(DEFAULT_PAUSES.map((d) => ({ ...d })));
     }
-  }, [open, initial]);
+  }, [open, initial, initialType]);
 
   function handleTypeChange(t: PeriodType) {
     setType(t);
@@ -2834,6 +3294,8 @@ function AcademicCalendarSection() {
   const [addYearOpen, setAddYearOpen]       = useState(false);
   const [editPeriodOpen, setEditPeriodOpen] = useState(false);
   const [editingPeriod, setEditingPeriod]   = useState<CalendarPeriod | null>(null);
+  const [addInitialType, setAddInitialType] = useState<PeriodType | undefined>(undefined);
+  const [deleteYearConfirm, setDeleteYearConfirm] = useState(false);
 
   // Load academic years on mount
   useEffect(() => {
@@ -2852,17 +3314,23 @@ function AcademicCalendarSection() {
     if (!selectedYearId) return;
     fetch(`/api/settings/calendar-periods?yearId=${selectedYearId}`)
       .then((r) => r.json())
-      .then((data) => setPeriods((prev) => [
-        ...prev.filter((p) => p.academicYearId !== selectedYearId),
-        ...(data ?? []),
-      ]))
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        setPeriods((prev) => [
+          ...prev.filter((p) => p.academicYearId !== selectedYearId),
+          ...data,
+        ]);
+      })
       .catch(() => {});
     fetch(`/api/settings/public-holidays?yearId=${selectedYearId}`)
       .then((r) => r.json())
-      .then((data) => setHolidays((prev) => [
-        ...prev.filter((h) => h.academicYearId !== selectedYearId),
-        ...(data ?? []),
-      ]))
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        setHolidays((prev) => [
+          ...prev.filter((h) => h.academicYearId !== selectedYearId),
+          ...data,
+        ]);
+      })
       .catch(() => {});
   }, [selectedYearId]);
 
@@ -2952,6 +3420,23 @@ function AcademicCalendarSection() {
     }
   }
 
+  async function handleDeleteYear(id: string) {
+    const res = await fetch(`/api/settings/academic-years/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setYears((prev) => prev.filter((y) => y.id !== id));
+      setPeriods((prev) => prev.filter((p) => p.academicYearId !== id));
+      setHolidays((prev) => prev.filter((h) => h.academicYearId !== id));
+      const remaining = years.filter((y) => y.id !== id);
+      const next = remaining.find((y) => y.isCurrent) ?? remaining[0];
+      setSelectedYearId(next?.id ?? "");
+      setDeleteYearConfirm(false);
+      toast.success("Academic year deleted");
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "Failed to delete academic year");
+    }
+  }
+
   async function handleAddYear(
     data: { name: string; startDate: string; endDate: string; isCurrent: boolean },
     copyFromId?: string
@@ -3024,7 +3509,7 @@ function AcademicCalendarSection() {
         {years.map((y) => (
           <button
             key={y.id}
-            onClick={() => setSelectedYearId(y.id)}
+            onClick={() => { setSelectedYearId(y.id); setDeleteYearConfirm(false); }}
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors cursor-pointer",
               selectedYearId === y.id
@@ -3048,6 +3533,39 @@ function AcademicCalendarSection() {
           </button>
         ))}
       </div>
+
+      {/* Delete inactive year strip */}
+      {selectedYear && !selectedYear.isCurrent && (
+        <div className="mb-4">
+          {deleteYearConfirm ? (
+            <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+              <p className="text-sm text-rose-700 flex-1">
+                Delete <strong>{selectedYear.name}</strong> and all its periods? This cannot be undone.
+              </p>
+              <button
+                onClick={() => setDeleteYearConfirm(false)}
+                className="text-xs px-3 py-1.5 border border-slate-200 rounded bg-white text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteYear(selectedYear.id)}
+                className="text-xs px-3 py-1.5 bg-rose-500 text-white rounded hover:bg-rose-600 transition-colors cursor-pointer"
+              >
+                Delete year
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setDeleteYearConfirm(true)}
+              className="flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-700 font-medium cursor-pointer transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete this academic year
+            </button>
+          )}
+        </div>
+      )}
 
       {selectedYear && (
         <>
@@ -3086,6 +3604,7 @@ function AcademicCalendarSection() {
               label="Add Period"
               onClick={() => {
                 setEditingPeriod(null);
+                setAddInitialType(undefined);
                 setEditPeriodOpen(true);
               }}
             />
@@ -3107,10 +3626,17 @@ function AcademicCalendarSection() {
                   allPeriods={periods}
                   onEdit={(period) => {
                     setEditingPeriod(period);
+                    setAddInitialType(undefined);
                     setEditPeriodOpen(true);
                   }}
                   onDelete={handleDeletePeriod}
                   onTogglePause={handleTogglePause}
+                  onAddHalfTerm={() => {
+                    setEditingPeriod(null);
+                    setAddInitialType("half_term");
+                    setEditPeriodOpen(true);
+                  }}
+                  isCurrentYear={selectedYear?.isCurrent ?? false}
                 />
               ))}
             </div>
@@ -3141,6 +3667,7 @@ function AcademicCalendarSection() {
         existingPeriods={yearPeriods}
         academicYearId={selectedYearId}
         onSave={handleSavePeriod}
+        initialType={addInitialType}
       />
     </div>
   );

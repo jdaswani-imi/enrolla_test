@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
   const dates: string[] = [date]
   if (repeat && repeat !== 'None' && repeatUntil) {
     const step = repeat === 'Weekly' ? 7 : 14
-    let cur = new Date(date)
+    const cur = new Date(date)
     cur.setDate(cur.getDate() + step)
     while (cur.toISOString().split('T')[0] <= repeatUntil) {
       dates.push(cur.toISOString().split('T')[0])

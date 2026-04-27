@@ -37,6 +37,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.departmentPauses.length > 0) {
       await supabase.from('calendar_period_dept_pauses').insert(
         body.departmentPauses.map((dp: { departmentId: string; paused: boolean }) => ({
+          tenant_id: TENANT_ID,
           calendar_period_id: id,
           department_id: dp.departmentId,
           paused: dp.paused,

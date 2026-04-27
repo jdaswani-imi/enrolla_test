@@ -13,13 +13,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!auth.ok) return auth.response
   const { id } = await params
   const body = await request.json()
-  const { name, address, phone, email } = body
+  const { name, address, phone, email, location_url, currency } = body
 
   const updates: Record<string, unknown> = {}
   if (name !== undefined) updates.name = name
   if (address !== undefined) updates.address = address
   if (phone !== undefined) updates.phone = phone
   if (email !== undefined) updates.email = email
+  if (location_url !== undefined) updates.location_url = location_url
+  if (currency !== undefined) updates.currency = currency
   updates.updated_at = new Date().toISOString()
 
   const { data, error } = await supabase
@@ -27,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .update(updates)
     .eq('id', id)
     .eq('tenant_id', TENANT_ID)
-    .select('id, name, address, phone, email, is_active')
+    .select('id, name, address, phone, email, location_url, currency, is_active')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: error.code === 'PGRST116' ? 404 : 500 })

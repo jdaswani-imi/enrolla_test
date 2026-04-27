@@ -872,11 +872,11 @@ test.describe('invoice builder', () => {
 
   test('invoice builder — INVOICE NO field is present', async ({ page }) => {
     await expect(page.getByText('INVOICE NO.')).toBeVisible()
-    await expect(page.getByDisplayValue(/IMI-\d+/)).toBeVisible()
+    await expect(page.getByText(/IMI-\d+/)).toBeVisible()
   })
 
   test('invoice builder — INVOICED BY dropdown shows Jason Daswani', async ({ page }) => {
-    await expect(page.getByDisplayValue('Jason Daswani')).toBeVisible()
+    await expect(page.getByLabel('Invoiced by')).toHaveValue('Jason Daswani')
   })
 
   test('invoice builder — ISSUE DATE field is pre-filled', async ({ page }) => {

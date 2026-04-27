@@ -8,6 +8,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+  const { id } = await params
+
+  const { data: year } = await supabase
+    .from('academic_years')
+    .select('is_current')
+    .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
+    .single()
+
+  if (!year) return NextResponse.json({ error: 'Academic year not found' }, { status: 404 })
+  if (year.is_current) {
+    return NextResponse.json({ error: 'Cannot delete the current academic year' }, { status: 409 })
+  }
+
+  await supabase.from('public_holidays').delete().eq('academic_year_id', id).eq('tenant_id', TENANT_ID)
+  await supabase.from('calendar_periods').delete().eq('academic_year_id', id).eq('tenant_id', TENANT_ID)
+
+  const { error } = await supabase
+    .from('academic_years')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
