@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useUserAvatar } from "@/lib/user-avatar-context";
+import { createClient } from "@/lib/supabase/client";
 import {
   Mail,
   Phone,
@@ -28,7 +29,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { usePermission } from "@/lib/use-permission";
 import {
   Tooltip,
   TooltipTrigger,
@@ -135,8 +135,6 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 type TabId = "account" | "preferences" | "activity";
 
 export default function ProfilePage() {
-  const { role } = usePermission();
-  const isSuperAdmin = role === 'Super Admin';
   const { avatarUrl: photoUrl, setAvatarUrl: setPhotoUrl } = useUserAvatar();
 
   const [tab, setTab] = useState<TabId>("account");
@@ -205,7 +203,7 @@ export default function ProfilePage() {
     const res = await fetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ first_name, last_name, email, phone }),
+      body: JSON.stringify({ first_name, last_name, phone }),
     });
 
     if (res.ok) {
@@ -230,7 +228,16 @@ export default function ProfilePage() {
     setEditing(false);
   }
 
-  function handleChangePassword() {
+  async function handleChangePassword() {
+    if (!newPw) { toast.error("Enter a new password"); return; }
+    if (newPw.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (newPw !== confirmPw) { toast.error("Passwords do not match"); return; }
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+
+    if (error) { toast.error(error.message); return; }
+
     setCurrentPw("");
     setNewPw("");
     setConfirmPw("");
@@ -419,26 +426,17 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <FieldLabel>Email</FieldLabel>
-                      {isSuperAdmin ? (
-                        <Input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          disabled={!editing}
-                        />
-                      ) : (
-                        <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700">
-                          <span className="truncate">{email}</span>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-default" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Email can only be changed by a Super Admin
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                        <span className="truncate flex-1">{email}</span>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-default" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Email address cannot be changed
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     </div>
                     <div>
                       <FieldLabel>Phone</FieldLabel>

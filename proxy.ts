@@ -23,21 +23,24 @@ export async function proxy(request: NextRequest) {
     }
   )
 
+  // IMPORTANT: use getUser() not getSession() — getSession() is not reliable in middleware
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isLoginPage = request.nextUrl.pathname === '/login'
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
+  const { pathname } = request.nextUrl
+  const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth/')
+  const isApiRoute = pathname.startsWith('/api/')
 
-  if (!user && !isLoginPage) {
-    if (isApiRoute) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!user && !isPublic && !isApiRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && isLoginPage) {
+  if (!user && isApiRoute) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

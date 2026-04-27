@@ -170,7 +170,11 @@ import { ConvertToStudentDialog, type ConvertFormData } from "@/components/journ
 import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
 import { ScheduleOfferDialog } from "@/components/journey/schedule-offer-dialog";
 import { ScheduleConfirmDialog } from "@/components/journey/schedule-confirm-dialog";
-import { InvoiceBuilderDialog } from "@/components/journey/invoice-builder-dialog";
+import dynamic from "next/dynamic";
+const InvoiceBuilderDialog = dynamic(
+  () => import("@/components/journey/invoice-builder-dialog").then((m) => ({ default: m.InvoiceBuilderDialog })),
+  { loading: () => null }
+);
 import { RecordPaymentDialog } from "@/components/journey/record-payment-dialog";
 import { SkipWarningDialog, shouldWarnSkip } from "@/components/journey/skip-warning-dialog";
 import { TrialSkipPromptDialog } from "@/components/journey/trial-skip-prompt-dialog";

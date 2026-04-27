@@ -48,17 +48,7 @@ export async function PATCH(request: NextRequest) {
   if (body.first_name !== undefined) updates.first_name = body.first_name
   if (body.last_name !== undefined) updates.last_name = body.last_name
   if (body.phone !== undefined) updates.phone = body.phone
-
-  if (body.email !== undefined) {
-    if (staff.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Only Super Admin can change email' }, { status: 403 })
-    }
-    if (body.email !== staff.email) {
-      updates.email = body.email
-      // Sync the new email to Supabase Auth so login works with the new address
-      await adminSupabase.auth.admin.updateUserById(auth.user.id, { email: body.email })
-    }
-  }
+  // Email is intentionally excluded — it cannot be changed via profile
 
   const { data, error } = await adminSupabase
     .from('staff')

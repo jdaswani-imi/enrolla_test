@@ -725,15 +725,21 @@ function StaffPageContent() {
 
   async function handleAddStaff(data: NewStaffData) {
     const name = `${data.firstName} ${data.lastName}`.trim();
-    const res  = await fetch('/api/staff', {
+    const res  = await fetch('/api/staff/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        firstName: data.firstName,
+        lastName:  data.lastName,
+        role:      data.role,
+        email:     data.email,
+        phone:     data.phone,
+      }),
     });
     const json = await res.json();
-    if (!res.ok) { toast.error(json.error ?? 'Failed to add staff'); return; }
+    if (!res.ok) { toast.error(json.error ?? 'Failed to send invite'); return; }
     setRows((prev) => [json.data, ...prev]);
-    toast.success(`${name} added to staff`);
+    toast.success(`Invite sent to ${data.email}`);
   }
 
   async function handleEditStaff(data: NewStaffData) {

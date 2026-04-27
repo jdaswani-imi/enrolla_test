@@ -8,7 +8,6 @@ import {
   Bell,
   CalendarClock,
   CheckSquare,
-  ChevronDown,
   DollarSign,
   FileText,
   FileWarning,
@@ -17,7 +16,6 @@ import {
   LogOut,
   MessageSquare,
   Settings as SettingsIcon,
-  Shield,
   User,
   UserCheck,
   UserPlus,
@@ -25,10 +23,9 @@ import {
 import { toast } from "sonner";
 
 import { useCurrentUser } from "@/lib/use-current-user";
-import { useRole } from "@/lib/role-context";
 import { useUserAvatar } from "@/lib/user-avatar-context";
-import { type Role } from "@/lib/role-config";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import { GlobalSearch } from "./global-search";
 
 const routeTitles: Record<string, string> = {
@@ -55,17 +52,6 @@ const routeTitles: Record<string, string> = {
   "/communications":  "Communications",
   "/inventory":       "Inventory",
 };
-
-const ROLES: Role[] = [
-  "Super Admin",
-  "Admin Head",
-  "Admin",
-  "Academic Head",
-  "HOD",
-  "Teacher",
-  "TA",
-  "HR/Finance",
-];
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
@@ -125,62 +111,6 @@ const INITIAL_NOTIFICATIONS: Notification[] = [];
 
 type NotificationTab = "all" | "unread" | "mentions";
 
-// ─── Role Switcher ────────────────────────────────────────────────────────────
-
-function RoleSwitcher() {
-  const { role, setRole } = useRole();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
-        aria-label="Switch role"
-      >
-        <Shield className="w-3 h-3 flex-shrink-0" />
-        <span className="max-w-[100px] truncate">{role}</span>
-        <ChevronDown className={cn("w-3 h-3 opacity-60 transition-transform", open && "rotate-180")} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-[200] overflow-hidden min-w-[170px]">
-          <div className="px-3 py-2 border-b border-slate-100">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Switch role (demo)</p>
-          </div>
-          <div className="py-1">
-            {ROLES.map((r) => (
-              <button
-                key={r}
-                onClick={() => { setRole(r); setOpen(false); }}
-                className={cn(
-                  "w-full text-left px-3 py-1.5 text-sm transition-colors cursor-pointer flex items-center gap-2",
-                  r === role
-                    ? "bg-amber-50 text-amber-700 font-medium"
-                    : "text-slate-700 hover:bg-slate-50"
-                )}
-              >
-                {r === role && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
-                {r !== role && <span className="w-1.5 h-1.5 flex-shrink-0" />}
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── User Menu ────────────────────────────────────────────────────────────────
 
 function UserMenu() {
@@ -213,10 +143,12 @@ function UserMenu() {
     router.push(path);
   }
 
-  function handleSignOut() {
+  async function handleSignOut() {
     if (signingOut) return;
     setSigningOut(true);
     setOpen(false);
+    const supabase = createClient();
+    await supabase.auth.signOut();
     toast.success("Signed out successfully", { duration: 1500 });
     setTimeout(() => {
       router.push("/login");
@@ -361,9 +293,6 @@ export function TopBar() {
       <div className="flex items-center gap-2">
         {/* Search */}
         <GlobalSearch />
-
-        {/* Role switcher */}
-        <RoleSwitcher />
 
         {/* Notifications */}
         <div id="bell-container" className="relative">

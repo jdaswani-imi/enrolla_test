@@ -112,22 +112,41 @@ interface Form {
   pinned: boolean;
 }
 
+interface FormSubmission {
+  id: string;
+  formId: string;
+  submittedBy: string;
+  submittedAt: string;
+  status: string;
+  linkedRecord: string;
+}
+
+interface ExportRecord {
+  id: string;
+  exportedBy: string;
+  format: string;
+  recordType: string;
+  filtersApplied: string;
+  rowCount: number;
+  exportedAt: string;
+}
+
 // ─── Local data stubs ─────────────────────────────────────────────────────────
 
 const peopleAll: PersonRecord[] = [];
 const duplicateDetections: DuplicateDetection[] = [];
 const segments: Segment[] = [];
-const students: any[] = [];
-const extendedGuardians: any[] = [];
-const leads: any[] = [];
-const staffMembers: any[] = [];
+const students: Record<string, unknown>[] = [];
+const extendedGuardians: Record<string, unknown>[] = [];
+const leads: Record<string, unknown>[] = [];
+const staffMembers: Record<string, unknown>[] = [];
 const studentOutstandingBalance: Record<string, number> = {};
 const broadcastLists: BroadcastList[] = [];
 const broadcastListExclusions: Record<string, { name: string }[]> = {};
 const forms: Form[] = [];
-const formSubmissions: any[] = [];
+const formSubmissions: FormSubmission[] = [];
 const formSubmissionFields: Record<string, { label: string; value: string }[]> = {};
-const exportHistory: any[] = [];
+const exportHistory: ExportRecord[] = [];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

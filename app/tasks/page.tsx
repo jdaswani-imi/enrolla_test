@@ -841,7 +841,7 @@ export default function TasksPage() {
       }
       return true;
     });
-  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, apiTasks, dueDateRange, createdOnRange]);
+  }, [assigneeFilter, typeFilter, priorityFilter, statusFilter, myTasksOnly, fromLeadsOnly, search, doneTasks, apiTasks, dueDateRange, createdOnRange, currentUser]);
 
   // List view groups
   const overdue  = filtered.filter((t) => t.overdue && !doneTasks.has(t.id));

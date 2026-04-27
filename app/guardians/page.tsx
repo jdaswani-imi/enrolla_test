@@ -398,8 +398,11 @@ export default function GuardiansPage() {
   const fetchGuardians = useCallback(async () => {
     try {
       const res = await fetch("/api/guardians");
-      const { data } = await res.json();
-      setGuardians((data as ApiGuardian[]).map(toGuardian));
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to fetch guardians");
+      setGuardians((json.data as ApiGuardian[]).map(toGuardian));
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsLoading(false);
     }

@@ -32,11 +32,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AddStudentDialog, type NewStudentData } from "@/components/add-student-dialog";
-import {
-  NewEnrolmentDialog,
-  type StudentDepartment,
-} from "@/components/enrolment/new-enrolment-dialog";
+import type { NewStudentData } from "@/components/add-student-dialog";
+import dynamic from "next/dynamic";
+const AddStudentDialog = dynamic(
+  () => import("@/components/add-student-dialog").then((m) => ({ default: m.AddStudentDialog })),
+  { loading: () => null }
+);
+import type { StudentDepartment } from "@/components/enrolment/new-enrolment-dialog";
+const NewEnrolmentDialog = dynamic(
+  () => import("@/components/enrolment/new-enrolment-dialog").then((m) => ({ default: m.NewEnrolmentDialog })),
+  { loading: () => null }
+);
 type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
 type TaskPriority = "Urgent" | "High" | "Medium" | "Low";
 type TaskStatus = "Open" | "In Progress" | "Blocked" | "Done";

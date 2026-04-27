@@ -21,45 +21,34 @@ export async function GET() {
     .select(`
       id,
       amount,
-      method,
+      payment_method,
       reference,
-      paid_at,
-      invoices (
-        invoice_ref,
-        students (
-          id,
-          first_name,
-          last_name,
-          departments ( name )
-        )
-      )
+      payment_date,
+      notes,
+      students ( id, first_name, last_name ),
+      invoices ( invoice_number ),
+      recorder:staff!payments_recorded_by_fkey ( first_name, last_name )
     `)
     .eq('tenant_id', TENANT_ID)
-    .order('paid_at', { ascending: false })
+    .order('payment_date', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const mapped = (data ?? []).map((p) => {
-    const inv = p.invoices as unknown as {
-      invoice_ref: string
-      students: {
-        id: string
-        first_name: string
-        last_name: string
-        departments: { name: string } | null
-      } | null
-    } | null
+    const s = p.students as unknown as { id: string; first_name: string; last_name: string } | null
+    const inv = p.invoices as unknown as { invoice_number: string } | null
+    const rec = p.recorder as unknown as { first_name: string; last_name: string } | null
 
     return {
-      date: fmtDate(p.paid_at),
-      studentId: inv?.students?.id ?? '',
-      student: inv?.students ? `${inv.students.first_name} ${inv.students.last_name}` : '—',
-      invoice: inv?.invoice_ref ?? '—',
+      date: fmtDate(p.payment_date),
+      studentId: s?.id ?? '',
+      student: s ? `${s.first_name} ${s.last_name}` : '—',
+      invoice: inv?.invoice_number ?? '—',
       amount: Number(p.amount),
-      method: p.method as string,
+      method: p.payment_method as string,
       reference: p.reference ?? '',
-      recordedBy: '—',
-      department: inv?.students?.departments?.name ?? '—',
+      recordedBy: rec ? `${rec.first_name} ${rec.last_name}`.trim() : '—',
+      department: '—',
     }
   })
 
@@ -70,37 +59,38 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
   const body = await request.json()
-  const { invoiceId, amount, method, reference, paid_at } = body
+  const { invoiceId, studentId, amount, method, reference, payment_date } = body
 
   const { data: payment, error: payErr } = await supabase
     .from('payments')
     .insert({
       tenant_id: TENANT_ID,
       invoice_id: invoiceId,
+      student_id: studentId,
       amount,
-      method,
+      payment_method: method,
       reference: reference || null,
-      paid_at,
+      payment_date,
     })
     .select()
     .single()
 
   if (payErr) return NextResponse.json({ error: payErr.message }, { status: 500 })
 
-  // Update invoice amount_paid and recalculate status
+  // Update invoice total_paid and recalculate status
   const { data: inv } = await supabase
     .from('invoices')
-    .select('total, amount_paid')
+    .select('total, total_paid')
     .eq('id', invoiceId)
     .single()
 
   if (inv) {
-    const newPaid = Number(inv.amount_paid) + Number(amount)
+    const newPaid = Number(inv.total_paid) + Number(amount)
     const total = Number(inv.total)
-    const status = newPaid >= total ? 'Paid' : 'Part'
+    const status = newPaid >= total ? 'paid' : 'partially_paid'
     await supabase
       .from('invoices')
-      .update({ amount_paid: newPaid, status, updated_at: new Date().toISOString() })
+      .update({ total_paid: newPaid, amount_due: Math.max(0, total - newPaid), status, updated_at: new Date().toISOString() })
       .eq('id', invoiceId)
   }
 

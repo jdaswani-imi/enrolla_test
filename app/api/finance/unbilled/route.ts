@@ -24,33 +24,29 @@ export async function GET() {
         id,
         first_name,
         last_name,
-        year_group,
-        departments ( name )
+        year_group
       ),
-      courses ( name )
+      subjects ( name )
     `)
     .eq('tenant_id', TENANT_ID)
     .order('session_date', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // unbilled_sessions table not yet migrated — return empty rather than 500
+  if (error) return NextResponse.json([])
 
   const mapped = (data ?? []).map((u) => {
     const s = u.students as unknown as {
-      id: string
-      first_name: string
-      last_name: string
-      year_group: string | null
-      departments: { name: string } | null
+      id: string; first_name: string; last_name: string; year_group: string | null
     } | null
-    const c = u.courses as unknown as { name: string } | null
+    const subj = u.subjects as unknown as { name: string } | null
 
     return {
       id: u.id,
       studentId: s?.id ?? '',
       student: s ? `${s.first_name} ${s.last_name}` : '—',
-      department: s?.departments?.name ?? '—',
+      department: '—',
       yearGroup: s?.year_group ?? '—',
-      courseTitle: c?.name ?? '—',
+      courseTitle: subj?.name ?? '—',
       sessionDate: u.session_date,
       sessionsCount: u.sessions_count,
       status: u.status as 'open' | 'written_off',

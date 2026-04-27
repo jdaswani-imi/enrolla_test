@@ -8,17 +8,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const ABSENCE_STATUSES = ['Absent Notified', 'Absent Not Notified', 'No Show']
-
 export async function GET() {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
-  // Fetch all absence records
+
   const { data: records, error: recErr } = await supabase
     .from('attendance_records')
     .select('student_id, session_id, status, created_at')
     .eq('tenant_id', TENANT_ID)
-    .in('status', ABSENCE_STATUSES)
+    .eq('status', 'absent')
     .order('created_at', { ascending: true })
 
   if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 })
@@ -27,42 +25,37 @@ export async function GET() {
   const sessionIds = [...new Set(records.map(r => r.session_id))]
   const studentIds = [...new Set(records.map(r => r.student_id))]
 
-  const [{ data: sessions }, { data: students }, { data: makeups }] = await Promise.all([
+  const [{ data: sessions }, { data: students }, { data: allowances }] = await Promise.all([
     supabase
       .from('sessions')
-      .select(`
-        id, date, course_id,
-        courses (
-          subjects (name),
-          departments (name)
-        ),
-        users!sessions_teacher_id_fkey (id)
-      `)
+      .select('id, session_date, subject_id, subjects (name, departments (name)), staff (id)')
       .in('id', sessionIds),
     supabase
       .from('students')
       .select('id, first_name, last_name, year_group')
       .in('id', studentIds),
+    // makeup_allowances joined to enrolments to get student_id
     supabase
-      .from('makeups')
-      .select('student_id, status')
+      .from('makeup_allowances')
+      .select('used_allowance, total_allowance, enrolments (student_id)')
       .eq('tenant_id', TENANT_ID)
-      .in('student_id', studentIds),
+      .in('enrolments.student_id' as string, studentIds),
   ])
 
-  // Build lookups
   const sessionMap = new Map((sessions ?? []).map(s => [s.id, s]))
   const studentMap = new Map((students ?? []).map(s => [s.id, s]))
 
-  // Count used makeups per student (Booked or Attended = used against allowance)
-  const usedMakeupsByStudent: Record<string, number> = {}
-  for (const m of (makeups ?? [])) {
-    if (m.status === 'Booked' || m.status === 'Attended') {
-      usedMakeupsByStudent[m.student_id] = (usedMakeupsByStudent[m.student_id] ?? 0) + 1
-    }
+  // Compute remaining makeup allowance per student
+  const remainingByStudent: Record<string, number> = {}
+  for (const a of (allowances ?? [])) {
+    const enrolment = a.enrolments as unknown as { student_id: string } | null
+    if (!enrolment?.student_id) continue
+    const sid = enrolment.student_id
+    const remaining = (a.total_allowance ?? 0) - (a.used_allowance ?? 0)
+    remainingByStudent[sid] = (remainingByStudent[sid] ?? 0) + remaining
   }
 
-  // Aggregate absences by student + course
+  // Aggregate absences by student + subject
   type AggKey = string
   interface Agg {
     student: string; studentId: string; year: string
@@ -77,36 +70,33 @@ export async function GET() {
     const student = studentMap.get(rec.student_id)
     if (!session || !student) continue
 
-    const course = session.courses as unknown as { subjects: { name: string }; departments: { name: string } } | null
-    const teacher = session.users as unknown as { id: string } | null
-    const courseId = session.course_id
-    const key: AggKey = `${rec.student_id}:${courseId}`
+    const subj = session.subjects as unknown as { name: string; departments: { name: string } | null } | null
+    const staff = session.staff as unknown as { id: string } | null
+    const subjectId = session.subject_id
+    const key: AggKey = `${rec.student_id}:${subjectId}`
 
     if (!map.has(key)) {
       map.set(key, {
         student: `${student.first_name} ${student.last_name}`,
         studentId: rec.student_id,
         year: student.year_group ?? '',
-        dept: course?.departments?.name ?? '',
-        subject: course?.subjects?.name ?? '',
-        teacherId: teacher?.id ?? '',
+        dept: subj?.departments?.name ?? '',
+        subject: subj?.name ?? '',
+        teacherId: staff?.id ?? '',
         totalAbsences: 0,
         dates: [],
       })
     }
     const agg = map.get(key)!
     agg.totalAbsences++
-    agg.dates.push(session.date as string)
+    agg.dates.push(session.session_date as string)
   }
 
   const MAKEUP_MAX = 3
 
   const data = [...map.values()].map(agg => {
-    // Consecutive: count the tail run of absences (simplified — uses sorted dates)
-    const sorted = [...agg.dates].sort()
-    // For the initial wiring, we skip window-function logic; return 0
-    const consecutive = 0
-    const makeupAllowance = Math.max(0, MAKEUP_MAX - (usedMakeupsByStudent[agg.studentId] ?? 0))
+    const consecutive = 0 // simplified — window-function logic deferred
+    const makeupAllowance = remainingByStudent[agg.studentId] ?? MAKEUP_MAX
 
     let status: 'Allowance Exhausted' | 'Consecutive Alert' | 'Monitor' | 'Normal'
     if (makeupAllowance === 0) status = 'Allowance Exhausted'

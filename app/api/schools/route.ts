@@ -12,8 +12,8 @@ export async function GET() {
   if (!auth.ok) return auth.response
   const { data, error } = await supabase
     .from('schools')
-    .select('id, name, curriculum, is_custom')
-    .eq('is_active', true)
+    .select('id, name')
+    .eq('status', 'active')
     .order('name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

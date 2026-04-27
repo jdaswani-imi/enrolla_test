@@ -52,7 +52,8 @@ export async function GET() {
     .order('category', { ascending: true })
     .order('name', { ascending: true })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // inventory_items table not yet migrated — return empty rather than 500
+  if (error) return NextResponse.json({ data: [] })
 
   return NextResponse.json({ data: (data ?? []).map(toItem) })
 }

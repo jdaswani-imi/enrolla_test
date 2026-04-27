@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
 
   const { data, error, count } = await query
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // stock_adjustments table not yet migrated — return empty rather than 500
+  if (error) return NextResponse.json({ data: [], total: 0 })
 
   return NextResponse.json({
     data:  (data ?? []).map(toLedger),

@@ -261,7 +261,10 @@ export function AddStaffDialog({
   const [state, setState] = useState(defaultState);
   const [attempted, setAttempted] = useState(false);
 
-  // Seed form state when the dialog opens (or mode changes).
+  const modeKind = mode.kind;
+  const editStaffId = mode.kind === "edit" ? mode.staff.id : undefined;
+
+  // Seed form state when the dialog opens (or the target staff changes).
   useEffect(() => {
     if (!open) return;
     setAttempted(false);
@@ -285,13 +288,14 @@ export function AddStaffDialog({
     } else {
       setState(defaultState());
     }
-  }, [open, mode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, modeKind, editStaffId]);
 
   function patch<K extends keyof typeof state>(key: K, value: (typeof state)[K]) {
     setState((s) => ({ ...s, [key]: value }));
   }
 
-  const email = suggestedEmail(state.firstName, state.lastName);
+  const workEmail = suggestedEmail(state.firstName, state.lastName);
 
   const errors: Record<string, string> = {};
   if (!state.firstName.trim()) errors.firstName = "Required";
@@ -310,7 +314,7 @@ export function AddStaffDialog({
       lastName: last,
       role: state.role,
       department: state.department,
-      email,
+      email: workEmail,
       dialCode: state.dialCode,
       phone: state.phone.trim(),
       startDate: state.startDate,
@@ -400,21 +404,27 @@ export function AddStaffDialog({
             </div>
           </div>
 
-          {/* Work email (read-only, derived) */}
-          <div>
-            <FieldLabel htmlFor="as-email" required>Work email</FieldLabel>
-            <input
-              id="as-email"
-              type="email"
-              value={email}
-              readOnly
-              placeholder="firstinitial.lastname@improvemeinstitute.com"
-              className={cn(FIELD, "bg-slate-50 text-slate-600")}
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              Auto-generated: <span className="font-medium text-slate-500">firstinitial.lastname@improvemeinstitute.com</span>
-            </p>
-          </div>
+          {/* Work email (auto-generated, display only) */}
+          {workEmail && (
+            <div>
+              <FieldLabel>
+                Work email (auto-generated){" "}
+                <span className="text-slate-400 font-normal normal-case tracking-normal">
+                  — setup invite will be sent here
+                </span>
+              </FieldLabel>
+              <input
+                type="email"
+                value={workEmail}
+                readOnly
+                tabIndex={-1}
+                className={cn(FIELD, "bg-slate-50 text-slate-500 cursor-default")}
+              />
+              <p className="mt-1 text-[11px] text-slate-400">
+                They will receive a one-time link to set their password and access the app. They can reset it later.
+              </p>
+            </div>
+          )}
 
           {/* Phone (optional) */}
           <div>

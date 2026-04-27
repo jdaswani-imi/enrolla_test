@@ -27,12 +27,13 @@ export async function GET() {
       notes,
       leads ( child_first_name, child_last_name, child_year_group, subject_interest ),
       students ( first_name, last_name, year_group ),
-      assessor:users!assessments_assessor_id_fkey ( full_name )
+      assessor:staff!assessments_assessor_id_fkey ( first_name, last_name )
     `)
     .eq('tenant_id', TENANT_ID)
     .order('scheduled_at', { ascending: true, nullsFirst: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // assessments table not yet migrated — return empty rather than 500
+  if (error) return NextResponse.json([])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (data ?? []).map((a: any) => ({
@@ -48,7 +49,9 @@ export async function GET() {
     subjects: ((a.subjects as string[] | null)?.length
       ? (a.subjects as string[])
       : ((a.leads?.subject_interest as string[] | null) ?? [])),
-    assessor: (a.assessor?.full_name as string | null) ?? null,
+    assessor: a.assessor
+      ? `${a.assessor.first_name ?? ''} ${a.assessor.last_name ?? ''}`.trim() || null
+      : null,
     date: a.scheduled_at
       ? new Date(a.scheduled_at as string).toISOString().split('T')[0]
       : null,

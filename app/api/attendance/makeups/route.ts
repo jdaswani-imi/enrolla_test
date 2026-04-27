@@ -8,93 +8,83 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Maps DB makeup_status to page display status
 const STATUS_MAP: Record<string, 'Completed' | 'Pending' | 'Confirmed' | 'Expired'> = {
-  Booked: 'Confirmed',
-  Attended: 'Completed',
-  'No-show': 'Expired',
-  'Carry-over': 'Pending',
+  booked: 'Confirmed',
+  completed: 'Completed',
+  cancelled: 'Expired',
+  pending: 'Pending',
 }
 
 export async function GET() {
   const auth = await requireAuth()
   if (!auth.ok) return auth.response
+
+  // makeup_sessions → makeup_allowances → enrolments → students
   const { data: makeups, error } = await supabase
-    .from('makeups')
-    .select('id, status, booked_at, student_id, original_attendance_id, replacement_session_id')
+    .from('makeup_sessions')
+    .select(`
+      id, status, created_at, original_session_id, makeup_session_id,
+      makeup_allowances (
+        enrolments (
+          student_id,
+          students (id, first_name, last_name)
+        )
+      )
+    `)
     .eq('tenant_id', TENANT_ID)
-    .order('booked_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!makeups?.length) return NextResponse.json({ data: [] })
 
-  const studentIds = [...new Set(makeups.map(m => m.student_id))]
-  const attendanceIds = makeups.map(m => m.original_attendance_id).filter(Boolean)
-  const replacementSessionIds = makeups.map(m => m.replacement_session_id).filter(Boolean)
+  const originalSessionIds = makeups.map(m => m.original_session_id).filter(Boolean)
+  const replacementSessionIds = makeups.map(m => m.makeup_session_id).filter(Boolean)
 
-  // Fetch all related data in parallel
-  const [{ data: students }, { data: origRecords }, { data: replacementSessions }] = await Promise.all([
-    supabase
-      .from('students')
-      .select('id, first_name, last_name')
-      .in('id', studentIds),
-    supabase
-      .from('attendance_records')
-      .select('id, session_id')
-      .in('id', attendanceIds),
-    supabase
-      .from('sessions')
-      .select('id, date')
-      .in('id', replacementSessionIds),
+  const [{ data: origSessions }, { data: replacementSessions }] = await Promise.all([
+    originalSessionIds.length
+      ? supabase
+          .from('sessions')
+          .select('id, session_date, subjects (name, departments (name)), staff (id)')
+          .in('id', originalSessionIds)
+      : Promise.resolve({ data: [] }),
+    replacementSessionIds.length
+      ? supabase
+          .from('sessions')
+          .select('id, session_date')
+          .in('id', replacementSessionIds)
+      : Promise.resolve({ data: [] }),
   ])
 
-  // Get original session details
-  const origSessionIds = [...new Set((origRecords ?? []).map(r => r.session_id))]
-  const { data: origSessions } = origSessionIds.length
-    ? await supabase
-        .from('sessions')
-        .select(`
-          id, date,
-          courses (
-            subjects (name),
-            departments (name)
-          ),
-          users!sessions_teacher_id_fkey (id)
-        `)
-        .in('id', origSessionIds)
-    : { data: [] }
-
-  // Build lookups
-  const studentMap = new Map((students ?? []).map(s => [s.id, s]))
-  const attendanceMap = new Map((origRecords ?? []).map(r => [r.id, r]))
   const origSessionMap = new Map((origSessions ?? []).map(s => [s.id, s]))
   const replacementSessionMap = new Map((replacementSessions ?? []).map(s => [s.id, s]))
 
   const data = makeups.map(m => {
-    const student = studentMap.get(m.student_id)
-    const origRecord = m.original_attendance_id ? attendanceMap.get(m.original_attendance_id) : null
-    const origSession = origRecord ? origSessionMap.get(origRecord.session_id) : null
-    const replacementSession = m.replacement_session_id ? replacementSessionMap.get(m.replacement_session_id) : null
-    const course = origSession?.courses as unknown as { subjects: { name: string }; departments: { name: string } } | null
-    const teacher = origSession?.users as unknown as { id: string } | null
+    const allowance = m.makeup_allowances as unknown as {
+      enrolments: { student_id: string; students: { id: string; first_name: string; last_name: string } | null } | null
+    } | null
+    const studentRow = allowance?.enrolments?.students
+    const origSession = origSessionMap.get(m.original_session_id)
+    const replSession = m.makeup_session_id ? replacementSessionMap.get(m.makeup_session_id) : null
+    const subj = origSession?.subjects as unknown as { name: string; departments: { name: string } | null } | null
+    const staff = origSession?.staff as unknown as { id: string } | null
 
     return {
       id: m.id,
-      originalSession: origSession?.date
-        ? new Date(origSession.date as string + 'T00:00:00').toLocaleDateString('en-GB', {
+      originalSession: origSession?.session_date
+        ? new Date(origSession.session_date as string + 'T00:00:00').toLocaleDateString('en-GB', {
             day: '2-digit', month: 'short', year: 'numeric',
           })
         : '—',
-      subject: course?.subjects?.name ?? '—',
-      student: student ? `${student.first_name} ${student.last_name}` : '—',
-      makeupDate: replacementSession?.date
-        ? new Date(replacementSession.date as string + 'T00:00:00').toLocaleDateString('en-GB', {
+      subject: subj?.name ?? '—',
+      student: studentRow ? `${studentRow.first_name} ${studentRow.last_name}` : '—',
+      makeupDate: replSession?.session_date
+        ? new Date(replSession.session_date as string + 'T00:00:00').toLocaleDateString('en-GB', {
             day: '2-digit', month: 'short', year: 'numeric',
           })
         : 'TBC',
       status: STATUS_MAP[m.status] ?? 'Pending',
-      teacherId: teacher?.id ?? '',
-      dept: course?.departments?.name ?? '',
+      teacherId: staff?.id ?? '',
+      dept: subj?.departments?.name ?? '',
     }
   })
 

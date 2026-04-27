@@ -68,9 +68,21 @@ interface Task {
   createdOn?: string;
 }
 
+interface TimetableSession {
+  id: string;
+  subject: string;
+  teacher: string;
+  teacherId?: string;
+  date: string;
+  day?: string;
+  type: string;
+  status: string;
+  students: string[];
+}
+
 // ─── Local data stubs ─────────────────────────────────────────────────────────
 
-const timetableSessions: any[] = [];
+const timetableSessions: TimetableSession[] = [];
 const seedAssignments: Assignment[] = [];
 const tasks: Task[] = [];
 import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";

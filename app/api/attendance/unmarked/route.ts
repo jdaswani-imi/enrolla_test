@@ -21,33 +21,26 @@ export async function GET(request: NextRequest) {
 
   const { data: sessions, error: sessErr } = await supabase
     .from('sessions')
-    .select(`
-      id, date, course_id,
-      courses (
-        subjects (name),
-        departments (name)
-      ),
-      users!sessions_teacher_id_fkey (id, full_name)
-    `)
+    .select('id, session_date, subject_id, subjects (name, departments (name)), staff (id, first_name, last_name)')
     .eq('tenant_id', TENANT_ID)
-    .neq('status', 'Cancelled')
-    .gte('date', from)
-    .lte('date', today)
-    .order('date', { ascending: false })
+    .neq('status', 'cancelled')
+    .gte('session_date', from)
+    .lte('session_date', today)
+    .order('session_date', { ascending: false })
 
   if (sessErr) return NextResponse.json({ error: sessErr.message }, { status: 500 })
   if (!sessions?.length) return NextResponse.json({ data: [] })
 
   const sessionIds = sessions.map(s => s.id)
-  const courseIds = [...new Set(sessions.map(s => s.course_id).filter(Boolean))]
+  const subjectIds = [...new Set(sessions.map(s => s.subject_id).filter(Boolean))]
 
   const [{ data: enrolCounts }, { data: recCounts }] = await Promise.all([
     supabase
       .from('enrolments')
-      .select('course_id, student_id')
+      .select('subject_id, student_id')
       .eq('tenant_id', TENANT_ID)
-      .eq('status', 'Active')
-      .in('course_id', courseIds),
+      .eq('status', 'enrolled')
+      .in('subject_id', subjectIds),
     supabase
       .from('attendance_records')
       .select('session_id, student_id')
@@ -55,9 +48,9 @@ export async function GET(request: NextRequest) {
       .in('session_id', sessionIds),
   ])
 
-  const enrolledByCourse: Record<string, number> = {}
+  const enrolledBySubject: Record<string, number> = {}
   for (const row of (enrolCounts ?? [])) {
-    enrolledByCourse[row.course_id] = (enrolledByCourse[row.course_id] ?? 0) + 1
+    enrolledBySubject[row.subject_id] = (enrolledBySubject[row.subject_id] ?? 0) + 1
   }
 
   const markedBySession: Record<string, number> = {}
@@ -69,24 +62,25 @@ export async function GET(request: NextRequest) {
 
   const data = sessions
     .filter(s => {
-      const enrolled = enrolledByCourse[s.course_id] ?? 0
+      const enrolled = enrolledBySubject[s.subject_id] ?? 0
       const marked = markedBySession[s.id] ?? 0
       return enrolled > 0 && marked < enrolled
     })
     .map(s => {
-      const course = s.courses as unknown as { subjects: { name: string }; departments: { name: string } } | null
-      const teacher = s.users as unknown as { id: string; full_name: string } | null
-      const hoursElapsed = Math.floor((now - new Date(s.date + 'T00:00:00').getTime()) / 3600000)
+      const subj = s.subjects as unknown as { name: string; departments: { name: string } | null } | null
+      const staff = s.staff as unknown as { id: string; first_name: string; last_name: string } | null
+      const hoursElapsed = Math.floor((now - new Date(s.session_date + 'T00:00:00').getTime()) / 3600000)
       const hoursRemaining = Math.max(0, 48 - hoursElapsed)
       const overdue = hoursElapsed >= 48
+      const teacherName = staff ? `${staff.first_name} ${staff.last_name}`.trim() : ''
 
       return {
         id: s.id,
-        subject: course?.subjects?.name ?? 'Unknown',
-        date: s.date,
-        dept: course?.departments?.name ?? '',
-        teacher: teacher?.full_name ?? '',
-        teacherId: teacher?.id ?? '',
+        subject: subj?.name ?? 'Unknown',
+        date: s.session_date,
+        dept: subj?.departments?.name ?? '',
+        teacher: teacherName,
+        teacherId: staff?.id ?? '',
         hoursRemaining,
         overdue,
       }

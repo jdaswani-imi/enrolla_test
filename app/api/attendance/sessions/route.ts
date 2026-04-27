@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       .from('enrolments')
       .select('subject_id, students (id, first_name, last_name)')
       .eq('tenant_id', TENANT_ID)
-      .eq('status', 'active')
+      .eq('status', 'enrolled')
       .in('subject_id', subjectIds),
     supabase
       .from('attendance_records')
