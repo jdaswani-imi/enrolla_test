@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useState, useEffect, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +17,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // If Supabase drops tokens in the hash (invite / magic-link / implicit flow),
+  // hand off to /auth/callback which knows how to exchange them for a session.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash.substring(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    if (!params.get("access_token")) return;
+    const type = params.get("type");
+    const next = type === "invite" ? "/welcome" : "/dashboard";
+    router.replace(`/auth/callback?next=${next}${window.location.hash}`);
+  }, [router]);
 
   async function handleSignIn(e?: FormEvent) {
     e?.preventDefault();
