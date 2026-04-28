@@ -194,6 +194,7 @@ interface StudentProfile {
   yearGroup: string;
   school: string;
   targetGrades: { subject: string; grade: string }[];
+  status: string;
   enrolledCoursesCount: number;
   attendanceThisTerm: string;
   sessionsRemaining: string;
@@ -221,6 +222,7 @@ const INITIAL_PROFILE: StudentProfile = {
   yearGroup: "",
   school: "",
   targetGrades: [],
+  status: "",
   enrolledCoursesCount: 0,
   attendanceThisTerm: "—",
   sessionsRemaining: "—",
@@ -243,9 +245,19 @@ const RELATIONSHIPS: Relationship[] = [
   "Mother", "Father", "Grandparent", "Uncle", "Aunt", "Legal Guardian", "Other",
 ];
 
+function parseYearNumber(yg: string): number | null {
+  if (!yg) return null;
+  if (/^Y\d+$/.test(yg)) return Number(yg.slice(1));
+  const m = yg.match(/^Year\s+(\d+)$/i);
+  if (m) return Number(m[1]);
+  return null;
+}
+
 function yearGroupToDepartment(yg: string): string {
+  if (!yg) return "";
   if (yg.startsWith("KG")) return "Primary";
-  const n = Number(yg.replace("Y", ""));
+  const n = parseYearNumber(yg);
+  if (n === null) return "";
   if (n <= 6) return "Primary";
   if (n <= 9) return "Lower Secondary";
   return "Senior";
@@ -409,7 +421,11 @@ function ProfileHeader({
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
   const displayName = `${profile.firstName} ${profile.lastName}`.trim();
-  const yearLabel = profile.yearGroup.startsWith("KG") ? profile.yearGroup : `Year ${profile.yearGroup.replace("Y", "")}`;
+  const yearLabel = !profile.yearGroup ? "" :
+    profile.yearGroup.startsWith("KG") ? profile.yearGroup :
+    /^Year\s+\d+$/i.test(profile.yearGroup) ? profile.yearGroup :
+    /^Y\d+$/.test(profile.yearGroup) ? `Year ${profile.yearGroup.slice(1)}` :
+    profile.yearGroup;
   const department = yearGroupToDepartment(profile.yearGroup);
 
   const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void }[] = [
@@ -460,16 +476,17 @@ function ProfileHeader({
               <span className={cn("px-3 py-1 rounded-full text-xs font-semibold", journeyStatusBadge.className)}>
                 {journeyStatusBadge.label}
               </span>
-            ) : (
-              <>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 text-white">
-                  Active
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-500 text-white">
-                  84 — Critical
-                </span>
-              </>
-            )}
+            ) : profile.status ? (
+              <span className={cn(
+                "px-3 py-1 rounded-full text-xs font-semibold",
+                profile.status.toLowerCase() === "active"   ? "bg-emerald-500 text-white" :
+                profile.status.toLowerCase() === "inactive" ? "bg-slate-400 text-white"   :
+                profile.status.toLowerCase() === "archived" ? "bg-slate-600 text-white"   :
+                "bg-slate-400 text-white"
+              )}>
+                {profile.status}
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {buttonActions.map(({ label, Icon, onClick }) => (
@@ -1960,10 +1977,10 @@ function LeftSidebar({
         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">Quick Stats</p>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Attendance This Term", value: isApiStudent ? (profile.attendanceThisTerm || "—") : "87%"  },
-            { label: "Sessions Remaining",   value: isApiStudent ? (profile.sessionsRemaining || "—") : "34"   },
-            { label: "Credit Balance",        value: "AED 0" },
-            { label: "Open Tasks",            value: isApiStudent ? "0" : "2"    },
+            { label: "Attendance This Term", value: profile.attendanceThisTerm || "—" },
+            { label: "Sessions Remaining",   value: profile.sessionsRemaining   || "—" },
+            { label: "Credit Balance",       value: "AED 0"                           },
+            { label: "Open Tasks",           value: "0"                               },
           ].map(({ label, value }) => (
             <div key={label} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
               <p className="text-[10px] text-slate-500 leading-tight">{label}</p>
@@ -2182,17 +2199,17 @@ function LeftSidebar({
 // ─── Zone 3 — Tab Bar ─────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "overview",    label: "Overview",          badge: "red",   badgeCount: 1 },
-  { id: "calendar",   label: "Calendar",           badge: null,    badgeCount: 0 },
-  { id: "attendance", label: "Attendance",         badge: "amber", badgeCount: 1 },
-  { id: "invoices",   label: "Invoices",           badge: "red",   badgeCount: 1 },
-  { id: "grades",     label: "Grades",             badge: null,    badgeCount: 0 },
-  { id: "courses",    label: "Courses",            badge: null,    badgeCount: 0 },
-  { id: "comms",      label: "Communication Log",  badge: null,    badgeCount: 0 },
-  { id: "tasks",      label: "Tasks",              badge: "amber", badgeCount: 2 },
-  { id: "concerns",   label: "Concerns",           badge: "amber", badgeCount: 1 },
-  { id: "tickets",    label: "Tickets",            badge: null,    badgeCount: 0 },
-  { id: "files",      label: "Files",              badge: null,    badgeCount: 0 },
+  { id: "overview",    label: "Overview"         },
+  { id: "calendar",   label: "Calendar"          },
+  { id: "attendance", label: "Attendance"        },
+  { id: "invoices",   label: "Invoices"          },
+  { id: "grades",     label: "Grades"            },
+  { id: "courses",    label: "Courses"           },
+  { id: "comms",      label: "Communication Log" },
+  { id: "tasks",      label: "Tasks"             },
+  { id: "concerns",   label: "Concerns"          },
+  { id: "tickets",    label: "Tickets"           },
+  { id: "files",      label: "Files"             },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -2216,16 +2233,6 @@ function TabBar({ activeTab, setActiveTab, can }: { activeTab: TabId; setActiveT
               )}
             >
               {tab.label}
-              {tab.badge && (
-                <span
-                  className={cn(
-                    "w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center",
-                    tab.badge === "red"   ? "bg-red-500 text-white"   : "bg-amber-500 text-white",
-                  )}
-                >
-                  {tab.badgeCount}
-                </span>
-              )}
             </button>
           );
         })}
@@ -3796,9 +3803,15 @@ function StudentProfilePageContent() {
     fetch(`/api/students/${routeId}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(({ data }) => {
-        const activeEnrolment = (data.enrolments as any[])?.find((e: any) => e.status === "Active")
-          ?? (data.enrolments as any[])?.[0];
-        const yearGroupName: string = activeEnrolment?.subjects?.year_groups?.name ?? "";
+        const enrolments: any[] = data.enrolments ?? [];
+        const activeEnrolments = enrolments.filter((e: any) => e.status === "Active");
+        const firstActive = activeEnrolments[0] ?? enrolments[0];
+        const yearGroupName: string = firstActive?.subjects?.year_groups?.name ?? "";
+        const totalSessionsRemaining = activeEnrolments.reduce(
+          (sum: number, e: any) => sum + (e.sessions_remaining ?? 0), 0
+        );
+        const rawStatus: string = data.status ?? "";
+        const displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
         setProfile((prev) => ({
           ...prev,
           firstName: data.first_name ?? "",
@@ -3808,12 +3821,13 @@ function StudentProfilePageContent() {
           nationality: "",
           phone: data.phone ?? "",
           email: data.email ?? "",
+          status: displayStatus,
           studentId: data.student_number ? `#${String(data.student_number).padStart(4, "0")}` : routeId,
           dateEnrolled: data.created_at?.slice(0, 10) ?? "",
           yearGroup: yearGroupName,
           school: data.schools?.name ?? "",
-          enrolledCoursesCount:
-            (data.enrolments as { status: string }[])?.filter((e) => e.status === "Active").length ?? 0,
+          enrolledCoursesCount: activeEnrolments.length,
+          sessionsRemaining: activeEnrolments.length > 0 ? String(totalSessionsRemaining) : "—",
           primaryGuardianId: data.primary_guardian_id ?? "",
           primaryGuardianName: data.guardians
             ? `${data.guardians.first_name ?? ""} ${data.guardians.last_name ?? ""}`.trim()
