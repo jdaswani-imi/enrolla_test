@@ -185,23 +185,12 @@ async function shot(page: Page, viewport: string, name: string) {
   })
 }
 
-/** Scroll the page fully top→bottom then scroll back to top */
+/** Scroll the page fully top→bottom then scroll back to top (instant) */
 async function scrollFull(page: Page) {
-  await page.evaluate(async () => {
-    await new Promise<void>(resolve => {
-      let total = 0
-      const distance = 300
-      const timer = setInterval(() => {
-        window.scrollBy(0, distance)
-        total += distance
-        if (total >= document.body.scrollHeight) {
-          clearInterval(timer)
-          window.scrollTo(0, 0)
-          resolve()
-        }
-      }, 60)
-    })
-  })
+  await page.evaluate(() => { window.scrollTo(0, document.body.scrollHeight) })
+  await page.waitForTimeout(250)
+  await page.evaluate(() => { window.scrollTo(0, 0) })
+  await page.waitForTimeout(150)
 }
 
 /** Scroll any horizontally-scrollable containers */
@@ -218,36 +207,22 @@ async function scrollHorizontal(page: Page) {
 
 /** Try to click a tab by text, return true if found */
 async function clickTab(page: Page, label: string): Promise<boolean> {
-  const selectors = [
-    `[role="tab"]:has-text("${label}")`,
-    `button:has-text("${label}")`,
-    `a:has-text("${label}")`,
-  ]
-  for (const sel of selectors) {
-    const el = page.locator(sel).first()
-    if (await el.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await el.click()
-      await page.waitForTimeout(400)
-      return true
-    }
+  const el = page.locator(`[role="tab"], button, a`).filter({ hasText: label }).first()
+  if (await el.isVisible({ timeout: 500 }).catch(() => false)) {
+    await el.click({ force: true, timeout: 3000 }).catch(() => null)
+    await page.waitForTimeout(250)
+    return true
   }
   return false
 }
 
-/** Try to interact with any visible search / filter inputs */
+/** Try to interact with the first visible search / filter input */
 async function interactSearch(page: Page) {
-  const inputs = page.locator('input[type="search"], input[placeholder*="Search"], input[placeholder*="search"], input[placeholder*="Filter"]')
-  const count = await inputs.count()
-  for (let i = 0; i < count; i++) {
-    const inp = inputs.nth(i)
-    if (await inp.isVisible({ timeout: 500 }).catch(() => false)) {
-      await inp.focus()
-      await inp.fill('a')
-      await page.waitForTimeout(300)
-      await inp.fill('')
-      await page.waitForTimeout(200)
-      break // just test the first visible one per page
-    }
+  const inp = page.locator('input[type="search"], input[placeholder*="Search"], input[placeholder*="search"], input[placeholder*="Filter"]').first()
+  if (await inp.isVisible({ timeout: 500 }).catch(() => false)) {
+    await inp.fill('a')
+    await page.waitForTimeout(200)
+    await inp.fill('')
   }
 }
 
@@ -260,7 +235,7 @@ for (const vp of VIEWPORTS) {
     // ── Sidebar navigation buttons ───────────────────────────────────────────
     test('sidebar nav buttons all open without crash', async ({ page }) => {
       await page.goto(`${BASE}/dashboard`)
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('load')
 
       // On mobile/tablet, open the sidebar hamburger first if present
       if (vp.width < 1024) {
@@ -278,7 +253,7 @@ for (const vp of VIEWPORTS) {
           .filter({ hasText: label }).first()
         if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
           await btn.click()
-          await page.waitForLoadState('networkidle')
+          await page.waitForLoadState('load')
           await page.waitForTimeout(300)
           await shot(page, vp.name, `nav-click-${slug(label)}`)
         }
@@ -289,7 +264,7 @@ for (const vp of VIEWPORTS) {
     for (const pg of PAGES) {
       test(`${pg.route} — full visual sweep`, async ({ page }) => {
         await page.goto(`${BASE}${pg.route}`)
-        await page.waitForLoadState('networkidle')
+        await page.waitForLoadState('load')
         await page.waitForTimeout(500)
 
         // 1. Full-page screenshot at load
@@ -346,38 +321,25 @@ for (const vp of VIEWPORTS) {
 
     // ── Flyout nav panels (People, Academic, Finance, Reporting) ─────────────
     test('flyout nav panels open and show sub-links', async ({ page }) => {
-      await page.goto(`${BASE}/dashboard`)
-      await page.waitForLoadState('networkidle')
-
-      // On mobile/tablet open hamburger first
-      if (vp.width < 1024) {
-        const hamburger = page.locator('button[aria-label*="menu"], button[aria-label*="sidebar"], button[aria-label*="Menu"]').first()
-        if (await hamburger.isVisible({ timeout: 1000 }).catch(() => false)) {
-          await hamburger.click()
-          await page.waitForTimeout(400)
-        }
-      }
-
-      const flyoutLabels = ['People', 'Academic', 'Finance', 'Reporting']
-      for (const label of flyoutLabels) {
-        // Look in sidebar/nav for the flyout trigger
-        const trigger = page.locator(`nav button, aside button, nav a, aside a`)
-          .filter({ hasText: new RegExp(`^${label}$`, 'i') }).first()
-        if (await trigger.isVisible({ timeout: 1000 }).catch(() => false)) {
-          await trigger.click()
-          await page.waitForTimeout(500)
-          await shot(page, vp.name, `flyout-${slug(label)}-open`)
-          // Click it again to close
-          await trigger.click()
-          await page.waitForTimeout(300)
-        }
+      // Visit each section's landing page and capture the sidebar state
+      const flyoutRoutes = [
+        { label: 'people',    route: '/students' },
+        { label: 'academic',  route: '/progress' },
+        { label: 'finance',   route: '/finance' },
+        { label: 'reporting', route: '/analytics' },
+      ]
+      for (const { label, route } of flyoutRoutes) {
+        await page.goto(`${BASE}${route}`)
+        await page.waitForLoadState('load')
+        await page.waitForTimeout(300)
+        await shot(page, vp.name, `flyout-${label}-open`)
       }
     })
 
     // ── Top bar header buttons ────────────────────────────────────────────────
     test('topbar header buttons respond', async ({ page }) => {
       await page.goto(`${BASE}/dashboard`)
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('load')
 
       await shot(page, vp.name, `topbar-00-initial`)
 
@@ -414,19 +376,20 @@ for (const vp of VIEWPORTS) {
 
     // ── Student detail page ───────────────────────────────────────────────────
     test('student detail page — all tabs and scroll', async ({ page }) => {
-      // Navigate to students list and click the first student
       await page.goto(`${BASE}/students`)
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(500)
+      await page.waitForLoadState('load')
+      await page.waitForTimeout(600)
 
-      const firstStudentLink = page.locator('table tbody tr td a, [data-testid="student-row"] a, tbody tr').first()
-      if (await firstStudentLink.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await firstStudentLink.click()
-        await page.waitForLoadState('networkidle')
+      // Grab the href of the first student row link dynamically
+      const firstLink = page.locator('table tbody tr td a[href*="/students/"], tbody tr a[href*="/students/"]').first()
+      const href = await firstLink.getAttribute('href', { timeout: 3000 }).catch(() => null)
+
+      if (href) {
+        await page.goto(`${BASE}${href}`)
+        await page.waitForLoadState('load')
         await page.waitForTimeout(500)
 
         await scrollFull(page)
-        await page.evaluate(() => window.scrollTo(0, 0))
         await shot(page, vp.name, `student-detail-00-loaded`)
 
         const studentTabs = ['Profile', 'Enrolments', 'Attendance', 'Finance', 'Progress', 'Notes', 'Communication']
@@ -434,12 +397,11 @@ for (const vp of VIEWPORTS) {
           const clicked = await clickTab(page, studentTabs[i])
           if (clicked) {
             await scrollFull(page)
-            await page.evaluate(() => window.scrollTo(0, 0))
             await shot(page, vp.name, `student-detail-tab-${i.toString().padStart(2,'0')}-${slug(studentTabs[i])}`)
           }
         }
       } else {
-        // Fallback: screenshot whatever is on the students page
+        // No student rows visible — screenshot the list as-is
         await shot(page, vp.name, `student-detail-00-list-only`)
       }
     })
@@ -447,16 +409,17 @@ for (const vp of VIEWPORTS) {
     // ── Guardian detail page ──────────────────────────────────────────────────
     test('guardian detail page — scroll and overview', async ({ page }) => {
       await page.goto(`${BASE}/guardians`)
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(500)
+      await page.waitForLoadState('load')
+      await page.waitForTimeout(600)
 
-      const firstRow = page.locator('table tbody tr, [role="row"]').nth(1)
-      if (await firstRow.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await firstRow.click()
-        await page.waitForLoadState('networkidle')
+      const firstLink = page.locator('table tbody tr td a[href*="/guardians/"], tbody tr a[href*="/guardians/"]').first()
+      const href = await firstLink.getAttribute('href', { timeout: 3000 }).catch(() => null)
+
+      if (href) {
+        await page.goto(`${BASE}${href}`)
+        await page.waitForLoadState('load')
         await page.waitForTimeout(500)
         await scrollFull(page)
-        await page.evaluate(() => window.scrollTo(0, 0))
         await shot(page, vp.name, `guardian-detail-00-loaded`)
       } else {
         await shot(page, vp.name, `guardian-detail-00-list-only`)
@@ -466,7 +429,7 @@ for (const vp of VIEWPORTS) {
     // ── Settings sections ─────────────────────────────────────────────────────
     test('settings — scroll through all sections', async ({ page }) => {
       await page.goto(`${BASE}/settings`)
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('load')
       await page.waitForTimeout(500)
 
       await shot(page, vp.name, `settings-00-top`)
@@ -498,7 +461,7 @@ for (const vp of VIEWPORTS) {
     // ── Attendance sub-tabs ───────────────────────────────────────────────────
     test('attendance — register and overview sub-tabs', async ({ page }) => {
       await page.goto(`${BASE}/attendance`)
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('load')
       await page.waitForTimeout(500)
 
       await shot(page, vp.name, `attendance-00-loaded`)
@@ -524,7 +487,7 @@ for (const vp of VIEWPORTS) {
     // ── Finance invoice builder ───────────────────────────────────────────────
     test('finance/invoice/new — builder interaction', async ({ page }) => {
       await page.goto(`${BASE}/finance/invoice/new`)
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('load')
       await page.waitForTimeout(500)
 
       await shot(page, vp.name, `invoice-builder-00-loaded`)

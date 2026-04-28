@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { AUTH_FILE } from './tests/global-setup'
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -18,8 +19,12 @@ export default defineConfig({
     {
       name: 'responsive-visual',
       testMatch: /responsive-visual\.spec\.ts/,
-      timeout: 120_000,
-      use: { screenshot: 'off' }, // we call page.screenshot() manually
+      timeout: 180_000,
+      use: {
+        screenshot: 'off',       // we call page.screenshot() manually
+        storageState: AUTH_FILE, // reuse logged-in session for every test
+      },
     },
   ],
+  globalSetup: './tests/global-setup.ts',
 })

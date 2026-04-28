@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -160,15 +161,41 @@ function RowActionsMenu({
   onResendInvite: () => void;
 }) {
   const { can } = usePermission();
-  const ref = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   useEffect(() => {
     function h(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) onClose();
     }
     if (isOpen) document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [isOpen, onClose]);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isOpen) { onClose(); return; }
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 220) {
+        setMenuPos({ bottom: window.innerHeight - rect.top + 4, right: window.innerWidth - rect.right });
+      } else {
+        setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      }
+    }
+    onOpen();
+  };
 
   const canEdit         = can('staff.edit');
   const canResendInvite = can('staff.create') && staff.status === "Invited";
@@ -176,91 +203,102 @@ function RowActionsMenu({
   const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive" && staff.status !== "Off-boarded";
   const canArchive      = can('staff.archive') && staff.status === "Inactive";
 
-  return (
-    <div ref={ref} className="relative flex justify-end">
+  const menu = isOpen && menuPos ? createPortal(
+    <div
+      ref={menuRef}
+      style={{
+        position: "fixed",
+        ...(menuPos.top !== undefined ? { top: menuPos.top } : { bottom: menuPos.bottom }),
+        right: menuPos.right,
+        zIndex: 9999,
+      }}
+      className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[200px] py-1"
+    >
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); isOpen ? onClose() : onOpen(); }}
+        onClick={(e) => { e.stopPropagation(); onViewProfile(); onClose(); }}
+        className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
+      >
+        <Eye className="w-3.5 h-3.5 shrink-0" />
+        View profile
+      </button>
+
+      {canEdit && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <Edit2 className="w-3.5 h-3.5 shrink-0" />
+          Edit details
+        </button>
+      )}
+
+      {canResendInvite && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onResendInvite(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-blue-600 hover:bg-blue-50 transition-colors"
+        >
+          <Send className="w-3.5 h-3.5 shrink-0" />
+          Resend invite
+        </button>
+      )}
+
+      {canSetLeave && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onMarkOnLeave(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <Clock className="w-3.5 h-3.5 shrink-0" />
+          Mark as on leave
+        </button>
+      )}
+
+      {canDeactivate && (
+        <>
+          <div className="my-1 border-t border-slate-100" />
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDeactivate(); onClose(); }}
+            className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <Ban className="w-3.5 h-3.5 shrink-0" />
+            Deactivate
+          </button>
+        </>
+      )}
+
+      {canArchive && (
+        <>
+          <div className="my-1 border-t border-slate-100" />
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onArchive(); onClose(); }}
+            className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <UserX className="w-3.5 h-3.5 shrink-0" />
+            Archive (off-board)
+          </button>
+        </>
+      )}
+    </div>,
+    document.body
+  ) : null;
+
+  return (
+    <div ref={wrapperRef} className="relative flex justify-end">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleOpen}
         aria-label="Row actions"
         className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
-
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onViewProfile(); onClose(); }}
-            className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <Eye className="w-3.5 h-3.5 shrink-0" />
-            View profile
-          </button>
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onEdit(); onClose(); }}
-              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <Edit2 className="w-3.5 h-3.5 shrink-0" />
-              Edit details
-            </button>
-          )}
-
-          {canResendInvite && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onResendInvite(); onClose(); }}
-              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-blue-600 hover:bg-blue-50 transition-colors"
-            >
-              <Send className="w-3.5 h-3.5 shrink-0" />
-              Resend invite
-            </button>
-          )}
-
-          {canSetLeave && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onMarkOnLeave(); onClose(); }}
-              className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <Clock className="w-3.5 h-3.5 shrink-0" />
-              Mark as on leave
-            </button>
-          )}
-
-          {canDeactivate && (
-            <>
-              <div className="my-1 border-t border-slate-100" />
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDeactivate(); onClose(); }}
-                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <Ban className="w-3.5 h-3.5 shrink-0" />
-                Deactivate
-              </button>
-            </>
-          )}
-
-          {canArchive && (
-            <>
-              <div className="my-1 border-t border-slate-100" />
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onArchive(); onClose(); }}
-                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <UserX className="w-3.5 h-3.5 shrink-0" />
-                Archive (off-board)
-              </button>
-            </>
-          )}
-
-        </div>
-      )}
+      {menu}
     </div>
   );
 }
@@ -930,14 +968,14 @@ function StaffPageContent() {
       </div>
 
       {/* Outer tabs */}
-      <div className="flex gap-0 border-b border-slate-200 mb-6">
+      <div className="flex gap-0 border-b border-slate-200 mb-6 overflow-x-auto scrollbar-none">
         {outerTabs.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => handleOuterTabChange(id)}
             className={cn(
-              "px-5 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer",
+              "px-5 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0",
               outerTab === id
                 ? "border-amber-500 text-amber-600"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"

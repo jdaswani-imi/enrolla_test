@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -169,7 +170,6 @@ function RowActions({
   isOpen,
   onOpen,
   onClose,
-  openUpward,
   onAddEnrolment,
   onNewTask,
   onLogNote,
@@ -181,7 +181,6 @@ function RowActions({
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
-  openUpward: boolean;
   onAddEnrolment: (s: Student) => void;
   onNewTask: (s: Student) => void;
   onLogNote: (s: Student) => void;
@@ -191,15 +190,41 @@ function RowActions({
 }) {
   const router = useRouter();
   const { can } = usePermission();
-  const ref = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) onClose();
     }
     if (isOpen) document.addEventListener("mousedown", handleOutside);
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [isOpen, onClose]);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isOpen) { onClose(); return; }
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 260) {
+        setMenuPos({ bottom: window.innerHeight - rect.top + 4, right: window.innerWidth - rect.right });
+      } else {
+        setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      }
+    }
+    onOpen();
+  };
 
   const isOperational = student.status === "Active";
   const canBeArchived = can('students.archive') && (student.status === "Withdrawn" || student.status === "Graduated" || student.status === "Alumni");
@@ -227,50 +252,57 @@ function RowActions({
   ];
   const items = rawItems.filter((i) => i.show);
 
+  const menu = isOpen && menuPos ? createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      style={{
+        position: "fixed",
+        ...(menuPos.top !== undefined ? { top: menuPos.top } : { bottom: menuPos.bottom }),
+        right: menuPos.right,
+        zIndex: 9999,
+      }}
+      className="bg-white border border-slate-200 rounded-lg shadow-lg min-w-[184px] py-1"
+    >
+      {items.map((item, i) => {
+        if (item.kind === "separator") {
+          return <div key={`sep-${i}`} className="my-1 border-t border-slate-100" />;
+        }
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.label}
+            type="button"
+            role="menuitem"
+            onClick={(e) => { e.stopPropagation(); item.onClick(); onClose(); }}
+            className={cn(
+              "w-full text-left flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors cursor-pointer",
+              item.danger
+                ? "text-red-600 hover:bg-red-50"
+                : "text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            <Icon className="w-3.5 h-3.5 shrink-0" />
+            {item.label}
+          </button>
+        );
+      })}
+    </div>,
+    document.body
+  ) : null;
+
   return (
-    <div ref={ref} className="relative">
+    <div ref={wrapperRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={(e) => { e.stopPropagation(); if (isOpen) onClose(); else onOpen(); }}
+        onClick={handleOpen}
         aria-label="Row actions"
         className="flex items-center justify-center w-7 h-7 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
-
-      {isOpen && (
-        <div
-          role="menu"
-          className={cn(
-            "absolute right-0 z-50 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[184px] py-1",
-            openUpward ? "bottom-full mb-1" : "top-full mt-1"
-          )}
-        >
-          {items.map((item, i) => {
-            if (item.kind === "separator") {
-              return <div key={`sep-${i}`} className="my-1 border-t border-slate-100" />;
-            }
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.label}
-                type="button"
-                role="menuitem"
-                onClick={(e) => { e.stopPropagation(); item.onClick(); onClose(); }}
-                className={cn(
-                  "w-full text-left flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors cursor-pointer",
-                  item.danger
-                    ? "text-red-600 hover:bg-red-50"
-                    : "text-slate-700 hover:bg-slate-50"
-                )}
-              >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }
@@ -551,10 +583,10 @@ export default function StudentsPage() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         if (
-          !s.name.toLowerCase().includes(q) &&
-          !s.ref.toLowerCase().includes(q) &&
-          !s.guardian.toLowerCase().includes(q) &&
-          !s.school.toLowerCase().includes(q)
+          !(s.name ?? '').toLowerCase().includes(q) &&
+          !(s.ref ?? '').toLowerCase().includes(q) &&
+          !(s.guardian ?? '').toLowerCase().includes(q) &&
+          !(s.school ?? '').toLowerCase().includes(q)
         ) return false;
       }
       return true;
@@ -715,7 +747,7 @@ export default function StudentsPage() {
               className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 min-h-[100px] relative"
             >
               <Icon className={cn("absolute top-4 right-4 w-5 h-5", stat.iconColor)} />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1 pr-6">
                 {stat.label}
               </p>
               <p className="text-2xl font-bold text-slate-800 leading-tight mb-1">
@@ -903,12 +935,10 @@ export default function StudentsPage() {
                   </td>
                 </tr>
               ) : (
-                paginated.map((student, index) => {
+                paginated.map((student) => {
                   const palette = getAvatarPalette(student.name);
                   const initials = getInitials(student.name);
                   const isSelected = selectedIds.has(student.id);
-                  const openUpward = index >= paginated.length - 3;
-
                   return (
                     <tr
                       key={student.id}
@@ -1015,7 +1045,6 @@ export default function StudentsPage() {
                           isOpen={openMenuId === student.id}
                           onOpen={() => setOpenMenuId(student.id)}
                           onClose={() => setOpenMenuId(null)}
-                          openUpward={openUpward}
                           onAddEnrolment={setEnrolmentStudent}
                           onNewTask={setTaskStudent}
                           onLogNote={setNoteStudent}

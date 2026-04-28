@@ -89,12 +89,14 @@ export function GenerateReportDialog({
   open,
   onOpenChange,
   onGenerate,
+  allowedTypes = REPORT_TYPES,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onGenerate: (input: GeneratedReportInput) => void;
+  allowedTypes?: ReportTypeOption[];
 }) {
-  const [type, setType] = useState<ReportTypeOption>("Attendance");
+  const [type, setType] = useState<ReportTypeOption>(() => allowedTypes[0] ?? "Attendance");
   const [department, setDepartment] = useState<DepartmentOption>("All");
   const [from, setFrom] = useState(CURRENT_TERM_FROM);
   const [to, setTo] = useState(CURRENT_TERM_TO);
@@ -152,7 +154,7 @@ export function GenerateReportDialog({
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-2">Report type</p>
-            <PillGroup options={REPORT_TYPES} value={type} onChange={setType} disabled={generating} />
+            <PillGroup options={allowedTypes} value={type} onChange={setType} disabled={generating} />
           </div>
 
           <div>

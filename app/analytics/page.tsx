@@ -1197,16 +1197,22 @@ function AnalyticsPageContent() {
   const router = useRouter();
 
   const canViewStaff = can("analytics.viewStaffPerformance");
-  const visibleTabs = TABS.filter((t) => t.id !== "staff" || canViewStaff);
+  const canViewRevenue = can("finance.view");
+  const visibleTabs = TABS.filter((t) => {
+    if (t.id === "staff"   && !canViewStaff)   return false;
+    if (t.id === "revenue" && !canViewRevenue) return false;
+    return true;
+  });
 
   const raw = searchParams.get("tab");
   const activeTab: Tab = raw && visibleTabs.some((t) => t.id === raw) ? (raw as Tab) : (visibleTabs[0]?.id ?? "revenue");
 
   useEffect(() => {
-    if (raw === "staff" && !canViewStaff) {
-      router.replace(`?tab=${visibleTabs[0]?.id ?? "revenue"}`, { scroll: false });
+    const isInvalid = (raw === "staff" && !canViewStaff) || (raw === "revenue" && !canViewRevenue);
+    if (isInvalid) {
+      router.replace(`?tab=${visibleTabs[0]?.id ?? "occupancy"}`, { scroll: false });
     }
-  }, [raw, canViewStaff, router, visibleTabs]);
+  }, [raw, canViewStaff, canViewRevenue, router, visibleTabs]);
 
   function handleTabChange(id: Tab) {
     router.replace(`?tab=${id}`, { scroll: false });
@@ -1221,13 +1227,13 @@ function AnalyticsPageContent() {
         <p className="text-sm text-slate-500 mt-0.5">Term 3 · Deep-dive management view</p>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 -mb-1">
+      <div className="flex gap-1 border-b border-slate-200 -mb-1 overflow-x-auto scrollbar-none">
         {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
             className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer",
+              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer whitespace-nowrap flex-shrink-0",
               activeTab === tab.id
                 ? "border-amber-500 text-amber-600"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"

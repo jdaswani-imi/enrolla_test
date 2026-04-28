@@ -185,25 +185,29 @@ import { SkipAssessmentDialog } from "@/components/journey/skip-assessment-dialo
 
 type ApiLead = {
   id: string
-  lead_ref: string
-  child_first_name: string
-  child_last_name: string
-  child_year_group: string | null
-  subject_interest: string[] | null
+  ref: string | null
+  child_name: string
+  year_group: string | null
+  department: string | null
+  subjects: string[] | null
+  guardian: string | null
+  guardian_phone: string | null
   source: string | null
   stage: LeadStage
-  is_dnc: boolean
-  sibling_student_id: string | null
-  terminal_reason: string | null
-  terminal_notes: string | null
-  terminal_status: string | null
+  assigned_to: string | null
+  dnc: boolean
+  sibling: boolean
+  lost_reason: string | null
+  lost_notes: string | null
   re_engage: boolean
   re_engage_after: string | null
+  status: string | null
   converted_student_id: string | null
   created_at: string
   updated_at: string
-  last_activity_at: string | null
-  guardians: { id: string; first_name: string; last_name: string; phone: string | null; whatsapp_number: string | null } | null
+  last_activity: string | null
+  days_in_stage: number | null
+  days_in_pipeline: number | null
 }
 
 type ApiStudent = {
@@ -226,32 +230,31 @@ function _fmtActivity(ts: string | null): string {
 }
 
 function toLead(r: ApiLead): Lead {
-  const g = r.guardians
   let status: Lead['status'] = 'active'
-  if (r.terminal_status === 'lost') status = 'lost'
-  else if (r.terminal_status === 'archived') status = 'archived'
-  else if (r.converted_student_id) status = 'converted'
+  if (r.status === 'lost') status = 'lost'
+  else if (r.status === 'archived') status = 'archived'
+  else if (r.status === 'converted' || r.converted_student_id) status = 'converted'
   return {
     id: r.id,
-    ref: r.lead_ref,
-    childName: `${r.child_first_name} ${r.child_last_name}`,
-    yearGroup: r.child_year_group ?? '',
-    department: '',
-    subjects: r.subject_interest ?? [],
-    guardian: g ? `${g.first_name} ${g.last_name}` : '',
-    guardianPhone: g?.phone ?? g?.whatsapp_number ?? '',
+    ref: r.ref ?? '',
+    childName: r.child_name,
+    yearGroup: r.year_group ?? '',
+    department: r.department ?? '',
+    subjects: r.subjects ?? [],
+    guardian: r.guardian ?? '',
+    guardianPhone: r.guardian_phone ?? '',
     source: (r.source as LeadSource) ?? 'Website',
     stage: r.stage,
-    assignedTo: '',
-    lastActivity: _fmtActivity(r.last_activity_at ?? r.updated_at),
-    daysInStage: 0,
-    daysInPipeline: _daysBetween(r.created_at, new Date().toISOString()),
-    dnc: r.is_dnc,
-    sibling: !!r.sibling_student_id,
+    assignedTo: r.assigned_to ?? '',
+    lastActivity: _fmtActivity(r.last_activity ?? r.updated_at),
+    daysInStage: r.days_in_stage ?? 0,
+    daysInPipeline: r.days_in_pipeline ?? _daysBetween(r.created_at, new Date().toISOString()),
+    dnc: r.dnc,
+    sibling: r.sibling,
     stageMessagePending: false,
     createdOn: r.created_at.slice(0, 10),
-    lostReason: r.terminal_reason ?? undefined,
-    lostNotes: r.terminal_notes ?? undefined,
+    lostReason: r.lost_reason ?? undefined,
+    lostNotes: r.lost_notes ?? undefined,
     reEngage: r.re_engage,
     reEngageAfter: r.re_engage_after ?? undefined,
     status,
@@ -642,6 +645,7 @@ function KanbanColumn({
   makeActions: (lead: Lead) => LeadActions;
 }) {
   const cfg = STAGE_CONFIG[stage];
+  const { can } = usePermission();
 
   return (
     <div className="flex flex-col shrink-0 w-[260px]">
@@ -676,6 +680,7 @@ function KanbanColumn({
         )}
 
         {/* Add ghost button */}
+        {can('leads.create') && (
         <button
           type="button"
           onClick={() => onAddLead(stage)}
@@ -684,6 +689,7 @@ function KanbanColumn({
           <Plus className="w-3 h-3" />
           Add Lead
         </button>
+        )}
       </div>
     </div>
   );
@@ -2765,6 +2771,22 @@ function AddLeadDialog({
   const [assigned, setAssigned] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!open || staffNames.length > 0) return;
+    fetch('/api/staff')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (!json?.data) return;
+        const names: string[] = json.data
+          .map((s: { name: string }) => s.name)
+          .filter(Boolean)
+          .sort((a: string, b: string) => a.localeCompare(b));
+        setStaffNames(names);
+      })
+      .catch(() => {});
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (open) {
@@ -2931,7 +2953,7 @@ function AddLeadDialog({
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer"
               >
                 <option value="">Unassigned</option>
-                {ASSIGNED_FILTER_OPTIONS.map((a) => (
+                {staffNames.map((a) => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
@@ -3323,10 +3345,10 @@ export default function LeadsPage() {
   }, []);
 
   const [exportOpen, setExportOpen] = useState(false);
-  const [view, setView] = useState<ViewMode>(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) return "list";
-    return "kanban";
-  });
+  const [view, setView] = useState<ViewMode>("kanban");
+  useEffect(() => {
+    if (window.innerWidth < 768) setView("list");
+  }, []);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [sourceFilter, setSourceFilter] = useState<string[]>([]);

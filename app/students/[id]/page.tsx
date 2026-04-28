@@ -420,6 +420,7 @@ function ProfileHeader({
 }) {
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
+  const { can } = usePermission();
   const displayName = `${profile.firstName} ${profile.lastName}`.trim();
   const yearLabel = !profile.yearGroup ? "" :
     profile.yearGroup.startsWith("KG") ? profile.yearGroup :
@@ -428,16 +429,16 @@ function ProfileHeader({
     profile.yearGroup;
   const department = yearGroupToDepartment(profile.yearGroup);
 
-  const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void }[] = [
-    { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${profile.studentId}`) },
+  const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void; show?: boolean }[] = [
+    { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${profile.studentId}`), show: can('finance.createInvoice') },
     {
       label: "Add Enrolment",
       Icon: Plus,
       onClick: () => (isJourneyStudent && onJourneyAddEnrolment ? onJourneyAddEnrolment() : setOpenDialog("addEnrolment")),
     },
     { label: "Book Trial",       Icon: Zap, onClick: () => setOpenDialog("bookTrial") },
-    { label: "Book Assessment",  Icon: ClipboardCheck, onClick: () => setOpenDialog("bookAssessment") },
-    { label: "Record Payment",   Icon: CreditCard, onClick: () => setOpenDialog("recordPayment") },
+    { label: "Book Assessment",  Icon: ClipboardCheck, onClick: () => setOpenDialog("bookAssessment"), show: can('assessments.book') },
+    { label: "Record Payment",   Icon: CreditCard, onClick: () => setOpenDialog("recordPayment"), show: can('finance.logPayment') },
     { label: "Raise Concern",    Icon: AlertTriangle, onClick: () => setOpenDialog("raiseConcern") },
     { label: "Log Note",         Icon: PenLine, onClick: () => setOpenDialog("logNote") },
     { label: "Send Message",     Icon: Send, onClick: () => setOpenDialog("sendMessage") },
@@ -470,7 +471,7 @@ function ProfileHeader({
         </div>
 
         {/* Right — Status Badges + Quick Actions */}
-        <div className="flex flex-col items-end gap-2.5 shrink-0">
+        <div className="flex flex-col items-end gap-2.5 min-w-0">
           <div className="flex items-center gap-2">
             {journeyStatusBadge ? (
               <span className={cn("px-3 py-1 rounded-full text-xs font-semibold", journeyStatusBadge.className)}>
@@ -489,7 +490,7 @@ function ProfileHeader({
             ) : null}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {buttonActions.map(({ label, Icon, onClick }) => (
+            {buttonActions.filter(({ show }) => show !== false).map(({ label, Icon, onClick }) => (
               <button
                 key={label}
                 type="button"
@@ -3927,10 +3928,10 @@ function StudentProfilePageContent() {
       )}
 
       {/* ── Zones 2 + 3: Sidebar + Main Panel ──────────────────────────────── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 flex-col md:flex-row">
 
         {/* ── Zone 2: Left Sidebar ──────────────────────────────────────────── */}
-        <aside className="w-[260px] shrink-0 border-r border-slate-200 overflow-y-auto bg-white">
+        <aside className="hidden md:block w-[260px] shrink-0 border-r border-slate-200 overflow-y-auto bg-white">
           <LeftSidebar
             profile={profile}
             onTabChange={handleTabChange}

@@ -231,6 +231,9 @@ export const PERMISSIONS: Record<string, Role[]> = {
 
   // ── Inventory ──
   'inventory.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','TA','HR/Finance'],
+  'inventory.create':         ['Super Admin','Admin Head','Admin','HR/Finance'],
+  'inventory.edit':           ['Super Admin','Admin Head','Admin','HR/Finance'],
+  'inventory.delete':         ['Super Admin','Admin Head','HR/Finance'],
 }
 
 export function canDo(role: Role, action: string): boolean {

@@ -899,7 +899,7 @@ export default function TasksPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Page Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200 bg-white shrink-0">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-6 py-5 border-b border-slate-200 bg-white shrink-0">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Tasks</h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -910,7 +910,7 @@ export default function TasksPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* View toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
             {(

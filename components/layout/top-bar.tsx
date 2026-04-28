@@ -235,8 +235,6 @@ function UserMenu() {
 // ─── TopBar ───────────────────────────────────────────────────────────────────
 
 export function TopBar() {
-  const currentUser = useCurrentUser();
-  const initials = currentUser.name.split(" ").map((n) => n[0]).join("").slice(0, 2);
   const pathname = usePathname();
   const router = useRouter();
   const title = routeTitles[pathname] ?? "Enrolla";
@@ -310,7 +308,7 @@ export function TopBar() {
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 top-12 w-[380px] bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden flex flex-col">
+            <div className="absolute right-0 top-12 w-[min(380px,_calc(100vw-1rem))] bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden flex flex-col">
               {/* Header */}
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -450,14 +448,15 @@ export function TopBar() {
         {/* Help */}
         <button
           title="Help & documentation"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all text-sm cursor-pointer"
+          aria-label="Help & documentation"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all text-sm cursor-pointer"
         >
           <HelpCircle className="w-4 h-4" />
           <span className="hidden lg:inline text-xs font-medium">Help</span>
         </button>
 
         {/* Divider */}
-        <div className="w-px h-5 bg-slate-200 mx-1" />
+        <div className="hidden sm:block w-px h-5 bg-slate-200 mx-1" />
 
         {/* User avatar with dropdown menu */}
         <UserMenu />

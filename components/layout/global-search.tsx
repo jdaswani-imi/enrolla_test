@@ -402,7 +402,7 @@ export function GlobalSearch() {
     <div ref={containerRef} className="relative">
       <div
         className={cn(
-          "flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-64 transition-all",
+          "flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-32 sm:w-64 transition-all",
           open && "bg-white border-amber-400"
         )}
       >
@@ -450,7 +450,7 @@ export function GlobalSearch() {
           id="global-search-listbox"
           ref={listRef}
           role="listbox"
-          className="absolute right-0 top-full mt-1.5 w-[420px] max-h-[70vh] overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-[200]"
+          className="absolute right-0 top-full mt-1.5 w-[min(420px,_calc(100vw-4rem))] max-h-[70vh] overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-[200]"
         >
           {!hasQuery ? (
             <RecentPanel

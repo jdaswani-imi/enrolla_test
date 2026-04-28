@@ -2456,13 +2456,13 @@ function FinancePageContent() {
         <RoleBanner message="Discount and refund approvals require Admin Head or above." />
       )}
       {/* Tab bar */}
-      <div className="flex items-center gap-0 border-b border-slate-200 -mt-1">
+      <div className="flex items-center gap-0 border-b border-slate-200 -mt-1 overflow-x-auto scrollbar-none">
         {TABS.map(({ key, label, badge }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
             className={cn(
-              "relative px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px flex items-center gap-1.5",
+              "relative px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer border-b-2 -mb-px flex items-center gap-1.5 whitespace-nowrap flex-shrink-0",
               tab === key
                 ? "border-amber-500 text-amber-600"
                 : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"

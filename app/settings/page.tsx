@@ -1223,10 +1223,8 @@ function BranchesSection() {
                 <TableAction label="Edit" onClick={() => openEdit(b)} />
                 {onlyOne ? (
                   <Tooltip>
-                    <TooltipTrigger>
-                      <span>
-                        <TableAction label="Archive" disabled />
-                      </span>
+                    <TooltipTrigger render={<span />}>
+                      <TableAction label="Archive" disabled />
                     </TooltipTrigger>
                     <TooltipContent>Cannot archive — only branch.</TooltipContent>
                   </Tooltip>
@@ -1644,10 +1642,8 @@ function DepartmentsSection() {
                     />
                   ) : (
                     <Tooltip>
-                      <TooltipTrigger>
-                        <span>
-                          <TableAction label="Archive" disabled />
-                        </span>
+                      <TooltipTrigger render={<span />}>
+                        <TableAction label="Archive" disabled />
                       </TooltipTrigger>
                       <TooltipContent>
                         Cannot archive — {d.studentCount.toLocaleString()} students are enrolled in this department.

@@ -1871,6 +1871,7 @@ function CatalogueTab({
   onEdit: (item: InventoryItem) => void;
   onAdjust: (item: InventoryItem) => void;
 }) {
+  const { can } = usePermission();
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
@@ -2027,9 +2028,9 @@ function CatalogueTab({
                         {items.map(item => (
                           <tr
                             key={item.id}
-                            className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
+                            className={cn("border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors", can('inventory.edit') && "cursor-pointer")}
                             style={{ height: 48 }}
-                            onClick={() => onEdit(item)}
+                            onClick={() => can('inventory.edit') && onEdit(item)}
                           >
                             <td className="px-4 py-2">
                               <span className="text-sm font-medium text-slate-900">{item.name}</span>
@@ -2067,18 +2068,22 @@ function CatalogueTab({
                                 className="flex items-center justify-end gap-1.5"
                                 onClick={e => e.stopPropagation()}
                               >
-                                <button
-                                  onClick={() => onEdit(item)}
-                                  className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => onAdjust(item)}
-                                  className="text-xs px-2.5 py-1 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
-                                >
-                                  Adjust
-                                </button>
+                                {can('inventory.edit') && (
+                                  <button
+                                    onClick={() => onEdit(item)}
+                                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {can('stock.take') && (
+                                  <button
+                                    onClick={() => onAdjust(item)}
+                                    className="text-xs px-2.5 py-1 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                                  >
+                                    Adjust
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2153,9 +2158,11 @@ function InventoryPageContent() {
               <ClipboardList className="w-4 h-4" />Stock-take
             </button>
           )}
-          <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors cursor-pointer">
-            <Plus className="w-4 h-4" />Add Item
-          </button>
+          {can('inventory.create') && (
+            <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors cursor-pointer">
+              <Plus className="w-4 h-4" />Add Item
+            </button>
+          )}
         </div>
       </div>
 
@@ -2168,13 +2175,13 @@ function InventoryPageContent() {
       </div>
 
       {/* Tab strip */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none">
         {TABS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => handleTabChange(key)}
             className={cn(
-              'text-sm py-3 px-1 mr-6 border-b-2 transition-colors cursor-pointer font-medium whitespace-nowrap',
+              'text-sm py-3 px-1 mr-6 border-b-2 transition-colors cursor-pointer font-medium whitespace-nowrap flex-shrink-0',
               activeTab === key
                 ? 'border-amber-500 text-amber-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700',

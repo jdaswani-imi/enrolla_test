@@ -1503,13 +1503,13 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {getGreeting()}, {currentUser.name.split(" ")[0]}
+            {getGreeting()}{currentUser.name ? `, ${currentUser.name.split(" ")[0]}` : ""}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {config.subtitle}
           </p>
         </div>
-        <LiveClock />
+        <div className="hidden sm:block"><LiveClock /></div>
       </div>
 
       {/* KPI Cards */}

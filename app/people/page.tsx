@@ -266,6 +266,7 @@ function parsePeopleDate(s: string): number {
 
 function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void }) {
   const router = useRouter();
+  const { can } = usePermission();
 
   const recentRecords = useMemo(() => {
     return [...peopleAll]
@@ -320,7 +321,7 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
           Record Directories
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {cards.map(({ icon: Icon, iconBg, iconColor, title, subtitle, stats, href }) => (
+          {cards.filter(({ title }) => title !== "Guardians" || can('guardians.view')).map(({ icon: Icon, iconBg, iconColor, title, subtitle, stats, href }) => (
             <div
               key={title}
               onClick={() => router.push(href)}
@@ -383,7 +384,11 @@ function DirectoryTab({ setActiveTab }: { setActiveTab: (tab: ActiveTab) => void
               description: "Export contact lists as Standard CSV or Google Contacts",
               tab: "exports" as ActiveTab,
             },
-          ] as const).map(({ icon: Icon, iconBg, iconColor, title, subtitle, description, tab }) => (
+          ] as const).filter(({ tab }) => {
+            if (tab === 'forms'           && !can('people.manageForms'))       return false;
+            if (tab === 'exports'         && !can('people.export'))            return false;
+            return true;
+          }).map(({ icon: Icon, iconBg, iconColor, title, subtitle, description, tab }) => (
             <div
               key={title}
               onClick={() => setActiveTab(tab)}
@@ -2467,7 +2472,9 @@ function PeoplePageContent() {
       {/* Tab strip */}
       <div className="flex items-center gap-0 border-b border-slate-200 -mt-1 overflow-x-auto">
         {TABS.map(({ key, label }) => {
-          if (key === "exports" && !can('people.export')) return null;
+          if (key === "exports"         && !can('people.export'))           return null;
+          if (key === "broadcast-lists" && !can('people.manageBroadcasts')) return null;
+          if (key === "forms"           && !can('people.manageForms'))       return null;
           return (
           <button
             key={key}

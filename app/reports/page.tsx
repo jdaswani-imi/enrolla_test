@@ -558,7 +558,7 @@ export default function ReportsPage() {
             <FilterSelect
               label="Report Type"
               value={genReportType}
-              options={REPORT_TYPES}
+              options={can("reports.viewFinancial") ? REPORT_TYPES : REPORT_TYPES.filter(t => t !== "Revenue Summary" && t !== "Payment Reconciliation")}
               onChange={setGenReportType}
             />
             <FilterSelect
@@ -645,7 +645,7 @@ export default function ReportsPage() {
             <FilterSelect
               label="Report Type"
               value={schedReportType}
-              options={REPORT_TYPES}
+              options={can("reports.viewFinancial") ? REPORT_TYPES : REPORT_TYPES.filter(t => t !== "Revenue Summary" && t !== "Payment Reconciliation")}
               onChange={setSchedReportType}
             />
             <FilterSelect
@@ -742,6 +742,7 @@ export default function ReportsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onGenerate={handleGenerate}
+        allowedTypes={can("reports.viewFinancial") ? undefined : ["Attendance", "Academic", "Churn", "Staff CPD"]}
       />
     </div>
   );

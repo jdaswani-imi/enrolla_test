@@ -474,7 +474,7 @@ export default function ProfilePage() {
                 <div className="h-px bg-slate-200" />
 
                 {/* Change password */}
-                <div>
+                <form onSubmit={(e) => { e.preventDefault(); handleChangePassword(); }}>
                   <SectionHeading>Change password</SectionHeading>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
@@ -482,6 +482,7 @@ export default function ProfilePage() {
                       <Input
                         type="password"
                         placeholder="••••••••"
+                        autoComplete="current-password"
                         value={currentPw}
                         onChange={(e) => setCurrentPw(e.target.value)}
                       />
@@ -491,6 +492,7 @@ export default function ProfilePage() {
                       <Input
                         type="password"
                         placeholder="••••••••"
+                        autoComplete="new-password"
                         value={newPw}
                         onChange={(e) => setNewPw(e.target.value)}
                       />
@@ -500,6 +502,7 @@ export default function ProfilePage() {
                       <Input
                         type="password"
                         placeholder="••••••••"
+                        autoComplete="new-password"
                         value={confirmPw}
                         onChange={(e) => setConfirmPw(e.target.value)}
                       />
@@ -507,14 +510,14 @@ export default function ProfilePage() {
                   </div>
                   <div className="mt-4">
                     <Button
+                      type="submit"
                       size="sm"
-                      onClick={handleChangePassword}
                       className="bg-amber-500 hover:bg-amber-600 text-white"
                     >
                       Update password
                     </Button>
                   </div>
-                </div>
+                </form>
 
                 <div className="h-px bg-slate-200" />
 
