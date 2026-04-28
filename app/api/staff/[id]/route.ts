@@ -40,7 +40,7 @@ export async function PATCH(
   if (!auth.ok) return auth.response
   const { id } = await params
   const body   = await request.json()
-  const { status, role, email, name } = body
+  const { status, role, email, name, department } = body
 
   const patch: Record<string, unknown> = {}
   if (status !== undefined) patch.status = FRONTEND_TO_DB_STATUS[status] ?? status
@@ -50,6 +50,18 @@ export async function PATCH(
     const parts = String(name).trim().split(' ')
     patch.first_name = parts[0] ?? ''
     patch.last_name  = parts.slice(1).join(' ') || ''
+  }
+  if (department !== undefined) {
+    if (!department || department === '—') {
+      patch.department_id = null
+    } else {
+      const { data: dept } = await supabase
+        .from('departments')
+        .select('id')
+        .eq('name', department)
+        .single()
+      patch.department_id = dept?.id ?? null
+    }
   }
   patch.updated_at = new Date().toISOString()
 
@@ -64,36 +76,9 @@ export async function PATCH(
   return NextResponse.json({ success: true })
 }
 
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await requireAuth()
-  if (!auth.ok) return auth.response
-  const { id } = await params
-
-  const { data: staffRow, error: fetchError } = await supabase
-    .from('staff')
-    .select('status')
-    .eq('id', id)
-    .eq('tenant_id', TENANT_ID)
-    .single()
-
-  if (fetchError || !staffRow) {
-    return NextResponse.json({ error: 'Staff member not found' }, { status: 404 })
-  }
-
-  if (staffRow.status !== 'off_boarded') {
-    return NextResponse.json({ error: 'Only off-boarded staff can be deleted' }, { status: 422 })
-  }
-
-  const { error } = await supabase
-    .from('staff')
-    .delete()
-    .eq('id', id)
-    .eq('tenant_id', TENANT_ID)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  return NextResponse.json({ success: true })
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'Staff members cannot be permanently deleted. Use off-boarding to remove access.' },
+    { status: 405 }
+  )
 }

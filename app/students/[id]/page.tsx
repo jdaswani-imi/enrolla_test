@@ -273,6 +273,7 @@ function formatDob(dob: string): string {
 }
 
 function getInitials(first: string, last: string): string {
+  if (!first && !last) return "?";
   return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase();
 }
 
@@ -3795,17 +3796,22 @@ function StudentProfilePageContent() {
     fetch(`/api/students/${routeId}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(({ data }) => {
+        const activeEnrolment = (data.enrolments as any[])?.find((e: any) => e.status === "Active")
+          ?? (data.enrolments as any[])?.[0];
+        const yearGroupName: string = activeEnrolment?.subjects?.year_groups?.name ?? "";
         setProfile((prev) => ({
           ...prev,
           firstName: data.first_name ?? "",
           lastName: data.last_name ?? "",
           dob: data.date_of_birth ?? "",
           gender: (data.gender as "Male" | "Female" | "Prefer not to say") ?? "Prefer not to say",
-          nationality: data.nationality ?? "",
-          studentId: data.student_ref ?? routeId,
-          dateEnrolled: data.enrolled_at ?? "",
-          yearGroup: data.year_group ?? "",
-          school: data.school_other ?? "",
+          nationality: "",
+          phone: data.phone ?? "",
+          email: data.email ?? "",
+          studentId: data.student_number ? `#${String(data.student_number).padStart(4, "0")}` : routeId,
+          dateEnrolled: data.created_at?.slice(0, 10) ?? "",
+          yearGroup: yearGroupName,
+          school: data.schools?.name ?? "",
           enrolledCoursesCount:
             (data.enrolments as { status: string }[])?.filter((e) => e.status === "Active").length ?? 0,
           primaryGuardianId: data.primary_guardian_id ?? "",

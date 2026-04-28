@@ -54,7 +54,7 @@ export interface NewStaffData {
   firstName: string;
   lastName: string;
   role: StaffRole;
-  department: StaffDepartment;
+  department: string;
   email: string;
   dialCode: string;
   phone: string;
@@ -224,7 +224,7 @@ function defaultState(): {
   firstName: string;
   lastName: string;
   role: StaffRole;
-  department: StaffDepartment;
+  department: string;
   dialCode: string;
   phone: string;
   startDate: string;
@@ -235,7 +235,7 @@ function defaultState(): {
     firstName: "",
     lastName: "",
     role: "Teacher",
-    department: "Primary",
+    department: "",
     dialCode: "+971",
     phone: "",
     startDate: "",
@@ -280,8 +280,8 @@ export function AddStaffDialog({
           ? (s.role as StaffRole)
           : "Teacher",
         department: (STAFF_DEPARTMENTS as readonly string[]).includes(s.department)
-          ? (s.department as StaffDepartment)
-          : "Primary",
+          ? s.department
+          : "",
         dialCode: "+971",
         phone: "",
         startDate: "",
@@ -404,13 +404,14 @@ export function AddStaffDialog({
               </select>
             </div>
             <div>
-              <FieldLabel htmlFor="as-dept" required>Department</FieldLabel>
+              <FieldLabel htmlFor="as-dept">Department</FieldLabel>
               <select
                 id="as-dept"
                 value={state.department}
-                onChange={(e) => patch("department", e.target.value as StaffDepartment)}
+                onChange={(e) => patch("department", e.target.value)}
                 className={cn(FIELD, "cursor-pointer")}
               >
+                <option value="">No department</option>
                 {STAFF_DEPARTMENTS.map((d) => (
                   <option key={d} value={d}>{d}</option>
                 ))}

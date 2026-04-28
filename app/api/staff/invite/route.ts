@@ -37,10 +37,20 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { firstName, lastName, role, email, phone } = body
+  const { firstName, lastName, role, email, phone, department } = body
 
   if (!firstName?.trim() || !lastName?.trim() || !email?.trim() || !role) {
     return NextResponse.json({ error: 'firstName, lastName, email and role are required' }, { status: 400 })
+  }
+
+  let department_id: string | null = null
+  if (department && department !== '—') {
+    const { data: dept } = await admin
+      .from('departments')
+      .select('id')
+      .eq('name', department)
+      .single()
+    department_id = dept?.id ?? null
   }
 
   // Derive the app URL for the invite redirect
@@ -63,14 +73,15 @@ export async function POST(request: NextRequest) {
   const { data, error } = await admin
     .from('staff')
     .insert({
-      tenant_id:  TENANT_ID,
-      user_id:    invited.user.id,
-      first_name: firstName.trim(),
-      last_name:  lastName.trim(),
-      email:      email.trim().toLowerCase(),
-      phone:      phone?.trim() || null,
-      role:       dbRole,
-      status:     'invited',
+      tenant_id:     TENANT_ID,
+      user_id:       invited.user.id,
+      first_name:    firstName.trim(),
+      last_name:     lastName.trim(),
+      email:         email.trim().toLowerCase(),
+      phone:         phone?.trim() || null,
+      role:          dbRole,
+      status:        'invited',
+      department_id: department_id,
     })
     .select('id, first_name, last_name, email, phone, role, status, created_at')
     .single()
@@ -99,7 +110,7 @@ export async function POST(request: NextRequest) {
       email:         data.email,
       phone:         data.phone ?? '',
       role:          DB_ROLE_TO_FRONTEND[data.role] ?? data.role,
-      department:    '—',
+      department:    department && department !== '—' ? department : '—',
       subjects:      [],
       sessionsThisWeek: 0,
       cpdHours:      0,

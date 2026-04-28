@@ -18,16 +18,16 @@ export async function GET(
     .from('students')
     .select(
       `*,
-      departments (id, name, colour),
+      schools (id, name),
       guardians!students_primary_guardian_id_fkey (
-        id, first_name, last_name, phone, email, whatsapp_number,
-        is_dnc, is_unsubscribed
+        id, first_name, last_name, phone, email
       ),
       enrolments (
-        id, status, enrolled_at, withdrawn_at, frequency_tier,
-        sessions_per_week,
-        courses (id, name, rate_per_session,
-          subjects (id, name)
+        id, status, sessions_remaining, start_date, end_date,
+        subjects (
+          id, name,
+          year_groups (id, name),
+          departments (id, name, colour)
         )
       )`
     )

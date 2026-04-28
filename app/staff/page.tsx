@@ -17,7 +17,6 @@ import {
   Check,
   Ban,
   Info,
-  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -58,7 +57,6 @@ interface StaffMember {
   workloadLevel: WorkloadLevel;
 }
 
-const ATTENDANCE_ROLE_USER: Record<string, { staffId: string; department: string }> = {};
 import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -71,7 +69,6 @@ import {
   AddStaffDialog,
   DeactivateStaffDialog,
   ArchiveStaffDialog,
-  DeleteStaffDialog,
   type NewStaffData,
 } from "@/components/staff/add-staff-dialog";
 import {
@@ -150,7 +147,6 @@ function RowActionsMenu({
   onDeactivate,
   onArchive,
   onResendInvite,
-  onDelete,
 }: {
   staff: StaffMember;
   isOpen: boolean;
@@ -162,7 +158,6 @@ function RowActionsMenu({
   onDeactivate: () => void;
   onArchive: () => void;
   onResendInvite: () => void;
-  onDelete: () => void;
 }) {
   const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
@@ -180,7 +175,6 @@ function RowActionsMenu({
   const canSetLeave     = can('staff.edit') && staff.status === "Active";
   const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive" && staff.status !== "Off-boarded";
   const canArchive      = can('staff.archive') && staff.status === "Inactive";
-  const canDelete       = can('staff.delete') && staff.status === "Off-boarded";
 
   return (
     <div ref={ref} className="relative flex justify-end">
@@ -265,19 +259,6 @@ function RowActionsMenu({
             </>
           )}
 
-          {canDelete && (
-            <>
-              <div className="my-1 border-t border-slate-100" />
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onDelete(); onClose(); }}
-                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                Delete permanently
-              </button>
-            </>
-          )}
         </div>
       )}
     </div>
@@ -357,9 +338,11 @@ function StaffSlideOver({ staff, onClose }: { staff: StaffMember; onClose: () =>
                 <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", ROLE_BADGE[staff.role] ?? "bg-slate-100 text-slate-600")}>
                   {staff.role}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                  {staff.department}
-                </span>
+                {staff.department && staff.department !== '—' && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                    {staff.department}
+                  </span>
+                )}
                 <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", STATUS_BADGE[staff.status])}>
                   {staff.status}
                 </span>
@@ -693,7 +676,6 @@ function StaffPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const myDepartment = ATTENDANCE_ROLE_USER[role]?.department ?? null;
   const showCpdColumn = role !== 'Teacher' && role !== 'TA';
   const canSeeHrDashboard = role === 'HR/Finance' || role === 'Admin Head' || role === 'Super Admin';
   const [exportOpen,    setExportOpen]    = useState(false);
@@ -705,6 +687,14 @@ function StaffPageContent() {
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
   const [rows, setRows] = useState<StaffMember[]>([]);
+
+  // Derive current user's department from their own staff row (available once rows load).
+  // Falls back to null when the API doesn't yet return real department data ('—').
+  const myDepartment = useMemo(() => {
+    const myRow = rows.find(s => s.email === currentUser.email);
+    const dept = myRow?.department;
+    return dept && dept !== '—' ? dept : null;
+  }, [rows, currentUser.email]);
 
   useEffect(() => {
     fetch('/api/staff')
@@ -718,7 +708,6 @@ function StaffPageContent() {
   const [editStaff, setEditStaff] = useState<StaffMember | null>(null);
   const [deactivateStaff, setDeactivateStaff] = useState<StaffMember | null>(null);
   const [archiveStaff, setArchiveStaff] = useState<StaffMember | null>(null);
-  const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
 
   // HR dashboard — leave requests
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
@@ -748,14 +737,6 @@ function StaffPageContent() {
     });
   }
 
-  async function handleDelete(s: StaffMember) {
-    const res = await fetch(`/api/staff/${s.id}`, { method: 'DELETE' });
-    const json = await res.json();
-    if (!res.ok) { toast.error(json.error ?? 'Failed to delete staff member'); return; }
-    setRows((prev) => prev.filter((r) => r.id !== s.id));
-    toast.success(`${s.name} permanently deleted`);
-  }
-
   async function handleDeactivate(s: StaffMember) {
     updateRow(s.id, { status: "Inactive" });
     toast.success(`${s.name} deactivated`);
@@ -783,11 +764,12 @@ function StaffPageContent() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        firstName: data.firstName,
-        lastName:  data.lastName,
-        role:      data.role,
-        email:     data.email,
-        phone:     data.phone,
+        firstName:  data.firstName,
+        lastName:   data.lastName,
+        role:       data.role,
+        email:      data.email,
+        phone:      data.phone,
+        department: data.department || null,
       }),
     });
     const json = await res.json();
@@ -872,24 +854,18 @@ function StaffPageContent() {
 
   useEffect(() => { setPage(1); }, [statusFilter, deptFilter, roleFilter, search]);
 
-  // RBAC-scoped staff list based on current role and department
+  // RBAC-scoped staff list based on current role and department.
+  // Department filter is skipped when myDepartment is null (dept data not yet available).
   const visibleRows = useMemo(() => {
+    const inDept = (s: StaffMember) => myDepartment == null || s.department === myDepartment;
     if (role === 'Teacher' || role === 'TA') {
-      return rows.filter(s =>
-        s.department === myDepartment &&
-        (s.role === 'Teacher' || s.role === 'TA')
-      );
+      return rows.filter(s => inDept(s) && (s.role === 'Teacher' || s.role === 'TA'));
     }
     if (role === 'HOD') {
-      return rows.filter(s =>
-        s.department === myDepartment &&
-        ['Teacher', 'TA', 'HOD'].includes(s.role)
-      );
+      return rows.filter(s => inDept(s) && ['Teacher', 'TA', 'HOD'].includes(s.role));
     }
     if (role === 'Academic Head') {
-      return rows.filter(s =>
-        ['Teacher', 'TA', 'HOD', 'Academic Head'].includes(s.role)
-      );
+      return rows.filter(s => ['Teacher', 'TA', 'HOD', 'Academic Head'].includes(s.role));
     }
     return rows;
   }, [rows, role, myDepartment]);
@@ -1137,7 +1113,6 @@ function StaffPageContent() {
                             onDeactivate={() => { setDeactivateStaff(s); setOpenMenu(null); }}
                             onArchive={() => { setArchiveStaff(s); setOpenMenu(null); }}
                             onResendInvite={() => { handleResendInvite(s); setOpenMenu(null); }}
-                            onDelete={() => { setDeleteStaff(s); setOpenMenu(null); }}
                           />
                         </td>
                       </tr>
@@ -1529,13 +1504,6 @@ function StaffPageContent() {
         open={archiveStaff !== null}
         onOpenChange={(o) => { if (!o) setArchiveStaff(null); }}
         onConfirm={() => { if (archiveStaff) handleArchive(archiveStaff); }}
-      />
-
-      <DeleteStaffDialog
-        staff={deleteStaff}
-        open={deleteStaff !== null}
-        onOpenChange={(o) => { if (!o) setDeleteStaff(null); }}
-        onConfirm={() => { if (deleteStaff) handleDelete(deleteStaff); }}
       />
 
       <RequestLeaveDialog

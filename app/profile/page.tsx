@@ -12,13 +12,11 @@ import {
   Pencil,
   Check,
   X,
-  Shield,
   Monitor,
   Smartphone,
   Globe,
   FileText,
   UserCheck,
-  CheckCircle2,
   Trash2,
   DollarSign,
   ClipboardList,
@@ -515,28 +513,6 @@ export default function ProfilePage() {
                     >
                       Update password
                     </Button>
-                  </div>
-                </div>
-
-                <div className="h-px bg-slate-200" />
-
-                {/* Two-factor */}
-                <div>
-                  <SectionHeading>Two-factor authentication</SectionHeading>
-                  <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                        <Shield className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-900">Authenticator app</p>
-                        <p className="text-xs text-slate-500">Adds a code from your authenticator app at sign-in.</p>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Enabled
-                    </span>
                   </div>
                 </div>
 

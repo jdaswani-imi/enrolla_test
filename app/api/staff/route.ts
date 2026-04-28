@@ -48,13 +48,14 @@ const DB_STATUS_TO_FRONTEND: Record<string, string> = {
 function toFrontend(row: Record<string, unknown>) {
   const dbRole   = String(row.role   ?? '')
   const dbStatus = String(row.status ?? '')
+  const dept = row.departments as { name: string } | null
   return {
     id:            row.id,
     name:          `${row.first_name} ${row.last_name}`.trim(),
     email:         row.email,
     phone:         row.phone ?? '',
     role:          DB_ROLE_TO_FRONTEND[dbRole] ?? dbRole,
-    department:    '—',
+    department:    dept?.name ?? '—',
     subjects:      [],
     sessionsThisWeek: 0,
     cpdHours:      0,
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('staff')
-    .select('id, first_name, last_name, email, phone, role, status, created_at')
+    .select('id, first_name, last_name, email, phone, role, status, created_at, departments(name)')
     .eq('tenant_id', TENANT_ID)
 
   if (status) query = (query as typeof query).eq('status', status)
