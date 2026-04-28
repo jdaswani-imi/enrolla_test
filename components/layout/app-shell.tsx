@@ -1,11 +1,25 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { TopBar } from "@/components/layout/top-bar";
+import { useRole } from "@/lib/role-context";
+import { type Role } from "@/lib/role-config";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { setRole } = useRole();
+
+  // Sync the role from the server on every app load so sessionStorage never
+  // stays stale (e.g. after a role change or a session that predates local storage).
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((me) => { if (me?.role) setRole(me.role as Role); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (
     pathname === "/login" || pathname?.startsWith("/login/") ||
