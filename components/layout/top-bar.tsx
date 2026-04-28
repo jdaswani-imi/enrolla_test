@@ -193,7 +193,7 @@ function UserMenu() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-800 truncate">{currentUser.name}</p>
                 <p className="text-[11px] text-amber-600 font-medium">{currentUser.role}</p>
-                <p className="text-[11px] text-slate-400 truncate">j.daswani@improvemeinstitute.com</p>
+                <p className="text-[11px] text-slate-400 truncate">{currentUser.email}</p>
               </div>
             </div>
 

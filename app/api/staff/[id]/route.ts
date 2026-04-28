@@ -63,3 +63,37 @@ export async function PATCH(
 
   return NextResponse.json({ success: true })
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+  const { id } = await params
+
+  const { data: staffRow, error: fetchError } = await supabase
+    .from('staff')
+    .select('status')
+    .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
+    .single()
+
+  if (fetchError || !staffRow) {
+    return NextResponse.json({ error: 'Staff member not found' }, { status: 404 })
+  }
+
+  if (staffRow.status !== 'off_boarded') {
+    return NextResponse.json({ error: 'Only off-boarded staff can be deleted' }, { status: 422 })
+  }
+
+  const { error } = await supabase
+    .from('staff')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ success: true })
+}

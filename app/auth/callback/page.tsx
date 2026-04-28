@@ -40,10 +40,14 @@ function AuthCallbackHandler() {
         return;
       }
 
+      // Recovery links always land on /reset-password regardless of next param
+      const destination =
+        params.get("type") === "recovery" ? "/reset-password" : next;
+
       supabase.auth
         .setSession({ access_token: accessToken, refresh_token: refreshToken })
         .then(({ error }) => {
-          router.replace(error ? "/login?error=auth_callback_error" : next);
+          router.replace(error ? "/login?error=auth_callback_error" : destination);
         });
     }
   }, [next, router, searchParams]);

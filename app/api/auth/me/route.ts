@@ -16,7 +16,7 @@ const DB_ROLE_TO_FRONTEND: Record<string, string> = {
   hod:           'HOD',
   teacher:       'Teacher',
   ta:            'TA',
-  hr_finance:    'HR-Finance',
+  hr_finance:    'HR/Finance',
 }
 
 export async function GET() {
@@ -25,7 +25,7 @@ export async function GET() {
 
   const { data } = await admin
     .from('staff')
-    .select('role, first_name, last_name')
+    .select('role, first_name, last_name, email')
     .eq('user_id', auth.user.id)
     .eq('tenant_id', TENANT_ID)
     .maybeSingle()
@@ -36,7 +36,7 @@ export async function GET() {
     : auth.user.email ?? ''
 
   return NextResponse.json({
-    email: auth.user.email,
+    email: data?.email ?? auth.user.email,
     role:  DB_ROLE_TO_FRONTEND[dbRole] ?? dbRole,
     name,
   })

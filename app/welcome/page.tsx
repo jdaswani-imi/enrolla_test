@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Camera, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Camera, ArrowRight, CheckCircle2, Eye, EyeOff, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserAvatar } from "@/lib/user-avatar-context";
 import { useRole } from "@/lib/role-context";
 import { type Role } from "@/lib/role-config";
+import { createClient } from "@/lib/supabase/client";
 
 const DB_ROLE_TO_DISPLAY: Record<string, string> = {
   super_admin:   "Super Admin",
@@ -42,6 +43,12 @@ export default function WelcomePage() {
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [pwError, setPwError] = useState("");
+
   useEffect(() => {
     fetch("/api/profile")
       .then((r) => r.json())
@@ -71,9 +78,34 @@ export default function WelcomePage() {
       toast.error("Please enter your first name");
       return;
     }
+
+    // Password validation
+    setPwError("");
+    if (!newPw) {
+      setPwError("Please set a password");
+      return;
+    }
+    if (newPw.length < 8) {
+      setPwError("Password must be at least 8 characters");
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwError("Passwords do not match");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
+      // Set password in Supabase Auth
+      const supabase = createClient();
+      const { error: pwErr } = await supabase.auth.updateUser({ password: newPw });
+      if (pwErr) {
+        setPwError(pwErr.message);
+        setSubmitting(false);
+        return;
+      }
+
       let avatarUrl = profile.avatar_url ?? null;
 
       if (pendingFile) {
@@ -99,7 +131,16 @@ export default function WelcomePage() {
         }),
       });
 
-      if (!patchRes.ok) throw new Error("Profile update failed");
+      if (!patchRes.ok) {
+        const body = await patchRes.json().catch(() => ({}))
+        if (patchRes.status === 401) {
+          toast.error("Your session expired — please use the invite link again or ask an admin to resend it.")
+        } else {
+          toast.error(body.error ?? "Profile update failed. Please try again.")
+        }
+        setSubmitting(false)
+        return
+      }
 
       if (avatarUrl) setAvatarUrl(avatarUrl);
 
@@ -109,9 +150,10 @@ export default function WelcomePage() {
       } catch {}
 
       router.push("/dashboard");
-    } catch {
-      toast.error("Something went wrong. Please try again.");
-      setSubmitting(false);
+    } catch (err) {
+      console.error("Welcome submit error:", err)
+      toast.error("Something went wrong. Please try again.")
+      setSubmitting(false)
     }
   }
 
@@ -255,6 +297,77 @@ export default function WelcomePage() {
                   placeholder="Last"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Password */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-slate-200" />
+              <p className="text-sm font-medium text-slate-500 whitespace-nowrap">
+                Set your password
+              </p>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="newPw" className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="newPw"
+                  type={showPw ? "text" : "password"}
+                  value={newPw}
+                  onChange={(e) => { setNewPw(e.target.value); setPwError(""); }}
+                  placeholder="Min. 8 characters"
+                  className={cn(
+                    "w-full px-3 py-2 pr-10 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50 focus:border-[#F59E0B] transition-colors duration-150",
+                    pwError ? "border-red-400" : "border-slate-200"
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="confirmPw" className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                Confirm password
+              </label>
+              <div className="relative">
+                <input
+                  id="confirmPw"
+                  type={showConfirmPw ? "text" : "password"}
+                  value={confirmPw}
+                  onChange={(e) => { setConfirmPw(e.target.value); setPwError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  placeholder="Repeat your password"
+                  className={cn(
+                    "w-full px-3 py-2 pr-10 text-sm rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/50 focus:border-[#F59E0B] transition-colors duration-150",
+                    pwError ? "border-red-400" : "border-slate-200"
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPw((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  aria-label={showConfirmPw ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {pwError && (
+                <p className="text-xs text-red-500 mt-1">{pwError}</p>
+              )}
             </div>
           </div>
 

@@ -19,8 +19,9 @@ export async function POST(request: NextRequest) {
     .eq('tenant_id', TENANT_ID)
     .maybeSingle()
 
-  if (caller?.role !== 'super_admin') {
-    return NextResponse.json({ error: 'Only Super Admin can resend invites' }, { status: 403 })
+  const INVITE_ALLOWED = ['super_admin', 'admin_head', 'hr_finance']
+  if (!caller?.role || !INVITE_ALLOWED.includes(caller.role)) {
+    return NextResponse.json({ error: 'Only Super Admin, Admin Head, or HR/Finance can resend invites' }, { status: 403 })
   }
 
   const { staffId } = await request.json()
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invite can only be resent for pending invitations' }, { status: 400 })
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${new URL(request.url).origin}`
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/+$/, '')
   const redirectTo = `${appUrl}/auth/callback?next=/welcome`
 
   // generateLink works for both confirmed and unconfirmed users.

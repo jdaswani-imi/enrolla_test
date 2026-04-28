@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // If Supabase drops tokens in the hash (invite / magic-link / implicit flow),
   // hand off to /auth/callback which knows how to exchange them for a session.
@@ -27,7 +28,10 @@ export default function LoginPage() {
     const params = new URLSearchParams(hash);
     if (!params.get("access_token")) return;
     const type = params.get("type");
-    const next = type === "invite" ? "/welcome" : "/dashboard";
+    const next =
+      type === "invite"   ? "/welcome" :
+      type === "recovery" ? "/reset-password" :
+      "/dashboard";
     router.replace(`/auth/callback?next=${next}${window.location.hash}`);
   }, [router]);
 
@@ -57,8 +61,24 @@ export default function LoginPage() {
   }
 
   function handlePasswordKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      handleSignIn();
+    if (e.key === "Enter") handleSignIn();
+  }
+
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      toast.error("Enter your email address first");
+      return;
+    }
+    setForgotLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+    });
+    setForgotLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Check your inbox — a reset link is on its way");
     }
   }
 
@@ -217,10 +237,11 @@ export default function LoginPage() {
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => toast.success("Password reset email sent.")}
-                className="text-xs text-slate-500 hover:text-[#0F172A] transition-colors cursor-pointer"
+                onClick={handleForgotPassword}
+                disabled={forgotLoading}
+                className="text-xs text-slate-500 hover:text-[#0F172A] transition-colors cursor-pointer disabled:opacity-50"
               >
-                Forgot password?
+                {forgotLoading ? "Sending…" : "Forgot password?"}
               </button>
             </div>
           </form>

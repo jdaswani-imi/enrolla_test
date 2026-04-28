@@ -34,6 +34,11 @@ const NAV_ACCESS: Record<string, string> = {
   people:          'people.view',
   automations: 'automations.view',
   inventory:   'inventory.view',
+  // People flyout sub-items — each gated by its own permission
+  'people.segments':   'people.view',            // anyone with People Dashboard access
+  'people.broadcasts': 'people.manageBroadcasts', // Super Admin, Admin Head, Admin
+  'people.forms':      'people.manageForms',       // Super Admin, Admin Head only
+  'people.exports':    'people.export',            // Super Admin, Admin Head, Admin, Academic Head, HR/Finance
 }
 
 export function canAccess(role: Role, navId: string): boolean {
@@ -64,7 +69,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'guardians.view':           ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
   'guardians.create':         ['Super Admin','Admin Head','Admin','HR/Finance'],
   'guardians.edit':           ['Super Admin','Admin Head','Admin','HR/Finance'],
-  'guardians.setDNC':         ['Super Admin','Admin Head','Admin'],
+  'guardians.setDNC':         ['Super Admin','Admin Head'],
 
   // ── Leads ──
   'leads.view':               ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA','HR/Finance'],
@@ -72,13 +77,13 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'leads.edit':               ['Super Admin','Admin Head','Admin'],
   'leads.delete':             ['Super Admin','Admin Head'],
   'leads.convert':            ['Super Admin','Admin Head','Admin'],
-  'leads.assignStaff':        ['Super Admin','Admin Head','Admin'],
+  'leads.assignStaff':        ['Super Admin','Admin Head'],
   'leads.advancePipeline':    ['Super Admin','Admin Head','Admin','HR/Finance'],
   'leads.advanceBeyondScheduled': ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
   'leads.convertToStudent':   ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
 
   // ── Enrolment ──
-  'enrolment.view':           ['Super Admin','Admin Head','Admin','Academic Head','Teacher','TA'],
+  'enrolment.view':           ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher','TA'],
   'enrolment.create':         ['Super Admin','Admin Head','Admin'],
   'enrolment.edit':           ['Super Admin','Admin Head','Admin'],
   'enrolment.withdraw':       ['Super Admin','Admin Head','Admin'],
@@ -156,6 +161,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'staff.assignRole':         ['Super Admin'],
   'staff.revokeAccess':       ['Super Admin','HR/Finance'],
   'staff.archive':            ['Super Admin'],
+  'staff.delete':             ['Super Admin'],
   'staff.initiateOffboarding':['Super Admin','Admin Head','HR/Finance'],
   'staff.verifyCPD':          ['Super Admin','HR/Finance'],
   'staff.activateEmergencyLeave':['Super Admin','Admin Head'],
@@ -174,7 +180,7 @@ export const PERMISSIONS: Record<string, Role[]> = {
   // ── People / Segments ──
   'people.view':              ['Super Admin','Admin Head','Admin','Academic Head','HOD','HR/Finance'],
   'people.export':            ['Super Admin','Admin Head','Admin','Academic Head','HR/Finance'],
-  'people.createSegment':     ['Super Admin','Admin Head','Admin','Academic Head','HOD','Teacher'],
+  'people.createSegment':     ['Super Admin','Admin Head','Admin','Academic Head','HOD'],
   'people.createOrgSegment':  ['Super Admin','Admin Head','Academic Head'],
   'people.manageForms':       ['Super Admin','Admin Head'],
   'people.manageBroadcasts':  ['Super Admin','Admin Head','Admin'],

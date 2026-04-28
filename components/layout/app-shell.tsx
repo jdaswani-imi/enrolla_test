@@ -11,7 +11,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     pathname === "/login" || pathname?.startsWith("/login/") ||
     pathname === "/onboarding" || pathname?.startsWith("/onboarding/") ||
     pathname === "/welcome" || pathname?.startsWith("/welcome/") ||
-    pathname === "/auth/callback" || pathname?.startsWith("/auth/")
+    pathname === "/auth/callback" || pathname?.startsWith("/auth/") ||
+    pathname === "/reset-password" || pathname?.startsWith("/reset-password/")
   ) {
     return <div className="flex-1">{children}</div>;
   }

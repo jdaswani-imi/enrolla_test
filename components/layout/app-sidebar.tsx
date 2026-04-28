@@ -107,9 +107,10 @@ const navItems: NavItemDef[] = [
       {
         label: "Tools",
         items: [
-          { label: "Segments", href: "/people?tab=Segments", icon: Layers,   navId: "people" },
-          { label: "Forms",    href: "/people?tab=Forms",    icon: FileText,  navId: "people" },
-          { label: "Exports",  href: "/people?tab=Exports",  icon: Download,  navId: "people" },
+          { label: "Segments",   href: "/people?tab=Segments",   icon: Layers,    navId: "people.segments"   },
+          { label: "Broadcasts", href: "/people?tab=Broadcasts", icon: Megaphone, navId: "people.broadcasts" },
+          { label: "Forms",      href: "/people?tab=Forms",      icon: FileText,  navId: "people.forms"      },
+          { label: "Exports",    href: "/people?tab=Exports",    icon: Download,  navId: "people.exports"    },
         ],
       },
     ],

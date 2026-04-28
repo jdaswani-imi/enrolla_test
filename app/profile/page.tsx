@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { useUserAvatar } from "@/lib/user-avatar-context";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -35,15 +36,15 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 
-// ─── Mock profile data ────────────────────────────────────────────────────────
-
-const PROFILE = {
-  name: "Jason Daswani",
-  role: "Super Admin",
-  email: "",
-  phone: "",
-  memberSince: "—",
-  lastLogin: "—",
+const DB_ROLE_TO_FRONTEND: Record<string, string> = {
+  super_admin:   "Super Admin",
+  admin_head:    "Admin Head",
+  admin:         "Admin",
+  academic_head: "Academic Head",
+  hod:           "HOD",
+  teacher:       "Teacher",
+  ta:            "TA",
+  hr_finance:    "HR/Finance",
 };
 
 const SESSIONS: { id: string; device: string; icon: typeof Monitor; activity: string; current: boolean }[] = [];
@@ -135,6 +136,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 type TabId = "account" | "preferences" | "activity";
 
 export default function ProfilePage() {
+  const currentUser = useCurrentUser();
   const { avatarUrl: photoUrl, setAvatarUrl: setPhotoUrl } = useUserAvatar();
 
   const [tab, setTab] = useState<TabId>("account");
@@ -143,42 +145,51 @@ export default function ProfilePage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotoUrl(reader.result as string);
-      toast.success("Profile photo updated");
-    };
-    reader.readAsDataURL(file);
     e.target.value = "";
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/profile/avatar", { method: "POST", body: fd });
+    if (!res.ok) { toast.error("Photo upload failed"); return; }
+    const { url } = await res.json();
+    setPhotoUrl(url);
+    toast.success("Profile photo updated");
   }
 
-  function handleRemovePhoto() {
+  async function handleRemovePhoto() {
     setPhotoUrl(null);
+    await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar_url: null }),
+    });
     toast.success("Profile photo removed");
   }
 
   // Editable account fields (seeded from API)
-  const [displayName, setDisplayName] = useState(PROFILE.name);
-  const [email, setEmail]             = useState(PROFILE.email);
-  const [phone, setPhone]             = useState(PROFILE.phone);
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail]             = useState("");
+  const [phone, setPhone]             = useState("");
+  const [role, setRole]               = useState("");
 
   // Snapshot for cancel/revert
-  const serverRef = useRef({ displayName: PROFILE.name, email: PROFILE.email, phone: PROFILE.phone });
+  const serverRef = useRef({ displayName: "", email: "", phone: "" });
 
   useEffect(() => {
     fetch("/api/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
-        const name = [data.first_name, data.last_name].filter(Boolean).join(" ") || PROFILE.name;
-        const em   = data.email ?? PROFILE.email;
-        const ph   = data.phone ?? PROFILE.phone;
+        const name = [data.first_name, data.last_name].filter(Boolean).join(" ");
+        const em   = data.email ?? "";
+        const ph   = data.phone ?? "";
+        const rl   = DB_ROLE_TO_FRONTEND[data.role] ?? data.role ?? "";
         setDisplayName(name);
         setEmail(em);
         setPhone(ph);
+        setRole(rl);
         serverRef.current = { displayName: name, email: em, phone: ph };
       })
       .finally(() => setLoading(false));
@@ -273,7 +284,7 @@ export default function ProfilePage() {
                 {photoUrl ? (
                   <img src={photoUrl} alt="Profile photo" className="w-full h-full object-cover" />
                 ) : (
-                  getInitials(PROFILE.name)
+                  getInitials(displayName || currentUser.name)
                 )}
               </div>
               <button
@@ -302,10 +313,10 @@ export default function ProfilePage() {
               </button>
             )}
             <h2 className="text-lg font-bold text-slate-900 leading-tight">
-              {PROFILE.name}
+              {displayName || currentUser.name}
             </h2>
             <span className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-white">
-              {PROFILE.role}
+              {role || currentUser.role}
             </span>
           </div>
 
@@ -314,7 +325,7 @@ export default function ProfilePage() {
               <Mail className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Email</p>
-                <p className="text-slate-700 break-all">{PROFILE.email}</p>
+                <p className="text-slate-700 break-all">{email || currentUser.email}</p>
               </div>
             </div>
 
@@ -322,7 +333,7 @@ export default function ProfilePage() {
               <Phone className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Phone</p>
-                <p className="text-slate-700">{PROFILE.phone}</p>
+                <p className="text-slate-700">{phone}</p>
               </div>
             </div>
 
@@ -330,7 +341,7 @@ export default function ProfilePage() {
               <Calendar className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Member since</p>
-                <p className="text-slate-700">{PROFILE.memberSince}</p>
+                <p className="text-slate-700">—</p>
               </div>
             </div>
 
@@ -338,7 +349,7 @@ export default function ProfilePage() {
               <Clock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">Last login</p>
-                <p className="text-slate-700">{PROFILE.lastLogin}</p>
+                <p className="text-slate-700">—</p>
               </div>
             </div>
           </div>

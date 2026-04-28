@@ -16,7 +16,7 @@ const FRONTEND_TO_DB_ROLE: Record<string, string> = {
   'HOD':           'hod',
   'Teacher':       'teacher',
   'TA':            'ta',
-  'HR-Finance':    'hr_finance',
+  'HR/Finance':    'hr_finance',
 }
 
 export async function POST(request: NextRequest) {
@@ -31,8 +31,9 @@ export async function POST(request: NextRequest) {
     .eq('tenant_id', TENANT_ID)
     .maybeSingle()
 
-  if (caller?.role !== 'super_admin') {
-    return NextResponse.json({ error: 'Only Super Admin can invite staff members' }, { status: 403 })
+  const INVITE_ALLOWED = ['super_admin', 'admin_head', 'hr_finance']
+  if (!caller?.role || !INVITE_ALLOWED.includes(caller.role)) {
+    return NextResponse.json({ error: 'Only Super Admin, Admin Head, or HR/Finance can invite staff members' }, { status: 403 })
   }
 
   const body = await request.json()
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Derive the app URL for the invite redirect
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${new URL(request.url).origin}`
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/+$/, '')
   const redirectTo = `${appUrl}/auth/callback?next=/welcome`
 
   // Create auth user and send invite email
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
     hod:           'HOD',
     teacher:       'Teacher',
     ta:            'TA',
-    hr_finance:    'HR-Finance',
+    hr_finance:    'HR/Finance',
   }
 
   return NextResponse.json({

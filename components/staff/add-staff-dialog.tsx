@@ -575,6 +575,89 @@ export function DeactivateStaffDialog({
   );
 }
 
+// ─── Delete dialog (Super Admin only — Off-boarded staff only) ───────────────
+
+export function DeleteStaffDialog({
+  staff,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  staff: StaffMember | null;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onConfirm: () => void;
+}) {
+  const [confirm, setConfirm] = useState("");
+
+  useEffect(() => {
+    if (open) setConfirm("");
+  }, [open]);
+
+  if (!staff) return null;
+
+  const canSubmit = confirm.trim().toUpperCase() === "DELETE";
+
+  function submit() {
+    if (!canSubmit) return;
+    onConfirm();
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[480px] max-w-[92vw]">
+        <DialogHeader>
+          <DialogTitle className="text-red-700">Permanently delete {staff.name}?</DialogTitle>
+          <DialogDescription>
+            This will <strong>permanently remove</strong> the staff member&apos;s record from the system. All associated data including sessions, CPD logs, and reviews will be deleted. <strong>This cannot be undone.</strong>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <FieldLabel htmlFor="del-confirm" required>
+              Type <span className="font-mono font-bold text-red-700">DELETE</span> to confirm
+            </FieldLabel>
+            <input
+              id="del-confirm"
+              type="text"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="DELETE"
+              className={FIELD}
+            />
+          </div>
+          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            Only off-boarded staff can be deleted. Once deleted, this record cannot be recovered and will be permanently removed from all reports and audit logs.
+          </p>
+        </div>
+
+        <div className="flex-shrink-0 border-t border-slate-200 bg-slate-50 p-4 rounded-b-xl flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className={cn(
+              "rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors cursor-pointer",
+              canSubmit ? "hover:bg-red-700" : "opacity-50 cursor-not-allowed",
+            )}
+          >
+            Delete permanently
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Archive dialog (Super Admin only — Inactive → Off-boarded) ───────────────
 
 export function ArchiveStaffDialog({

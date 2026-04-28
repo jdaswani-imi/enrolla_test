@@ -17,6 +17,7 @@ import {
   Check,
   Ban,
   Info,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -70,6 +71,7 @@ import {
   AddStaffDialog,
   DeactivateStaffDialog,
   ArchiveStaffDialog,
+  DeleteStaffDialog,
   type NewStaffData,
 } from "@/components/staff/add-staff-dialog";
 import {
@@ -148,6 +150,7 @@ function RowActionsMenu({
   onDeactivate,
   onArchive,
   onResendInvite,
+  onDelete,
 }: {
   staff: StaffMember;
   isOpen: boolean;
@@ -159,6 +162,7 @@ function RowActionsMenu({
   onDeactivate: () => void;
   onArchive: () => void;
   onResendInvite: () => void;
+  onDelete: () => void;
 }) {
   const { can } = usePermission();
   const ref = useRef<HTMLDivElement>(null);
@@ -176,6 +180,7 @@ function RowActionsMenu({
   const canSetLeave     = can('staff.edit') && staff.status === "Active";
   const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive" && staff.status !== "Off-boarded";
   const canArchive      = can('staff.archive') && staff.status === "Inactive";
+  const canDelete       = can('staff.delete') && staff.status === "Off-boarded";
 
   return (
     <div ref={ref} className="relative flex justify-end">
@@ -256,6 +261,20 @@ function RowActionsMenu({
               >
                 <UserX className="w-3.5 h-3.5 shrink-0" />
                 Archive (off-board)
+              </button>
+            </>
+          )}
+
+          {canDelete && (
+            <>
+              <div className="my-1 border-t border-slate-100" />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete(); onClose(); }}
+                className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                Delete permanently
               </button>
             </>
           )}
@@ -699,6 +718,7 @@ function StaffPageContent() {
   const [editStaff, setEditStaff] = useState<StaffMember | null>(null);
   const [deactivateStaff, setDeactivateStaff] = useState<StaffMember | null>(null);
   const [archiveStaff, setArchiveStaff] = useState<StaffMember | null>(null);
+  const [deleteStaff, setDeleteStaff] = useState<StaffMember | null>(null);
 
   // HR dashboard — leave requests
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(INITIAL_LEAVE_REQUESTS);
@@ -726,6 +746,14 @@ function StaffPageContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'Off-boarded' }),
     });
+  }
+
+  async function handleDelete(s: StaffMember) {
+    const res = await fetch(`/api/staff/${s.id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!res.ok) { toast.error(json.error ?? 'Failed to delete staff member'); return; }
+    setRows((prev) => prev.filter((r) => r.id !== s.id));
+    toast.success(`${s.name} permanently deleted`);
   }
 
   async function handleDeactivate(s: StaffMember) {
@@ -1109,6 +1137,7 @@ function StaffPageContent() {
                             onDeactivate={() => { setDeactivateStaff(s); setOpenMenu(null); }}
                             onArchive={() => { setArchiveStaff(s); setOpenMenu(null); }}
                             onResendInvite={() => { handleResendInvite(s); setOpenMenu(null); }}
+                            onDelete={() => { setDeleteStaff(s); setOpenMenu(null); }}
                           />
                         </td>
                       </tr>
@@ -1500,6 +1529,13 @@ function StaffPageContent() {
         open={archiveStaff !== null}
         onOpenChange={(o) => { if (!o) setArchiveStaff(null); }}
         onConfirm={() => { if (archiveStaff) handleArchive(archiveStaff); }}
+      />
+
+      <DeleteStaffDialog
+        staff={deleteStaff}
+        open={deleteStaff !== null}
+        onOpenChange={(o) => { if (!o) setDeleteStaff(null); }}
+        onConfirm={() => { if (deleteStaff) handleDelete(deleteStaff); }}
       />
 
       <RequestLeaveDialog
