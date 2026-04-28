@@ -1,0 +1,9 @@
+{
+  "enabledMcpjsonServers": ["playwright", "supabase"],
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "mcp__playwright__*"
+    ]
+  }
+}
