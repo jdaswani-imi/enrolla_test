@@ -12,6 +12,7 @@ import {
 import { FIELD, FieldLabel, FormActions } from "@/components/journey/dialog-parts";
 import { PhoneInput } from "@/components/add-student-dialog";
 import { cn } from "@/lib/utils";
+import { usePermission } from "@/lib/use-permission";
 // ─── Inline types (previously from mock-data) ────────────────────────────────
 
 export type StaffStatus = "Active" | "Invited" | "On Leave" | "Inactive" | "Suspended" | "Off-boarded";
@@ -36,6 +37,7 @@ export interface StaffMember {
 // ─── Options ──────────────────────────────────────────────────────────────────
 
 const STAFF_ROLES = [
+  "Super Admin",
   "Teacher",
   "TA",
   "Admin",
@@ -259,6 +261,9 @@ export function AddStaffDialog({
   onConfirm: (data: NewStaffData) => void;
   mode?: Mode;
 }) {
+  const { role } = usePermission();
+  const isSuperAdmin = role === "Super Admin";
+  const visibleRoles = STAFF_ROLES.filter((r) => r !== "Super Admin" || isSuperAdmin);
   const catalogue = useSubjectCatalogue();
   const [state, setState] = useState(defaultState);
   const [attempted, setAttempted] = useState(false);
@@ -398,7 +403,7 @@ export function AddStaffDialog({
                 onChange={(e) => patch("role", e.target.value as StaffRole)}
                 className={cn(FIELD, "cursor-pointer")}
               >
-                {STAFF_ROLES.map((r) => (
+                {visibleRoles.map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>

@@ -10,4 +10,16 @@ export default defineConfig({
     viewport: { width: 1440, height: 900 },
   },
   reporter: [['list'], ['html', { outputFolder: 'tests/report' }]],
+  projects: [
+    {
+      name: 'smoke',
+      testMatch: /smoke\.spec\.ts|rbac\.spec\.ts|deep\.spec\.ts/,
+    },
+    {
+      name: 'responsive-visual',
+      testMatch: /responsive-visual\.spec\.ts/,
+      timeout: 120_000,
+      use: { screenshot: 'off' }, // we call page.screenshot() manually
+    },
+  ],
 })
