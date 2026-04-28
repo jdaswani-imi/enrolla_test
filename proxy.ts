@@ -27,7 +27,16 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth/')
+  // Normalize double-leading-slashes (e.g. //auth/callback from a malformed invite redirect_to URL)
+  const normalizedPath = pathname.replace(/^\/\/+/, '/')
+
+  // Public routes — accessible without a session
+  const isPublic =
+    normalizedPath.startsWith('/login') ||
+    normalizedPath.startsWith('/auth/') ||
+    normalizedPath.startsWith('/welcome') ||
+    normalizedPath.startsWith('/reset-password')
+
   const isApiRoute = pathname.startsWith('/api/')
 
   if (!user && !isPublic && !isApiRoute) {
