@@ -59,7 +59,8 @@ import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { MentionInput, type MentionInputRef, type MentionContent, type MentionData } from "@/components/chat/mention-input";
-import { pushNotification } from "@/lib/notifications-store";
+import { pushNotification, hasReactionNotification, removeReactionNotification } from "@/lib/notifications-store";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { createClient } from "@/lib/supabase/client";
 
 // ─── Inline types (previously from mock-data) ─────────────────────────────────
@@ -1086,7 +1087,7 @@ const DETAIL_TIMELINE: { label: string; text: string; dot: string }[] = [];
 // ─── Embedded Team Chat (types, seed, component) ──────────────────────────────
 
 const CHAT_STAFF: string[] = [];
-const CHAT_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "🔥", "✅", "👀"];
+const CHAT_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👏", "✅", "💯", "🙏", "👀"];
 
 type ChatChipKind = "student" | "invoice" | "task";
 
@@ -1754,6 +1755,71 @@ function smoothScrollTo(
   requestAnimationFrame(step);
 }
 
+function reactionTooltipText(users: string[], emoji: string): string {
+  if (users.length === 0) return "";
+  if (users.length === 1) return users[0];
+  if (users.length === 2) return `${users[0]}, ${users[1]}`;
+  return `${users[0]}, ${users[1]} and ${users.length - 2} others reacted with ${emoji}`;
+}
+
+function ReactionEmojiPickerPortal({
+  anchorRect,
+  onSelect,
+  onClose,
+}: {
+  anchorRect: DOMRect;
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+}) {
+  const PICKER_WIDTH = 280;
+  const MARGIN = 12;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showAbove = anchorRect.top > 260;
+
+  let left = anchorRect.right - PICKER_WIDTH;
+  left = Math.max(MARGIN, Math.min(left, window.innerWidth - PICKER_WIDTH - MARGIN));
+
+  const posStyle: React.CSSProperties = {
+    position: "fixed",
+    left,
+    zIndex: 9999,
+    width: PICKER_WIDTH,
+    ...(showAbove
+      ? { bottom: window.innerHeight - anchorRect.top + 6 }
+      : { top: anchorRect.bottom + 6 }),
+  };
+
+  return createPortal(
+    <div
+      data-chat-popover
+      style={posStyle}
+      className="bg-white border border-slate-200 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.14)] p-3"
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {CHAT_EMOJIS.map((e) => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => { onSelect(e); onClose(); }}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 cursor-pointer text-lg transition-colors"
+            aria-label={`React with ${e}`}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function EmbeddedTeamChat({
   lead,
   timelineContent,
@@ -1770,7 +1836,9 @@ function EmbeddedTeamChat({
   const [chatEmpty, setChatEmpty] = useState(true);
   const [hoverMsgId, setHoverMsgId] = useState<string | null>(null);
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [pickerAnchorRect, setPickerAnchorRect] = useState<DOMRect | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const reactionBtnRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [staffNames, setStaffNames] = useState<string[]>(CHAT_STAFF);
@@ -1901,7 +1969,7 @@ function EmbeddedTeamChat({
     setHighlightedMessageId(null);
 
     const POLL_INTERVAL = 50;
-    const POLL_MAX_MS = 2000;
+    const POLL_MAX_MS = 5000;
     let elapsed = 0;
 
     function attemptScroll() {
@@ -2056,6 +2124,10 @@ function EmbeddedTeamChat({
   }
 
   function toggleReaction(msgId: string, emoji: string) {
+    // Capture current message before state update for notification logic
+    const msg = messages.find((m) => m.id === msgId);
+    const wasReacted = !!(msg?.reactions[emoji] ?? []).includes(chatCurrentUser);
+
     let updatedReactions: ChatReactionMap = {};
     setMessages((cur) => {
       const next = cur.map((m) => {
@@ -2079,6 +2151,33 @@ function EmbeddedTeamChat({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: msgId, reactions: updatedReactions }),
     }).catch(() => {});
+
+    // Reaction notifications — only when reacting to someone else's message
+    if (msg && msg.author !== chatCurrentUser) {
+      if (!wasReacted) {
+        // Adding: create notification if not already in store
+        if (!hasReactionNotification({ senderId: chatCurrentUser, messageId: msgId, emoji })) {
+          pushNotification({
+            id: crypto.randomUUID(),
+            type: "reaction",
+            title: `${chatCurrentUser} reacted to your message`,
+            time: "just now",
+            href: `/leads?leadId=${lead.id}&messageId=${msgId}`,
+            unread: true,
+            senderName: chatCurrentUser,
+            leadId: lead.id,
+            leadName: lead.childName,
+            messageId: msgId,
+            messagePreview: msg.text.slice(0, 40),
+            emoji,
+            timestamp: Date.now(),
+          });
+        }
+      } else {
+        // Removing: delete the corresponding notification
+        removeReactionNotification({ senderId: chatCurrentUser, messageId: msgId, emoji });
+      }
+    }
   }
 
   function deleteMessage(msgId: string) {
@@ -2198,32 +2297,20 @@ function EmbeddedTeamChat({
               hoverMsgId === m.id || reactionPickerFor === m.id ? "opacity-100" : "opacity-0 pointer-events-none",
             )}
           >
-            {/* Emoji reaction picker */}
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Add reaction"
-                onClick={() => setReactionPickerFor((cur) => (cur === m.id ? null : m.id))}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs hover:bg-slate-100 cursor-pointer transition-colors"
-              >
-                <span>😊</span>
-                <Plus className="w-3 h-3 text-slate-400" />
-              </button>
-              {reactionPickerFor === m.id && (
-                <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 flex gap-0.5">
-                  {CHAT_EMOJIS.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      onClick={() => toggleReaction(m.id, e)}
-                      className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer text-base"
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Emoji reaction picker trigger */}
+            <button
+              type="button"
+              ref={(el) => { reactionBtnRefs.current.set(m.id, el); }}
+              aria-label="Add reaction"
+              onClick={() => {
+                const btn = reactionBtnRefs.current.get(m.id);
+                if (btn) setPickerAnchorRect(btn.getBoundingClientRect());
+                setReactionPickerFor((cur) => (cur === m.id ? null : m.id));
+              }}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 w-6 h-6 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+            >
+              <Smile className="w-3.5 h-3.5" />
+            </button>
             {/* Delete (own messages only) */}
             {isOwn && (
               <button
@@ -2260,20 +2347,23 @@ function EmbeddedTeamChat({
             {Object.entries(m.reactions).map(([emoji, users]) => {
               const own = users.includes(chatCurrentUser);
               return (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => toggleReaction(m.id, emoji)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer",
-                    own
-                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                  )}
-                >
-                  <span>{emoji}</span>
-                  <span className="font-medium">{users.length}</span>
-                </button>
+                <Tooltip key={emoji}>
+                  <TooltipTrigger
+                    onClick={() => toggleReaction(m.id, emoji)}
+                    className={cn(
+                      "inline-flex items-center gap-1 h-6 rounded-full border px-2 text-[11px] transition-colors cursor-pointer",
+                      own
+                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                    )}
+                  >
+                    <span className="text-[13px]">{emoji}</span>
+                    <span className="font-medium">{users.length}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-[#1E293B] text-white text-[11px] max-w-[220px]">
+                    {reactionTooltipText(users, emoji)}
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </div>
@@ -2424,6 +2514,14 @@ function EmbeddedTeamChat({
         onCreate={handleTaskCreated}
         staffNames={staffNames}
       />
+      {/* Portal-based emoji picker — renders in document.body to avoid overflow clipping */}
+      {reactionPickerFor && pickerAnchorRect && (
+        <ReactionEmojiPickerPortal
+          anchorRect={pickerAnchorRect}
+          onSelect={(emoji) => toggleReaction(reactionPickerFor, emoji)}
+          onClose={() => setReactionPickerFor(null)}
+        />
+      )}
     </>
   );
 }
@@ -4492,6 +4590,8 @@ export default function LeadsPage() {
   const chainAfterTrialRef = useRef(false);
   // When true, the next BookTrialDialog commit also logs an "assessment skipped" activity entry.
   const bookTrialFromContactedRef = useRef(false);
+  // Prevents the deep-link effect from re-processing after leads data arrives a second time.
+  const deepLinkProcessedRef = useRef(false);
 
   // Needs more time / Skip assessment dialog state
   const [needsMoreTimeOpen, setNeedsMoreTimeOpen] = useState(false);
@@ -4744,14 +4844,20 @@ export default function LeadsPage() {
     });
   }, [leads]);
 
-  // Deep-link: open detail dialog if ?leadId= present (e.g. navigating from notification)
+  // Deep-link: open detail dialog if ?leadId= present (e.g. navigating from notification).
+  // Depends on `leads` so it re-runs once the API response arrives — on a fresh page load
+  // the effect fires before leadsData is populated, so `leads` is empty and we return early.
+  // The ref prevents the effect from re-processing after it has successfully handled the link.
   useEffect(() => {
+    if (deepLinkProcessedRef.current) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const id = params.get("leadId");
-    if (!id) return;
+    if (!id) { deepLinkProcessedRef.current = true; return; }
+    if (leads.length === 0) return; // data still loading — wait for next render
     const lead = leads.find((l) => l.id === id || l.ref === id);
-    if (!lead) return;
+    if (!lead) { deepLinkProcessedRef.current = true; return; }
+    deepLinkProcessedRef.current = true;
     setDetailLead(lead);
     setDetailOpen(true);
     const msgId = params.get("messageId");
@@ -4763,8 +4869,7 @@ export default function LeadsPage() {
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 120);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [leads]);
 
   // Same-page navigation: notification clicked while already on /leads
   useEffect(() => {

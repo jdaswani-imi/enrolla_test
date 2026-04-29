@@ -15,7 +15,8 @@ export type AppNotificationType =
   | "payment"
   | "leave"
   | "cpd"
-  | "mention";
+  | "mention"
+  | "reaction";
 
 export interface AppNotification {
   id: string;
@@ -31,6 +32,10 @@ export interface AppNotification {
   leadId?: string;
   messageId?: string;
   timestamp: number;
+  // reaction-specific
+  emoji?: string;
+  leadName?: string;
+  messagePreview?: string;
 }
 
 // ─── Module-level store ────────────────────────────────────────────────────────
@@ -110,6 +115,39 @@ export function markAllNotificationsRead(): void {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ all: true }),
   }).catch(() => {});
+}
+
+/** Check if a reaction notification already exists (for deduplication). */
+export function hasReactionNotification(opts: {
+  senderId: string;
+  messageId: string;
+  emoji: string;
+}): boolean {
+  return _notifications.some(
+    (n) =>
+      n.type === "reaction" &&
+      n.senderName === opts.senderId &&
+      n.messageId === opts.messageId &&
+      n.emoji === opts.emoji,
+  );
+}
+
+/** Remove a reaction notification when the user un-reacts. */
+export function removeReactionNotification(opts: {
+  senderId: string;
+  messageId: string;
+  emoji: string;
+}): void {
+  _notifications = _notifications.filter(
+    (n) =>
+      !(
+        n.type === "reaction" &&
+        n.senderName === opts.senderId &&
+        n.messageId === opts.messageId &&
+        n.emoji === opts.emoji
+      ),
+  );
+  _notify();
 }
 
 // ─── React hook ───────────────────────────────────────────────────────────────

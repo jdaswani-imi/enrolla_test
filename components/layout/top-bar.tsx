@@ -16,6 +16,7 @@ import {
   LogOut,
   MessageSquare,
   Settings as SettingsIcon,
+  Smile,
   User,
   UserCheck,
   UserPlus,
@@ -78,6 +79,7 @@ const NOTIFICATION_ICONS: Record<Notification["type"], React.ComponentType<{ cla
   leave: CalendarClock,
   cpd: GraduationCap,
   mention: AtSign,
+  reaction: Smile,
 };
 
 const NOTIFICATION_ICON_TONE: Record<Notification["type"], string> = {
@@ -92,6 +94,7 @@ const NOTIFICATION_ICON_TONE: Record<Notification["type"], string> = {
   leave: "bg-slate-100 text-slate-600",
   cpd: "bg-amber-50 text-amber-600",
   mention: "bg-blue-50 text-blue-600",
+  reaction: "bg-amber-50 text-amber-600",
 };
 
 type NotificationTab = "all" | "unread" | "mentions";
@@ -242,10 +245,10 @@ export function TopBar() {
     markNotificationRead(n.id);
     setNotificationsOpen(false);
 
-    // If a mention notification is clicked while already on the leads page,
+    // If a mention or reaction notification is clicked while already on the leads page,
     // dispatch a custom event so the page can open the right lead + scroll
     // without a full navigation (which would skip the one-time mount effect).
-    if (n.type === "mention" && n.leadId && pathname === "/leads") {
+    if ((n.type === "mention" || n.type === "reaction") && n.leadId && pathname === "/leads") {
       window.dispatchEvent(
         new CustomEvent("enrolla:open-lead-message", {
           detail: { leadId: n.leadId, messageId: n.messageId ?? null },
@@ -381,9 +384,11 @@ export function TopBar() {
                   <ul className="divide-y divide-slate-100">
                     {visibleNotifications.map((n) => {
                       const isMention = n.type === "mention";
+                      const isReaction = n.type === "reaction";
+                      const isSpecial = isMention || isReaction;
                       const Icon = NOTIFICATION_ICONS[n.type];
-                      const senderPalette = isMention && n.senderName ? getAvatarPalette(n.senderName) : null;
-                      const displayTime = isMention
+                      const senderPalette = isSpecial && n.senderName ? getAvatarPalette(n.senderName) : null;
+                      const displayTime = isSpecial
                         ? relativeTime(n.timestamp)
                         : n.time;
                       return (
@@ -391,17 +396,35 @@ export function TopBar() {
                           <button
                             onClick={() => handleNotificationClick(n)}
                             className={cn(
-                              "w-full text-left px-4 flex gap-3 cursor-pointer transition-colors hover:bg-slate-50 items-start",
-                              isMention ? "py-3 min-h-[40px]" : "py-3 border-l-2",
-                              isMention
-                                ? n.unread ? "bg-amber-50" : "bg-white"
+                              "w-full text-left px-4 flex gap-3 cursor-pointer transition-colors items-start",
+                              isSpecial ? "py-3 min-h-[40px]" : "py-3 border-l-2",
+                              isSpecial
+                                ? n.unread
+                                  ? "bg-amber-50 hover:bg-amber-100/70"
+                                  : "bg-white hover:bg-amber-50"
                                 : n.unread
-                                  ? "bg-blue-50/40 border-l-blue-500"
-                                  : "bg-white border-l-transparent",
+                                  ? "bg-blue-50/40 border-l-blue-500 hover:bg-slate-50"
+                                  : "bg-white border-l-transparent hover:bg-slate-50",
                             )}
                           >
-                            {/* Left: avatar with @ badge (mention) or icon badge */}
-                            {isMention && senderPalette ? (
+                            {/* Left: avatar with badge (mention/@, reaction/emoji) or icon */}
+                            {isReaction && senderPalette ? (
+                              <div className="relative flex-shrink-0 mt-0.5">
+                                <div
+                                  className={cn(
+                                    "w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold",
+                                    senderPalette.bg,
+                                    senderPalette.text,
+                                  )}
+                                >
+                                  {getInitials(n.senderName!)}
+                                </div>
+                                {/* Emoji badge */}
+                                <div className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                                  <span style={{ fontSize: "13px" }}>{n.emoji}</span>
+                                </div>
+                              </div>
+                            ) : isMention && senderPalette ? (
                               <div className="relative flex-shrink-0 mt-0.5">
                                 <div
                                   className={cn(
@@ -428,7 +451,7 @@ export function TopBar() {
                               </div>
                             )}
 
-                            {/* Centre: title + sub-line */}
+                            {/* Centre: title + sub-lines */}
                             <div className="min-w-0 flex-1">
                               <p
                                 className={cn(
@@ -438,16 +461,24 @@ export function TopBar() {
                               >
                                 {n.title}
                               </p>
+                              {/* Reaction: italic message preview */}
+                              {isReaction && n.messagePreview && (
+                                <p className="text-[11px] text-slate-400 mt-0.5 italic line-clamp-1">
+                                  &ldquo;{n.messagePreview}{n.messagePreview.length >= 40 ? "…" : ""}&rdquo;
+                                </p>
+                              )}
                               <p className="text-[11px] text-slate-400 mt-0.5">
-                                {isMention && n.senderName
-                                  ? `${n.senderName} · ${displayTime}`
-                                  : displayTime}
+                                {isReaction
+                                  ? `${displayTime} · in ${n.leadName ?? "a"}'s ticket`
+                                  : isMention && n.senderName
+                                    ? `${n.senderName} · ${displayTime}`
+                                    : displayTime}
                               </p>
                             </div>
 
-                            {/* Right: unread dot (mention) or urgent indicator */}
+                            {/* Right: unread dot or urgent indicator */}
                             <div className="flex-shrink-0 flex items-center mt-1.5">
-                              {isMention
+                              {isSpecial
                                 ? n.unread && <span className="w-2 h-2 rounded-full bg-amber-500" />
                                 : n.urgent && (
                                     <span aria-label="urgent" className="w-2 h-2 rounded-full bg-rose-500" />
