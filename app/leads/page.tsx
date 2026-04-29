@@ -37,6 +37,9 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  AlertCircle,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -1314,7 +1317,7 @@ function ChatChipPill({
   );
 }
 
-function EmbeddedTeamChat({ lead }: { lead: Lead }) {
+function EmbeddedTeamChat({ lead, timelineContent }: { lead: Lead; timelineContent?: React.ReactNode }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialChat(lead.id));
   const [draft, setDraft] = useState("");
@@ -1632,35 +1635,31 @@ function EmbeddedTeamChat({ lead }: { lead: Lead }) {
 
   return (
     <>
-      <div id="team-chat-panel" className="px-6 pt-4 pb-5 border-t border-slate-100 scroll-mt-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5" /> Team Chat
-            <span className="text-[10px] font-normal normal-case tracking-normal text-slate-400">
-              · only visible to staff — not shared with parents
-            </span>
-          </p>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {/* Unified scroll: timeline content + chat messages */}
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-2 space-y-5">
+          {timelineContent}
+
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5 mb-3">
+              <MessageSquare className="w-3.5 h-3.5" /> Team Chat
+              <span className="text-[10px] font-normal normal-case tracking-normal text-slate-400">
+                · only visible to staff
+              </span>
+            </p>
+            {messages.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-xs text-slate-400">No messages yet. Start the conversation with the team.</p>
+              </div>
+            ) : rows}
+          </div>
         </div>
 
-        <div
-          className="flex flex-col rounded-lg border border-slate-200 bg-slate-50/60 overflow-hidden"
-          style={{ height: 420 }}
-        >
-          <div ref={scrollRef} className="flex-1 overflow-y-auto py-2">
-            {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center px-6 text-center">
-                <p className="text-xs text-slate-400">
-                  No messages yet. Start the conversation with the team.
-                </p>
-              </div>
-            ) : (
-              rows
-            )}
-          </div>
-
+        {/* Input pinned at bottom */}
+        <div className="shrink-0 border-t border-slate-200 bg-white">
           {/* Draft attachment chips */}
           {draftChips.length > 0 && (
-            <div className="px-3 pt-2 flex flex-wrap gap-1 border-t border-slate-200 bg-white">
+            <div className="px-3 pt-2 flex flex-wrap gap-1 border-b border-slate-100">
               {draftChips.map((chip) => (
                 <ChatChipPill
                   key={chip.id}
@@ -1672,7 +1671,7 @@ function EmbeddedTeamChat({ lead }: { lead: Lead }) {
           )}
 
           {/* Input + toolbar */}
-          <div className="relative border-t border-slate-200 bg-white">
+          <div className="relative">
             {mentionMenu.open && filteredMentions.length > 0 && (
               <div
                 data-chat-popover
@@ -1866,9 +1865,9 @@ function StageFooterActions({
   onConvert: (lead: Lead) => void;
 }) {
   const primaryClass =
-    "w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-white shadow-sm hover:bg-amber-600 cursor-pointer transition-colors";
+    "w-full flex items-center justify-center gap-1.5 px-3 h-9 text-sm font-medium rounded-md bg-amber-500 text-white hover:bg-amber-600 cursor-pointer transition-colors";
   const outlineClass =
-    "flex-1 px-3 py-2 text-sm font-medium border border-slate-300 bg-white rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors";
+    "flex-1 px-3 h-8 text-sm font-medium border border-slate-300 bg-white rounded-md hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors";
   const linkClass =
     "text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer underline-offset-2 hover:underline";
 
@@ -2087,9 +2086,11 @@ const PREFERRED_WINDOW_LABELS: Record<PreferredWindow, string> = {
 function LeadPreferencesSection({
   lead,
   onUpdatePrefs,
+  compact = false,
 }: {
   lead: Lead;
   onUpdatePrefs: (leadId: string, prefs: { preferredDays: string[]; preferredWindow: PreferredWindow }) => void;
+  compact?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [days, setDays] = useState<string[]>(lead.preferredDays ?? []);
@@ -2118,6 +2119,107 @@ function LeadPreferencesSection({
     ? PREFERRED_WINDOW_LABELS[lead.preferredWindow]
     : "Not set";
 
+  const editingUI = (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-slate-500 font-medium mb-1.5">Preferred days</p>
+        <div className="flex flex-wrap gap-1.5">
+          {DAYS_OF_WEEK.map((d) => {
+            const on = days.includes(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer",
+                  on
+                    ? "bg-amber-100 border-amber-400 text-amber-800"
+                    : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50",
+                )}
+              >
+                <span
+                  className={cn(
+                    "w-3 h-3 rounded-sm border flex items-center justify-center",
+                    on ? "bg-amber-500 border-amber-500" : "bg-white border-slate-300",
+                  )}
+                >
+                  {on && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                </span>
+                {DAY_SHORT[d]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <label htmlFor="pref-window" className="block text-xs text-slate-500 font-medium mb-1.5">
+          Preferred window
+        </label>
+        <select
+          id="pref-window"
+          value={window}
+          onChange={(e) => setWindow(e.target.value as PreferredWindow)}
+          className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+        >
+          <option value="Morning">Morning (08:00–12:00)</option>
+          <option value="Afternoon">Afternoon (12:00–17:00)</option>
+          <option value="Evening">Evening (17:00–20:00)</option>
+          <option value="Any">Any</option>
+        </select>
+      </div>
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => {
+            setDays(lead.preferredDays ?? []);
+            setWindow(lead.preferredWindow ?? "Any");
+            setEditing(false);
+          }}
+          className="px-2.5 py-1 text-xs font-medium border border-slate-300 bg-white rounded-md hover:bg-slate-50 text-slate-700 cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div>
+        {editing ? editingUI : (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <p className="text-xs text-slate-400">Preferred days</p>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label="Edit preferences"
+                  className="p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+              </div>
+              <p className="text-sm font-medium text-slate-700">{daysLabel}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Preferred time</p>
+              <p className="text-sm font-medium text-slate-700">{windowLabel}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
       <div className="flex items-center justify-between mb-2">
@@ -2145,77 +2247,7 @@ function LeadPreferencesSection({
             <span className="text-slate-800 font-medium">{windowLabel}</span>
           </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <p className="text-xs text-slate-500 font-medium mb-1.5">Preferred days</p>
-            <div className="flex flex-wrap gap-1.5">
-              {DAYS_OF_WEEK.map((d) => {
-                const on = days.includes(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => toggleDay(d)}
-                    className={cn(
-                      "inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer",
-                      on
-                        ? "bg-amber-100 border-amber-400 text-amber-800"
-                        : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "w-3 h-3 rounded-sm border flex items-center justify-center",
-                        on ? "bg-amber-500 border-amber-500" : "bg-white border-slate-300",
-                      )}
-                    >
-                      {on && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                    </span>
-                    {DAY_SHORT[d]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div>
-            <label htmlFor="pref-window" className="block text-xs text-slate-500 font-medium mb-1.5">
-              Preferred window
-            </label>
-            <select
-              id="pref-window"
-              value={window}
-              onChange={(e) => setWindow(e.target.value as PreferredWindow)}
-              className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-            >
-              <option value="Morning">Morning (08:00–12:00)</option>
-              <option value="Afternoon">Afternoon (12:00–17:00)</option>
-              <option value="Evening">Evening (17:00–20:00)</option>
-              <option value="Any">Any</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setDays(lead.preferredDays ?? []);
-                setWindow(lead.preferredWindow ?? "Any");
-                setEditing(false);
-              }}
-              className="px-2.5 py-1 text-xs font-medium border border-slate-300 bg-white rounded-md hover:bg-slate-50 text-slate-700 cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              className="px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      )}
+      ) : editingUI}
     </div>
   );
 }
@@ -2362,11 +2394,39 @@ function LeadDetailDialog({
   const journey = useJourney();
   const isJourneyLead = lead?.id === BILAL_LEAD_ID;
   const stageFooterRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const isResizing = useRef(false);
+  const [rightWidth, setRightWidth] = useState(360);
+  const [isResizingState, setIsResizingState] = useState(false);
+  const [showEmptyFields, setShowEmptyFields] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [editingNotes, setEditingNotes] = useState(false);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const dialog = dialogRef.current?.getBoundingClientRect();
+      if (!dialog) return;
+      const newRightWidth = dialog.right - e.clientX;
+      setRightWidth(Math.min(520, Math.max(280, newRightWidth)));
+    };
+    const onMouseUp = () => {
+      if (!isResizing.current) return;
+      isResizing.current = false;
+      setIsResizingState(false);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
 
   if (!lead) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl w-full" />
+        <DialogContent className="w-[80vw] max-w-6xl" />
       </Dialog>
     );
   }
@@ -2381,395 +2441,532 @@ function LeadDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-full max-h-[90vh]">
+      <DialogContent ref={dialogRef} className={cn("w-[90vw] max-w-[90vw] h-[90vh]", isResizingState && "select-none")}>
         <DialogHeader>
-          <DialogTitle>{lead.childName}</DialogTitle>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <DialogTitle>{lead.childName}</DialogTitle>
+            <span className={cn("inline-flex px-2.5 py-1 rounded-full text-xs font-semibold", cfg.badge)}>
+              {currentStage}
+            </span>
+          </div>
           <DialogDescription className="font-mono">{lead.ref}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        {/* Two-column body — left column has its own scoped footer */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {isConverted && lead.convertedStudentId && (
-          <div className="px-6 pt-4">
-            <div className="flex items-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-emerald-900 font-semibold">
-                  Converted to student — {lead.convertedStudentId}
-                  {lead.convertedOn ? ` · ${lead.convertedOn}` : ""}
-                </p>
+          {/* ── LEFT COLUMN: fields (scroll) + scoped footer ── */}
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
+          <div className="overflow-y-auto flex-1 min-h-0 px-6 py-5 space-y-5">
+
+            {/* Banners */}
+            {isConverted && lead.convertedStudentId && (
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-emerald-900 font-semibold">
+                    Converted to student — {lead.convertedStudentId}
+                    {lead.convertedOn ? ` · ${lead.convertedOn}` : ""}
+                  </p>
+                </div>
+                <a
+                  href={`/students/${lead.convertedStudentId}`}
+                  className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 cursor-pointer whitespace-nowrap"
+                >
+                  View Student Profile →
+                </a>
               </div>
-              <a
-                href={`/students/${lead.convertedStudentId}`}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 cursor-pointer whitespace-nowrap"
+            )}
+
+            {followUpBanner && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-sm text-amber-900 truncate">
+                    <span className="font-semibold">Follow-up task completed.</span> Ready to continue?
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDismissFollowUpBanner();
+                      stageFooterRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className="px-2.5 py-1 rounded-md bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                  >
+                    Continue journey →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onDismissFollowUpBanner}
+                    className="text-xs font-medium text-amber-700 hover:text-amber-900 cursor-pointer px-1"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Toggle: show/hide empty fields ── */}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Lead Details</span>
+              <button
+                type="button"
+                onClick={() => setShowEmptyFields((v) => !v)}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
               >
-                View Student Profile →
-              </a>
-            </div>
-          </div>
-        )}
-
-        {followUpBanner && (
-          <div className="px-6 pt-4">
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
-                <p className="text-sm text-amber-900 truncate">
-                  <span className="font-semibold">Follow-up task completed.</span> Ready to continue?
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDismissFollowUpBanner();
-                    stageFooterRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }}
-                  className="px-2.5 py-1 rounded-md bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
-                >
-                  Continue journey →
-                </button>
-                <button
-                  type="button"
-                  onClick={onDismissFollowUpBanner}
-                  className="text-xs font-medium text-amber-700 hover:text-amber-900 cursor-pointer px-1"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* LEFT COLUMN */}
-          <div className="space-y-4">
-            <div>
-              <p className="text-lg font-bold text-slate-800 leading-tight">{lead.childName}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{lead.department}</p>
+                <Eye className="w-3 h-3" />
+                {showEmptyFields ? "Hide empty fields" : "Show empty fields"}
+              </button>
             </div>
 
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Guardian</p>
-              <p className="text-sm font-medium text-slate-700">{lead.guardian}</p>
-              <p className="text-xs text-slate-500">{lead.guardianPhone}</p>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", SOURCE_CONFIG[lead.source])}>
-                {lead.source}
-              </span>
-              {lead.sibling && (
-                <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                  Sibling
-                </span>
-              )}
-              {lead.dnc && (
-                <span className="inline-flex px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                  DNC
-                </span>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-400 mb-1.5">Year Group & Subjects</p>
-              <div className="flex flex-wrap gap-1.5">
-                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
-                  {lead.yearGroup}
-                </span>
-                {lead.subjects.map((s) => (
-                  <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                {lead.daysInPipeline}d in pipeline
-              </span>
-            </div>
-
-            <LeadPreferencesSection lead={lead} onUpdatePrefs={onUpdatePrefs} />
-
-            <div>
-              <p className="text-xs text-slate-400 mb-1.5">Assigned to</p>
-              <div className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
-                    palette.bg,
-                    palette.text,
-                  )}
-                >
-                  {getInitials(lead.assignedTo)}
-                </div>
-                <span className="text-sm font-medium text-slate-700">{lead.assignedTo}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN */}
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs text-slate-400 mb-1.5 font-medium uppercase tracking-wide">Stage</p>
-              <span className={cn("inline-flex px-2.5 py-1 rounded-full text-xs font-semibold", cfg.badge)}>
-                {currentStage}
-              </span>
-            </div>
-
-            <div>
-              <label htmlFor="lead-stage-select" className="block text-xs text-slate-400 mb-1.5 font-medium uppercase tracking-wide">
-                Change stage
-              </label>
-              <select
-                id="lead-stage-select"
-                value={currentStage}
-                onChange={(e) => {
-                  const newStage = e.target.value as LeadStage;
-                  if (newStage !== currentStage) onStageChange(lead, newStage);
-                }}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent cursor-pointer bg-white"
-              >
-                {STAGES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="button"
-              disabled={isTerminal || !next}
-              onClick={() => {
-                if (!next) return;
-                onStageChange(lead, next);
-              }}
-              className={cn(
-                "w-full flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors",
-                !isTerminal && next
-                  ? "bg-amber-500 text-white hover:bg-amber-600 cursor-pointer shadow-sm"
-                  : "bg-slate-100 text-slate-400 cursor-not-allowed",
-              )}
-            >
-              {isTerminal ? (
-                currentStage === "Won" ? (isConverted ? "Converted ✓" : "Awaiting conversion") : "Closed — Lost"
-              ) : (
-                <>
-                  Move to next stage
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* TIMELINE */}
-        <div className="px-6 pb-2">
-          <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide">Activity Timeline</p>
-          <div className="space-y-3">
-            {(isJourneyLead
-              ? [...journey.activity, ...DETAIL_TIMELINE]
-              : [...leadActivity, ...DETAIL_TIMELINE]
-            ).map((entry, i, arr) => (
-              <div key={i} className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  <div className={cn("w-2.5 h-2.5 rounded-full mt-1 shrink-0", entry.dot)} />
-                  {i < arr.length - 1 && (
-                    <div className="w-px flex-1 bg-slate-200 mt-1" />
-                  )}
-                </div>
-                <div className="pb-2 min-w-0 flex-1">
-                  <p className="text-sm text-slate-700">{entry.text}</p>
-                  <p className="text-xs text-slate-400">{entry.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {currentStage === "Lost" && (
-          <div className="px-6 pb-4">
-            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Lost Details</p>
-            <div className="rounded-lg border border-red-100 bg-red-50/30 p-4 space-y-3">
-              <div>
-                <p className="text-xs text-slate-400 mb-0.5">Reason</p>
-                <p className="text-sm font-medium text-slate-700">{lead.lostReason ?? "—"}</p>
-              </div>
-              {lead.lostNotes && (
+            {/* ── SECTION: Student ── */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Student</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
-                  <p className="text-xs text-slate-400 mb-0.5">Notes</p>
-                  <p className="text-sm text-slate-600">{lead.lostNotes}</p>
+                  <p className="text-xs text-slate-400 mb-1">Year Group & Subjects</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
+                      {lead.yearGroup}
+                    </span>
+                    {lead.subjects.map((s) => (
+                      <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              )}
-              <div>
-                <p className="text-xs text-slate-400 mb-1">Re-engage</p>
-                {lead.reEngage === false ? (
-                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                    Do not re-engage
-                  </span>
-                ) : lead.reEngageAfter ? (
-                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                    Re-engage after {lead.reEngageAfter}
-                  </span>
-                ) : (
-                  <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                    Re-engage when ready
-                  </span>
+                {(lead.department || showEmptyFields) && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Programme</p>
+                    <p className="text-sm font-medium text-slate-700">{lead.department || <span className="text-slate-300">—</span>}</p>
+                  </div>
+                )}
+                {showEmptyFields && (
+                  <>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">School</p>
+                      <p className="text-sm font-medium text-slate-300">—</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Preferred Name</p>
+                      <p className="text-sm font-medium text-slate-300">—</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Nationality</p>
+                      <p className="text-sm font-medium text-slate-300">—</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Date of Birth</p>
+                      <p className="text-sm font-medium text-slate-300">—</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Home Area</p>
+                      <p className="text-sm font-medium text-slate-300">—</p>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
-          </div>
-        )}
 
-        {isJourneyLead && (
-          <div className="px-6 pb-4">
-            <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Assessment & Trial</p>
-            <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
-              {/* Assessment row */}
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-3 flex-wrap min-w-0">
-                  <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Assessment</span>
-                  <JourneyStatusPill
-                    status={
-                      !journey.assessment
-                        ? "pending"
-                        : journey.assessment.status === "Done"
-                          ? "done"
-                          : "booked"
-                    }
-                    label={
-                      !journey.assessment
-                        ? "Not yet booked"
-                        : journey.assessment.status === "Done"
-                          ? "Done ✓"
-                          : "Booked"
-                    }
-                  />
-                  {journey.assessment && (
-                    <span className="text-sm text-slate-700">
-                      {journey.assessment.yearGroup} {journey.assessment.subject} · {formatDate(journey.assessment.date)} · {journey.assessment.teacher}
-                    </span>
-                  )}
+            {/* ── SECTION: Guardian & Contact ── */}
+            <div className="space-y-3 pt-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Guardian & Contact</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Guardian</p>
+                  <p className="text-sm font-medium text-slate-700">{lead.guardian}</p>
                 </div>
-                {journey.assessment?.status === "Booked" && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Phone</p>
+                  <a
+                    href={`tel:${lead.guardianPhone}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-amber-600 cursor-pointer transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    {lead.guardianPhone}
+                  </a>
+                </div>
+                {showEmptyFields && (
+                  <>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-1">Email</p>
+                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-300">
+                        <Mail className="w-3.5 h-3.5" />
+                        —
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">WhatsApp</p>
+                      <p className="text-sm font-medium text-slate-300">—</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* ── SECTION: Enquiry ── */}
+            <div className="space-y-3 pt-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Enquiry</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Source</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", SOURCE_CONFIG[lead.source])}>
+                      {lead.source}
+                    </span>
+                    {lead.sibling && (
+                      <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                        Sibling
+                      </span>
+                    )}
+                    {lead.dnc && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                        <AlertCircle className="w-3 h-3" />
+                        DNC
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 mb-1.5">Assigned to</p>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                        palette.bg,
+                        palette.text,
+                      )}
+                    >
+                      {getInitials(lead.assignedTo)}
+                    </div>
+                    <span className="text-sm font-medium text-slate-700">{lead.assignedTo}</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">In pipeline</p>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                    {lead.daysInPipeline}d
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">In stage</p>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                    {lead.daysInStage}d
+                  </span>
+                </div>
+                {(lead.createdOn || showEmptyFields) && (
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Enquiry date</p>
+                    <p className="text-sm font-medium text-slate-700">
+                      {lead.createdOn
+                        ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(lead.createdOn))
+                        : <span className="text-slate-300">—</span>}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Last activity</p>
+                  <p className="text-sm font-medium text-slate-700">{lead.lastActivity}</p>
+                </div>
+                {showEmptyFields && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-slate-400 mb-0.5">How did you hear about us</p>
+                    <p className="text-sm font-medium text-slate-300">—</p>
+                  </div>
+                )}
+                {showEmptyFields && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-slate-400 mb-0.5">Referral source</p>
+                    <p className="text-sm font-medium text-slate-300">—</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── SECTION: Programme ── */}
+            <div className="space-y-3 pt-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Programme</p>
+              <LeadPreferencesSection lead={lead} onUpdatePrefs={onUpdatePrefs} compact />
+              {showEmptyFields && (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Qualification Route</p>
+                    <p className="text-sm font-medium text-slate-300">—</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Exam Board</p>
+                    <p className="text-sm font-medium text-slate-300">—</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── SECTION: Notes ── */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Notes</p>
+                {!editingNotes && (
                   <button
                     type="button"
-                    onClick={() => onLogAssessmentOutcome(lead)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                    onClick={() => setEditingNotes(true)}
+                    aria-label="Edit notes"
+                    className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
                   >
-                    Log Outcome
+                    <Edit3 className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
-
-              {/* Trial row (always visible once assessment exists) */}
-              {journey.assessment && (
-                <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-3 flex-wrap min-w-0">
-                    <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Trial</span>
-                    <JourneyStatusPill
-                      status={
-                        !journey.trial
-                          ? "pending"
-                          : journey.trial.status === "Skipped"
-                            ? "skipped"
-                            : journey.trial.status === "Done"
-                              ? "done"
-                              : "booked"
-                      }
-                      label={
-                        !journey.trial
-                          ? "Awaiting decision"
-                          : journey.trial.status === "Skipped"
-                            ? "Skipped"
-                            : journey.trial.status === "Done"
-                              ? "Done ✓"
-                              : "Booked"
-                      }
-                    />
-                    {journey.trial && journey.trial.status !== "Skipped" && (
-                      <span className="text-sm text-slate-700">
-                        {journey.trial.yearGroup} {journey.trial.subject} · {formatDate(journey.trial.date)} · AED {journey.trial.total.toFixed(0)}
-                      </span>
-                    )}
-                    {journey.trial?.status === "Skipped" && (
-                      <span className="text-sm text-slate-500">Proceeded directly to enrolment</span>
-                    )}
-                  </div>
-                  {journey.trial?.status === "Booked" && (
-                    <button
-                      type="button"
-                      onClick={() => onLogTrialOutcome(lead)}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
-                    >
-                      Log Trial Outcome
-                    </button>
+              {editingNotes ? (
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onBlur={() => { setEditingNotes(false); if (notes.trim()) toast.success("Notes saved"); }}
+                  placeholder="Add internal notes visible to staff only..."
+                  rows={3}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  autoFocus
+                />
+              ) : (
+                <p
+                  className={cn(
+                    "text-sm leading-relaxed cursor-pointer hover:bg-slate-50 rounded-md px-1 py-1 -mx-1 transition-colors",
+                    notes ? "text-slate-700" : "text-slate-400 italic",
                   )}
-                </div>
-              )}
-
-              {/* Student row once converted */}
-              {journey.student && (
-                <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100">
-                  <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Student</span>
-                  <JourneyStatusPill status="done" label={`Created — ${journey.student.id}`} />
-                  <span className="text-sm text-slate-700">{journey.student.name} · {journey.student.status}</span>
-                </div>
+                  onClick={() => setEditingNotes(true)}
+                >
+                  {notes || "No notes yet — click to add."}
+                </p>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Stage history — persisted audit log */}
-        <div className="px-6 pb-5 border-t border-slate-100 pt-4">
-          <StatusHistorySection entityType="lead" entityId={lead.id} refreshKey={lead.stage} />
-        </div>
+        {currentStage === "Lost" && (
+              <div className="pt-1 border-t border-slate-100">
+                <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Lost Details</p>
+                <div className="rounded-lg border border-red-100 bg-red-50/30 p-4 space-y-3">
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Reason</p>
+                    <p className="text-sm font-medium text-slate-700">{lead.lostReason ?? "—"}</p>
+                  </div>
+                  {lead.lostNotes && (
+                    <div>
+                      <p className="text-xs text-slate-400 mb-0.5">Notes</p>
+                      <p className="text-sm text-slate-600">{lead.lostNotes}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-slate-400 mb-1">Re-engage</p>
+                    {lead.reEngage === false ? (
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                        Do not re-engage
+                      </span>
+                    ) : lead.reEngageAfter ? (
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        Re-engage after {lead.reEngageAfter}
+                      </span>
+                    ) : (
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        Re-engage when ready
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-        <EmbeddedTeamChat key={lead.id} lead={lead} />
+            {isJourneyLead && (
+              <div className="pt-1 border-t border-slate-100">
+                <p className="text-xs text-slate-400 mb-2 font-medium uppercase tracking-wide">Assessment & Trial</p>
+                <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+                  {/* Assessment row */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 flex-wrap min-w-0">
+                      <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Assessment</span>
+                      <JourneyStatusPill
+                        status={
+                          !journey.assessment
+                            ? "pending"
+                            : journey.assessment.status === "Done"
+                              ? "done"
+                              : "booked"
+                        }
+                        label={
+                          !journey.assessment
+                            ? "Not yet booked"
+                            : journey.assessment.status === "Done"
+                              ? "Done ✓"
+                              : "Booked"
+                        }
+                      />
+                      {journey.assessment && (
+                        <span className="text-sm text-slate-700">
+                          {journey.assessment.yearGroup} {journey.assessment.subject} · {formatDate(journey.assessment.date)} · {journey.assessment.teacher}
+                        </span>
+                      )}
+                    </div>
+                    {journey.assessment?.status === "Booked" && (
+                      <button
+                        type="button"
+                        onClick={() => onLogAssessmentOutcome(lead)}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                      >
+                        Log Outcome
+                      </button>
+                    )}
+                  </div>
 
-        </div>
+                  {/* Trial row (always visible once assessment exists) */}
+                  {journey.assessment && (
+                    <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-slate-100">
+                      <div className="flex items-center gap-3 flex-wrap min-w-0">
+                        <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Trial</span>
+                        <JourneyStatusPill
+                          status={
+                            !journey.trial
+                              ? "pending"
+                              : journey.trial.status === "Skipped"
+                                ? "skipped"
+                                : journey.trial.status === "Done"
+                                  ? "done"
+                                  : "booked"
+                          }
+                          label={
+                            !journey.trial
+                              ? "Awaiting decision"
+                              : journey.trial.status === "Skipped"
+                                ? "Skipped"
+                                : journey.trial.status === "Done"
+                                  ? "Done ✓"
+                                  : "Booked"
+                          }
+                        />
+                        {journey.trial && journey.trial.status !== "Skipped" && (
+                          <span className="text-sm text-slate-700">
+                            {journey.trial.yearGroup} {journey.trial.subject} · {formatDate(journey.trial.date)} · AED {journey.trial.total.toFixed(0)}
+                          </span>
+                        )}
+                        {journey.trial?.status === "Skipped" && (
+                          <span className="text-sm text-slate-500">Proceeded directly to enrolment</span>
+                        )}
+                      </div>
+                      {journey.trial?.status === "Booked" && (
+                        <button
+                          type="button"
+                          onClick={() => onLogTrialOutcome(lead)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 cursor-pointer shadow-sm"
+                        >
+                          Log Trial Outcome
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-        <DialogFooter className="flex flex-col items-stretch gap-3">
-          <div ref={stageFooterRef}>
-          <StageFooterActions
-            lead={lead}
-            isJourneyLead={isJourneyLead}
-            journey={journey}
-            canConvert={canConvert}
-            onMarkAsContacted={onMarkAsContacted}
-            onBookAssessment={onBookAssessment}
-            onBookTrialFirst={onBookTrialFirst}
-            onNeedsMoreTime={onNeedsMoreTime}
-            onSkipAssessment={onSkipAssessment}
-            onLogAssessmentOutcome={onLogAssessmentOutcome}
-            onLogTrialOutcome={onLogTrialOutcome}
-            onOfferSchedule={onOfferSchedule}
-            onConfirmSchedule={onConfirmSchedule}
-            onSendInvoice={onSendInvoice}
-            onRecordPayment={onRecordPayment}
-            onConvert={onConvert}
-          />
-          </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            {can('delete.records') && (
+                  {/* Student row once converted */}
+                  {journey.student && (
+                    <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100">
+                      <span className="text-xs font-semibold uppercase text-slate-500 w-20 shrink-0">Student</span>
+                      <JourneyStatusPill status="done" label={`Created — ${journey.student.id}`} />
+                      <span className="text-sm text-slate-700">{journey.student.name} · {journey.student.status}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>{/* end left fields scroll */}
+
+          {/* Footer scoped to left column only */}
+          <div className="shrink-0 border-t border-slate-100 px-6 py-3 space-y-3">
+            <div ref={stageFooterRef}>
+            <StageFooterActions
+              lead={lead}
+              isJourneyLead={isJourneyLead}
+              journey={journey}
+              canConvert={canConvert}
+              onMarkAsContacted={onMarkAsContacted}
+              onBookAssessment={onBookAssessment}
+              onBookTrialFirst={onBookTrialFirst}
+              onNeedsMoreTime={onNeedsMoreTime}
+              onSkipAssessment={onSkipAssessment}
+              onLogAssessmentOutcome={onLogAssessmentOutcome}
+              onLogTrialOutcome={onLogTrialOutcome}
+              onOfferSchedule={onOfferSchedule}
+              onConfirmSchedule={onConfirmSchedule}
+              onSendInvoice={onSendInvoice}
+              onRecordPayment={onRecordPayment}
+              onConvert={onConvert}
+            />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              {can('delete.records') && (
+                <button
+                  type="button"
+                  onClick={() => onArchive(lead)}
+                  className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
+                >
+                  Archive Lead
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onArchive(lead)}
-                className="px-3 py-2 text-sm font-medium border border-red-200 rounded-lg hover:bg-red-50 text-red-600 cursor-pointer transition-colors"
+                onClick={() => onOpenChange(false)}
+                className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
               >
-                Archive Lead
+                Close
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-white text-slate-700 cursor-pointer transition-colors"
-            >
-              Close
-            </button>
+            </div>
           </div>
-        </DialogFooter>
+          </div>{/* end LEFT COLUMN */}
+
+          {/* Drag handle */}
+          <div
+            onMouseDown={() => { isResizing.current = true; setIsResizingState(true); }}
+            className="w-1 shrink-0 cursor-col-resize bg-slate-200 hover:bg-amber-400 active:bg-amber-500 transition-colors"
+          />
+
+          {/* ── RIGHT COLUMN: timeline + chat — full height ── */}
+          <div style={{ width: rightWidth }} className="shrink-0 flex flex-col min-h-0 overflow-hidden">
+            <EmbeddedTeamChat
+              key={lead.id}
+              lead={lead}
+              timelineContent={
+                <>
+                  {/* Activity Timeline */}
+                  <div>
+                    <p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide">Activity Timeline</p>
+                    <div className="space-y-3">
+                      {(isJourneyLead
+                        ? [...journey.activity, ...DETAIL_TIMELINE]
+                        : [...leadActivity, ...DETAIL_TIMELINE]
+                      ).map((entry, i, arr) => (
+                        <div key={i} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={cn("w-2.5 h-2.5 rounded-full mt-1 shrink-0", entry.dot)} />
+                            {i < arr.length - 1 && (
+                              <div className="w-px flex-1 bg-slate-200 mt-1" />
+                            )}
+                          </div>
+                          <div className="pb-2 min-w-0 flex-1">
+                            <p className="text-sm text-slate-700">{entry.text}</p>
+                            <p className="text-xs text-slate-400">{entry.label}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Stage History */}
+                  <div className="border-t border-slate-100 pt-4">
+                    <StatusHistorySection entityType="lead" entityId={lead.id} refreshKey={lead.stage} />
+                  </div>
+                </>
+              }
+            />
+          </div>{/* end RIGHT COLUMN */}
+
+        </div>{/* end two-column flex */}
       </DialogContent>
     </Dialog>
   );
