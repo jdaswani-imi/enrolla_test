@@ -453,6 +453,22 @@ Title, description, type, priority, status, assignee(s), due date, subtasks (che
 | Reassign | All staff |
 | Mark complete | Assignee |
 
+### Team Chat (per-task)
+
+Every non-Personal task has a **Team Chat** section inside the task detail panel, below the subtasks checklist.
+
+**Real-time messaging:** Messages are stored in Supabase (`task_messages` table) and sync instantly across all open sessions via Supabase Realtime — no refresh needed.
+
+**@mention notifications:** Typing `@` opens a staff picker with name, role, and avatar. Selecting a staff member inserts a styled chip and sends a push notification to that person. Clicking a mention notification deep-links directly to the task with the referenced message highlighted and scrolled into view (via `?taskId=...&messageId=...` URL params).
+
+**Emoji reactions:** Each message has a reaction picker. Reactions are persisted in Supabase and sync in real time. Staff can add or remove their own reactions; hover tooltips show who reacted.
+
+**Soft-delete with undo:** Deleting a message fades it out immediately and shows a 9.7-second undo bar. If not undone, the message is permanently deleted. If undone, it reappears with no visible interruption.
+
+**Record chips:** Messages can include attached reference chips linking to Students, Leads, Invoices, or Sessions. Chips are rendered as compact pills inside the message bubble.
+
+**Personal tasks are excluded** — the Team Chat section does not appear for tasks of type Personal.
+
 ---
 
 ## 13. Automations

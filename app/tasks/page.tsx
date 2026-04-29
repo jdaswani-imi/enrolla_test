@@ -55,6 +55,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { NewTaskDialog } from "@/components/tasks/new-task-dialog";
+import { TeamChat } from "@/components/chat/TeamChat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -289,9 +290,10 @@ interface TaskDetailDialogProps {
   onClose: () => void;
   onComplete: (id: string) => void;
   onOpenLead?: (leadId: string) => void;
+  scrollToMessageId?: { id: string; seq: number } | null;
 }
 
-function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: TaskDetailDialogProps) {
+function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead, scrollToMessageId }: TaskDetailDialogProps) {
   const currentUser = useCurrentUser();
   const [subtasksDone, setSubtasksDone] = useState<boolean[]>(
     task.subtasks.map(() => isDone)
@@ -437,6 +439,18 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
           <div>
             <StatusHistorySection entityType="task" entityId={task.id} />
           </div>
+
+          {/* Team Chat — hidden for Personal tasks */}
+          {task.type !== 'Personal' && (
+            <div className="border-t border-slate-200 pt-5 -mx-6 px-6">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Team Chat</p>
+              <TeamChat
+                entityId={task.id}
+                entityType="task"
+                scrollToMessageId={scrollToMessageId}
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:items-stretch">
@@ -987,6 +1001,7 @@ export default function TasksPage() {
   const [dragOverCol, setDragOverCol] = useState<"todo" | "inprogress" | "done" | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [scrollToMessageId, setScrollToMessageId] = useState<{ id: string; seq: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/tasks")
@@ -1008,6 +1023,13 @@ export default function TasksPage() {
     setMyTasksOnly(false);
     setSelectedTask(task);
     setHighlightTaskId(taskId);
+
+    // Pass messageId through so TeamChat can scroll to the cited message
+    const messageId = params.get("messageId");
+    if (messageId) {
+      setScrollToMessageId({ id: messageId, seq: Date.now() });
+    }
+
     requestAnimationFrame(() => {
       const el = document.getElementById(`task-${taskId}`);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1431,9 +1453,10 @@ export default function TasksPage() {
         <TaskDetailDialog
           task={selectedTask}
           isDone={doneTasks.has(selectedTask.id)}
-          onClose={() => setSelectedTask(null)}
+          onClose={() => { setSelectedTask(null); setScrollToMessageId(null); }}
           onComplete={toggleDone}
           onOpenLead={openLead}
+          scrollToMessageId={scrollToMessageId}
         />
       )}
     </div>
