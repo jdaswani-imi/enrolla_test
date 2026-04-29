@@ -1001,6 +1001,13 @@ function InternalMessagesTab() {
     });
   }
 
+  function deleteMessage(msgId: string) {
+    setMessagesByChannel(prev => {
+      const list = (prev[activeId] ?? []).filter(m => m.id !== msgId);
+      return { ...prev, [activeId]: list };
+    });
+  }
+
   function sendMessage() {
     const trimmed = compose.trim();
     if (!trimmed && pendingChips.length === 0) return;
@@ -1252,7 +1259,7 @@ function InternalMessagesTab() {
                         key={m.id}
                         onClick={() => setSelectedMessageId(m.id)}
                         className={cn(
-                          'group flex items-start gap-3 px-2 py-1 rounded-md cursor-pointer transition-colors',
+                          'group relative flex items-start gap-3 px-2 py-1 rounded-md cursor-pointer transition-colors',
                           isSelected ? 'bg-amber-50' : 'hover:bg-slate-50',
                         )}
                       >
@@ -1305,6 +1312,16 @@ function InternalMessagesTab() {
                             />
                           </div>
                         </div>
+                        {isOwn && (
+                          <button
+                            type="button"
+                            aria-label="Delete message"
+                            onClick={e => { e.stopPropagation(); deleteMessage(m.id); }}
+                            className="opacity-0 group-hover:opacity-100 absolute right-2 top-1 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm w-6 h-6 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 cursor-pointer transition-all"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
