@@ -88,6 +88,8 @@ Each lead holds: child name, year group, department, subjects of interest, guard
 ### Lead Detail View
 Opening a lead opens a **two-column detail panel**. The left column shows all lead fields, the journey/conversion tracker, and stage action buttons. The right column combines the **Activity Timeline** (all pipeline stage changes and logged interactions) and the **Team Chat** (internal staff-only messaging) in a single unified scrollable panel. The divider between the two columns is **resizable** — staff can drag it to adjust the split.
 
+**Team Chat @mention system — end-to-end:** Typing `@` followed by a character opens a floating dropdown of matching active staff; selecting one inserts a styled chip. When a message is sent, each mentioned staff member receives a **mention notification** in the bell dropdown. Mention notifications have a distinct appearance: a circular sender avatar with an amber `@` badge, an amber-50 background when unread, body text reading "You were mentioned in {Lead}'s ticket", and a sub-line showing sender name and relative time. Clicking a mention notification navigates to the Leads page, opens the correct lead detail dialog, and **smooth-scrolls** to the specific message (ease-out cubic, 420 ms), then applies a 2.2 s amber glow highlight to the full message row. If the user is already on the Leads page when clicking the notification, the dialog opens without a page reload. Re-clicking the same notification re-triggers the scroll and highlight reliably. Sent messages render @mention chips as blue pills inline; if the mention is directed at the viewer themselves it renders in amber. Mentions for deactivated or removed staff render as struck-through grey. Edge cases handled: missing message shows a toast and marks the notification read; missing lead shows a different toast. Multiple mentions in one message each produce their own notification; the sender is never notified for their own mentions.
+
 ### Lead Actions
 - **Create / Edit** — Admin+
 - **Delete** — Admin+
@@ -96,6 +98,25 @@ Opening a lead opens a **two-column detail panel**. The left column shows all le
 - **Set DNC (Do Not Contact)** — Admin Head only
 - **Convert to Student** — after reaching "Won" stage (see [Enrolment Journey](#enrolment-journey))
 - **Log activity** — any staff can log interactions (calls, messages, notes)
+
+### Kanban Board Personalisation
+
+Staff can personalise their Kanban view independently — settings are saved per user and persist across sessions. A **"Personalise"** button (sliders icon) in the top toolbar opens a compact settings panel with four controls:
+
+- **Card Density** — Three presets: *Compact* (name + year/subjects only, minimal height), *Default* (current layout), *Comfortable* (larger cards, all fields visible including phone and pipeline duration).
+- **Column Width** — A slider from 220 px (Narrow) to 400 px (Wide), defaulting at 280 px. Three snap points labelled Narrow / Default / Wide. On viewports narrower than 1280 px the width automatically steps down to Narrow to prevent overflow.
+- **Card Field Visibility** — A checklist to show or hide: Guardian name, Phone number, Source badge, Assigned to, Days in stage, Days in pipeline, Enquiry date. Student name, year group, and subjects are always visible.
+- **Collapse Columns** — Any pipeline stage column can be collapsed to a 48 px icon-only strip showing the stage name vertically and the lead count. Click the collapse arrow on the column header (or double-click the header) to collapse; click the strip to expand. Collapsed columns persist across sessions.
+
+All changes apply instantly (auto-saved with a 500 ms debounce). A "Reset to default" link at the bottom of the panel restores all settings. Each user's preferences are stored independently — changing your view does not affect other staff members.
+
+### List View — Stage Group Headings
+
+In List view, leads are grouped by pipeline stage. Each stage heading is rendered as a **coloured pill** — the colour matches the corresponding Kanban column label exactly (e.g., blue for Contacted, amber for Trial Booked, green for Won). A small coloured dot appears inside the pill, and the chevron icon matches the stage colour. Clicking a heading collapses or expands that stage group.
+
+### List View — Collapse / Expand All
+
+The list toolbar includes a **"Collapse all"** button (shown when most or all stages are expanded) and an **"Expand all"** button (shown when half or more stages are collapsed). Clicking either button collapses or expands all stage groups simultaneously. Individual stage chevrons continue to work independently. The "Show/Hide empty stages" toggle works alongside collapse state — hidden empty stages remain hidden regardless of expand/collapse.
 
 ---
 
@@ -710,6 +731,53 @@ Subjects Catalogue editing is partially delegated:
 - Auto-deduct rules fire on enrolment creation if the item is configured for the relevant department/year group.
 - A failed deduction is logged but does not block the enrolment from completing.
 - Reorder alerts auto-clear when stock rises above the minimum threshold.
+
+### Display Formatting (Student & Guardian Portals)
+All profile field values are normalised at the render layer using a shared formatter library. Raw database values are stored as-is; formatting is applied only for display:
+- **Names** (student, guardian, linked students) are always shown in Title Case.
+- **Date of Birth** is displayed as DD MMM YYYY with a computed age in parentheses — e.g. "30 May 2014 (Age 11)".
+- **Gender** always has a capitalised first letter — "Female" not "female".
+- **Phone / WhatsApp** numbers are formatted as +971 XX XXX XXXX for UAE numbers. Blank numbers show an em dash (—). If WhatsApp matches the primary phone, the label reads "✓ Same number".
+- **Student Reference** numbers are zero-padded to four digits with a # prefix — e.g. "#0004".
+- **Year Group** is always shown as "Year N" with a capital Y — "Year 8" not "Y8" or "year 8". KG codes are preserved as-is.
+- **Department** is always Title Case — "Primary", "Senior".
+- **AED amounts** use a thousands separator with no trailing decimals unless the value has cents — e.g. "AED 1,250".
+- All null, empty, or "N/A" values are replaced with an em dash (—) in the UI.
+- Count fields always show "0" rather than blank.
+
+---
+
+## 21. Motion & Animations
+
+Enrolla uses **Framer Motion** for all UI animations, replacing the previous CSS-only approach. Animations are automatically disabled when the user has `prefers-reduced-motion` enabled in their OS settings.
+
+### Page Transitions
+Every route change triggers a smooth fade + subtle slide-up transition (220 ms ease-out entry, 150 ms ease-in exit). This is applied globally in the app shell and covers all pages within the main layout.
+
+### Sidebar Flyout Panel
+The secondary navigation panel (People, Academic, Finance, Reporting) slides in from the left edge (150 ms ease-out) and slides back out on close, replacing the previous CSS keyframe animation.
+
+### Login Page
+On first load, the left branding panel content (logo, headline, tagline) rises in with a staggered sequence — each element delayed 100 ms after the previous. The right panel form fades up simultaneously.
+
+### Dashboard KPI Cards
+When the dashboard finishes loading, the KPI card grid animates in with a staggered fade-up — each card appears 50 ms after the previous, creating a cascade effect.
+
+### Students Stat Cards
+The three summary stat cards (Total, Active, Withdrawn) at the top of the Students page stagger in identically to the dashboard KPI cards.
+
+### Additional pages
+- **Finance page** ([app/finance/page.tsx](app/finance/page.tsx)) — Summary stat cards stagger in on each tab (Invoices, Payments, Credits)
+- **Staff page** ([app/staff/page.tsx](app/staff/page.tsx)) — Staff summary stat grid (Total, Active, On Leave, Pending) staggers in
+- **Enrolment page** ([app/enrolment/page.tsx](app/enrolment/page.tsx)) — Stat cards stagger in across all three tabs (Enrolments, Trials, Withdrawals)
+- **Tasks page** ([app/tasks/page.tsx](app/tasks/page.tsx)) — Kanban columns stagger in when switching to board view; list rows stagger in when a section is expanded
+- **Guardians page** ([app/guardians/page.tsx](app/guardians/page.tsx)) — Table container fades in once the API fetch completes
+
+### Principles applied
+- Durations: 150–250 ms for micro-interactions; 350 ms for login entrance
+- Easing: `easeOut` for all entering elements; `easeIn` for exits
+- Max 1–2 animated elements per view to avoid distraction
+- `prefers-reduced-motion` respected everywhere via Framer's `useReducedMotion` hook
 
 ---
 

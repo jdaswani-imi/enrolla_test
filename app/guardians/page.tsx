@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { fadeIn } from "@/lib/motion";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -22,6 +24,7 @@ import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+import { toTitleCase, formatPhone } from "@/lib/formatters";
 
 interface GuardianStudent {
   id: string;
@@ -85,12 +88,12 @@ function toGuardian(raw: ApiGuardian): Guardian {
   const linked = raw.students ?? [];
   return {
     id: raw.id,
-    name: `${raw.first_name} ${raw.last_name}`.trim(),
+    name: toTitleCase(`${raw.first_name} ${raw.last_name}`.trim()),
     email: raw.email ?? "",
-    phone: raw.phone ?? "",
+    phone: formatPhone(raw.phone ?? ""),
     students: linked.map((s) => ({
       id: s.id,
-      name: `${s.first_name} ${s.last_name}`.trim(),
+      name: toTitleCase(`${s.first_name} ${s.last_name}`.trim()),
       initials: `${s.first_name[0] ?? ""}${s.last_name[0] ?? ""}`.toUpperCase(),
     })),
     status: "active",
@@ -370,6 +373,25 @@ function FilterChip({ label, onClear }: { label: string; onClear: () => void }) 
         <X className="w-2.5 h-2.5" />
       </button>
     </span>
+  );
+}
+
+// ─── Animated table wrapper — fades in once data has loaded ──────────────────
+
+function GuardiansTableContainer({ isLoading, children }: { isLoading: boolean; children: React.ReactNode }) {
+  const shouldReduceMotion = useReducedMotion();
+  if (shouldReduceMotion || isLoading) {
+    return <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">{children}</div>;
+  }
+  return (
+    <motion.div
+      className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden"
+      variants={fadeIn}
+      initial="initial"
+      animate="animate"
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -759,7 +781,7 @@ export default function GuardiansPage() {
       )}
 
       {/* ── Table ────────────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+      <GuardiansTableContainer isLoading={isLoading}>
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-sm text-slate-400">
             Loading guardians…
@@ -920,7 +942,7 @@ export default function GuardiansPage() {
           onPageChange={setCurrentPage}
           onPageSizeChange={(size) => { setRowsPerPage(size); setCurrentPage(1); }}
         />
-      </div>
+      </GuardiansTableContainer>
 
       <ArchiveGuardianDialog
         guardian={archiveTarget}

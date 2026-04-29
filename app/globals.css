@@ -165,21 +165,7 @@
   }
 }
 
-/* ─── Page transition ─────────────────────────────────────────────────────── */
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.page-enter {
-  animation: fadeSlideIn 0.2s ease-out forwards;
-}
+/* Page transitions are handled by framer-motion in app-shell.tsx */
 
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
@@ -217,17 +203,7 @@ button, a, [role="button"] {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
-/* ─── Flyout panel animation ──────────────────────────────────────────────── */
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-8px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
+/* Flyout panel animation handled by framer-motion in app-sidebar.tsx */
 
 /* ─── Slide-over animations ───────────────────────────────────────────────── */
 @keyframes slideInRight {
@@ -281,4 +257,16 @@ button, a, [role="button"] {
 .confetti-piece {
   animation: confetti-fall var(--fall-dur) var(--fall-delay) linear forwards,
              confetti-sway var(--sway-dur) var(--sway-delay) ease-in-out infinite;
+}
+
+/* ─── @mention highlight animation ───────────────────────────────────────── */
+@keyframes mention-highlight {
+  0%   { background-color: #FEF3C7; box-shadow: 0 0 0 3px #F59E0B40; }
+  60%  { background-color: #FEF3C7; box-shadow: 0 0 0 3px #F59E0B40; }
+  100% { background-color: transparent; box-shadow: none; }
+}
+
+.mention-highlight-active {
+  border-radius: 10px;
+  animation: mention-highlight 2.2s ease-out forwards;
 }

@@ -27,6 +27,14 @@ import { useUserAvatar } from "@/lib/user-avatar-context";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { GlobalSearch } from "./global-search";
+import {
+  useNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  relativeTime,
+  type AppNotification,
+} from "@/lib/notifications-store";
+import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
 
 const routeTitles: Record<string, string> = {
   "/dashboard":  "Dashboard",
@@ -55,31 +63,10 @@ const routeTitles: Record<string, string> = {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-type NotificationType =
-  | "invoice-overdue"
-  | "feedback"
-  | "concern"
-  | "trial"
-  | "task"
-  | "report"
-  | "lead"
-  | "payment"
-  | "leave"
-  | "cpd"
-  | "mention";
+// Use the shared AppNotification type from the store
+type Notification = AppNotification;
 
-type Notification = {
-  id: string;
-  type: NotificationType;
-  title: string;
-  time: string;
-  href: string;
-  unread: boolean;
-  urgent?: boolean;
-  mention?: boolean;
-};
-
-const NOTIFICATION_ICONS: Record<NotificationType, React.ComponentType<{ className?: string }>> = {
+const NOTIFICATION_ICONS: Record<Notification["type"], React.ComponentType<{ className?: string }>> = {
   "invoice-overdue": FileWarning,
   feedback: MessageSquare,
   concern: AlertTriangle,
@@ -93,7 +80,7 @@ const NOTIFICATION_ICONS: Record<NotificationType, React.ComponentType<{ classNa
   mention: AtSign,
 };
 
-const NOTIFICATION_ICON_TONE: Record<NotificationType, string> = {
+const NOTIFICATION_ICON_TONE: Record<Notification["type"], string> = {
   "invoice-overdue": "bg-rose-50 text-rose-600",
   feedback: "bg-sky-50 text-sky-600",
   concern: "bg-rose-50 text-rose-600",
@@ -106,8 +93,6 @@ const NOTIFICATION_ICON_TONE: Record<NotificationType, string> = {
   cpd: "bg-amber-50 text-amber-600",
   mention: "bg-blue-50 text-blue-600",
 };
-
-const INITIAL_NOTIFICATIONS: Notification[] = [];
 
 type NotificationTab = "all" | "unread" | "mentions";
 
@@ -240,8 +225,8 @@ export function TopBar() {
   const title = routeTitles[pathname] ?? "Enrolla";
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
+  const { notifications } = useNotifications();
 
   const unreadCount = useMemo(() => notifications.filter((n) => n.unread).length, [notifications]);
   const mentionCount = useMemo(() => notifications.filter((n) => n.mention).length, [notifications]);
@@ -253,12 +238,25 @@ export function TopBar() {
   }, [notifications, activeTab]);
 
   function markAllAsRead() {
-    setNotifications((list) => list.map((n) => ({ ...n, unread: false })));
+    markAllNotificationsRead();
   }
 
   function handleNotificationClick(n: Notification) {
-    setNotifications((list) => list.map((item) => (item.id === n.id ? { ...item, unread: false } : item)));
+    markNotificationRead(n.id);
     setNotificationsOpen(false);
+
+    // If a mention notification is clicked while already on the leads page,
+    // dispatch a custom event so the page can open the right lead + scroll
+    // without a full navigation (which would skip the one-time mount effect).
+    if (n.type === "mention" && n.leadId && pathname === "/leads") {
+      window.dispatchEvent(
+        new CustomEvent("enrolla:open-lead-message", {
+          detail: { leadId: n.leadId, messageId: n.messageId ?? null },
+        }),
+      );
+      return;
+    }
+
     router.push(n.href);
   }
 
@@ -385,44 +383,78 @@ export function TopBar() {
                 ) : (
                   <ul className="divide-y divide-slate-100">
                     {visibleNotifications.map((n) => {
+                      const isMention = n.type === "mention";
                       const Icon = NOTIFICATION_ICONS[n.type];
+                      const senderPalette = isMention && n.senderName ? getAvatarPalette(n.senderName) : null;
+                      const displayTime = isMention
+                        ? relativeTime(n.timestamp)
+                        : n.time;
                       return (
                         <li key={n.id}>
                           <button
                             onClick={() => handleNotificationClick(n)}
                             className={cn(
-                              "w-full text-left px-4 py-3 flex gap-3 cursor-pointer transition-colors hover:bg-slate-50 border-l-2",
-                              n.unread
-                                ? "bg-blue-50/40 border-l-blue-500"
-                                : "bg-white border-l-transparent"
+                              "w-full text-left px-4 flex gap-3 cursor-pointer transition-colors hover:bg-slate-50 items-start",
+                              isMention ? "py-3 min-h-[40px]" : "py-3 border-l-2",
+                              isMention
+                                ? n.unread ? "bg-amber-50" : "bg-white"
+                                : n.unread
+                                  ? "bg-blue-50/40 border-l-blue-500"
+                                  : "bg-white border-l-transparent",
                             )}
                           >
-                            <div
-                              className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                                NOTIFICATION_ICON_TONE[n.type]
-                              )}
-                            >
-                              <Icon className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start gap-2">
-                                <p
+                            {/* Left: avatar with @ badge (mention) or icon badge */}
+                            {isMention && senderPalette ? (
+                              <div className="relative flex-shrink-0 mt-0.5">
+                                <div
                                   className={cn(
-                                    "text-[13px] leading-snug flex-1",
-                                    n.unread ? "text-slate-900 font-medium" : "text-slate-600"
+                                    "w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold",
+                                    senderPalette.bg,
+                                    senderPalette.text,
                                   )}
                                 >
-                                  {n.title}
-                                </p>
-                                {n.urgent && (
-                                  <span
-                                    aria-label="urgent"
-                                    className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0 mt-1.5"
-                                  />
-                                )}
+                                  {getInitials(n.senderName!)}
+                                </div>
+                                {/* Amber @ badge */}
+                                <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center ring-1 ring-white">
+                                  <span className="text-white font-bold leading-none" style={{ fontSize: "9px" }}>@</span>
+                                </div>
                               </div>
-                              <p className="text-[11px] text-slate-400 mt-1">{n.time}</p>
+                            ) : (
+                              <div
+                                className={cn(
+                                  "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                                  NOTIFICATION_ICON_TONE[n.type],
+                                )}
+                              >
+                                <Icon className="w-4 h-4" />
+                              </div>
+                            )}
+
+                            {/* Centre: title + sub-line */}
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={cn(
+                                  "text-[13px] leading-snug line-clamp-2",
+                                  n.unread ? "text-slate-800 font-medium" : "text-slate-600",
+                                )}
+                              >
+                                {n.title}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                {isMention && n.senderName
+                                  ? `${n.senderName} · ${displayTime}`
+                                  : displayTime}
+                              </p>
+                            </div>
+
+                            {/* Right: unread dot (mention) or urgent indicator */}
+                            <div className="flex-shrink-0 flex items-center mt-1.5">
+                              {isMention
+                                ? n.unread && <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                : n.urgent && (
+                                    <span aria-label="urgent" className="w-2 h-2 rounded-full bg-rose-500" />
+                                  )}
                             </div>
                           </button>
                         </li>

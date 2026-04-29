@@ -97,7 +97,7 @@ export function BookTrialDialog({
     fetch("/api/staff")
       .then((r) => r.json())
       .then((data) => {
-        const list = Array.isArray(data) ? data : (data.staff ?? []);
+        const list = Array.isArray(data) ? data : (data.data ?? data.staff ?? []);
         setAllStaff(list.map((s: { id: string; first_name?: string; last_name?: string; name?: string; role?: string; department?: string; status?: string }) => ({
           ...s,
           name: s.name ?? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim(),
@@ -109,7 +109,7 @@ export function BookTrialDialog({
   const teacherPool = allStaff.filter(
     (s) =>
       (s.role === "Teacher" || s.role === "HOD") &&
-      s.department === dept &&
+      (s.department === dept || s.department === "—" || !s.department) &&
       s.status === "Active",
   );
 
@@ -247,7 +247,7 @@ export function BookTrialDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[860px] max-w-[94vw]">
+      <DialogContent className="w-[900px] max-w-[96vw]">
         <DialogHeader>
           <DialogTitle>Book Trial Session(s)</DialogTitle>
           <DialogDescription>Schedule paid trial sessions for this lead.</DialogDescription>
@@ -255,22 +255,23 @@ export function BookTrialDialog({
 
         <div className="px-6 py-5 space-y-5 max-h-[76vh] overflow-y-auto">
           {/* LINE ITEM TABLE */}
-          <div className="rounded-lg border border-slate-200 bg-white overflow-visible">
+          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+            <div className="overflow-x-auto">
             <div
               className="grid text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200"
-              style={{ gridTemplateColumns: "1.3fr 1.3fr 140px 170px 110px 80px 32px" }}
+              style={{ gridTemplateColumns: "160px 180px 160px 110px 120px 60px 32px", minWidth: "822px" }}
             >
               <div className="px-2 py-2">Subject</div>
               <div className="px-2 py-2">Teacher</div>
               <div className="px-2 py-2">Date</div>
               <div className="px-2 py-2">Time</div>
               <div className="px-2 py-2">Room</div>
-              <div className="px-2 py-2">Waive</div>
+              <div className="px-2 py-2 text-center">Waive</div>
               <div className="px-2 py-2" />
             </div>
 
             {rows.length === 0 && (
-              <div className="px-4 py-6 text-center text-sm text-slate-400">
+              <div className="px-4 py-6 text-center text-sm text-slate-400" style={{ minWidth: "822px" }}>
                 No subjects yet — add one below.
               </div>
             )}
@@ -282,7 +283,7 @@ export function BookTrialDialog({
               >
                 <div
                   className="grid items-center"
-                  style={{ gridTemplateColumns: "1.3fr 1.3fr 140px 170px 110px 80px 32px" }}
+                  style={{ gridTemplateColumns: "160px 180px 160px 110px 120px 60px 32px", minWidth: "822px" }}
                 >
                   <div className="px-2 py-2">
                     <SubjectSelect
@@ -295,7 +296,7 @@ export function BookTrialDialog({
                     <select
                       value={row.teacher}
                       onChange={(e) => updateRow(row.id, { teacher: e.target.value })}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 overflow-hidden text-ellipsis"
                     >
                       <option value="">Select teacher</option>
                       {teacherPool.map((t) => (
@@ -310,7 +311,7 @@ export function BookTrialDialog({
                       type="date"
                       value={row.date}
                       onChange={(e) => updateRow(row.id, { date: e.target.value })}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                     />
                   </div>
                   <div className="px-2 py-2">
@@ -323,7 +324,7 @@ export function BookTrialDialog({
                     <select
                       value={row.room}
                       onChange={(e) => updateRow(row.id, { room: e.target.value })}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 overflow-hidden text-ellipsis"
                     >
                       {ROOM_OPTIONS.map((r) => (
                         <option key={r} value={r}>
@@ -332,7 +333,7 @@ export function BookTrialDialog({
                       ))}
                     </select>
                   </div>
-                  <div className="px-2 py-2 flex items-center">
+                  <div className="px-2 py-2 flex items-center justify-center">
                     <button
                       type="button"
                       role="switch"
@@ -369,7 +370,7 @@ export function BookTrialDialog({
                   </div>
                 </div>
                 {row.waived && (
-                  <div className="px-2 pb-3">
+                  <div className="px-2 pb-3" style={{ minWidth: "822px" }}>
                     <div className="ml-2 rounded-md bg-amber-50/60 border border-amber-200 p-2">
                       <label className="block text-[11px] font-semibold text-amber-800 mb-1">
                         Reason for waiver <span className="text-red-500">*</span>
@@ -386,6 +387,7 @@ export function BookTrialDialog({
                 )}
               </div>
             ))}
+            </div>{/* end overflow-x-auto */}
           </div>
 
           <button

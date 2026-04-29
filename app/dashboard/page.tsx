@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
+import { staggerContainer, fadeUpItem } from "@/lib/motion";
 import {
   Users,
   UserPlus,
@@ -1465,6 +1467,46 @@ const KPI_PERMISSIONS: Record<string, string | null> = {
   'cpd-completion':        'staff.view',
 };
 
+function KpiGrid({
+  mergedKpis,
+  can,
+  kpiGridClass,
+}: {
+  mergedKpis: KpiCard[];
+  can: (action: string) => boolean;
+  kpiGridClass: string;
+}) {
+  const shouldReduceMotion = useReducedMotion();
+  const visible = mergedKpis.filter((card) => {
+    const action = KPI_PERMISSIONS[card.id];
+    if (!action) return true;
+    return can(action);
+  });
+
+  if (shouldReduceMotion) {
+    return (
+      <div className={cn("grid gap-4", kpiGridClass)}>
+        {visible.map((card) => <KpiCardItem key={card.id} card={card} />)}
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      className={cn("grid gap-4", kpiGridClass)}
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      {visible.map((card) => (
+        <motion.div key={card.id} variants={fadeUpItem}>
+          <KpiCardItem card={card} />
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
 export default function DashboardPage() {
   const currentUser = useCurrentUser();
   const { role } = useRole();
@@ -1525,17 +1567,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className={cn("grid gap-4", config.kpiGridClass)}>
-        {mergedKpis
-          .filter((card) => {
-            const action = KPI_PERMISSIONS[card.id];
-            if (!action) return true;
-            return can(action);
-          })
-          .map((card) => (
-            <KpiCardItem key={card.id} card={card} />
-          ))}
-      </div>
+      <KpiGrid mergedKpis={mergedKpis} can={can} kpiGridClass={config.kpiGridClass} />
 
       {/* Inventory summary cards — visible to roles with inventory.view */}
       <InventorySummaryCards />

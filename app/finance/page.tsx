@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { staggerContainer, fadeUpItem } from "@/lib/motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { usePermission } from "@/lib/use-permission";
@@ -185,6 +187,29 @@ function SaveSegmentPopover({ onSave, onClose }: { onSave: (name: string) => voi
         <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 text-xs py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer">Cancel</button>
       </div>
     </div>
+  );
+}
+
+// ─── Animated summary card grid ───────────────────────────────────────────────
+
+function FinanceSummaryGrid({ cols, children }: { cols: string; children: React.ReactNode }) {
+  const shouldReduceMotion = useReducedMotion();
+  if (shouldReduceMotion) {
+    return <div className={`grid gap-3 ${cols}`}>{children}</div>;
+  }
+  return (
+    <motion.div
+      className={`grid gap-3 ${cols}`}
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      {Array.isArray(children)
+        ? children.map((child, i) => (
+            <motion.div key={i} variants={fadeUpItem}>{child}</motion.div>
+          ))
+        : <motion.div variants={fadeUpItem}>{children}</motion.div>}
+    </motion.div>
   );
 }
 
@@ -1160,12 +1185,12 @@ function InvoicesTab() {
   return (
     <div className="space-y-4">
       {/* Summary strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <FinanceSummaryGrid cols="grid-cols-2 sm:grid-cols-4">
         <SummaryCard label="Total Invoiced This Term" value="AED 0" />
         <SummaryCard label="Collected This Term"      value="AED 0" accent="green" />
         <SummaryCard label="Outstanding"              value="AED 0" />
         <SummaryCard label="Overdue"                  value="AED 0" sub="0 invoices" accent="red" />
-      </div>
+      </FinanceSummaryGrid>
 
       {/* Saved segments */}
       {segments.length > 0 && (
@@ -1468,11 +1493,11 @@ function PaymentsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <FinanceSummaryGrid cols="grid-cols-3">
         <SummaryCard label="Total Received This Month" value="AED 0" accent="green" />
         <SummaryCard label="Cash"                      value="AED 0" />
         <SummaryCard label="Bank Transfer"             value="AED 0" />
-      </div>
+      </FinanceSummaryGrid>
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -1718,10 +1743,10 @@ function CreditsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
-        <div className="grid grid-cols-2 gap-3 flex-1">
+        <FinanceSummaryGrid cols="grid-cols-2 flex-1">
           <SummaryCard label="Total Credits Issued This Term" value="AED 0" accent="amber" />
           <SummaryCard label="Applied / Unused" value="AED 0 applied" sub="AED 0 unused" />
-        </div>
+        </FinanceSummaryGrid>
         {can('export') && (
           <button
             type="button"

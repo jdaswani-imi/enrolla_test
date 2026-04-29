@@ -28,6 +28,13 @@ import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
+  toTitleCase,
+  formatPhone,
+  formatYearGroup,
+  formatAed,
+  displayValue,
+} from "@/lib/formatters";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -220,9 +227,6 @@ function studentInitials(name: string): string {
   return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
 }
 
-function formatAed(amount: number): string {
-  return `AED ${amount.toLocaleString()}`;
-}
 
 const AVATAR_PALETTES = [
   { bg: "bg-amber-500",   ring: "ring-amber-200"   },
@@ -833,8 +837,8 @@ function EditCoParentDialog({
                           onClick={() => { setCoParentId(g.id); setQuery(""); }}
                           className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
                         >
-                          <span className="text-sm font-medium text-slate-700">{g.name}</span>
-                          <span className="text-xs text-slate-400">{g.phone}</span>
+                          <span className="text-sm font-medium text-slate-700">{toTitleCase(g.name)}</span>
+                          <span className="text-xs text-slate-400">{formatPhone(g.phone ?? "")}</span>
                         </button>
                       </li>
                     ))}
@@ -1040,7 +1044,8 @@ function ProfileHeader({
   const router = useRouter();
   const [dialog, setDialog] = useState<HeaderAction | null>(null);
   const palette = getAvatarPalette(profile.firstName + profile.lastName);
-  const displayName = `${profile.firstName} ${profile.lastName}`.trim();
+  const rawName = `${profile.firstName} ${profile.lastName}`.trim();
+  const displayName = rawName ? toTitleCase(rawName) : rawName;
   const ChannelIcon = profile.preferredChannel === "WhatsApp" ? MessageCircle : Mail;
   const linkedCount = profile.linkedStudents.length;
 
@@ -1195,11 +1200,11 @@ function LeftSidebar({
       <section className="group">
         <EditableSectionHeader label="Personal Details" onEdit={() => onEdit("personal")} />
         <dl className="space-y-1.5">
-          <DetailRow label="Phone" value={profile.phone || "—"} />
-          <DetailRow label="WhatsApp" value={profile.whatsappSame ? "Same as phone" : (profile.whatsapp || "—")} />
-          <DetailRow label="Email" value={profile.email || "—"} />
-          <DetailRow label="Nationality" value={profile.nationality || "—"} />
-          <DetailRow label="Home area" value={profile.homeArea || "—"} />
+          <DetailRow label="Phone" value={formatPhone(profile.phone)} />
+          <DetailRow label="WhatsApp" value={profile.whatsappSame ? "✓ Same number" : formatPhone(profile.whatsapp)} />
+          <DetailRow label="Email" value={displayValue(profile.email)} />
+          <DetailRow label="Nationality" value={displayValue(profile.nationality)} />
+          <DetailRow label="Home area" value={displayValue(profile.homeArea)} />
         </dl>
       </section>
 
@@ -1218,9 +1223,9 @@ function LeftSidebar({
                   href={`/students/${s.id}`}
                   className="text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors truncate"
                 >
-                  {s.first_name} {s.last_name} →
+                  {toTitleCase(`${s.first_name} ${s.last_name}`.trim())} →
                 </Link>
-                <span className="text-[10px] text-slate-400 shrink-0">{s.year_group ?? "—"}</span>
+                <span className="text-[10px] text-slate-400 shrink-0">{formatYearGroup(s.year_group ?? "")}</span>
               </li>
             ))}
           </ul>
@@ -1396,7 +1401,7 @@ function StudentsTab({ linkedStudentData }: { linkedStudentData: ApiLinkedStuden
         </thead>
         <tbody>
           {linkedStudentData.map((s) => {
-            const name = `${s.first_name} ${s.last_name}`.trim();
+            const name = toTitleCase(`${s.first_name} ${s.last_name}`.trim());
             return (
               <tr
                 key={s.id}
@@ -1413,8 +1418,8 @@ function StudentsTab({ linkedStudentData }: { linkedStudentData: ApiLinkedStuden
                     <p className="font-semibold text-slate-800 leading-tight">{name}</p>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{s.year_group ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-600">{s.departments?.name ?? "—"}</td>
+                <td className="px-4 py-3 text-slate-600">{formatYearGroup(s.year_group ?? "")}</td>
+                <td className="px-4 py-3 text-slate-600">{toTitleCase(s.departments?.name ?? "") }</td>
                 <td className="px-4 py-3">
                   <span className={cn(
                     "px-2 py-0.5 rounded-full text-xs font-semibold",

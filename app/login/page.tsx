@@ -4,11 +4,13 @@ import { useState, useEffect, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 import { useRole } from "@/lib/role-context";
 import { type Role } from "@/lib/role-config";
 import { createClient } from "@/lib/supabase/client";
+import { loginPanelContainer, loginPanelItem, fadeUpItem } from "@/lib/motion";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -82,6 +84,15 @@ export default function LoginPage() {
     }
   }
 
+  const shouldReduceMotion = useReducedMotion();
+  const motionProps = shouldReduceMotion
+    ? { initial: false }
+    : { variants: loginPanelContainer, initial: "initial", animate: "animate" };
+  const itemProps = shouldReduceMotion ? {} : { variants: loginPanelItem };
+  const formProps = shouldReduceMotion
+    ? {}
+    : { variants: fadeUpItem, initial: "initial", animate: "animate" };
+
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-white">
       {/* Mobile-only top bar (collapses left panel) */}
@@ -119,27 +130,36 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-between p-12 lg:p-16 w-full">
-          <div className="flex items-center gap-2">
+        {/* Content — staggered entrance */}
+        <motion.div
+          className="relative z-10 flex flex-col justify-between p-12 lg:p-16 w-full"
+          {...motionProps}
+        >
+          <motion.div className="flex items-center gap-2" {...itemProps}>
             <span className="text-white font-bold text-2xl tracking-tight">
               Enrolla
             </span>
-          </div>
+          </motion.div>
 
           <div className="max-w-lg">
-            <h1 className="text-4xl lg:text-5xl font-bold leading-[1.15] tracking-tight text-white">
+            <motion.h1
+              className="text-4xl lg:text-5xl font-bold leading-[1.15] tracking-tight text-white"
+              {...itemProps}
+            >
               The operating system for modern education centres.
-            </h1>
-            <p className="mt-5 text-base lg:text-lg text-slate-300 leading-relaxed">
+            </motion.h1>
+            <motion.p
+              className="mt-5 text-base lg:text-lg text-slate-300 leading-relaxed"
+              {...itemProps}
+            >
               Enrolla — Education Management Platform
-            </p>
+            </motion.p>
           </div>
 
-          <p className="text-xs text-slate-400 tracking-wide">
+          <motion.p className="text-xs text-slate-400 tracking-wide" {...itemProps}>
             Powered by Enrolla · v1.0
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
 
         {/* Amber accent bar on far right edge */}
         <div className="absolute top-0 right-0 h-full w-1 bg-[#F59E0B]" />
@@ -147,7 +167,7 @@ export default function LoginPage() {
 
       {/* RIGHT PANEL */}
       <div className="flex-1 flex items-center justify-center px-6 py-10 md:py-0">
-        <div className="w-full max-w-[400px] mx-auto">
+        <motion.div className="w-full max-w-[400px] mx-auto" {...formProps}>
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-[#0F172A] tracking-tight">
               Welcome back
@@ -279,7 +299,7 @@ export default function LoginPage() {
               support@enrolla.app
             </a>
           </p>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

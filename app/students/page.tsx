@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { staggerContainer, fadeUpItem } from "@/lib/motion";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -23,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
+import { toTitleCase, formatPhone, formatYearGroup, formatStudentRef } from "@/lib/formatters";
 import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import {
@@ -118,18 +121,18 @@ interface ApiStudent {
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function toStudent(raw: ApiStudent): Student {
-  const name = `${raw.first_name} ${raw.last_name}`.trim();
+  const name = toTitleCase(`${raw.first_name} ${raw.last_name}`.trim());
   const g = raw.guardians;
   const d = new Date(raw.created_at);
   return {
     id: raw.id,
     ref: raw.student_ref,
     name,
-    yearGroup: raw.year_group ?? "",
-    department: raw.departments?.name ?? "",
+    yearGroup: formatYearGroup(raw.year_group ?? ""),
+    department: toTitleCase(raw.departments?.name ?? ""),
     school: "",
-    guardian: g ? `${g.first_name} ${g.last_name}`.trim() : "",
-    guardianPhone: g?.phone ?? "",
+    guardian: g ? toTitleCase(`${g.first_name} ${g.last_name}`.trim()) : "",
+    guardianPhone: formatPhone(g?.phone ?? ""),
     guardianEmail: g?.email ?? "",
     enrolments: raw.enrolments?.filter(e => e.status === "Active").length ?? 0,
     churnScore: raw.churn_score,
@@ -459,6 +462,79 @@ function buildAddedOnPresets(): PresetItem[] {
   ];
 }
 
+// ─── Stat cards with stagger animation ───────────────────────────────────────
+
+type StatEntry = {
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  iconColor: string;
+  sub: string;
+  trend: string | null;
+  trendUp: boolean;
+};
+
+function StudentStatCards({ studentStats }: { studentStats: StatEntry[] }) {
+  const shouldReduceMotion = useReducedMotion();
+
+  if (shouldReduceMotion) {
+    return (
+      <div className="grid grid-cols-3 gap-4">
+        {studentStats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 min-h-[100px] relative">
+              <Icon className={cn("absolute top-4 right-4 w-5 h-5", stat.iconColor)} />
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1 pr-6">{stat.label}</p>
+              <p className="text-2xl font-bold text-slate-800 leading-tight mb-1">{stat.value}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-slate-400">{stat.sub}</p>
+                {stat.trend && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                    {stat.trend} this week
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      className="grid grid-cols-3 gap-4"
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      {studentStats.map((stat) => {
+        const Icon = stat.icon;
+        return (
+          <motion.div
+            key={stat.label}
+            variants={fadeUpItem}
+            className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 min-h-[100px] relative"
+          >
+            <Icon className={cn("absolute top-4 right-4 w-5 h-5", stat.iconColor)} />
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1 pr-6">{stat.label}</p>
+            <p className="text-2xl font-bold text-slate-800 leading-tight mb-1">{stat.value}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-slate-400">{stat.sub}</p>
+              {stat.trend && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                  {stat.trend} this week
+                </span>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
+    </motion.div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudentsPage() {
@@ -728,33 +804,7 @@ export default function StudentsPage() {
       />
 
       {/* ── Stat cards ────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
-        {studentStats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={stat.label}
-              className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 min-h-[100px] relative"
-            >
-              <Icon className={cn("absolute top-4 right-4 w-5 h-5", stat.iconColor)} />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1 pr-6">
-                {stat.label}
-              </p>
-              <p className="text-2xl font-bold text-slate-800 leading-tight mb-1">
-                {stat.value}
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-xs text-slate-400">{stat.sub}</p>
-                {stat.trend && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
-                    {stat.trend} this week
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <StudentStatCards studentStats={studentStats} />
 
       {/* ── Saved segments row ────────────────────────────────────────────────── */}
       {segments.length > 0 && (
@@ -968,7 +1018,7 @@ export default function StudentsPage() {
                               {student.name}
                             </p>
                             <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
-                              {student.ref}
+                              {formatStudentRef(student.ref)}
                             </p>
                           </div>
                         </div>

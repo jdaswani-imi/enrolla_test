@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { staggerContainer, fadeUpItem } from "@/lib/motion";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -682,6 +684,40 @@ function StatCard({
   );
 }
 
+// ─── Animated stat grid ────────────────────────────────────────────────────────
+
+function StaffStatGrid({ rows }: { rows: { status: string }[] }) {
+  const shouldReduceMotion = useReducedMotion();
+  const cards = [
+    { icon: UserCheck, label: "Total Staff",        value: rows.length,                                           accent: "slate" as const },
+    { icon: UserCheck, label: "Active",             value: rows.filter(s => s.status === "Active").length,       accent: "green" as const },
+    { icon: Clock,     label: "On Leave",           value: rows.filter(s => s.status === "On Leave").length,     accent: "amber" as const },
+    { icon: UserX,     label: "Pending Onboarding", value: 0,                                                    accent: "slate" as const },
+  ];
+
+  if (shouldReduceMotion) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map((c) => <StatCard key={c.label} icon={c.icon} label={c.label} value={c.value} accent={c.accent} />)}
+      </div>
+    );
+  }
+  return (
+    <motion.div
+      className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      {cards.map((c) => (
+        <motion.div key={c.label} variants={fadeUpItem}>
+          <StatCard icon={c.icon} label={c.label} value={c.value} accent={c.accent} />
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
 // ─── Filters ───────────────────────────────────────────────────────────────────
 
 const STATUS_FILTER_OPTIONS = ["Active", "On Leave", "Inactive", "Suspended", "Off-boarded"];
@@ -998,12 +1034,7 @@ function StaffPageContent() {
           )}
 
           {/* Summary strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={UserCheck} label="Total Staff"        value={rows.length}                                           accent="slate" />
-            <StatCard icon={UserCheck} label="Active"             value={rows.filter(s => s.status === 'Active').length}      accent="green" />
-            <StatCard icon={Clock}     label="On Leave"           value={rows.filter(s => s.status === 'On Leave').length}    accent="amber" />
-            <StatCard icon={UserX}     label="Pending Onboarding" value={0}                                                   accent="slate" />
-          </div>
+          <StaffStatGrid rows={rows} />
 
           {/* Filter bar */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">

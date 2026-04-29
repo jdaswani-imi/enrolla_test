@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { flyoutVariants } from "@/lib/motion";
 import {
   BarChart,
   BookOpen,
@@ -286,11 +288,16 @@ function FlyoutPanel({
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose, triggerRef]);
 
+  const shouldReduceMotion = useReducedMotion();
+
   return (
-    <div
+    <motion.div
       ref={ref}
       className="fixed left-14 top-0 h-screen w-56 bg-[#1E293B] border-r border-slate-700 z-[998] shadow-2xl flex flex-col"
-      style={{ animation: "slideInLeft 0.15s ease-out" }}
+      variants={shouldReduceMotion ? {} : flyoutVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
     >
       {/* Panel header */}
       <div className="px-4 pt-5 pb-3 border-b border-slate-700 flex-shrink-0">
@@ -339,7 +346,7 @@ function FlyoutPanel({
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -392,9 +399,11 @@ function FlyoutNavItem({
         )}
       </button>
 
-      {isOpen && (
-        <FlyoutPanel item={item} onClose={onToggle} triggerRef={buttonRef} />
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <FlyoutPanel item={item} onClose={onToggle} triggerRef={buttonRef} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { staggerContainer, fadeUpItem } from "@/lib/motion";
 import {
   List,
   LayoutGrid,
@@ -539,15 +541,23 @@ function ListSection({
         <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", badgeClass)}>{count}</span>
       </button>
 
+      <AnimatePresence>
       {!collapsed && (
-        <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+        <motion.div
+          className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          exit={{ opacity: 0, transition: { duration: 0.1 } }}
+        >
           {tasks.map((task) => {
             const isDone = doneTasks.has(task.id);
             const isHighlighted = highlightTaskId === task.id;
             return (
-              <div
+              <motion.div
                 key={task.id}
                 id={`task-${task.id}`}
+                variants={fadeUpItem}
                 onClick={() => onSelectTask(task)}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer",
@@ -658,11 +668,12 @@ function ListSection({
                 <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                   <ActionsMenu onEdit={() => onSelectTask(task)} />
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -849,6 +860,97 @@ function CalendarView({
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+
+// ─── Kanban board with animated columns ───────────────────────────────────────
+
+function KanbanBoard({
+  kanbanTodo, kanbanInProgress, kanbanDone,
+  dragOverCol, setDragOverCol, setDraggingId,
+  handleKanbanDrop, setSelectedTask, doneTasks,
+}: {
+  kanbanTodo: Task[];
+  kanbanInProgress: Task[];
+  kanbanDone: Task[];
+  dragOverCol: "todo" | "inprogress" | "done" | null;
+  setDragOverCol: (col: "todo" | "inprogress" | "done" | null) => void;
+  setDraggingId: (id: string | null) => void;
+  handleKanbanDrop: (col: "todo" | "inprogress" | "done") => void;
+  setSelectedTask: (task: Task) => void;
+  doneTasks: Set<string>;
+}) {
+  const shouldReduceMotion = useReducedMotion();
+
+  const columns = [
+    {
+      key: "todo" as const,
+      label: "To Do",
+      tasks: kanbanTodo,
+      badgeCls: "bg-red-100 text-red-700",
+      dropHighlight: "bg-red-50 ring-2 ring-red-200 ring-inset",
+    },
+    {
+      key: "inprogress" as const,
+      label: "In Progress",
+      tasks: kanbanInProgress,
+      badgeCls: "bg-amber-100 text-amber-700",
+      dropHighlight: "bg-amber-50 ring-2 ring-amber-200 ring-inset",
+    },
+    {
+      key: "done" as const,
+      label: "Done",
+      tasks: kanbanDone,
+      badgeCls: "bg-emerald-100 text-emerald-700",
+      dropHighlight: "bg-emerald-50 ring-2 ring-emerald-200 ring-inset",
+    },
+  ];
+
+  return (
+    <motion.div
+      className="px-6 py-5 flex gap-5 items-start overflow-x-auto"
+      variants={shouldReduceMotion ? {} : staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      {columns.map((col) => (
+        <motion.div
+          key={col.key}
+          variants={shouldReduceMotion ? {} : fadeUpItem}
+          className={cn(
+            "flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors",
+            dragOverCol === col.key && col.dropHighlight
+          )}
+          onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
+          onDrop={(e) => { e.preventDefault(); handleKanbanDrop(col.key); }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-slate-700">{col.label}</h3>
+            <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", col.badgeCls)}>{col.tasks.length}</span>
+          </div>
+          <motion.div
+            className="space-y-2"
+            variants={shouldReduceMotion ? {} : staggerContainer}
+          >
+            {col.tasks.map((task) => (
+              <motion.div key={task.id} variants={shouldReduceMotion ? {} : fadeUpItem}>
+                <KanbanCard
+                  task={task}
+                  isDone={col.key === "done" || doneTasks.has(task.id)}
+                  onClick={() => setSelectedTask(task)}
+                  onDragStart={() => setDraggingId(task.id)}
+                  onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+                />
+              </motion.div>
+            ))}
+            {col.tasks.length === 0 && (
+              <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>
+            )}
+          </motion.div>
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
 
 type ViewMode = "list" | "kanban" | "calendar";
 
@@ -1277,91 +1379,17 @@ export default function TasksPage() {
 
         {/* KANBAN */}
         {view === "kanban" && (
-          <div className="px-6 py-5 flex gap-5 items-start overflow-x-auto">
-            {/* To Do */}
-            <div
-              className={cn("flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors", dragOverCol === "todo" && "bg-red-50 ring-2 ring-red-200 ring-inset")}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol("todo"); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
-              onDrop={(e) => { e.preventDefault(); handleKanbanDrop("todo"); }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">To Do</h3>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">{kanbanTodo.length}</span>
-              </div>
-              <div className="space-y-2">
-                {kanbanTodo.map((task) => (
-                  <KanbanCard
-                    key={task.id}
-                    task={task}
-                    isDone={false}
-                    onClick={() => setSelectedTask(task)}
-                    onDragStart={() => setDraggingId(task.id)}
-                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                  />
-                ))}
-                {kanbanTodo.length === 0 && (
-                  <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>
-                )}
-              </div>
-            </div>
-
-            {/* In Progress */}
-            <div
-              className={cn("flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors", dragOverCol === "inprogress" && "bg-amber-50 ring-2 ring-amber-200 ring-inset")}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol("inprogress"); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
-              onDrop={(e) => { e.preventDefault(); handleKanbanDrop("inprogress"); }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">In Progress</h3>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{kanbanInProgress.length}</span>
-              </div>
-              <div className="space-y-2">
-                {kanbanInProgress.map((task) => (
-                  <KanbanCard
-                    key={task.id}
-                    task={task}
-                    isDone={false}
-                    onClick={() => setSelectedTask(task)}
-                    onDragStart={() => setDraggingId(task.id)}
-                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                  />
-                ))}
-                {kanbanInProgress.length === 0 && (
-                  <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>
-                )}
-              </div>
-            </div>
-
-            {/* Done */}
-            <div
-              className={cn("flex-1 min-w-[260px] rounded-xl p-2 -m-2 transition-colors", dragOverCol === "done" && "bg-emerald-50 ring-2 ring-emerald-200 ring-inset")}
-              onDragOver={(e) => { e.preventDefault(); setDragOverCol("done"); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(null); }}
-              onDrop={(e) => { e.preventDefault(); handleKanbanDrop("done"); }}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">Done</h3>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{kanbanDone.length}</span>
-              </div>
-              <div className="space-y-2">
-                {kanbanDone.map((task) => (
-                  <KanbanCard
-                    key={task.id}
-                    task={task}
-                    isDone={true}
-                    onClick={() => setSelectedTask(task)}
-                    onDragStart={() => setDraggingId(task.id)}
-                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
-                  />
-                ))}
-                {kanbanDone.length === 0 && (
-                  <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-xs text-slate-400">No tasks</div>
-                )}
-              </div>
-            </div>
-          </div>
+          <KanbanBoard
+            kanbanTodo={kanbanTodo}
+            kanbanInProgress={kanbanInProgress}
+            kanbanDone={kanbanDone}
+            dragOverCol={dragOverCol}
+            setDragOverCol={setDragOverCol}
+            setDraggingId={setDraggingId}
+            handleKanbanDrop={handleKanbanDrop}
+            setSelectedTask={setSelectedTask}
+            doneTasks={doneTasks}
+          />
         )}
 
         {/* CALENDAR */}

@@ -33,6 +33,16 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
 import { AccessDenied } from "@/components/ui/access-denied";
+import {
+  toTitleCase,
+  formatDob,
+  formatDateShort,
+  formatGender,
+  formatPhone,
+  formatYearGroup,
+  formatAed,
+  displayValue,
+} from "@/lib/formatters";
 // ─── Inline types (previously from mock-data) ─────────────────────────────────
 
 type StudentInvoice = {
@@ -259,26 +269,6 @@ function yearGroupToDepartment(yg: string): string {
   return "Senior";
 }
 
-function computeAge(dob: string): number {
-  if (!dob) return 0;
-  const parts = dob.split("-").map(Number);
-  if (parts.length !== 3 || parts.some(isNaN)) return 0;
-  const [y, m, d] = parts;
-  const today = new Date();
-  let age = today.getFullYear() - y;
-  const monthDiff = today.getMonth() + 1 - m;
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) age--;
-  return age;
-}
-
-function formatDob(dob: string): string {
-  if (!dob) return "—";
-  const parts = dob.split("-").map(Number);
-  if (parts.length !== 3 || parts.some(isNaN)) return dob;
-  const [y, m, d] = parts;
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${d} ${months[m - 1]} ${y} (Age ${computeAge(dob)})`;
-}
 
 function getInitials(first: string, last: string): string {
   if (!first && !last) return "?";
@@ -315,23 +305,11 @@ function parseAedAmount(amount: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function formatAed(n: number): string {
-  return `AED ${n.toLocaleString()}`;
-}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatDateShort(iso: string): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const date = new Date(y, m - 1, d);
-  return `${days[date.getDay()]} ${d} ${months[m - 1]}`;
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -416,12 +394,9 @@ function ProfileHeader({
   const router = useRouter();
   const [openDialog, setOpenDialog] = useState<HeaderAction | null>(null);
   const { can } = usePermission();
-  const displayName = `${profile.firstName} ${profile.lastName}`.trim();
-  const yearLabel = !profile.yearGroup ? "" :
-    profile.yearGroup.startsWith("KG") ? profile.yearGroup :
-    /^Year\s+\d+$/i.test(profile.yearGroup) ? profile.yearGroup :
-    /^Y\d+$/.test(profile.yearGroup) ? `Year ${profile.yearGroup.slice(1)}` :
-    profile.yearGroup;
+  const rawName = `${profile.firstName} ${profile.lastName}`.trim();
+  const displayName = rawName ? toTitleCase(rawName) : rawName;
+  const yearLabel = formatYearGroup(profile.yearGroup);
   const department = yearGroupToDepartment(profile.yearGroup);
 
   const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void; show?: boolean }[] = [
@@ -1943,7 +1918,7 @@ function LeftSidebar({
 }) {
   const { can } = usePermission();
   const primaryGuardian = profile.primaryGuardianName
-    ? { id: profile.primaryGuardianId, name: profile.primaryGuardianName }
+    ? { id: profile.primaryGuardianId, name: toTitleCase(profile.primaryGuardianName) }
     : guardians.find((g) => g.id === profile.primaryGuardianId);
   const secondaryGuardian = guardians.find((g) => g.id === profile.secondaryGuardianId);
   const department = yearGroupToDepartment(profile.yearGroup);
@@ -2014,11 +1989,11 @@ function LeftSidebar({
         <dl className="space-y-1.5">
           {[
             { label: "Date of Birth", value: formatDob(profile.dob) },
-            { label: "Gender",        value: profile.gender },
-            { label: "Nationality",   value: profile.nationality || "—" },
-            { label: "Phone",         value: profile.phone || "—" },
-            { label: "WhatsApp",      value: profile.whatsappSame ? "✓ Same number" : (profile.whatsapp || "—") },
-            { label: "Email",         value: profile.email || "—" },
+            { label: "Gender",        value: formatGender(profile.gender) },
+            { label: "Nationality",   value: displayValue(profile.nationality) },
+            { label: "Phone",         value: formatPhone(profile.phone) },
+            { label: "WhatsApp",      value: profile.whatsappSame ? "✓ Same number" : formatPhone(profile.whatsapp) },
+            { label: "Email",         value: displayValue(profile.email) },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col">
               <dt className="text-[10px] text-slate-400 leading-none">{label}</dt>
@@ -2036,7 +2011,7 @@ function LeftSidebar({
         <dl className="space-y-1.5">
           <div>
             <dt className="text-[10px] text-slate-400">Year Group</dt>
-            <dd className="text-xs text-slate-700 font-medium mt-0.5">{profile.yearGroup}</dd>
+            <dd className="text-xs text-slate-700 font-medium mt-0.5">{formatYearGroup(profile.yearGroup)}</dd>
           </div>
           <div>
             <dt className="text-[10px] text-slate-400">School</dt>

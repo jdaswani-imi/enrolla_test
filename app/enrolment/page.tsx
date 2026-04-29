@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { staggerContainer, fadeUpItem } from "@/lib/motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -271,6 +273,29 @@ function SessionsProgress({ total, remaining }: { total: number; remaining: numb
         />
       </div>
     </div>
+  );
+}
+
+// ─── Animated stat card grid ──────────────────────────────────────────────────
+
+function EnrolmentStatGrid({ cols, children }: { cols: string; children: React.ReactNode }) {
+  const shouldReduceMotion = useReducedMotion();
+  if (shouldReduceMotion) {
+    return <div className={`grid gap-4 ${cols}`}>{children}</div>;
+  }
+  return (
+    <motion.div
+      className={`grid gap-4 ${cols}`}
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      {Array.isArray(children)
+        ? children.map((child, i) => (
+            <motion.div key={i} variants={fadeUpItem}>{child}</motion.div>
+          ))
+        : <motion.div variants={fadeUpItem}>{children}</motion.div>}
+    </motion.div>
   );
 }
 
@@ -612,12 +637,12 @@ function ActiveEnrolmentsTab() {
   return (
     <div className="space-y-5">
       {/* Summary strip */}
-      <div className="grid grid-cols-4 gap-4">
+      <EnrolmentStatGrid cols="grid-cols-4">
         <StatCard label="Active Enrolments" value={loading ? "—" : enrolments.filter(e => e.enrolmentStatus === "Active").length} />
         <StatCard label="New This Term"      value="0" />
         <StatCard label="Pending Payment"    value={loading ? "—" : enrolments.filter(e => e.invoiceStatus === "Pending").length} accent="amber" />
         <StatCard label="Expiring This Week" value={loading ? "—" : enrolments.filter(e => e.enrolmentStatus === "Expiring").length} accent="red"   />
-      </div>
+      </EnrolmentStatGrid>
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -907,11 +932,11 @@ function TrialsTab() {
   return (
     <div className="space-y-5">
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <EnrolmentStatGrid cols="grid-cols-3">
         <StatCard label="Trials This Term"        value={loadingTrials ? "—" : localTrials.length} />
         <StatCard label="Pending Outcome"         value={loadingTrials ? "—" : localTrials.filter(t => t.outcome === "Pending").length} accent="amber" />
         <StatCard label="Converted to Enrolment"  value={loadingTrials ? "—" : localTrials.filter(t => t.outcome === "Converted").length} />
-      </div>
+      </EnrolmentStatGrid>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -1101,10 +1126,10 @@ function WithdrawalsTab() {
     <div className="space-y-5">
       {/* Summary */}
       <div className="flex items-start justify-between gap-4">
-        <div className="grid grid-cols-2 gap-4 flex-1">
+        <EnrolmentStatGrid cols="grid-cols-2 flex-1">
           <StatCard label="Withdrawn This Term" value={localWithdrawals.filter(w => w.recordStatus !== "Resolved").length} />
           <StatCard label="Pending Withdrawal"  value={localWithdrawals.filter(w => w.withdrawalDate === "Pending").length} accent="amber" />
-        </div>
+        </EnrolmentStatGrid>
         <div className="pt-1">
           <button
             type="button"
