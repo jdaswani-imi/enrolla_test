@@ -14,7 +14,7 @@ export default defineConfig({
   projects: [
     {
       name: 'smoke',
-      testMatch: /smoke\.spec\.ts|rbac\.spec\.ts|deep\.spec\.ts/,
+      testMatch: /smoke\.spec\.ts|rbac\.spec\.ts|deep\.spec\.ts|backend-integration\.spec\.ts|auth-flow\.spec\.ts/,
     },
     {
       name: 'responsive-visual',

@@ -843,3 +843,36 @@ All actions and messages throughout the app are now attributed to the **actually
 The user-identity cache (`useCurrentUser`) is now scoped per Supabase user ID in sessionStorage, preventing any previous user's cached name from leaking across logins in the same browser tab.
 
 *This document is automatically updated before every commit to reflect the current state of the app.*
+
+---
+
+## Security & API Hardening (QA Audit — 2026-04-30)
+
+A comprehensive security and quality audit was completed. The following changes were applied:
+
+### Authentication & Middleware
+The middleware (`proxy.ts`) correctly enforces authentication on all non-public routes, redirecting unauthenticated users to `/login` and returning 401 for unauthenticated API requests. Public routes are: `/login`, `/auth/*`, `/welcome`, `/reset-password`.
+
+### Tenant Isolation Fixes
+`GET`, `PATCH`, and `DELETE` on individual student and guardian records now filter by `tenant_id` in addition to `id`. Without this filter, any authenticated user could access records from other tenants via direct UUID requests.
+
+### API-Layer RBAC
+A `requireRole()` helper was added to the auth utilities. It is now applied to the following mutations:
+
+- **DELETE student** — requires `super_admin`
+- **PATCH org settings** — requires `super_admin`
+- **Create/update/delete branches, departments, academic years, rooms, task groups, calendar periods, public holidays, org logo** — requires `super_admin` or `admin_head`
+
+The database layer already enforces some RBAC via migration 031. The API layer now provides a second, independent enforcement point.
+
+### Security Headers
+The following HTTP security headers are now added to all responses: Content-Security-Policy (restricts scripts, styles, images, and connections to trusted origins), X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy, and Permissions-Policy.
+
+### Test Coverage
+Two new E2E test files were added: `backend-integration.spec.ts` (verifies every API route returns 401 without auth, with skipped tests for RBAC 403 checks and multi-tenant isolation) and `auth-flow.spec.ts` (verifies middleware redirects, login page, public routes, auth callback error handling, and authenticated session management). Tests requiring credentials are skipped with documentation of the required environment variables.
+
+### Known Remaining Gaps (require product decisions or credentials)
+- No input validation (zod) on POST/PATCH request bodies — add schema validation to prevent field-level injection.
+- Finance prototype stubs — download PDF, apply credit, and report queue buttons show toasts but do not call any API yet.
+- No `error.tsx` on most routes — add incrementally to improve error UX.
+- Inngest not configured — no background job system; automations have no async execution layer.

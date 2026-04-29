@@ -23,6 +23,56 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            // Supabase, Google Fonts, and the app's own origin are the only trusted sources.
+            // Inline styles/scripts are disallowed except where explicitly permitted below.
+            value: [
+              "default-src 'self'",
+              // Scripts: only from self; Next.js needs 'unsafe-eval' in dev only
+              "script-src 'self' 'unsafe-inline'",
+              // Styles: self + Google Fonts + inline (Tailwind injects inline styles)
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              // Fonts
+              "font-src 'self' https://fonts.gstatic.com",
+              // Images: self + Supabase storage + data URIs
+              "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in",
+              // Connections: Supabase API/Realtime + self
+              "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co",
+              // Frames: disallow all
+              "frame-ancestors 'none'",
+              // Form submissions only to self
+              "form-action 'self'",
+              // HTTPS upgrade
+              "upgrade-insecure-requests",
+            ].join("; "),
+          },
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

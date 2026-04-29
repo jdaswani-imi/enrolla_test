@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
-import { requireAuth } from '@/lib/supabase/route-auth'
+import { requireAuth, requireRole } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['super_admin', 'admin_head'])
   if (!auth.ok) return auth.response
   const body = await request.json()
   const { name, address = '', phone = '', email = '', location_url = '', currency = 'AED' } = body

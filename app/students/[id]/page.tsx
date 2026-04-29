@@ -3763,12 +3763,13 @@ function StudentProfilePageContent() {
     fetch(`/api/students/${routeId}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(({ data }) => {
-        const enrolments: any[] = data.enrolments ?? [];
-        const activeEnrolments = enrolments.filter((e: any) => e.status === "Active");
+        type EnrolmentRow = { id: string; status: string; sessions_remaining?: number; subjects?: { year_groups?: { name?: string } } }
+        const enrolments: EnrolmentRow[] = data.enrolments ?? [];
+        const activeEnrolments = enrolments.filter((e) => e.status === "Active");
         const firstActive = activeEnrolments[0] ?? enrolments[0];
         const yearGroupName: string = firstActive?.subjects?.year_groups?.name ?? "";
         const totalSessionsRemaining = activeEnrolments.reduce(
-          (sum: number, e: any) => sum + (e.sessions_remaining ?? 0), 0
+          (sum: number, e) => sum + (e.sessions_remaining ?? 0), 0
         );
         const rawStatus: string = data.status ?? "";
         const displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();

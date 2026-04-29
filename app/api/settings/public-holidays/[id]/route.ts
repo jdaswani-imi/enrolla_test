@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { TENANT_ID } from '@/lib/api-constants'
-import { requireAuth } from '@/lib/supabase/route-auth'
+import { requireAuth, requireRole } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,7 +9,7 @@ const supabase = createClient(
 )
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['super_admin', 'admin_head'])
   if (!auth.ok) return auth.response
   const { id } = await params
 

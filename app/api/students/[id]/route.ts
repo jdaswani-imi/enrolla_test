@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/supabase/route-auth'
+import { TENANT_ID } from '@/lib/api-constants'
+import { requireAuth, requireRole } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +33,7 @@ export async function GET(
       )`
     )
     .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
     .single()
 
   if (error) {
@@ -41,7 +43,7 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Enrich enrolments with computed sessions from the view (never read sessions_remaining from the stored column)
+  // Enrich enrolments with computed sessions from the view
   const enrolmentIds: string[] = (data.enrolments ?? []).map((e: { id: string }) => e.id)
   if (enrolmentIds.length > 0) {
     const { data: sessionRows } = await supabase
@@ -52,8 +54,7 @@ export async function GET(
     const sessionsMap = new Map(
       (sessionRows ?? []).map((s) => [s.enrolment_id, s])
     )
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data.enrolments = data.enrolments.map((e: any) => ({
+    data.enrolments = data.enrolments.map((e: { id: string; [key: string]: unknown }) => ({
       ...e,
       sessions_paid: sessionsMap.get(e.id)?.sessions_paid ?? 0,
       sessions_attended: sessionsMap.get(e.id)?.sessions_attended ?? 0,
@@ -92,6 +93,7 @@ export async function PATCH(
     .from('students')
     .update({ ...body, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
     .select()
     .single()
 
@@ -109,7 +111,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth()
+  // Only Super Admin may permanently delete a student
+  const auth = await requireRole(['super_admin'])
   if (!auth.ok) return auth.response
   const { id } = await params
 
@@ -118,6 +121,7 @@ export async function DELETE(
     .from('students')
     .select('id, status')
     .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
     .single()
 
   if (fetchErr || !student) {
@@ -135,6 +139,7 @@ export async function DELETE(
     .from('enrolments')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', id)
+    .eq('tenant_id', TENANT_ID)
 
   if (enrolCount && enrolCount > 0) {
     return NextResponse.json(
@@ -148,6 +153,7 @@ export async function DELETE(
     .from('attendance_records')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', id)
+    .eq('tenant_id', TENANT_ID)
 
   if (attCount && attCount > 0) {
     return NextResponse.json(
@@ -161,6 +167,7 @@ export async function DELETE(
     .from('invoices')
     .select('id', { count: 'exact', head: true })
     .eq('student_id', id)
+    .eq('tenant_id', TENANT_ID)
 
   if (invCount && invCount > 0) {
     return NextResponse.json(
@@ -173,6 +180,7 @@ export async function DELETE(
     .from('students')
     .delete()
     .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
 
   if (delErr) {
     return NextResponse.json({ error: delErr.message }, { status: 500 })

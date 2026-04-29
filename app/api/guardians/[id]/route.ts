@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { TENANT_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
@@ -33,6 +34,7 @@ export async function GET(
       )
     `)
     .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
     .single()
 
   if (error) {
@@ -65,6 +67,7 @@ export async function PATCH(
     .from('guardians')
     .update({ ...body, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('tenant_id', TENANT_ID)
     .select()
     .single()
 
