@@ -45,6 +45,7 @@ import {
   Mail,
   SlidersHorizontal,
   Trash2,
+  ArrowDown,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -1769,9 +1770,12 @@ function EmbeddedTeamChat({
   const [staffNames, setStaffNames] = useState<string[]>(CHAT_STAFF);
   const [activeStaffNames, setActiveStaffNames] = useState<Set<string>>(new Set());
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const mentionInputRef = useRef<MentionInputRef>(null);
+  const isNearBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
 
   // Fetch all staff for assignee picker and mention rendering.
   // No status filter — invited/on_leave staff should still be mentionable.
@@ -1836,9 +1840,32 @@ function EmbeddedTeamChat({
     return () => { supabase.removeChannel(channel); };
   }, [lead.id]);
 
+  // Track whether user is near the bottom of the chat scroll container
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    function onScroll() {
+      if (!el) return;
+      isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      if (isNearBottomRef.current) setNewMessagesCount(0);
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll to bottom on new messages only when already near bottom
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const added = messages.length > prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+    if (!added) return;
+    if (isNearBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+      setNewMessagesCount(0);
+    } else {
+      setNewMessagesCount((c) => c + 1);
+    }
   }, [messages]);
 
   // Scroll to a specific message and apply highlight (triggered by notification click)
@@ -2007,10 +2034,9 @@ function EmbeddedTeamChat({
     sendMessage({ extraChips: [chip] });
   }
 
-  // Render rows with day dividers + consecutive grouping
+  // Render rows with day dividers — each message is its own card (ClickUp style)
   const rows: React.ReactNode[] = [];
   let lastDay: string | null = null;
-  let lastAuthor: string | null = null;
   messages.forEach((m) => {
     if (m.day !== lastDay) {
       rows.push(
@@ -2020,9 +2046,7 @@ function EmbeddedTeamChat({
           <div className="flex-1 h-px bg-slate-200" />
         </div>,
       );
-      lastAuthor = null;
     }
-    const grouped = m.author === lastAuthor && m.day === lastDay;
     const palette = getAvatarPalette(m.author);
     const isOwn = m.author === chatCurrentUser;
     rows.push(
@@ -2030,139 +2054,132 @@ function EmbeddedTeamChat({
         key={m.id}
         data-message-id={m.id}
         className={cn(
-          "group relative flex gap-2 px-3 py-1",
-          highlightedMessageId === m.id && "mention-highlight-active",
+          "group relative rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all",
+          highlightedMessageId === m.id && "mention-highlight-active ring-2 ring-amber-300 border-amber-200",
         )}
         onMouseEnter={() => setHoverMsgId(m.id)}
         onMouseLeave={() => setHoverMsgId((cur) => (cur === m.id ? null : cur))}
       >
-        <div className="w-7 shrink-0">
-          {grouped ? (
-            <span
-              className={cn(
-                "block text-[10px] text-slate-400 text-right pr-1 pt-1 transition-opacity",
-                hoverMsgId === m.id ? "opacity-100" : "opacity-0",
-              )}
-            >
-              {m.time}
-            </span>
-          ) : (
+        {/* Card header: avatar + name + time + action buttons */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div
               className={cn(
-                "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold",
+                "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
                 palette.bg,
                 palette.text,
               )}
             >
               {getInitials(m.author)}
             </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          {!grouped && (
-            <div className="flex items-baseline gap-1.5">
-              <span
-                className={cn(
-                  "text-xs font-semibold",
-                  isOwn ? "text-amber-600" : "text-slate-700",
-                )}
+            <span className={cn("text-xs font-semibold truncate", isOwn ? "text-amber-600" : "text-slate-800")}>
+              {m.author}
+            </span>
+            <span className="text-[10px] text-slate-400 shrink-0">{m.time}</span>
+          </div>
+
+          {/* Action buttons — fade in on hover, live inside the card */}
+          <div
+            data-chat-popover
+            className={cn(
+              "flex items-center gap-1 shrink-0 transition-opacity",
+              hoverMsgId === m.id || reactionPickerFor === m.id ? "opacity-100" : "opacity-0 pointer-events-none",
+            )}
+          >
+            {/* Emoji reaction picker */}
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Add reaction"
+                onClick={() => setReactionPickerFor((cur) => (cur === m.id ? null : m.id))}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs hover:bg-slate-100 cursor-pointer transition-colors"
               >
-                {m.author}
-              </span>
-              <span className="text-[10px] text-slate-400">· {m.time}</span>
+                <span>😊</span>
+                <Plus className="w-3 h-3 text-slate-400" />
+              </button>
+              {reactionPickerFor === m.id && (
+                <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 flex gap-0.5">
+                  {CHAT_EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => toggleReaction(m.id, e)}
+                      className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer text-base"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-          {m.chips.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {m.chips.map((chip) => (
-                <ChatChipPill key={chip.id} chip={chip} onClick={() => handleChipClick(chip)} />
-              ))}
-            </div>
-          )}
-          {m.text && (
-            <p className="text-sm text-slate-600 leading-snug mt-0.5 whitespace-pre-wrap break-words">
-              {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser)}
-            </p>
-          )}
-          {Object.keys(m.reactions).length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {Object.entries(m.reactions).map(([emoji, users]) => {
-                const own = users.includes(chatCurrentUser);
-                return (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => toggleReaction(m.id, emoji)}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer",
-                      own
-                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                    )}
-                  >
-                    <span>{emoji}</span>
-                    <span className="font-medium">{users.length}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        {/* Quick-react + delete on hover */}
-        <div
-          data-chat-popover
-          className={cn(
-            "absolute right-3 -top-2 flex items-center gap-1 transition-opacity",
-            hoverMsgId === m.id || reactionPickerFor === m.id ? "opacity-100" : "opacity-0 pointer-events-none",
-          )}
-        >
-          {isOwn && (
-            <button
-              type="button"
-              aria-label="Delete message"
-              onClick={() => deleteMessage(m.id)}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm w-6 h-6 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors"
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          )}
-          <div className="relative">
-            <button
-              type="button"
-              aria-label="Add reaction"
-              onClick={() =>
-                setReactionPickerFor((cur) => (cur === m.id ? null : m.id))
-              }
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white shadow-sm px-1.5 py-0.5 text-xs hover:bg-slate-50 cursor-pointer"
-            >
-              <span>👍</span>
-              <Plus className="w-3 h-3 text-slate-400" />
-            </button>
-            {reactionPickerFor === m.id && (
-              <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 flex gap-0.5">
-                {CHAT_EMOJIS.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => toggleReaction(m.id, e)}
-                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer text-base"
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
+            {/* Delete (own messages only) */}
+            {isOwn && (
+              <button
+                type="button"
+                aria-label="Delete message"
+                onClick={() => deleteMessage(m.id)}
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 w-6 h-6 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
             )}
           </div>
         </div>
+
+        {/* Attached chips */}
+        {m.chips.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {m.chips.map((chip) => (
+              <ChatChipPill key={chip.id} chip={chip} onClick={() => handleChipClick(chip)} />
+            ))}
+          </div>
+        )}
+
+        {/* Message text */}
+        {m.text && (
+          <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap break-words">
+            {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser)}
+          </p>
+        )}
+
+        {/* Reaction pills */}
+        {Object.keys(m.reactions).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {Object.entries(m.reactions).map(([emoji, users]) => {
+              const own = users.includes(chatCurrentUser);
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => toggleReaction(m.id, emoji)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors cursor-pointer",
+                    own
+                      ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                  )}
+                >
+                  <span>{emoji}</span>
+                  <span className="font-medium">{users.length}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>,
     );
     lastDay = m.day;
-    lastAuthor = m.author;
   });
+
+  function scrollToBottom() {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    setNewMessagesCount(0);
+  }
 
   return (
     <>
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         {/* Unified scroll: timeline content + chat messages */}
         <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-2 space-y-5">
           {timelineContent}
@@ -2178,9 +2195,23 @@ function EmbeddedTeamChat({
               <div className="py-4 text-center">
                 <p className="text-xs text-slate-400">No messages yet. Start the conversation with the team.</p>
               </div>
-            ) : rows}
+            ) : <div className="space-y-2">{rows}</div>}
           </div>
         </div>
+
+        {/* New replies banner — appears when scrolled up and new messages arrive */}
+        {newMessagesCount > 0 && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold shadow-lg hover:bg-amber-600 cursor-pointer transition-colors"
+            >
+              <ArrowDown className="w-3 h-3" />
+              {newMessagesCount} new {newMessagesCount === 1 ? "reply" : "replies"}
+            </button>
+          </div>
+        )}
 
         {/* Input pinned at bottom */}
         <div className="shrink-0 border-t border-slate-200 bg-white">

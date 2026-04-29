@@ -134,10 +134,7 @@ function UserMenu() {
     setOpen(false);
     const supabase = createClient();
     await supabase.auth.signOut();
-    toast.success("Signed out successfully", { duration: 1500 });
-    setTimeout(() => {
-      router.push("/login");
-    }, 1500);
+    router.push("/login");
   }
 
   return (
