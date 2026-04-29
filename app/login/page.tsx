@@ -33,7 +33,8 @@ export default function LoginPage() {
   }, []);
 
   // If Supabase drops tokens in the hash (invite / magic-link / implicit flow),
-  // hand off to /auth/callback which knows how to exchange them for a session.
+  // hand off to /auth/hash-callback which can read the hash client-side.
+  // (The route handler at /auth/callback only handles PKCE ?code= flows.)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash.substring(1);
@@ -45,7 +46,7 @@ export default function LoginPage() {
       type === "invite"   ? "/welcome" :
       type === "recovery" ? "/reset-password" :
       "/dashboard";
-    router.replace(`/auth/callback?next=${next}${window.location.hash}`);
+    router.replace(`/auth/hash-callback?next=${next}${window.location.hash}`);
   }, [router]);
 
   async function handleSignIn(e?: FormEvent) {
