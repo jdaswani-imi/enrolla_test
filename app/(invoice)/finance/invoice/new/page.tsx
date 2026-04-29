@@ -14,6 +14,7 @@ interface Invoice { id: string; studentId: string; student: string; yearGroup: s
 interface StaffStub { id: string; name: string; }
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
+import { useCurrentUser } from '@/lib/use-current-user';
 import { useJourney, BILAL_STUDENT_ID, enrolmentRateFor } from '@/lib/journey-store';
 import { RecordPaymentDialog } from '@/components/journey/record-payment-dialog';
 
@@ -394,6 +395,7 @@ function PDFPreview({
 export default function NewInvoicePage() {
   const router = useRouter();
   const { can } = usePermission();
+  const currentUser = useCurrentUser();
   const today = todayStr();
   const [students, setStudents] = useState<Student[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -424,7 +426,10 @@ export default function NewInvoicePage() {
 
   const [issueDate, setIssueDate] = useState(today);
   const [dueDate, setDueDate] = useState(addDays(today, 7));
-  const [invoicedBy, setInvoicedBy] = useState('Jason Daswani');
+  const [invoicedBy, setInvoicedBy] = useState('');
+  useEffect(() => {
+    if (currentUser.name) setInvoicedBy(prev => prev || currentUser.name);
+  }, [currentUser.name]);
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 

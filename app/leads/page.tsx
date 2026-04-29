@@ -1083,7 +1083,6 @@ const DETAIL_TIMELINE: { label: string; text: string; dot: string }[] = [];
 // ─── Embedded Team Chat (types, seed, component) ──────────────────────────────
 
 const CHAT_STAFF: string[] = [];
-const CHAT_CURRENT_USER = "Jason Daswani";
 const CHAT_EMOJIS = ["👍", "❤️", "😂", "🎉", "🙏", "🔥", "✅", "👀"];
 
 type ChatChipKind = "student" | "invoice" | "task";
@@ -1352,6 +1351,7 @@ function CreateTaskDialogBody({
   onCreate: (chip: ChatChip) => void;
   staffNames?: string[];
 }) {
+  const { name: chatCurrentUser } = useCurrentUser();
   const defaultDue = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 2);
@@ -1359,11 +1359,15 @@ function CreateTaskDialogBody({
   }, []);
   const [title, setTitle] = useState(`Follow up with ${lead.childName}`);
   const [priority, setPriority] = useState<"Low" | "Medium" | "High">("Medium");
-  const [assignees, setAssignees] = useState<string[]>([CHAT_CURRENT_USER]);
+  const [assignees, setAssignees] = useState<string[]>([]);
   const [assigneeQuery, setAssigneeQuery] = useState("");
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
   const assigneeBoxRef = useRef<HTMLDivElement>(null);
   const [dueDate, setDueDate] = useState(defaultDue);
+
+  useEffect(() => {
+    if (chatCurrentUser) setAssignees(prev => prev.length === 0 ? [chatCurrentUser] : prev);
+  }, [chatCurrentUser]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -1726,6 +1730,7 @@ function EmbeddedTeamChat({
   scrollToMessageId?: { id: string; seq: number } | null;
 }) {
   const router = useRouter();
+  const { name: chatCurrentUser } = useCurrentUser();
   const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialChat(lead.id));
   const [draftChips, setDraftChips] = useState<ChatChip[]>([]);
   const [chatEmpty, setChatEmpty] = useState(true);
@@ -1823,7 +1828,7 @@ function EmbeddedTeamChat({
       ...cur,
       {
         id: msgId,
-        author: CHAT_CURRENT_USER,
+        author: chatCurrentUser,
         day: "Today",
         time,
         text: content.text,
@@ -1854,7 +1859,7 @@ function EmbeddedTeamChat({
         }
       }
       // Sender never receives their own notification
-      recipientIds.delete(CHAT_CURRENT_USER);
+      recipientIds.delete(chatCurrentUser);
 
       for (const recipientId of recipientIds) {
         pushNotification({
@@ -1865,7 +1870,7 @@ function EmbeddedTeamChat({
           href: `/leads?leadId=${lead.id}&messageId=${msgId}`,
           unread: true,
           mention: true,
-          senderName: CHAT_CURRENT_USER,
+          senderName: chatCurrentUser,
           leadId: lead.id,
           messageId: msgId,
           timestamp: ts,
@@ -1894,8 +1899,8 @@ function EmbeddedTeamChat({
       cur.map((m) => {
         if (m.id !== msgId) return m;
         const users = m.reactions[emoji] ?? [];
-        const had = users.includes(CHAT_CURRENT_USER);
-        const nextUsers = had ? users.filter((u) => u !== CHAT_CURRENT_USER) : [...users, CHAT_CURRENT_USER];
+        const had = users.includes(chatCurrentUser);
+        const nextUsers = had ? users.filter((u) => u !== chatCurrentUser) : [...users, chatCurrentUser];
         const nextReactions = { ...m.reactions };
         if (nextUsers.length === 0) delete nextReactions[emoji];
         else nextReactions[emoji] = nextUsers;
@@ -1934,7 +1939,7 @@ function EmbeddedTeamChat({
     }
     const grouped = m.author === lastAuthor && m.day === lastDay;
     const palette = getAvatarPalette(m.author);
-    const isOwn = m.author === CHAT_CURRENT_USER;
+    const isOwn = m.author === chatCurrentUser;
     rows.push(
       <div
         key={m.id}
@@ -1991,13 +1996,13 @@ function EmbeddedTeamChat({
           )}
           {m.text && (
             <p className="text-sm text-slate-600 leading-snug mt-0.5 whitespace-pre-wrap break-words">
-              {formatMentionText(m.text, m.mentions, activeStaffNames, CHAT_CURRENT_USER)}
+              {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser)}
             </p>
           )}
           {Object.keys(m.reactions).length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
               {Object.entries(m.reactions).map(([emoji, users]) => {
-                const own = users.includes(CHAT_CURRENT_USER);
+                const own = users.includes(chatCurrentUser);
                 return (
                   <button
                     key={emoji}
@@ -4312,7 +4317,7 @@ export default function LeadsPage() {
         [lead.id]: [
           {
             label: "Just now",
-            text: `Stage change undone — reverted to ${previousStage} by Jason Daswani`,
+            text: `Stage change undone — reverted to ${previousStage} by ${currentUser.name}`,
             dot: "bg-slate-400",
           },
           ...(prev[lead.id] ?? []),
@@ -4392,7 +4397,7 @@ export default function LeadsPage() {
         [lead.id]: [
           {
             label: "Just now",
-            text: `Stage changed to ${newStage} by Jason Daswani`,
+            text: `Stage changed to ${newStage} by ${currentUser.name}`,
             dot: "bg-slate-400",
           },
           ...(prev[lead.id] ?? []),

@@ -624,13 +624,6 @@ const IM_THREAD_TYPES: { icon: string; label: string }[] = [
 
 const EMOJI_PALETTE = ['👍','✅','👀','🎉','❤️','😂','🙏','💪'];
 
-const _MODULE_USER_NAME = "Jason Daswani";
-const CURRENT_USER = {
-  id: _MODULE_USER_NAME.toLowerCase().replace(/\s+/g, '-'),
-  name: _MODULE_USER_NAME,
-  initials: _MODULE_USER_NAME.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
-  color: 'bg-amber-500',
-};
 
 const IM_GENERAL_SEED: IMMessage[] = [];
 
@@ -918,6 +911,13 @@ function RecordChipInline({
 function InternalMessagesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const _imCurrentUser = useCurrentUser();
+  const CURRENT_USER = {
+    id: _imCurrentUser.email || _imCurrentUser.name.toLowerCase().replace(/\s+/g, '-') || 'me',
+    name: _imCurrentUser.name,
+    initials: _imCurrentUser.name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??',
+    color: 'bg-amber-500',
+  };
 
   const initialChannel = useMemo(() => {
     const ch = searchParams.get('channel');

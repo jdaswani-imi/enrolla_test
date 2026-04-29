@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { Search, X, ArrowUpRight } from "lucide-react";
 import { AssigneePicker } from "./assignee-picker";
 import type { StaffLite } from "./assignee-picker";
@@ -36,8 +37,6 @@ export interface Task {
   createdOn?: string;
 }
 
-// Fallback current-user name — replace with auth session when available.
-const CURRENT_USER_NAME = "Jason Daswani";
 
 const TYPE_PILLS: { label: string; value: TaskType }[] = [
   { label: "Student",  value: "Student Follow-up" },
@@ -73,12 +72,13 @@ interface NewTaskDialogProps {
 // ─── Dialog ──────────────────────────────────────────────────────────────────
 
 export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogProps) {
+  const { name: currentUserName } = useCurrentUser();
   const [title, setTitle]             = useState("");
   const [description, setDescription] = useState("");
   const [type, setType]               = useState<TaskType>("Student Follow-up");
   const [priority, setPriority]       = useState<TaskPriority>("Medium");
   const [dueDateIso, setDueDateIso]   = useState<string>(todayIso());
-  const [assignees, setAssignees]     = useState<string[]>([CURRENT_USER_NAME]);
+  const [assignees, setAssignees]     = useState<string[]>([]);
   const [linkedStudent, setLinkedStudent] = useState<StudentLite | null>(null);
 
   const [studentQuery, setStudentQuery] = useState("");
@@ -88,13 +88,17 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
   const [staffList, setStaffList]     = useState<StaffLite[]>([]);
   const [studentList, setStudentList] = useState<StudentLite[]>([]);
 
+  useEffect(() => {
+    if (currentUserName) setAssignees(prev => prev.length === 0 ? [currentUserName] : prev);
+  }, [currentUserName]);
+
   function reset() {
     setTitle("");
     setDescription("");
     setType("Student Follow-up");
     setPriority("Medium");
     setDueDateIso(todayIso());
-    setAssignees([CURRENT_USER_NAME]);
+    setAssignees(currentUserName ? [currentUserName] : []);
     setLinkedStudent(null);
     setStudentQuery("");
     setStudentOpen(false);

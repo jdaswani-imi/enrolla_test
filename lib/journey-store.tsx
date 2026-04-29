@@ -443,7 +443,7 @@ export function JourneyProvider({ children }: { children: ReactNode }) {
     });
   }, [addActivity]);
 
-  const setStage = useCallback<JourneyContextValue["setStage"]>((stage, actor = "Jason Daswani") => {
+  const setStage = useCallback<JourneyContextValue["setStage"]>((stage, actor = "") => {
     setLeadStage(stage);
     setBilalStage(stage);
     addActivity({

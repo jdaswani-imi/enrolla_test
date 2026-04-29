@@ -614,6 +614,7 @@ Name, email, role, department(s), subjects taught, contract type (Full-time / Pa
 |---|---|
 | Invite new staff | HR/Finance |
 | Resend invite | HR/Finance |
+| Reset password | HR/Finance+ (sends a recovery email to the staff member's address) |
 | Edit profile | HR/Finance |
 | Assign role | Super Admin only |
 | View salary | HR/Finance+ |
@@ -623,6 +624,8 @@ Name, email, role, department(s), subjects taught, contract type (Full-time / Pa
 | Delete | Super Admin |
 | Initiate offboarding | HR/Finance |
 | Verify CPD hours | HR/Finance |
+
+The **Reset password** action appears in the row actions menu for any staff member who has completed onboarding (not Invited or Off-boarded). Clicking it sends a secure one-time recovery link to the staff member's email, which takes them to the password reset screen.
 
 ### CPD (Continuing Professional Development)
 CPD hours are tracked against each staff member's annual target. HR/Finance can mark completion as verified. Analytics show the organization-wide CPD completion rate.
@@ -659,6 +662,18 @@ Workload distribution by staff (sessions/week), CPD completion rates, feedback s
 | Archive old reports | Admin Head+ |
 
 Report generation status is tracked: Queued → Running → Complete | Failed.
+
+---
+
+## 19. My Profile
+
+The My Profile page lets any logged-in user manage their own account. It is split into three tabs:
+
+- **Account** — Edit display name and phone number. Change password (requires new password + confirmation, min 8 characters). A **"Forgot your password?"** link below the password form sends a reset link to the user's registered email address — this is the same recovery flow as the login-page forgot password, pre-addressed to the signed-in user so they do not need to type their email. Session management: list of active sessions by device, with a "Revoke" action per session.
+- **Preferences** — Email notifications, in-app notifications, weekly digest toggle, and layout density (Default / Compact / Detailed).
+- **Activity log** — Chronological list of recent actions taken by the user across modules (People, Finance, Tasks, Academic, Staff, Comms).
+
+The profile avatar can be uploaded or removed from the sidebar panel on the left.
 
 ---
 
@@ -784,5 +799,21 @@ The three summary stat cards (Total, Active, Withdrawn) at the top of the Studen
 - `prefers-reduced-motion` respected everywhere via Framer's `useReducedMotion` hook
 
 ---
+
+---
+
+## Multi-User Identity & Attribution
+
+All actions and messages throughout the app are now attributed to the **actually logged-in user** rather than a hardcoded name. The logged-in user's name is fetched from the `staff` table via `/api/auth/me` (matched by Supabase auth user ID) and propagated everywhere:
+
+- **Lead chat messages** — sent under the logged-in user's name; "is own" message highlighting works per user
+- **Lead stage changes** — "Stage changed to X by …" and "Stage change undone …" show the real actor's name
+- **Task creation defaults** — new tasks auto-assign to the logged-in user in all task dialogs (Leads, Students, Guardians, Tasks page, Automations)
+- **Internal messaging (Automations)** — channel messages are sent and attributed under the logged-in user
+- **Invoice "Invoiced By"** — auto-populated with the logged-in user's name
+- **Trial fee waiver log** — "Approved by …" reflects the approving user
+- **Journey stage transitions** — actor name passed from the calling component's session
+
+The user-identity cache (`useCurrentUser`) is now scoped per Supabase user ID in sessionStorage, preventing any previous user's cached name from leaking across logins in the same browser tab.
 
 *This document is automatically updated before every commit to reflect the current state of the app.*

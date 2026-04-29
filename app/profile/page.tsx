@@ -253,6 +253,15 @@ export default function ProfilePage() {
     toast.success("Password updated");
   }
 
+  async function handleForgotPassword() {
+    if (!email) { toast.error("No email address found for your account"); return; }
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/auth/callback?next=/reset-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`A password reset link has been sent to ${email}`);
+  }
+
   function handleRevokeSession(device: string) {
     toast.success(`Session revoked — ${device}`);
   }
@@ -508,7 +517,7 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-4 flex items-center gap-4">
                     <Button
                       type="submit"
                       size="sm"
@@ -516,6 +525,13 @@ export default function ProfilePage() {
                     >
                       Update password
                     </Button>
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-sm text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
+                    >
+                      Forgot your password?
+                    </button>
                   </div>
                 </form>
 

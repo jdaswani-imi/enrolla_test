@@ -20,6 +20,7 @@ import {
   Check,
   Ban,
   Info,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -150,6 +151,7 @@ function RowActionsMenu({
   onDeactivate,
   onArchive,
   onResendInvite,
+  onResetPassword,
 }: {
   staff: StaffMember;
   isOpen: boolean;
@@ -161,6 +163,7 @@ function RowActionsMenu({
   onDeactivate: () => void;
   onArchive: () => void;
   onResendInvite: () => void;
+  onResetPassword: () => void;
 }) {
   const { can } = usePermission();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -199,9 +202,10 @@ function RowActionsMenu({
     onOpen();
   };
 
-  const canEdit         = can('staff.edit');
-  const canResendInvite = can('staff.create') && staff.status === "Invited";
-  const canSetLeave     = can('staff.edit') && staff.status === "Active";
+  const canEdit          = can('staff.edit');
+  const canResendInvite  = can('staff.create') && staff.status === "Invited";
+  const canResetPassword = can('staff.edit') && staff.status !== "Invited" && staff.status !== "Off-boarded";
+  const canSetLeave      = can('staff.edit') && staff.status === "Active";
   const canDeactivate   = can('staff.revokeAccess') && staff.status !== "Inactive" && staff.status !== "Off-boarded";
   const canArchive      = can('staff.archive') && staff.status === "Inactive";
 
@@ -244,6 +248,17 @@ function RowActionsMenu({
         >
           <Send className="w-3.5 h-3.5 shrink-0" />
           Resend invite
+        </button>
+      )}
+
+      {canResetPassword && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onResetPassword(); onClose(); }}
+          className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 cursor-pointer text-amber-600 hover:bg-amber-50 transition-colors"
+        >
+          <KeyRound className="w-3.5 h-3.5 shrink-0" />
+          Reset password
         </button>
       )}
 
@@ -832,6 +847,17 @@ function StaffPageContent() {
     toast.success(`Invite resent to ${s.email}`);
   }
 
+  async function handleResetPassword(s: StaffMember) {
+    const res = await fetch('/api/staff/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffId: s.id }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast.error(json.error ?? 'Failed to send reset email'); return; }
+    toast.success(`Password reset email sent to ${s.email}`);
+  }
+
   async function handleAddStaff(data: NewStaffData) {
     const name = `${data.firstName} ${data.lastName}`.trim();
     const res  = await fetch('/api/staff/invite', {
@@ -1182,6 +1208,7 @@ function StaffPageContent() {
                             onDeactivate={() => { setDeactivateStaff(s); setOpenMenu(null); }}
                             onArchive={() => { setArchiveStaff(s); setOpenMenu(null); }}
                             onResendInvite={() => { handleResendInvite(s); setOpenMenu(null); }}
+                            onResetPassword={() => { handleResetPassword(s); setOpenMenu(null); }}
                           />
                         </td>
                       </tr>

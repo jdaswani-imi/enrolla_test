@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/lib/use-permission";
+import { useCurrentUser } from "@/lib/use-current-user";
 import { AccessDenied } from "@/components/ui/access-denied";
 import {
   toTitleCase,
@@ -818,6 +819,7 @@ function NewTaskDialog({
   onOpenChange: (open: boolean) => void;
   fireToast: FireToast;
 }) {
+  const { name: currentUserName } = useCurrentUser();
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -867,7 +869,7 @@ function NewTaskDialog({
             <FieldLabel required>Assignee</FieldLabel>
             <select className={FIELD_INPUT} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
               <option value="">Select assignee…</option>
-              <option>Jason Daswani</option>
+              {currentUserName && <option value={currentUserName}>{currentUserName}</option>}
             </select>
           </div>
         </div>

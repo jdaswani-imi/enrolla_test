@@ -26,6 +26,7 @@ import { FormActions } from "./dialog-parts";
 import { TimeSelect } from "./time-select";
 import { SubjectSelect } from "./subject-select";
 import { normaliseSubject } from "./subjects";
+import { useCurrentUser } from "@/lib/use-current-user";
 
 const ROOM_OPTIONS = ["Room 1A", "Room 1B", "Room 2A", "Room 2B", "Room 3A", "TBC"];
 
@@ -85,6 +86,7 @@ export function BookTrialDialog({
   onRecordActivity?: (leadId: string, entry: ActivityEntry) => void;
 }) {
   const { bookTrial, pushActivity } = useJourney();
+  const { name: currentUserName } = useCurrentUser();
 
   const isBilal = !lead || lead.id === BILAL_LEAD_ID;
   const studentName = isBilal ? "Bilal Mahmood" : lead?.childName ?? "Bilal Mahmood";
@@ -207,7 +209,7 @@ export function BookTrialDialog({
       .forEach((r) => {
         const waiverEntry: ActivityEntry = {
           label: "Just now",
-          text: `Trial fee waived — ${r.subject.trim()} · ${r.waiveReason.trim()} · Approved by Jason Daswani`,
+          text: `Trial fee waived — ${r.subject.trim()} · ${r.waiveReason.trim()} · Approved by ${currentUserName}`,
           dot: "bg-slate-400",
         };
         if (isBilal) {
