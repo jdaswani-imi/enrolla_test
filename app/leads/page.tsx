@@ -44,6 +44,7 @@ import {
   Phone,
   Mail,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -1823,6 +1824,14 @@ function EmbeddedTeamChat({
           setMessages((cur) => cur.map((m) => m.id === updated.id ? { ...m, reactions: updated.reactions } : m));
         },
       )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "lead_messages", filter: `lead_id=eq.${lead.id}` },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string }).id;
+          if (deletedId) setMessages((cur) => cur.filter((m) => m.id !== deletedId));
+        },
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [lead.id]);
@@ -1979,6 +1988,13 @@ function EmbeddedTeamChat({
     }).catch(() => {});
   }
 
+  function deleteMessage(msgId: string) {
+    setMessages((cur) => cur.filter((m) => m.id !== msgId));
+    fetch(`/api/leads/${lead.id}/messages?messageId=${msgId}`, { method: "DELETE" })
+      .then((r) => { if (!r.ok) throw new Error(); })
+      .catch(() => toast.error("Failed to delete message"));
+  }
+
   function handleChipClick(chip: ChatChip) {
     router.push(chipHref(chip));
   }
@@ -2092,14 +2108,24 @@ function EmbeddedTeamChat({
             </div>
           )}
         </div>
-        {/* Quick-react button on hover */}
+        {/* Quick-react + delete on hover */}
         <div
           data-chat-popover
           className={cn(
-            "absolute right-3 -top-2 transition-opacity",
+            "absolute right-3 -top-2 flex items-center gap-1 transition-opacity",
             hoverMsgId === m.id || reactionPickerFor === m.id ? "opacity-100" : "opacity-0 pointer-events-none",
           )}
         >
+          {isOwn && (
+            <button
+              type="button"
+              aria-label="Delete message"
+              onClick={() => deleteMessage(m.id)}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm w-6 h-6 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
           <div className="relative">
             <button
               type="button"

@@ -808,7 +808,7 @@ The three summary stat cards (Total, Active, Withdrawn) at the top of the Studen
 
 All actions and messages throughout the app are now attributed to the **actually logged-in user** rather than a hardcoded name. The logged-in user's name is fetched from the `staff` table via `/api/auth/me` (matched by Supabase auth user ID) and propagated everywhere:
 
-- **Lead chat messages** — sent under the logged-in user's name; "is own" message highlighting works per user
+- **Lead chat messages** — sent under the logged-in user's name; "is own" message highlighting works per user; users can delete their own messages (trash icon appears on hover, removes the message instantly for all participants via Realtime)
 - **Lead stage changes** — "Stage changed to X by …" and "Stage change undone …" show the real actor's name
 - **Task creation defaults** — new tasks auto-assign to the logged-in user in all task dialogs (Leads, Students, Guardians, Tasks page, Automations)
 - **Internal messaging (Automations)** — channel messages are sent and attributed under the logged-in user

@@ -55,6 +55,29 @@ export async function POST(
   return NextResponse.json({ data }, { status: 201 })
 }
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireAuth()
+  if (!auth.ok) return auth.response
+  const { id: leadId } = await params
+  const { searchParams } = new URL(request.url)
+  const messageId = searchParams.get('messageId')
+
+  if (!messageId) return NextResponse.json({ error: 'messageId required' }, { status: 400 })
+
+  const { error } = await supabase
+    .from('lead_messages')
+    .delete()
+    .eq('id', messageId)
+    .eq('tenant_id', TENANT_ID)
+    .eq('lead_id', leadId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return new NextResponse(null, { status: 204 })
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
