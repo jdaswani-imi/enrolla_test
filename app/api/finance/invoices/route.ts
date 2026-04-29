@@ -1,12 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { TENANT_ID } from '@/lib/api-constants'
+import { TENANT_ID, BRANCH_ID } from '@/lib/api-constants'
 import { requireAuth } from '@/lib/supabase/route-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// Converts invoice UI short codes to DB year_group names ("Y4" → "Year 4", "KG1" stays "KG1")
+function normaliseYearGroup(raw: string): string {
+  const m = raw.match(/^Y(\d+)$/)
+  return m ? `Year ${m[1]}` : raw
+}
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
@@ -89,13 +95,13 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response
   const body = await request.json()
 
-  const { data, error } = await supabase
+  const { data: invoice, error } = await supabase
     .from('invoices')
     .insert({
       tenant_id: TENANT_ID,
       student_id: body.studentId,
       invoice_number: body.invoiceNumber,
-      status: body.status ?? 'draft',
+      status: (body.status as string | undefined)?.toLowerCase() ?? 'draft',
       issue_date: body.issueDate ?? new Date().toISOString().split('T')[0],
       due_date: body.dueDate ?? null,
       subtotal: body.subtotal ?? 0,
@@ -109,5 +115,92 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data }, { status: 201 })
+
+  // Write invoice_lines with resolved enrolment_id so v_enrolment_sessions can compute sessions.
+  // lineItems: { subject, yearGroup, sessions, rate }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lineItems: any[] = Array.isArray(body.lineItems) ? body.lineItems : []
+  if (lineItems.length > 0 && body.studentId) {
+    const lineRows = await Promise.all(lineItems.map(async (item) => {
+      let enrolmentId: string | null = item.enrolmentId ?? null
+
+      if (!enrolmentId && item.subject && item.yearGroup) {
+        // Normalise short year group codes ("Y4" → "Year 4", "KG1" stays "KG1")
+        const ygNorm = normaliseYearGroup(item.yearGroup)
+
+        // Look up year_group_id
+        const { data: yg } = await supabase
+          .from('year_groups')
+          .select('id')
+          .eq('tenant_id', TENANT_ID)
+          .eq('name', ygNorm)
+          .maybeSingle()
+
+        if (yg) {
+          // Look up subject_id by name + year_group (limit 1 handles rare name duplicates)
+          const { data: subjRows } = await supabase
+            .from('subjects')
+            .select('id')
+            .eq('tenant_id', TENANT_ID)
+            .eq('year_group_id', yg.id)
+            .eq('name', item.subject)
+            .limit(1)
+          const subj = subjRows?.[0] ?? null
+
+          if (subj) {
+            // Find existing non-withdrawn enrolment for this (student, subject)
+            const { data: existingRows } = await supabase
+              .from('enrolments')
+              .select('id')
+              .eq('tenant_id', TENANT_ID)
+              .eq('student_id', body.studentId)
+              .eq('subject_id', subj.id)
+              .neq('status', 'withdrawn')
+              .limit(1)
+            const existing = existingRows?.[0] ?? null
+
+            if (existing) {
+              enrolmentId = existing.id
+            } else {
+              // Create a pending enrolment — activated by the invoice-paid trigger
+              const { data: created } = await supabase
+                .from('enrolments')
+                .insert({
+                  tenant_id: TENANT_ID,
+                  student_id: body.studentId,
+                  subject_id: subj.id,
+                  branch_id: body.branchId ?? BRANCH_ID,
+                  status: 'pending',
+                  sessions_remaining: 0,
+                  price_at_enrolment: item.rate ?? 0,
+                })
+                .select('id')
+                .single()
+
+              enrolmentId = created?.id ?? null
+            }
+          }
+        }
+      }
+
+      return {
+        tenant_id: TENANT_ID,
+        invoice_id: invoice.id,
+        enrolment_id: enrolmentId,
+        line_type: item.lineType ?? 'subject',
+        description: item.subject
+          ? `${item.yearGroup ?? ''} ${item.subject}`.trim()
+          : (item.description ?? ''),
+        sessions_purchased: item.sessions ?? 0,
+        quantity: item.sessions ?? 1,
+        unit_price: item.rate ?? 0,
+        vat_rate: 0,
+        amount: (item.sessions ?? 0) * (item.rate ?? 0),
+      }
+    }))
+
+    await supabase.from('invoice_lines').insert(lineRows)
+  }
+
+  return NextResponse.json({ data: invoice }, { status: 201 })
 }

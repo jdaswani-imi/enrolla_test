@@ -235,7 +235,9 @@ const KPI_LINKS: Record<string, string> = {
   "my-attendance-rate": "/attendance",
   "ta-assigned-sessions": "/timetable",
   "ta-attendance-rate": "/attendance",
+  "dept-active-students": "/students",
   "dept-sessions-week": "/timetable",
+  "dept-attendance-rate": "/attendance",
   "dept-concerns": "/progress?tab=alerts",
   "active-staff": "/staff",
   "cpd-completion": "/staff",
@@ -1470,11 +1472,21 @@ export default function DashboardPage() {
   const config = getDashboardConfig(role);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [liveKpis, setLiveKpis] = useState<Record<string, { value: string }>>({});
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
+    fetch('/api/dashboard/kpis')
+      .then((r) => r.ok ? r.json() : { data: {} })
+      .then((json) => setLiveKpis(json.data ?? {}))
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, []);
+
+  const mergedKpis = config.kpis.map((card) => {
+    const live = liveKpis[card.id];
+    if (!live) return card;
+    return { ...card, value: live.value };
+  });
 
   if (isLoading) {
     return (
@@ -1514,7 +1526,7 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className={cn("grid gap-4", config.kpiGridClass)}>
-        {config.kpis
+        {mergedKpis
           .filter((card) => {
             const action = KPI_PERMISSIONS[card.id];
             if (!action) return true;

@@ -29,7 +29,7 @@ interface Task {
   type: TaskType;
   priority: TaskPriority;
   status: TaskStatus;
-  assignee: string;
+  assignees: string[];
   dueDate: string;
   linkedRecord: { type: string; name: string; id: string } | null;
   description: string;
@@ -37,8 +37,6 @@ interface Task {
   overdue: boolean;
   sourceLeadId?: string;
   sourceLeadName?: string;
-  linkedAssignmentId?: string;
-  linkedInventoryItemId?: string;
   createdOn?: string;
 }
 import { AVATAR_PALETTES, getAvatarPalette, getInitials } from "@/lib/avatar-utils";
@@ -193,6 +191,94 @@ function ActionsMenu({ onEdit }: { onEdit: () => void }) {
   );
 }
 
+// ─── Status History ───────────────────────────────────────────────────────────
+
+type HistoryEntry = {
+  id: string
+  changed_by_name: string
+  previous_status: string
+  new_status: string
+  changed_at: string
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
+}
+
+function StatusHistorySection({
+  entityType,
+  entityId,
+}: {
+  entityType: string
+  entityId: string
+}) {
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/status-history?entity_type=${entityType}&entity_id=${entityId}`)
+      .then((r) => r.json())
+      .then(({ data }) => setHistory(data ?? []))
+      .catch(() => setHistory([]))
+  }, [entityType, entityId])
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Status History</p>
+      {history === null ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 animate-pulse">
+              <div className="w-6 h-6 rounded-full bg-slate-200 shrink-0" />
+              <div className="h-3.5 bg-slate-200 rounded w-3/4" />
+            </div>
+          ))}
+        </div>
+      ) : history.length === 0 ? (
+        <p className="text-sm text-slate-400 italic">No status changes recorded yet.</p>
+      ) : (
+        <div className="space-y-3.5">
+          {history.map((entry) => {
+            const p = getAvatarPalette(entry.changed_by_name)
+            return (
+              <div key={entry.id} className="flex items-start gap-3">
+                <div
+                  className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5",
+                    p.bg, p.text
+                  )}
+                >
+                  {getInitials(entry.changed_by_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm leading-snug">
+                    <span className="font-semibold text-slate-700">{entry.changed_by_name}</span>
+                    <span className="text-slate-400">changed status from</span>
+                    <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      {entry.previous_status}
+                    </span>
+                    <span className="text-slate-400">→</span>
+                    <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      {entry.new_status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(entry.changed_at)}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Task Detail Modal ────────────────────────────────────────────────────────
 
 interface TaskDetailDialogProps {
@@ -217,7 +303,6 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
     });
   }
 
-  const assigneePalette = getAvatarPalette(task.assignee);
   const allSubtasksDone = task.subtasks.length === 0 || subtasksDone.every(Boolean);
 
   return (
@@ -247,15 +332,28 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
             <p className="text-sm text-slate-700 leading-relaxed">{task.description}</p>
           </div>
 
-          {/* Assignee + Due Date */}
+          {/* Assignees + Due Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Assignee</p>
-              <div className="flex items-center gap-2">
-                <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", assigneePalette.bg, assigneePalette.text)}>
-                  {getInitials(task.assignee)}
-                </div>
-                <span className="text-sm text-slate-700 truncate">{task.assignee}</span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                {task.assignees.length === 1 ? "Assignee" : "Assignees"}
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {task.assignees.length === 0 ? (
+                  <span className="text-sm text-slate-400">Unassigned</span>
+                ) : (
+                  task.assignees.map((name) => {
+                    const p = getAvatarPalette(name);
+                    return (
+                      <div key={name} className="flex items-center gap-2">
+                        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", p.bg, p.text)}>
+                          {getInitials(name)}
+                        </div>
+                        <span className="text-sm text-slate-700 truncate">{name}</span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
             <div>
@@ -333,20 +431,9 @@ function TaskDetailDialog({ task, isDone, onClose, onComplete, onOpenLead }: Tas
             </div>
           )}
 
-          {/* Activity log */}
+          {/* Status history */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Activity</p>
-            <div className="space-y-2.5">
-              {ACTIVITY_LOG.map((entry, i) => (
-                <div key={i} className="flex items-start gap-2.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 shrink-0" />
-                  <p className="text-sm text-slate-600">
-                    {entry.text}{" "}
-                    <span className="text-slate-400">— {entry.date}</span>
-                  </p>
-                </div>
-              ))}
-            </div>
+            <StatusHistorySection entityType="task" entityId={task.id} />
           </div>
         </div>
 
@@ -456,7 +543,6 @@ function ListSection({
         <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
           {tasks.map((task) => {
             const isDone = doneTasks.has(task.id);
-            const palette = getAvatarPalette(task.assignee);
             const isHighlighted = highlightTaskId === task.id;
             return (
               <div
@@ -530,12 +616,32 @@ function ListSection({
                   {task.type}
                 </span>
 
-                {/* Assignee */}
-                <div
-                  className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", palette.bg, palette.text)}
-                  title={task.assignee}
-                >
-                  {getInitials(task.assignee)}
+                {/* Assignees — stacked avatars */}
+                <div className="flex items-center -space-x-1.5 shrink-0">
+                  {task.assignees.length === 0 ? (
+                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400" title="Unassigned">
+                      <span className="text-[10px]">—</span>
+                    </div>
+                  ) : (
+                    task.assignees.slice(0, 3).map((name, i) => {
+                      const p = getAvatarPalette(name);
+                      return (
+                        <div
+                          key={name}
+                          title={name}
+                          style={{ zIndex: 3 - i }}
+                          className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 border-2 border-white", p.bg, p.text)}
+                        >
+                          {getInitials(name)}
+                        </div>
+                      );
+                    })
+                  )}
+                  {task.assignees.length > 3 && (
+                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600 border-2 border-white shrink-0">
+                      +{task.assignees.length - 3}
+                    </div>
+                  )}
                 </div>
 
                 {/* Due date */}
@@ -570,7 +676,6 @@ function KanbanCard({
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
-  const palette = getAvatarPalette(task.assignee);
   return (
     <div
       draggable
@@ -610,8 +715,31 @@ function KanbanCard({
       )}
 
       <div className="flex justify-end">
-        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold", palette.bg, palette.text)}>
-          {getInitials(task.assignee)}
+        <div className="flex items-center -space-x-1.5">
+          {task.assignees.length === 0 ? (
+            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+              <span className="text-[10px]">—</span>
+            </div>
+          ) : (
+            task.assignees.slice(0, 3).map((name, i) => {
+              const p = getAvatarPalette(name);
+              return (
+                <div
+                  key={name}
+                  title={name}
+                  style={{ zIndex: 3 - i }}
+                  className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white", p.bg, p.text)}
+                >
+                  {getInitials(name)}
+                </div>
+              );
+            })
+          )}
+          {task.assignees.length > 3 && (
+            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600 border-2 border-white">
+              +{task.assignees.length - 3}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -807,9 +935,9 @@ export default function TasksPage() {
 
   const filtered = useMemo(() => {
     return apiTasks.filter((t) => {
-      if (myTasksOnly && t.assignee !== currentUser.name) return false;
+      if (myTasksOnly && !t.assignees.includes(currentUser.name)) return false;
       if (fromLeadsOnly && !t.sourceLeadId) return false;
-      if (assigneeFilter.length > 0 && !assigneeFilter.includes(t.assignee)) return false;
+      if (assigneeFilter.length > 0 && !assigneeFilter.some((f) => t.assignees.includes(f))) return false;
       if (typeFilter.length > 0 && !typeFilter.includes(t.type)) return false;
       if (priorityFilter.length > 0 && !priorityFilter.includes(t.priority)) return false;
       if (statusFilter.length > 0) {
@@ -1264,7 +1392,7 @@ export default function TasksPage() {
         onOpenChange={setNewTaskOpen}
         onCreated={(created) => {
           setApiTasks((prev) => [...prev, created]);
-          if (myTasksOnly && created.assignee !== currentUser.name) {
+          if (myTasksOnly && !created.assignees.includes(currentUser.name)) {
             setMyTasksOnly(false);
           }
         }}

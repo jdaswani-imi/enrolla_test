@@ -706,7 +706,7 @@ export interface Task {
   type: TaskType;
   priority: TaskPriority;
   status: TaskStatus;
-  assignee: string;
+  assignees: string[];
   dueDate: string;
   linkedRecord: { type: string; name: string; id: string } | null;
   description: string;
@@ -714,12 +714,25 @@ export interface Task {
   overdue: boolean;
   sourceLeadId?: string;
   sourceLeadName?: string;
-  linkedAssignmentId?: string;
-  linkedInventoryItemId?: string;
   createdOn?: string;
 }
 
 export const tasks: Task[] = [];
+
+// ─── Task Groups ──────────────────────────────────────────────────────────────
+
+export interface TaskGroup {
+  id: string;
+  name: string;
+  description: string;
+  colour: string;
+  memberIds: string[];    // staff IDs
+  memberNames: string[];  // denormalised for display
+  active: boolean;
+  sortOrder: number;
+}
+
+export const taskGroups: TaskGroup[] = [];
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────
 

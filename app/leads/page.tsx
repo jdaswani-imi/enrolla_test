@@ -34,6 +34,9 @@ import {
   User as UserIcon,
   FileText,
   ListTodo,
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -503,11 +506,19 @@ function KanbanCard({
   const cfg = STAGE_CONFIG[lead.stage];
   const palette = getAvatarPalette(lead.assignedTo);
   const { can } = usePermission();
+  const [isDragging, setIsDragging] = useState(false);
 
   return (
     <div
       role="button"
       tabIndex={0}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", lead.id);
+        e.dataTransfer.effectAllowed = "move";
+        setIsDragging(true);
+      }}
+      onDragEnd={() => setIsDragging(false)}
       onClick={onOpenDetail}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -516,10 +527,11 @@ function KanbanCard({
         }
       }}
       className={cn(
-        "rounded-lg border border-slate-200 shadow-sm border-l-4 p-3 cursor-pointer hover:shadow-md transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
+        "rounded-lg border border-slate-200 shadow-sm border-l-4 p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
         lead.dnc ? "border-l-red-400" : cfg.color,
         lead.stage === "Won" ? "bg-green-50" : lead.stage === "Lost" ? "bg-red-50/30" : "bg-white",
         lead.stage === "Lost" && "opacity-85 grayscale-[0.2]",
+        isDragging && "opacity-40 scale-[0.98]",
       )}
     >
       {/* Top row */}
@@ -636,6 +648,7 @@ function KanbanColumn({
   onOpenReminder,
   onAddLead,
   makeActions,
+  onDropLead,
 }: {
   stage: LeadStage;
   stageLeads: Lead[];
@@ -643,14 +656,16 @@ function KanbanColumn({
   onOpenReminder: (lead: Lead) => void;
   onAddLead: (stage: LeadStage) => void;
   makeActions: (lead: Lead) => LeadActions;
+  onDropLead: (leadId: string) => void;
 }) {
   const cfg = STAGE_CONFIG[stage];
   const { can } = usePermission();
+  const [isDragOver, setIsDragOver] = useState(false);
 
   return (
     <div className="flex flex-col shrink-0 w-[260px]">
       {/* Column header */}
-      <div className={cn("flex items-center justify-between px-3 py-2 rounded-t-lg border border-b-0 border-slate-200", cfg.colBg)}>
+      <div className={cn("flex items-center justify-between px-3 py-2 rounded-t-lg border border-b-0 border-slate-200 transition-colors", cfg.colBg, isDragOver && "border-amber-400")}>
         <span className={cn("font-semibold text-sm", cfg.headerText)}>{stage}</span>
         <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", cfg.badge)}>
           {stageLeads.length}
@@ -659,9 +674,26 @@ function KanbanColumn({
 
       {/* Cards area */}
       <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setIsDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setIsDragOver(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+          const leadId = e.dataTransfer.getData("text/plain");
+          if (leadId) onDropLead(leadId);
+        }}
         className={cn(
-          "flex flex-col gap-2 p-2 border border-t-0 border-slate-200 rounded-b-lg min-h-[120px] overflow-y-auto",
-          cfg.colBg
+          "flex flex-col gap-2 p-2 border border-t-0 border-slate-200 rounded-b-lg min-h-[120px] overflow-y-auto transition-colors",
+          cfg.colBg,
+          isDragOver && "border-amber-400 ring-2 ring-amber-300/50 bg-amber-50/30",
         )}
         style={{ maxHeight: "calc(100vh - 280px)" }}
       >
@@ -2188,6 +2220,99 @@ function LeadPreferencesSection({
   );
 }
 
+// ─── Status History ───────────────────────────────────────────────────────────
+
+type HistoryEntry = {
+  id: string
+  changed_by_name: string
+  previous_status: string
+  new_status: string
+  changed_at: string
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
+}
+
+function StatusHistorySection({
+  entityType,
+  entityId,
+  refreshKey,
+}: {
+  entityType: string
+  entityId: string
+  refreshKey?: string
+}) {
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null)
+
+  useEffect(() => {
+    setHistory(null)
+    fetch(`/api/status-history?entity_type=${entityType}&entity_id=${entityId}`)
+      .then((r) => r.json())
+      .then(({ data }) => setHistory(data ?? []))
+      .catch(() => setHistory([]))
+  }, [entityType, entityId, refreshKey])
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Stage History</p>
+      {history === null ? (
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 animate-pulse">
+              <div className="w-6 h-6 rounded-full bg-slate-200 shrink-0" />
+              <div className="h-3.5 bg-slate-200 rounded w-3/4" />
+            </div>
+          ))}
+        </div>
+      ) : history.length === 0 ? (
+        <p className="text-sm text-slate-400 italic">No stage changes recorded yet.</p>
+      ) : (
+        <div className="space-y-3.5">
+          {history.map((entry) => {
+            const p = getAvatarPalette(entry.changed_by_name)
+            return (
+              <div key={entry.id} className="flex items-start gap-3">
+                <div
+                  className={cn(
+                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5",
+                    p.bg, p.text
+                  )}
+                >
+                  {getInitials(entry.changed_by_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm leading-snug">
+                    <span className="font-semibold text-slate-700">{entry.changed_by_name}</span>
+                    <span className="text-slate-400">moved stage from</span>
+                    <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      {entry.previous_status}
+                    </span>
+                    <span className="text-slate-400">→</span>
+                    <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      {entry.new_status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{timeAgo(entry.changed_at)}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Lead Detail Dialog ────────────────────────────────────────────────────────
+
 function LeadDetailDialog({
   lead,
   open,
@@ -2595,6 +2720,11 @@ function LeadDetailDialog({
             </div>
           </div>
         )}
+
+        {/* Stage history — persisted audit log */}
+        <div className="px-6 pb-5 border-t border-slate-100 pt-4">
+          <StatusHistorySection entityType="lead" entityId={lead.id} refreshKey={lead.stage} />
+        </div>
 
         <EmbeddedTeamChat key={lead.id} lead={lead} />
 
@@ -3381,6 +3511,20 @@ export default function LeadsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  // Grouped list view state
+  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
+  const [showEmptyStages, setShowEmptyStages] = useState(false);
+  const [dragOverStage, setDragOverStage] = useState<LeadStage | null>(null);
+  useEffect(() => {
+    if (!currentUser.email) return;
+    try {
+      const s = localStorage.getItem(`enrolla_leads_list_collapsed_${currentUser.email}`);
+      if (s) setCollapsedStages(new Set(JSON.parse(s) as string[]));
+      const e = localStorage.getItem(`enrolla_leads_list_empty_${currentUser.email}`);
+      if (e !== null) setShowEmptyStages(e === "true");
+    } catch {}
+  }, [currentUser.email]);
+
   // Segments
   const { segments, saveSegment, deleteSegment } = useSavedSegments("leads");
   const [savePopoverOpen, setSavePopoverOpen] = useState(false);
@@ -3431,7 +3575,7 @@ export default function LeadsPage() {
       if (converted) result = { ...result, status: "converted" as const, convertedStudentId: converted.studentId, convertedOn: converted.convertedOn };
       return result;
     });
-  }, [journey.leadStage, leadStageOverrides, leadPrefs, leadLostData, leadConvertedData]);
+  }, [leadsData, journey.leadStage, leadStageOverrides, leadPrefs, leadLostData, leadConvertedData]);
 
   const updateLeadPrefs = (
     leadId: string,
@@ -3484,6 +3628,30 @@ export default function LeadsPage() {
     }
   }
 
+  // Persist a lead stage change to the DB (fire-and-forget, optimistic UI).
+  // Also updates leadsData in-place on success so overrides are no longer needed.
+  function persistLeadStage(
+    leadId: string,
+    newStage: LeadStage,
+    extra?: Record<string, unknown>,
+  ) {
+    fetch(`/api/leads/${leadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: newStage, ...extra }),
+    })
+      .then(async (r) => {
+        if (!r.ok) {
+          toast.error('Failed to save stage change')
+        } else {
+          setLeadsData((prev) =>
+            prev.map((l) => (l.id === leadId ? { ...l, stage: newStage } : l))
+          )
+        }
+      })
+      .catch(() => toast.error('Failed to save stage change'))
+  }
+
   // Revert a stage change. `assessmentIdToCancel` is set when the committed
   // change was a gated stage (Assessment/Trial Booked) that wrote a record
   // to the assessment store — we remove that record as part of the undo.
@@ -3510,6 +3678,7 @@ export default function LeadsPage() {
         ],
       }));
     }
+    persistLeadStage(lead.id, previousStage);
     if (assessmentIdToCancel) cancelAssessment(assessmentIdToCancel);
     if (onExtra) onExtra();
     toast.custom(
@@ -3589,6 +3758,7 @@ export default function LeadsPage() {
         ],
       }));
     }
+    persistLeadStage(lead.id, newStage);
     showUndoToast(lead, newStage, previousStage, assessmentIdToCancel);
   }
 
@@ -3662,6 +3832,12 @@ export default function LeadsPage() {
         ],
       }));
     }
+    persistLeadStage(lead.id, "Lost", {
+      lostReason: data.lostReason,
+      lostNotes: data.lostNotes,
+      reEngage: data.reEngage,
+      reEngageAfter: data.reEngageAfter,
+    });
     toast.success("Lead marked as lost");
     showUndoToast(lead, "Lost", previousStage, undefined, () => {
       setLeadLostData((prev) => {
@@ -3706,6 +3882,23 @@ export default function LeadsPage() {
   function toggleSort(field: string) {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
+  }
+
+  function toggleCollapse(stage: LeadStage) {
+    setCollapsedStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(stage)) next.delete(stage); else next.add(stage);
+      try { localStorage.setItem(`enrolla_leads_list_collapsed_${currentUser.email}`, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function toggleShowEmpty() {
+    setShowEmptyStages((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(`enrolla_leads_list_empty_${currentUser.email}`, String(next)); } catch {}
+      return next;
+    });
   }
 
   const filteredLeads = useMemo(() => {
@@ -3965,6 +4158,7 @@ export default function LeadsPage() {
     ]);
 
     setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Won" }));
+    persistLeadStage(lead.id, "Won");
     setLeadActivity((prev) => ({
       ...prev,
       [lead.id]: [
@@ -3992,6 +4186,7 @@ export default function LeadsPage() {
       delete createdStudentsRef.current[leadId];
       // Revert stage
       setLeadStageOverrides((prev) => ({ ...prev, [leadId]: previousStage }));
+      persistLeadStage(leadId, previousStage);
       setLeadActivity((prev) => ({
         ...prev,
         [leadId]: [
@@ -4233,188 +4428,249 @@ export default function LeadsPage() {
               onOpenReminder={openReminder}
               onAddLead={(s) => openAddLead(s)}
               makeActions={makeActions}
+              onDropLead={(leadId) => {
+                const lead = leads.find((l) => l.id === leadId);
+                if (lead) commitStageChange(lead, stage);
+              }}
             />
           ))}
         </div>
       )}
 
-      {/* ── List View ───────────────────────────────────────────────────── */}
+      {/* ── List View (grouped by stage) ────────────────────────────────── */}
       {view === "list" && (
         <div className="flex-1 overflow-auto">
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            {(() => {
-              const showLostReasonCol = stageFilter.includes("Lost") || filteredLeads.some(l => l.stage === "Lost");
-              const showConvertedCol = statusFilter.includes("Converted") || filteredLeads.some(l => l.status === "converted");
-              return (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <SortableHeader label="Lead"          field="childName"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHeader label="Guardian"      field="guardian"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHeader label="Year"          field="yearGroup"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Subject(s)</th>
-                  <SortableHeader label="Source"        field="source"         sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHeader label="Stage"         field="stage"          sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  {showLostReasonCol && (
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Lost Reason</th>
-                  )}
-                  {showConvertedCol && (
-                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Converted Student</th>
-                  )}
-                  <SortableHeader label="Assigned"      field="assignedTo"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHeader label="Last Activity" field="lastActivity"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
-                  <SortableHeader label="Days"          field="daysInPipeline" sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
-                  <th className="w-12 px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedLeads.map((lead) => {
-                  const cfg = STAGE_CONFIG[lead.stage];
-                  const palette = getAvatarPalette(lead.assignedTo);
-                  const isConverted = lead.status === "converted";
-                  const convertedStudentName = lead.convertedStudentId
-                    ? (() => {
-                        const s = studentsData.find((s) => s.id === lead.convertedStudentId);
-                        return s ? `${s.first_name} ${s.last_name}`.trim() : lead.convertedStudentId;
-                      })()
-                    : null;
-                  return (
-                    <tr
-                      key={lead.id}
-                      onClick={() => openDetail(lead)}
-                      className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors cursor-pointer"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <div>
-                            <p className="font-semibold text-slate-800 text-sm leading-tight">{lead.childName}</p>
-                            <p className="text-xs text-slate-400 font-mono">{lead.ref}</p>
-                          </div>
-                          {lead.dnc && (
-                            <span className="ml-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                              DNC
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-slate-700 whitespace-nowrap">{lead.guardian}</p>
-                        <p className="text-xs text-slate-400">{lead.guardianPhone}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
-                          {lead.yearGroup}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {lead.subjects.map((s) => (
-                            <span key={s} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", SOURCE_CONFIG[lead.source])}>
-                          {lead.source}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-1">
-                          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap self-start", cfg.badge)}>
-                            {lead.stage}
-                          </span>
-                          {isConverted && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 self-start whitespace-nowrap">
-                              Converted ✓
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      {showLostReasonCol && (
-                        <td className="px-4 py-3">
-                          {lead.stage === "Lost" ? (
-                            <div className="space-y-1">
-                              <p className="text-xs text-slate-500">{lead.lostReason ?? "—"}</p>
-                              {lead.reEngage === false ? (
-                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 whitespace-nowrap">
-                                  Do not re-engage
-                                </span>
-                              ) : lead.reEngageAfter ? (
-                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
-                                  Re-engage after {lead.reEngageAfter}
-                                </span>
-                              ) : (
-                                <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 whitespace-nowrap">
-                                  Re-engage when ready
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-300">—</span>
-                          )}
-                        </td>
-                      )}
-                      {showConvertedCol && (
-                        <td className="px-4 py-3">
-                          {isConverted && lead.convertedStudentId ? (
-                            <div className="space-y-0.5">
-                              <a
-                                href={`/students/${lead.convertedStudentId}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2 cursor-pointer block"
-                              >
-                                {lead.convertedStudentId} — {convertedStudentName}
-                              </a>
-                              {lead.convertedOn && (
-                                <p className="text-[10px] text-slate-400">{lead.convertedOn}</p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-300">—</span>
-                          )}
-                        </td>
-                      )}
-                      <td className="px-4 py-3">
-                        <div
-                          className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
-                            palette.bg,
-                            palette.text
-                          )}
-                          title={lead.assignedTo}
-                        >
-                          {getInitials(lead.assignedTo)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{lead.lastActivity}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500 text-center">{lead.daysInPipeline}</td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <LeadActionMenu lead={lead} actions={makeActions(lead)} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-              );
-            })()}
-            {filteredLeads.length === 0 && (
+            {/* Toolbar */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50/60">
+              <button
+                type="button"
+                onClick={toggleShowEmpty}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                  showEmptyStages
+                    ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700",
+                )}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                {showEmptyStages ? "Hide empty stages" : "Show empty stages"}
+              </button>
+              <span className="text-xs text-slate-400">{filteredLeads.length} lead{filteredLeads.length !== 1 ? "s" : ""}</span>
+            </div>
+
+            {filteredLeads.length === 0 ? (
               <EmptyState
                 icon={Filter}
                 title="No leads match your filters"
                 description="Try adjusting the stage, source, or department filters."
                 action={{ label: "Clear filters", onClick: clearFilters }}
               />
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-slate-200 bg-white shadow-[0_1px_0_0_#e2e8f0]">
+                    <th className="w-8 px-2 py-3" />
+                    <SortableHeader label="Lead"          field="childName"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Guardian"      field="guardian"       sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Year"          field="yearGroup"      sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">Subject(s)</th>
+                    <SortableHeader label="Source"        field="source"         sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Assigned"      field="assignedTo"     sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Last Activity" field="lastActivity"   sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Days"          field="daysInPipeline" sortField={sortField} sortDir={sortDir} onSort={toggleSort} align="center" />
+                    <th className="w-12 px-4 py-3" />
+                  </tr>
+                </thead>
+
+                {STAGES.map((stage) => {
+                  const stageLeads = filteredLeads.filter((l) => l.stage === stage);
+                  if (!showEmptyStages && stageLeads.length === 0) return null;
+                  const isCollapsed = collapsedStages.has(stage);
+                  const isOver = dragOverStage === stage;
+                  const now = Date.now();
+
+                  return (
+                    <tbody
+                      key={stage}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (dragOverStage !== stage) setDragOverStage(stage);
+                      }}
+                      onDragLeave={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          setDragOverStage(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverStage(null);
+                        const leadId = e.dataTransfer.getData("text/plain");
+                        const lead = leads.find((l) => l.id === leadId);
+                        if (lead) commitStageChange(lead, stage);
+                      }}
+                    >
+                      {/* Section header */}
+                      <tr
+                        onClick={() => toggleCollapse(stage)}
+                        className={cn(
+                          "cursor-pointer select-none transition-colors",
+                          isOver ? "bg-amber-50" : "bg-slate-50 hover:bg-slate-100",
+                        )}
+                      >
+                        <td
+                          colSpan={10}
+                          className={cn(
+                            "px-4 py-2 border-b border-t border-slate-200 transition-colors",
+                            isOver && "border-l-2 border-l-amber-400",
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isCollapsed
+                              ? <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              : <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
+                            <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                              {stage}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 tabular-nums">
+                              {stageLeads.length}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Lead rows */}
+                      {!isCollapsed && stageLeads.map((lead) => {
+                        const palette = getAvatarPalette(lead.assignedTo);
+                        const isNew = lead.createdOn
+                          ? now - new Date(lead.createdOn).getTime() < 48 * 60 * 60 * 1000
+                          : false;
+                        const isConverted = lead.status === "converted";
+                        const convertedStudentName = lead.convertedStudentId
+                          ? (() => {
+                              const s = studentsData.find((s) => s.id === lead.convertedStudentId);
+                              return s ? `${s.first_name} ${s.last_name}`.trim() : lead.convertedStudentId;
+                            })()
+                          : null;
+
+                        return (
+                          <tr
+                            key={lead.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("text/plain", lead.id);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onClick={() => openDetail(lead)}
+                            className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors cursor-pointer group"
+                            style={{ height: "48px" }}
+                          >
+                            {/* Drag handle */}
+                            <td className="w-8 px-2 py-3">
+                              <GripVertical className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
+                            </td>
+
+                            {/* Lead name */}
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1.5">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-slate-800 text-sm leading-tight">{lead.childName}</span>
+                                    {isNew && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Created in last 48 h" />
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-400 font-mono">{lead.ref}</p>
+                                  {lead.stage === "Lost" && lead.lostReason && (
+                                    <p className="text-[10px] text-slate-400 italic truncate max-w-[200px]">{lead.lostReason}</p>
+                                  )}
+                                  {isConverted && lead.convertedStudentId && (
+                                    <a
+                                      href={`/students/${lead.convertedStudentId}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-[10px] font-medium text-emerald-700 hover:text-emerald-900 underline underline-offset-1 cursor-pointer"
+                                    >
+                                      {convertedStudentName ?? lead.convertedStudentId}
+                                    </a>
+                                  )}
+                                </div>
+                                {lead.dnc && (
+                                  <span className="shrink-0 px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                                    DNC
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Guardian */}
+                            <td className="px-4 py-3">
+                              <p className="text-sm text-slate-700 whitespace-nowrap">{lead.guardian}</p>
+                              <p className="text-xs text-slate-400">{lead.guardianPhone}</p>
+                            </td>
+
+                            {/* Year */}
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
+                                {lead.yearGroup}
+                              </span>
+                            </td>
+
+                            {/* Subjects */}
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {lead.subjects.map((s) => (
+                                  <span key={s} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
+                                    {s}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+
+                            {/* Source */}
+                            <td className="px-4 py-3">
+                              <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", SOURCE_CONFIG[lead.source])}>
+                                {lead.source}
+                              </span>
+                            </td>
+
+                            {/* Assigned */}
+                            <td className="px-4 py-3">
+                              <div
+                                className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold", palette.bg, palette.text)}
+                                title={lead.assignedTo}
+                              >
+                                {getInitials(lead.assignedTo)}
+                              </div>
+                            </td>
+
+                            {/* Last Activity */}
+                            <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{lead.lastActivity}</td>
+
+                            {/* Days */}
+                            <td className="px-4 py-3 text-sm text-slate-500 text-center tabular-nums">{lead.daysInPipeline}</td>
+
+                            {/* Actions */}
+                            <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                              <LeadActionMenu lead={lead} actions={makeActions(lead)} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Empty section row */}
+                      {!isCollapsed && stageLeads.length === 0 && (
+                        <tr>
+                          <td colSpan={10} className="px-6 py-3 text-xs text-slate-400 text-center italic border-b border-slate-100">
+                            No leads at this stage
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  );
+                })}
+              </table>
             )}
-            <PaginationBar
-              total={filteredLeads.length}
-              page={page}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-            />
           </div>
         </div>
       )}
@@ -4564,11 +4820,12 @@ export default function LeadsPage() {
         onOpenChange={setNeedsMoreTimeOpen}
         lead={needsMoreTimeLead}
         currentStage={needsMoreTimeStage}
-        onCreated={({ assignee, dueLabel }) => {
+        onCreated={({ assignees, dueLabel }) => {
           if (needsMoreTimeLead) {
+            const names = assignees.length > 0 ? assignees.join(", ") : "Unassigned";
             recordLeadActivity(needsMoreTimeLead, {
               label: "Just now",
-              text: `Follow-up task created — ${assignee} · due ${dueLabel}`,
+              text: `Follow-up task created — ${names} · due ${dueLabel}`,
               dot: "bg-slate-400",
             });
           }
@@ -4802,6 +5059,7 @@ export default function LeadsPage() {
               { id: newStudent.id, student_number: newStudent.id, first_name: data.firstName, last_name: data.lastName },
             ]);
             setLeadStageOverrides((prev) => ({ ...prev, [lead.id]: "Won" }));
+            persistLeadStage(lead.id, "Won");
             setLeadConvertedData((prev) => ({ ...prev, [lead.id]: { studentId, studentName, convertedOn: today } }));
             setLeadActivity((prev) => ({
               ...prev,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -12,20 +13,14 @@ import {
 import type { Lead } from "@/lib/types/lead";
 import { cn } from "@/lib/utils";
 import { FIELD, FieldLabel, FormActions } from "./dialog-parts";
-
-const STAFF = [
-  "Jason Daswani",
-  "Sarah Thompson",
-  "Ahmed Khalil",
-  "Tariq Al Nasser",
-  "Hana Malik",
-];
+import { AssigneePicker } from "@/components/tasks/assignee-picker";
+import type { StaffLite } from "@/components/tasks/assignee-picker";
 
 const FOLLOW_UP_OPTIONS: { label: string; days: number }[] = [
-  { label: "1 day", days: 1 },
-  { label: "2 days", days: 2 },
-  { label: "3 days", days: 3 },
-  { label: "1 week", days: 7 },
+  { label: "1 day",   days: 1  },
+  { label: "2 days",  days: 2  },
+  { label: "3 days",  days: 3  },
+  { label: "1 week",  days: 7  },
   { label: "2 weeks", days: 14 },
 ];
 
@@ -38,14 +33,14 @@ function nextNmtTaskId(): string {
 function formatDueLabel(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
@@ -57,7 +52,7 @@ function addDays(days: number): string {
 
 export interface NeedsMoreTimeResult {
   taskId: string;
-  assignee: string;
+  assignees: string[];
   dueLabel: string;
   note: string;
 }
@@ -75,37 +70,23 @@ export function NeedsMoreTimeDialog({
   currentStage: string;
   onCreated: (result: NeedsMoreTimeResult) => void;
 }) {
-  const [note, setNote] = useState("");
-  const [days, setDays] = useState<number>(2);
-  const [assignee, setAssignee] = useState<string>(lead?.assignedTo ?? STAFF[0]);
-  const [assigneeQuery, setAssigneeQuery] = useState("");
-  const [assigneeOpen, setAssigneeOpen] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const [note, setNote]         = useState("");
+  const [days, setDays]         = useState<number>(2);
+  const [assignees, setAssignees] = useState<string[]>([]);
+  const [staffList, setStaffList] = useState<StaffLite[]>([]);
 
   useEffect(() => {
     if (open) {
       setNote("");
       setDays(2);
-      setAssignee(lead?.assignedTo ?? STAFF[0]);
-      setAssigneeQuery("");
-      setAssigneeOpen(false);
+      setAssignees(lead?.assignedTo ? [lead.assignedTo] : []);
+      fetch("/api/staff")
+        .then((r) => r.json())
+        .then((res) => setStaffList(res.data ?? []))
+        .catch(() => {});
     }
   }, [open, lead?.assignedTo]);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
-        setAssigneeOpen(false);
-      }
-    }
-    if (assigneeOpen) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [assigneeOpen]);
-
-  const filtered = useMemo(() => {
-    const q = assigneeQuery.trim().toLowerCase();
-    return STAFF.filter((n) => !q || n.toLowerCase().includes(q));
-  }, [assigneeQuery]);
 
   const dueIso = useMemo(() => addDays(days), [days]);
 
@@ -126,19 +107,23 @@ export function NeedsMoreTimeDialog({
         type: "Admin",
         priority: "Medium",
         status: "Open",
-        assignee,
-        dueDate: formatDueLabel(dueIso),
+        assignees,
+        dueDateIso: dueIso,
         linkedRecord: null,
         description,
         subtasks: [],
-        overdue: false,
         sourceLeadId: lead.id,
         sourceLeadName: lead.childName,
       }),
     }).catch(() => {});
     const dueShort = shortDate(dueIso);
-    toast.success(`Follow-up task created · due ${dueShort}`);
-    onCreated({ taskId, assignee, dueLabel: dueShort, note: description });
+    toast.success(`Follow-up task created · due ${dueShort}`, {
+      action: {
+        label: "View task",
+        onClick: () => router.push(`/tasks?taskId=${taskId}`),
+      },
+    });
+    onCreated({ taskId, assignees, dueLabel: dueShort, note: description });
     onOpenChange(false);
   }
 
@@ -174,59 +159,27 @@ export function NeedsMoreTimeDialog({
               className={cn(FIELD, "cursor-pointer bg-white")}
             >
               {FOLLOW_UP_OPTIONS.map((o) => (
-                <option key={o.days} value={o.days}>
-                  {o.label}
-                </option>
+                <option key={o.days} value={o.days}>{o.label}</option>
               ))}
             </select>
             <p className="text-xs text-slate-500 mt-1">Due {shortDate(dueIso)}</p>
           </div>
 
-          <div ref={boxRef} className="relative">
-            <FieldLabel htmlFor="nmt-assignee">Assignee</FieldLabel>
-            <button
-              type="button"
-              id="nmt-assignee"
-              onClick={() => setAssigneeOpen((o) => !o)}
-              className={cn(FIELD, "flex items-center justify-between text-left cursor-pointer")}
-            >
-              <span>{assignee}</span>
-              <span className="text-slate-400 text-xs">▾</span>
-            </button>
-            {assigneeOpen && (
-              <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
-                <input
-                  autoFocus
-                  value={assigneeQuery}
-                  onChange={(e) => setAssigneeQuery(e.target.value)}
-                  placeholder="Search staff..."
-                  className="w-full px-3 py-2 text-sm border-b border-slate-200 focus:outline-none"
-                />
-                <div className="max-h-48 overflow-y-auto">
-                  {filtered.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-slate-500">No match</div>
-                  ) : (
-                    filtered.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => {
-                          setAssignee(name);
-                          setAssigneeOpen(false);
-                          setAssigneeQuery("");
-                        }}
-                        className={cn(
-                          "w-full text-left px-3 py-2 text-sm hover:bg-amber-50 cursor-pointer",
-                          assignee === name ? "text-amber-700 font-medium" : "text-slate-700",
-                        )}
-                      >
-                        {name}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+          <div>
+            <FieldLabel>
+              Assign to
+              {assignees.length > 1 && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 normal-case tracking-normal">
+                  {assignees.length} people
+                </span>
+              )}
+            </FieldLabel>
+            <AssigneePicker
+              assignees={assignees}
+              onChange={setAssignees}
+              staffList={staffList}
+              placeholder="Select staff…"
+            />
           </div>
         </div>
 

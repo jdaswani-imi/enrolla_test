@@ -33,12 +33,12 @@ Role is initialised from `currentUser.role` in mock-data and is mutable at runti
 - Assessments: `view`, `book`, `enterOutcome`, `manageSlots`
 - Analytics: `view`, `viewStaffPerformance`
 - Reports: `view`, `generate`, `schedule`, `export`, `viewFinancial`
-- Settings: `view`, `edit`, `manageRoles`, `manageBilling`
+- Settings: `view`, `edit`, `manageRoles`, `manageBilling`, `manageTaskGroups`
 - Catalogue/Academic config: `catalogue.edit`, `topic.edit`, `grades.edit`, `feedback.selectors.edit`
 - Bulk/cross-module: `export` (bulk export), `import` (only role with this), `delete.records`, `issue.credit`, `approve.discount`, `offboard.staff`, `manage.roles` (only role with this), `merge.duplicates`, `export.all`, `bulk.generate.invoices`, `stock.take`
 - Inventory: `view`
 
-**Notes:** Only role that can `students.delete` (Archived → hard-delete gate), `finance.finalApproveRefund`, `staff.assignRole`, `staff.archive` (Inactive → Off-boarded archive gate), `settings.*`, `import`, `manage.roles`.
+**Notes:** Only role that can `students.delete` (Archived → hard-delete gate), `finance.finalApproveRefund`, `staff.assignRole`, `staff.archive` (Inactive → Off-boarded archive gate), `settings.*` (including `settings.manageTaskGroups`), `import`, `manage.roles`.
 
 ---
 

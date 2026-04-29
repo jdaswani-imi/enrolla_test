@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X, ArrowUpRight } from "lucide-react";
+import { AssigneePicker } from "./assignee-picker";
+import type { StaffLite } from "./assignee-picker";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -23,7 +25,7 @@ export interface Task {
   type: TaskType;
   priority: TaskPriority;
   status: TaskStatus;
-  assignee: string;
+  assignees: string[];
   dueDate: string;
   linkedRecord: { type: string; name: string; id: string } | null;
   description: string;
@@ -31,8 +33,6 @@ export interface Task {
   overdue: boolean;
   sourceLeadId?: string;
   sourceLeadName?: string;
-  linkedAssignmentId?: string;
-  linkedInventoryItemId?: string;
   createdOn?: string;
 }
 
@@ -70,22 +70,23 @@ interface NewTaskDialogProps {
   onCreated: (task: Task) => void;
 }
 
+// ─── Dialog ──────────────────────────────────────────────────────────────────
+
 export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogProps) {
   const [title, setTitle]             = useState("");
   const [description, setDescription] = useState("");
   const [type, setType]               = useState<TaskType>("Student Follow-up");
   const [priority, setPriority]       = useState<TaskPriority>("Medium");
   const [dueDateIso, setDueDateIso]   = useState<string>(todayIso());
-  const [assignee, setAssignee]       = useState<string>(CURRENT_USER_NAME);
+  const [assignees, setAssignees]     = useState<string[]>([CURRENT_USER_NAME]);
   const [linkedStudent, setLinkedStudent] = useState<StudentLite | null>(null);
 
   const [studentQuery, setStudentQuery] = useState("");
   const [studentOpen, setStudentOpen]   = useState(false);
   const studentBoxRef = useRef<HTMLDivElement>(null);
 
-  // Fetched reference data
-  const [staffList, setStaffList]       = useState<{ id: string; name: string; status: string }[]>([]);
-  const [studentList, setStudentList]   = useState<StudentLite[]>([]);
+  const [staffList, setStaffList]     = useState<StaffLite[]>([]);
+  const [studentList, setStudentList] = useState<StudentLite[]>([]);
 
   function reset() {
     setTitle("");
@@ -93,7 +94,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
     setType("Student Follow-up");
     setPriority("Medium");
     setDueDateIso(todayIso());
-    setAssignee(CURRENT_USER_NAME);
+    setAssignees([CURRENT_USER_NAME]);
     setLinkedStudent(null);
     setStudentQuery("");
     setStudentOpen(false);
@@ -101,7 +102,6 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
 
   useEffect(() => {
     if (!open) { reset(); return; }
-    // Fetch staff + students for dropdowns when dialog opens
     Promise.all([
       fetch("/api/staff").then((r) => r.json()),
       fetch("/api/students").then((r) => r.json()),
@@ -144,7 +144,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
         description: description.trim(),
         type,
         priority,
-        assignee:    assignee || CURRENT_USER_NAME,
+        assignees,
         dueDateIso,
         linkedRecord: linkedStudent
           ? { type: "student", name: linkedStudent.name, id: linkedStudent.id }
@@ -247,44 +247,38 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
             </div>
           </div>
 
-          {/* Due date + Assignee row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-task-due" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                Due Date <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="new-task-due"
-                type="date"
-                value={dueDateIso}
-                onChange={(e) => setDueDateIso(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
-              />
-              {dueDateIso === todayIso() && (
-                <p className="text-[11px] text-amber-600 mt-1">Today — {todayLabel()}</p>
-              )}
-            </div>
+          {/* Due date */}
+          <div>
+            <label htmlFor="new-task-due" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Due Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="new-task-due"
+              type="date"
+              value={dueDateIso}
+              onChange={(e) => setDueDateIso(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
+            />
+            {dueDateIso === todayIso() && (
+              <p className="text-[11px] text-amber-600 mt-1">Today — {todayLabel()}</p>
+            )}
+          </div>
 
-            <div>
-              <label htmlFor="new-task-assignee" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                Assigned To
-              </label>
-              <select
-                id="new-task-assignee"
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 cursor-pointer"
-              >
-                <option value="">Unassigned</option>
-                {staffList
-                  .filter((s) => s.status !== "Off-boarded")
-                  .map((s) => (
-                    <option key={s.id} value={s.name}>
-                      {s.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
+          {/* Assignees */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+              Assigned To
+              {assignees.length > 1 && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 normal-case tracking-normal">
+                  {assignees.length} people
+                </span>
+              )}
+            </label>
+            <AssigneePicker
+              assignees={assignees}
+              onChange={setAssignees}
+              staffList={staffList}
+            />
           </div>
 
           {/* Linked record */}

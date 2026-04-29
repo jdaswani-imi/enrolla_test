@@ -21,22 +21,34 @@ function toFrontend(row: Record<string, unknown>) {
     row.status !== 'Cancelled' &&
     dueIso < new Date().toISOString().slice(0, 10)
 
+  // assignees array — fall back to wrapping the legacy single `assignee` column
+  const assignees: string[] =
+    Array.isArray(row.assignees) && (row.assignees as string[]).length > 0
+      ? (row.assignees as string[])
+      : row.assignee
+        ? [row.assignee as string]
+        : []
+
+  // Reconstruct linkedRecord from flat columns
+  const linkedRecord =
+    row.linked_record_type && row.linked_record_id
+      ? { type: row.linked_record_type, name: row.linked_record_name ?? '', id: row.linked_record_id }
+      : null
+
   return {
     id:                    row.id,
     title:                 row.title,
-    type:                  row.task_type,
+    type:                  row.type,
     priority:              row.priority,
     status:                row.status,
-    assignee:              row.assignee_name ?? '',
+    assignees,
     dueDate:               formatDueDate(dueIso),
-    linkedRecord:          (row.linked_record as Record<string, unknown>) ?? null,
+    linkedRecord,
     description:           row.description ?? '',
     subtasks:              (row.subtasks as string[]) ?? [],
     overdue:               isOverdue,
-    sourceLeadId:          row.source_lead_id ?? undefined,
+    sourceLeadId:          row.source_lead_id   ?? undefined,
     sourceLeadName:        row.source_lead_name ?? undefined,
-    linkedAssignmentId:    row.linked_assignment_id ?? undefined,
-    linkedInventoryItemId: row.linked_inventory_item_id ?? undefined,
     createdOn:             row.created_at,
   }
 }
@@ -55,8 +67,9 @@ export async function GET(request: NextRequest) {
     .eq('tenant_id', TENANT_ID)
     .order('due_date', { ascending: true })
 
-  if (assignee) query = query.eq('assignee_name', assignee)
-  if (type)     query = query.eq('task_type', type)
+  // Filter by assignee — check the array contains the name
+  if (assignee) query = query.contains('assignees', [assignee])
+  if (type)     query = query.eq('type', type)
   if (status)   query = query.eq('status', status)
 
   const { data, error } = await query
@@ -71,37 +84,32 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response
   const body = await request.json()
 
-  // Auto-generate task_ref
-  const { data: maxRow } = await supabase
-    .from('tasks')
-    .select('task_ref')
-    .eq('tenant_id', TENANT_ID)
-    .not('task_ref', 'is', null)
-    .order('task_ref', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Accept either assignees[] (new) or assignee string (legacy callers)
+  const assignees: string[] = Array.isArray(body.assignees)
+    ? body.assignees
+    : body.assignee
+      ? [body.assignee]
+      : []
 
-  const lastNum = maxRow?.task_ref
-    ? parseInt((maxRow.task_ref as string).replace(/\D/g, ''), 10)
-    : 0
-  const task_ref = `TK-${String(lastNum + 1).padStart(3, '0')}`
+  const linkedRecord = body.linkedRecord as { type?: string; name?: string; id?: string } | null
 
   const { data, error } = await supabase
     .from('tasks')
     .insert({
-      tenant_id:      TENANT_ID,
-      task_ref,
-      title:          body.title,
-      description:    body.description ?? '',
-      task_type:      body.type,
-      priority:       body.priority,
-      status:         'Open',
-      assignee_name:  body.assignee ?? '',
-      due_date:       body.dueDateIso,
-      linked_record:  body.linkedRecord ?? null,
-      subtasks:       body.subtasks ?? [],
-      source_lead_id:   body.sourceLeadId ?? null,
-      source_lead_name: body.sourceLeadName ?? null,
+      tenant_id:          TENANT_ID,
+      title:              body.title,
+      description:        body.description ?? '',
+      type:               body.type,
+      priority:           body.priority,
+      status:             'Open',
+      assignee:           assignees[0] ?? '',
+      assignees,
+      due_date:           body.dueDateIso,
+      linked_record_type: linkedRecord?.type ?? null,
+      linked_record_name: linkedRecord?.name ?? null,
+      linked_record_id:   linkedRecord?.id   ?? null,
+      subtasks:           body.subtasks ?? [],
+      source_lead_id:     body.sourceLeadId ?? null,
     })
     .select()
     .single()

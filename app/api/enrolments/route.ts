@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
     .select(`
       id,
       status,
-      sessions_remaining,
       price_at_enrolment,
       start_date,
       end_date,
@@ -54,12 +53,26 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json([], { status: 200 })
 
+  // Fetch computed sessions from the view for these enrolments
+  const enrolmentIds = (data ?? []).map((e) => e.id)
+  const { data: sessionRows } = enrolmentIds.length
+    ? await supabase
+        .from('v_enrolment_sessions')
+        .select('enrolment_id, sessions_paid, sessions_attended, sessions_remaining')
+        .in('enrolment_id', enrolmentIds)
+    : { data: [] }
+
+  const sessionsMap = new Map(
+    (sessionRows ?? []).map((s) => [s.enrolment_id, s])
+  )
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (data ?? []).map((e: any) => {
     const s = e.students
     const subj = e.subjects
     const dept = subj?.departments
     const yg = subj?.year_groups
+    const computed = sessionsMap.get(e.id)
 
     return {
       id: e.id,
@@ -70,8 +83,9 @@ export async function GET(request: NextRequest) {
       department: dept?.name ?? '—',
       subject: subj?.name ?? '—',
       teacher: '—',
-      sessionsTotal: 0,
-      sessionsRemaining: e.sessions_remaining ?? 0,
+      sessionsTotal: computed?.sessions_paid ?? 0,
+      sessionsRemaining: computed?.sessions_remaining ?? 0,
+      sessionsAttended: computed?.sessions_attended ?? 0,
       frequency: '—',
       package: '—',
       invoiceStatus: 'Pending',
@@ -81,30 +95,4 @@ export async function GET(request: NextRequest) {
   })
 
   return NextResponse.json(rows)
-}
-
-export async function POST(request: NextRequest) {
-  const auth = await requireAuth()
-  if (!auth.ok) return auth.response
-  const body = await request.json()
-
-  const { data, error } = await supabase
-    .from('enrolments')
-    .insert({
-      tenant_id: TENANT_ID,
-      student_id: body.studentId,
-      subject_id: body.subjectId,
-      branch_id: body.branchId,
-      status: body.status ?? 'active',
-      sessions_remaining: body.sessionsRemaining ?? 0,
-      price_at_enrolment: body.priceAtEnrolment ?? 0,
-      start_date: body.startDate ?? null,
-      end_date: body.endDate ?? null,
-      notes: body.notes ?? null,
-    })
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data }, { status: 201 })
 }

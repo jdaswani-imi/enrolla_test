@@ -152,10 +152,6 @@ import { ChurnDetailModal } from "@/components/dashboard/churn-detail-modal";
 import { subjectsForYearGroup } from "@/components/journey/subjects";
 import { useJourney, BILAL_STUDENT_ID } from "@/lib/journey-store";
 import { CreateEnrolmentDialog } from "@/components/journey/create-enrolment-dialog";
-import {
-  NewEnrolmentDialog,
-  type StudentDepartment,
-} from "@/components/enrolment/new-enrolment-dialog";
 import { RecordPaymentDialog } from "@/components/journey/record-payment-dialog";
 import { ExportDialog, type ExportFormat } from "@/components/ui/export-dialog";
 import {
@@ -388,7 +384,6 @@ function SessionDots({
 // ─── Zone 1 — Profile Header ──────────────────────────────────────────────────
 
 type HeaderAction =
-  | "addEnrolment"
   | "bookTrial"
   | "bookAssessment"
   | "recordPayment"
@@ -431,11 +426,6 @@ function ProfileHeader({
 
   const buttonActions: { label: string; Icon: React.ElementType; onClick: () => void; show?: boolean }[] = [
     { label: "Create Invoice", Icon: FileText, onClick: () => router.push(`/finance/invoice/new?student=${profile.studentId}`), show: can('finance.createInvoice') },
-    {
-      label: "Add Enrolment",
-      Icon: Plus,
-      onClick: () => (isJourneyStudent && onJourneyAddEnrolment ? onJourneyAddEnrolment() : setOpenDialog("addEnrolment")),
-    },
     { label: "Book Trial",       Icon: Zap, onClick: () => setOpenDialog("bookTrial") },
     { label: "Book Assessment",  Icon: ClipboardCheck, onClick: () => setOpenDialog("bookAssessment"), show: can('assessments.book') },
     { label: "Record Payment",   Icon: CreditCard, onClick: () => setOpenDialog("recordPayment"), show: can('finance.logPayment') },
@@ -514,14 +504,6 @@ function ProfileHeader({
         </div>
       </div>
 
-      <NewEnrolmentDialog
-        open={openDialog === "addEnrolment"}
-        onOpenChange={(o) => !o && setOpenDialog(null)}
-        studentId={profile.studentId}
-        studentName={displayName}
-        yearGroup={profile.yearGroup}
-        department={department as StudentDepartment}
-      />
       <BookTrialStudentDialog
         open={openDialog === "bookTrial"}
         onOpenChange={(o) => !o && setOpenDialog(null)}

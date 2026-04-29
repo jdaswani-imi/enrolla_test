@@ -23,7 +23,7 @@ export async function GET(
         id, first_name, last_name, phone, email
       ),
       enrolments (
-        id, status, sessions_remaining, start_date, end_date,
+        id, status, start_date, end_date,
         subjects (
           id, name,
           year_groups (id, name),
@@ -39,6 +39,26 @@ export async function GET(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Enrich enrolments with computed sessions from the view (never read sessions_remaining from the stored column)
+  const enrolmentIds: string[] = (data.enrolments ?? []).map((e: { id: string }) => e.id)
+  if (enrolmentIds.length > 0) {
+    const { data: sessionRows } = await supabase
+      .from('v_enrolment_sessions')
+      .select('enrolment_id, sessions_paid, sessions_attended, sessions_remaining')
+      .in('enrolment_id', enrolmentIds)
+
+    const sessionsMap = new Map(
+      (sessionRows ?? []).map((s) => [s.enrolment_id, s])
+    )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data.enrolments = data.enrolments.map((e: any) => ({
+      ...e,
+      sessions_paid: sessionsMap.get(e.id)?.sessions_paid ?? 0,
+      sessions_attended: sessionsMap.get(e.id)?.sessions_attended ?? 0,
+      sessions_remaining: sessionsMap.get(e.id)?.sessions_remaining ?? 0,
+    }))
   }
 
   return NextResponse.json({ data })

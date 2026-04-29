@@ -557,7 +557,24 @@ export default function NewInvoicePage() {
       status: 'Issued',
       ...(linkedLeadId ? { leadId: linkedLeadId } : {}),
     };
-    fetch('/api/finance/invoices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newInvoice) }).catch(() => {});
+    fetch('/api/finance/invoices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...newInvoice,
+        invoiceNumber: invoiceNo,
+        subtotal: totals.subtotal,
+        vatAmount: totals.vat,
+        total: totals.totalDue,
+        // Line items carry sessions_purchased into invoice_lines for the sessions view
+        lineItems: lineItems.map((item) => ({
+          subject: item.subject,
+          yearGroup: item.yearGroup,
+          sessions: item.sessions,
+          rate: item.rate,
+        })),
+      }),
+    }).catch(() => {});
     setConfirmOpen(false);
     setStatus('Issued');
     if (isJourneyInvoice) {

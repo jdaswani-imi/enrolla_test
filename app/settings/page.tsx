@@ -46,6 +46,7 @@ import {
   AlertTriangle,
   Info,
   Clock,
+  ListTodo,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PERMISSIONS, type Role } from "@/lib/role-config";
@@ -115,6 +116,7 @@ type SectionId =
   | "academic-calendar" | "subjects"
   | "staff-hr" | "roles"
   | "notifications" | "templates"
+  | "task-groups"
   | "feature-toggles" | "integrations" | "churn"
   | "audit-log" | "data-privacy";
 
@@ -154,6 +156,12 @@ const NAV_SECTIONS = [
     items: [
       { id: "notifications" as SectionId, label: "Notifications", icon: Bell },
       { id: "templates" as SectionId, label: "Templates", icon: FileText },
+    ],
+  },
+  {
+    label: "TASKS",
+    items: [
+      { id: "task-groups" as SectionId, label: "Task Groups", icon: ListTodo },
     ],
   },
   {
@@ -4768,6 +4776,503 @@ function DataPrivacySection() {
   );
 }
 
+// ─── Task Groups ──────────────────────────────────────────────────────────────
+
+interface TaskGroupData {
+  id: string;
+  name: string;
+  description: string;
+  colour: string;
+  memberIds: string[];
+  memberNames: string[];
+  active: boolean;
+  sortOrder: number;
+}
+
+interface StaffOption {
+  id: string;
+  name: string;
+  role: string;
+  department: string;
+}
+
+const GROUP_COLOURS = [
+  { hex: "#F97316", label: "Orange" },
+  { hex: "#3B82F6", label: "Blue" },
+  { hex: "#8B5CF6", label: "Purple" },
+  { hex: "#22C55E", label: "Green" },
+  { hex: "#EF4444", label: "Red" },
+  { hex: "#EAB308", label: "Yellow" },
+  { hex: "#EC4899", label: "Pink" },
+  { hex: "#64748B", label: "Grey" },
+];
+
+function TaskGroupDialog({
+  open,
+  onOpenChange,
+  initial,
+  staff,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  initial: TaskGroupData | null;
+  staff: StaffOption[];
+  onSave: (data: Omit<TaskGroupData, "id" | "active">) => void;
+}) {
+  const [name, setName]             = useState("");
+  const [description, setDesc]      = useState("");
+  const [colour, setColour]         = useState(GROUP_COLOURS[0].hex);
+  const [selectedIds, setSelected]  = useState<string[]>([]);
+  const [search, setSearch]         = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setName(initial?.name ?? "");
+      setDesc(initial?.description ?? "");
+      setColour(initial?.colour ?? GROUP_COLOURS[0].hex);
+      setSelected(initial?.memberIds ?? []);
+      setSearch("");
+    }
+  }, [open, initial]);
+
+  const filtered = staff.filter(
+    (s) =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.role.toLowerCase().includes(search.toLowerCase()) ||
+      s.department.toLowerCase().includes(search.toLowerCase())
+  );
+
+  function toggleMember(id: string) {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function handleSubmit() {
+    if (!name.trim()) return;
+    const memberNames = selectedIds
+      .map((id) => staff.find((s) => s.id === id)?.name ?? "")
+      .filter(Boolean);
+    onSave({
+      name: name.trim(),
+      description: description.trim(),
+      colour,
+      memberIds: selectedIds,
+      memberNames,
+      sortOrder: initial?.sortOrder ?? 0,
+    });
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md flex flex-col max-h-[calc(100vh-4rem)] overflow-hidden p-0 gap-0">
+        {/* Fixed header */}
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
+          <DialogTitle className="text-base font-semibold text-slate-900">
+            {initial ? "Edit task group" : "Add task group"}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-slate-500 mt-0.5">
+            {initial ? "Update this group's details and members." : "Create a group to organise staff for task assignment."}
+          </DialogDescription>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
+          {/* Name + Colour row */}
+          <div className="flex gap-3 items-end">
+            <div className="flex-1 min-w-0">
+              <FieldLabel>Group name</FieldLabel>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Biology Department"
+                className={FIELD}
+                autoFocus
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <FieldLabel>Colour</FieldLabel>
+              <div className="flex flex-wrap gap-1.5 mt-0.5">
+                {GROUP_COLOURS.map((c) => (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    title={c.label}
+                    onClick={() => setColour(c.hex)}
+                    className={cn(
+                      "w-6 h-6 rounded-full border-2 transition-all cursor-pointer",
+                      colour === c.hex ? "border-slate-800 scale-110 shadow-sm" : "border-white shadow-sm hover:scale-105"
+                    )}
+                    style={{ backgroundColor: c.hex }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <FieldLabel>
+              Description{" "}
+              <span className="text-slate-400 font-normal">(optional)</span>
+            </FieldLabel>
+            <input
+              value={description}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="e.g. All biology teaching staff"
+              className={FIELD}
+            />
+          </div>
+
+          {/* Staff picker */}
+          <div className="flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-1.5">
+              <FieldLabel>Members</FieldLabel>
+              {selectedIds.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">
+                  {selectedIds.length} selected
+                </span>
+              )}
+            </div>
+            <div className="border border-slate-200 rounded-lg overflow-hidden flex flex-col">
+              {/* Search */}
+              <div className="relative border-b border-slate-100 flex-shrink-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search staff…"
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 focus:outline-none focus:bg-white transition-colors placeholder:text-slate-400"
+                />
+              </div>
+              {/* List — fixed height, scrollable */}
+              <div className="h-44 overflow-y-auto divide-y divide-slate-50">
+                {filtered.length === 0 ? (
+                  <p className="px-4 py-8 text-sm text-slate-400 text-center">No staff found</p>
+                ) : (
+                  filtered.map((s) => {
+                    const checked = selectedIds.includes(s.id);
+                    const initials = s.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase();
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => toggleMember(s.id)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 text-left transition-colors cursor-pointer",
+                          checked ? "bg-amber-50" : "hover:bg-slate-50"
+                        )}
+                      >
+                        {/* Checkbox */}
+                        <span
+                          className={cn(
+                            "flex-shrink-0 w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-colors",
+                            checked ? "bg-amber-500 border-amber-500" : "border-slate-300 bg-white"
+                          )}
+                        >
+                          {checked && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                        </span>
+                        {/* Avatar */}
+                        <span
+                          className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
+                          style={{ backgroundColor: colour }}
+                        >
+                          {initials}
+                        </span>
+                        {/* Info */}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-slate-800 truncate leading-tight">{s.name}</span>
+                          <span className="block text-xs text-slate-400 truncate leading-tight mt-0.5">{s.role} · {s.department}</span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Fixed footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 flex-shrink-0 bg-white">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!name.trim()}
+            className={cn(
+              "rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors",
+              !name.trim()
+                ? "bg-amber-300 cursor-not-allowed"
+                : "bg-amber-500 hover:bg-amber-600 cursor-pointer"
+            )}
+          >
+            {initial ? "Save changes" : "Add group"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TaskGroupsSection() {
+  const [groups, setGroups]         = useState<TaskGroupData[]>([]);
+  const [staff, setStaff]           = useState<StaffOption[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing]       = useState<TaskGroupData | null>(null);
+  const [archiving, setArchiving]   = useState<TaskGroupData | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/task-groups')
+      .then((r) => r.json())
+      .then((data) => setGroups((data ?? []).sort((a: TaskGroupData, b: TaskGroupData) => a.sortOrder - b.sortOrder)))
+      .catch(() => {});
+    fetch('/api/staff')
+      .then((r) => r.json())
+      .then((data) => {
+        const list = data?.data ?? data ?? [];
+        setStaff(
+          list
+            .filter((s: StaffOption & { status?: string }) => s.status !== 'Inactive' && s.status !== 'Off-boarded')
+            .map((s: StaffOption) => ({ id: s.id, name: s.name, role: s.role, department: s.department }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  const activeGroups   = groups.filter((g) => g.active).sort((a, b) => a.sortOrder - b.sortOrder);
+  const archivedGroups = groups.filter((g) => !g.active);
+
+  function openAdd() { setEditing(null); setDialogOpen(true); }
+  function openEdit(g: TaskGroupData) { setEditing(g); setDialogOpen(true); }
+
+  async function handleSave(data: Omit<TaskGroupData, "id" | "active">) {
+    if (editing) {
+      const res = await fetch(`/api/settings/task-groups/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setGroups((prev) => prev.map((g) => g.id === editing.id ? { ...g, ...updated } : g));
+        toast.success("Task group saved");
+      } else {
+        toast.error("Failed to save task group");
+      }
+    } else {
+      const res = await fetch('/api/settings/task-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setGroups((prev) => [...prev, created]);
+        toast.success("Task group created");
+      } else {
+        toast.error("Failed to create task group");
+      }
+    }
+  }
+
+  async function handleArchive(id: string) {
+    const res = await fetch(`/api/settings/task-groups/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false }),
+    });
+    if (res.ok) {
+      setGroups((prev) => prev.map((g) => g.id === id ? { ...g, active: false } : g));
+      toast.success("Task group archived");
+    } else {
+      toast.error("Failed to archive task group");
+    }
+    setArchiving(null);
+  }
+
+  async function handleRestore(id: string) {
+    const res = await fetch(`/api/settings/task-groups/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: true }),
+    });
+    if (res.ok) {
+      setGroups((prev) => prev.map((g) => g.id === id ? { ...g, active: true } : g));
+      toast.success("Task group restored");
+    } else {
+      toast.error("Failed to restore task group");
+    }
+  }
+
+  return (
+    <div>
+      <SectionHeader
+        title="Task Groups"
+        description="Organise staff into named groups for task assignment and filtering."
+        action={<AddButton label="Add Group" onClick={openAdd} />}
+      />
+
+      <TaskGroupDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initial={editing}
+        staff={staff}
+        onSave={handleSave}
+      />
+
+      {/* Archive confirm dialog */}
+      <Dialog open={!!archiving} onOpenChange={(o) => { if (!o) setArchiving(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Archive task group?</DialogTitle>
+            <DialogDescription>
+              <strong>{archiving?.name}</strong> will be hidden from all task assignment pickers. You can restore it at any time.
+            </DialogDescription>
+          </DialogHeader>
+          <FormActions
+            onCancel={() => setArchiving(null)}
+            onSubmit={() => archiving && handleArchive(archiving.id)}
+            submitLabel="Archive"
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Active groups */}
+      <Table headers={["", "Group", "Members", "Status", "Actions"]}>
+        {activeGroups.length === 0 ? (
+          <tr>
+            <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+              No task groups yet. Add one to get started.
+            </td>
+          </tr>
+        ) : (
+          activeGroups.map((g) => (
+            <tr key={g.id} className="hover:bg-slate-50 transition-colors">
+              <td className="px-4 py-3.5 w-8">
+                <span
+                  className="block w-3.5 h-3.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: g.colour }}
+                />
+              </td>
+              <td className="px-4 py-3.5">
+                <p className="text-sm font-medium text-slate-800">{g.name}</p>
+                {g.description && (
+                  <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{g.description}</p>
+                )}
+              </td>
+              <td className="px-4 py-3.5">
+                {g.memberNames.length === 0 ? (
+                  <span className="text-xs text-slate-400">No members</span>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {g.memberNames.slice(0, 4).map((name) => {
+                      const initials = name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+                      return (
+                        <span
+                          key={name}
+                          title={name}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium text-white"
+                          style={{ backgroundColor: g.colour }}
+                        >
+                          {initials}
+                        </span>
+                      );
+                    })}
+                    {g.memberNames.length > 4 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500">
+                        +{g.memberNames.length - 4}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 ml-1">
+                      {g.memberNames.length} {g.memberNames.length === 1 ? "member" : "members"}
+                    </span>
+                  </div>
+                )}
+              </td>
+              <td className="px-4 py-3.5">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                  Active
+                </span>
+              </td>
+              <td className="px-4 py-3.5">
+                <div className="flex items-center gap-1">
+                  <TableAction label="Edit" onClick={() => openEdit(g)} />
+                  <TableAction label="Archive" danger onClick={() => setArchiving(g)} />
+                </div>
+              </td>
+            </tr>
+          ))
+        )}
+      </Table>
+
+      {/* Archived groups */}
+      {archivedGroups.length > 0 && (
+        <div className="mt-6">
+          <button
+            onClick={() => setArchivedOpen((v) => !v)}
+            className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer mb-3"
+          >
+            {archivedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            Archived ({archivedGroups.length})
+          </button>
+          {archivedOpen && (
+            <Table headers={["", "Group", "Members", "Status", "Actions"]}>
+              {archivedGroups.map((g) => (
+                <tr key={g.id} className="hover:bg-slate-50 transition-colors opacity-60">
+                  <td className="px-4 py-3.5 w-8">
+                    <span
+                      className="block w-3.5 h-3.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: g.colour }}
+                    />
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <p className="text-sm font-medium text-slate-700">{g.name}</p>
+                    {g.description && (
+                      <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{g.description}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                      {g.memberNames.length} {g.memberNames.length === 1 ? "member" : "members"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                      Archived
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <TableAction label="Restore" onClick={() => handleRestore(g.id)} />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          )}
+        </div>
+      )}
+
+      <p className="mt-4 text-xs text-slate-400">
+        Task groups are used to bulk-assign tasks and filter the task board by team.
+      </p>
+    </div>
+  );
+}
+
 // ─── Section Renderer ──────────────────────────────────────────────────────────
 
 function renderSection(id: SectionId) {
@@ -4784,6 +5289,7 @@ function renderSection(id: SectionId) {
     case "roles":            return <RolesSection />;
     case "notifications":    return <NotificationsSection />;
     case "templates":        return <TemplatesSection />;
+    case "task-groups":      return <TaskGroupsSection />;
     case "feature-toggles":  return <FeatureTogglesSection />;
     case "integrations":     return <IntegrationsSection />;
     case "churn":            return <ChurnSection />;

@@ -207,10 +207,11 @@ export const PERMISSIONS: Record<string, Role[]> = {
   'import':                   ['Super Admin'],
 
   // ── Settings ──
-  'settings.view':            ['Super Admin'],
-  'settings.edit':            ['Super Admin'],
-  'settings.manageRoles':     ['Super Admin'],
-  'settings.manageBilling':   ['Super Admin'],
+  'settings.view':             ['Super Admin'],
+  'settings.edit':             ['Super Admin'],
+  'settings.manageRoles':      ['Super Admin'],
+  'settings.manageBilling':    ['Super Admin'],
+  'settings.manageTaskGroups': ['Super Admin'],
 
   // ── Subjects & Catalogue (Settings → Subjects) ──
   'catalogue.edit':           ['Super Admin','Admin Head'],

@@ -21,10 +21,13 @@ export async function PATCH(
     updated_at: new Date().toISOString(),
   }
 
-  if (body.status) updates.status = body.status
+  if (body.status) {
+    const normalised = (body.status as string).toLowerCase()
+    updates.status = normalised
+    if (normalised === 'cancelled') updates.voided_at = new Date().toISOString()
+    if (normalised === 'issued')    updates.issued_at = new Date().toISOString()
+  }
   if (body.void_reason) updates.void_reason = body.void_reason
-  if (body.status === 'Cancelled') updates.voided_at = new Date().toISOString()
-  if (body.status === 'Issued') updates.issued_at = new Date().toISOString()
 
   const { data, error } = await supabase
     .from('invoices')

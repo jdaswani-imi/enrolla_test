@@ -656,7 +656,10 @@ function ActiveEnrolmentsTab() {
             </button>
           )}
           {can('enrolment.create') && (
-            <button className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer">
+            <button
+              onClick={() => router.push('/finance/invoice/new')}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+            >
               <Plus className="w-3.5 h-3.5" />
               New Enrolment
             </button>

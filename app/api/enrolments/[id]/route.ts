@@ -20,12 +20,11 @@ export async function PATCH(
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   }
-  if (body.status !== undefined)            patch.status = body.status
-  if (body.sessionsTotal !== undefined)     patch.sessions_total = body.sessionsTotal
-  if (body.sessionsRemaining !== undefined) patch.sessions_remaining = body.sessionsRemaining
-  if (body.invoiceStatus !== undefined)     patch.invoice_status = body.invoiceStatus
-  if (body.packageName !== undefined)       patch.package_name = body.packageName
-  if (body.withdrawnAt !== undefined)       patch.withdrawn_at = body.withdrawnAt
+
+  // Only billing-event-driven status changes are permitted here.
+  // sessions_remaining and sessions_total must never be patched — they are computed.
+  if (body.status !== undefined)    patch.status = body.status
+  if (body.withdrawnAt !== undefined) patch.withdrawn_at = body.withdrawnAt
 
   const { error } = await supabase
     .from('enrolments')

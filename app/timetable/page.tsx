@@ -66,6 +66,7 @@ interface TimetableSession {
   endTime: string;
   duration: number;
   students: string[];
+  studentIds: string[];
   studentCount: number;
   type: SessionType;
   status: SessionStatus;
@@ -278,6 +279,7 @@ function assessmentToSessions(a: AssessmentRecord): ExtendedSession[] {
     endTime: a.endTime,
     duration: 15,
     students: [a.studentName],
+    studentIds: [],
     studentCount: 1,
     type: "Assessment",
     status: a.status === "Done" ? "Completed" : "Scheduled",
@@ -587,6 +589,7 @@ function SessionDetailModal({
   onClose,
   onEdit,
   onCancelled,
+  onStudentAdded,
 }: {
   session: TimetableSession;
   dateIso: string | null;
@@ -594,16 +597,82 @@ function SessionDetailModal({
   onClose: () => void;
   onEdit: () => void;
   onCancelled: () => void;
+  onStudentAdded: (studentId: string, studentName: string) => void;
 }) {
   const { can } = usePermission();
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerResults, setPickerResults] = useState<{ id: string; name: string }[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
 
   const derived = deriveStatus(session, dateIso, now);
   const yearMatch = session.subject.match(/^(KG\d*|Y\d+)/);
   const yearGroup = yearMatch?.[1] ?? null;
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function handler(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [pickerOpen]);
+
+  // Debounced student search
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const timer = setTimeout(async () => {
+      setPickerLoading(true);
+      try {
+        const q = pickerQuery.trim();
+        const url = q ? `/api/students?q=${encodeURIComponent(q)}` : `/api/students`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const all: { id: string; first_name: string; last_name: string }[] = json.data ?? [];
+        const mapped = all.map((s) => ({ id: s.id, name: `${s.first_name} ${s.last_name}` }));
+        // Filter out students already in this session
+        setPickerResults(mapped.filter((s) => !session.studentIds.includes(s.id)).slice(0, 20));
+      } catch {
+        setPickerResults([]);
+      } finally {
+        setPickerLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [pickerQuery, pickerOpen, session.studentIds]);
+
+  async function handleAddStudent(studentId: string, studentName: string) {
+    setAddingId(studentId);
+    try {
+      const res = await fetch(`/api/attendance/sessions/${session.id}/students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        sonnerToast.error(err.error ?? "Failed to add student");
+        return;
+      }
+      onStudentAdded(studentId, studentName);
+      setPickerOpen(false);
+      setPickerQuery("");
+      sonnerToast.success(`${studentName} added to session`);
+    } catch {
+      sonnerToast.error("Failed to add student");
+    } finally {
+      setAddingId(null);
+    }
+  }
 
   function navigateAttendance() {
     onClose();
@@ -725,9 +794,71 @@ function SessionDetailModal({
 
             {/* Students */}
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-2">
-                Students ({session.studentCount})
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Students ({session.studentCount})
+                </p>
+                {can('timetable.editSession') && derived === "Upcoming" && (
+                  <div ref={pickerRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => { setPickerOpen((v) => !v); setPickerQuery(""); }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold hover:bg-amber-100 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add student
+                    </button>
+
+                    {pickerOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                        <div className="p-2 border-b border-slate-100">
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                            <input
+                              autoFocus
+                              value={pickerQuery}
+                              onChange={(e) => setPickerQuery(e.target.value)}
+                              placeholder="Search students…"
+                              className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                            />
+                          </div>
+                        </div>
+                        <ul className="max-h-52 overflow-y-auto py-1">
+                          {pickerLoading ? (
+                            <li className="px-3 py-2 text-xs text-slate-400">Searching…</li>
+                          ) : pickerResults.length === 0 ? (
+                            <li className="px-3 py-2 text-xs text-slate-400">
+                              {pickerQuery ? "No students found" : "Type to search students"}
+                            </li>
+                          ) : (
+                            pickerResults.map((s) => (
+                              <li key={s.id}>
+                                <button
+                                  type="button"
+                                  disabled={addingId === s.id}
+                                  onClick={() => handleAddStudent(s.id, s.name)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-amber-50 text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <div className={cn(
+                                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0",
+                                    avatarColor(s.name),
+                                  )}>
+                                    {initials(s.name)}
+                                  </div>
+                                  <span className="text-sm text-slate-700 truncate flex-1">{s.name}</span>
+                                  {addingId === s.id && (
+                                    <span className="text-[10px] text-slate-400">Adding…</span>
+                                  )}
+                                </button>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               {session.students.length === 0 ? (
                 <p className="text-sm text-slate-400 italic">No students — staff session</p>
               ) : (
@@ -1591,6 +1722,7 @@ export default function TimetablePage() {
           type: s.type,
           status: s.status,
           students: (s.students as Array<{ id: string; name: string }> ?? []).map((st) => st.name),
+          studentIds: (s.students as Array<{ id: string; name: string }> ?? []).map((st) => st.id),
           studentCount: s.studentCount,
           existingRecords: s.existingRecords,
           attendanceMarked: s.attendanceMarked,
@@ -2344,6 +2476,30 @@ export default function TimetablePage() {
           onCancelled={() => {
             setSelectedSession(null);
             setSessionTick((n) => n + 1);
+          }}
+          onStudentAdded={(studentId, studentName) => {
+            setSelectedSession((prev) => {
+              if (!prev) return prev;
+              const updated: typeof prev = {
+                ...prev,
+                students: [...prev.students, studentName],
+                studentIds: [...prev.studentIds, studentId],
+                studentCount: prev.studentCount + 1,
+              };
+              return updated;
+            });
+            setLiveSessions((prev) =>
+              prev.map((s) =>
+                s.id === selectedSession?.id
+                  ? {
+                      ...s,
+                      students: [...s.students, studentName],
+                      studentIds: [...s.studentIds, studentId],
+                      studentCount: s.studentCount + 1,
+                    }
+                  : s
+              )
+            );
           }}
         />
       ) : null}

@@ -12,7 +12,6 @@ import {
   X,
   MoreHorizontal,
   Eye,
-  BookOpen,
   ClipboardList,
   MessageSquare,
   UserX,
@@ -37,11 +36,6 @@ import type { NewStudentData } from "@/components/add-student-dialog";
 import dynamic from "next/dynamic";
 const AddStudentDialog = dynamic(
   () => import("@/components/add-student-dialog").then((m) => ({ default: m.AddStudentDialog })),
-  { loading: () => null }
-);
-import type { StudentDepartment } from "@/components/enrolment/new-enrolment-dialog";
-const NewEnrolmentDialog = dynamic(
-  () => import("@/components/enrolment/new-enrolment-dialog").then((m) => ({ default: m.NewEnrolmentDialog })),
   { loading: () => null }
 );
 type TaskType = "Admin" | "Academic" | "Finance" | "HR" | "Student Follow-up" | "Cover" | "Personal";
@@ -139,7 +133,7 @@ function toStudent(raw: ApiStudent): Student {
     guardianEmail: g?.email ?? "",
     enrolments: raw.enrolments?.filter(e => e.status === "Active").length ?? 0,
     churnScore: raw.churn_score,
-    status: raw.status as StudentStatus,
+    status: (raw.status.charAt(0).toUpperCase() + raw.status.slice(1).toLowerCase()) as StudentStatus,
     lastContact: "—",
     createdOn: `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`,
   };
@@ -170,7 +164,6 @@ function RowActions({
   isOpen,
   onOpen,
   onClose,
-  onAddEnrolment,
   onNewTask,
   onLogNote,
   onWithdraw,
@@ -181,7 +174,6 @@ function RowActions({
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
-  onAddEnrolment: (s: Student) => void;
   onNewTask: (s: Student) => void;
   onLogNote: (s: Student) => void;
   onWithdraw: (s: Student) => void;
@@ -241,7 +233,6 @@ function RowActions({
 
   const rawItems: Item[] = [
     { kind: "action", icon: Eye,           label: "View profile",     onClick: () => router.push(`/students/${student.id}`), show: true },
-    { kind: "action", icon: BookOpen,      label: "Add enrolment",    onClick: () => onAddEnrolment(student),                show: can('enrolment.create') && isOperational },
     { kind: "action", icon: ClipboardList, label: "New task",         onClick: () => onNewTask(student),                     show: can('tasks.create') },
     { kind: "action", icon: MessageSquare, label: "Log contact note", onClick: () => onLogNote(student),                     show: true },
     { kind: "separator", show: can('enrolment.withdraw') && isOperational },
@@ -524,7 +515,6 @@ export default function StudentsPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Row action dialogs
-  const [enrolmentStudent, setEnrolmentStudent] = useState<Student | null>(null);
   const [taskStudent,      setTaskStudent]      = useState<Student | null>(null);
   const [noteStudent,      setNoteStudent]      = useState<Student | null>(null);
   const [withdrawStudent,  setWithdrawStudent]  = useState<Student | null>(null);
@@ -1045,7 +1035,6 @@ export default function StudentsPage() {
                           isOpen={openMenuId === student.id}
                           onOpen={() => setOpenMenuId(student.id)}
                           onClose={() => setOpenMenuId(null)}
-                          onAddEnrolment={setEnrolmentStudent}
                           onNewTask={setTaskStudent}
                           onLogNote={setNoteStudent}
                           onWithdraw={setWithdrawStudent}
@@ -1071,17 +1060,6 @@ export default function StudentsPage() {
       </div>
 
       {/* ── Row-action dialogs ────────────────────────────────────────────────── */}
-      {enrolmentStudent && (
-        <NewEnrolmentDialog
-          open={true}
-          onOpenChange={(v) => { if (!v) setEnrolmentStudent(null); }}
-          studentId={enrolmentStudent.id}
-          studentName={enrolmentStudent.name}
-          yearGroup={enrolmentStudent.yearGroup}
-          department={enrolmentStudent.department as StudentDepartment}
-        />
-      )}
-
       <NewTaskDialog
         student={taskStudent}
         onClose={() => setTaskStudent(null)}

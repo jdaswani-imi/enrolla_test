@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   const sessionIds = sessions.map(s => s.id)
   const subjectIds = [...new Set(sessions.map(s => s.subject_id).filter(Boolean))]
 
-  const [{ data: enrolments }, { data: records }] = await Promise.all([
+  const [{ data: enrolments }, { data: records }, { data: sessionStudents }] = await Promise.all([
     supabase
       .from('enrolments')
       .select('subject_id, students (id, first_name, last_name)')
@@ -60,6 +60,11 @@ export async function GET(request: NextRequest) {
     supabase
       .from('attendance_records')
       .select('session_id, student_id, status')
+      .eq('tenant_id', TENANT_ID)
+      .in('session_id', sessionIds),
+    supabase
+      .from('session_students')
+      .select('session_id, student_id, students (id, first_name, last_name)')
       .eq('tenant_id', TENANT_ID)
       .in('session_id', sessionIds),
   ])
@@ -86,11 +91,24 @@ export async function GET(request: NextRequest) {
     recordsBySession[rec.session_id][rec.student_id] = rec.status
   }
 
+  // Group session_students overrides by session (students added directly to a session)
+  const overridesBySession: Record<string, Array<{ id: string; name: string; yearGroup: string }>> = {}
+  for (const row of (sessionStudents ?? [])) {
+    const st = row.students as unknown as { id: string; first_name: string; last_name: string } | null
+    if (!st) continue
+    if (!overridesBySession[row.session_id]) overridesBySession[row.session_id] = []
+    if (!overridesBySession[row.session_id].some(s => s.id === st.id)) {
+      overridesBySession[row.session_id].push({ id: st.id, name: `${st.first_name} ${st.last_name}`, yearGroup: '' })
+    }
+  }
+
   const data = sessions.map(s => {
     const subject = s.subjects as unknown as { id: string; name: string; departments: { name: string } | null } | null
     const room = s.rooms as unknown as { name: string } | null
     const staffMember = s.staff as unknown as { id: string; first_name: string; last_name: string } | null
-    const students = (studentsBySubject[s.subject_id] ?? []).sort((a, b) => a.name.localeCompare(b.name))
+    const enrolmentStudents = (studentsBySubject[s.subject_id] ?? [])
+    const overrideStudents = (overridesBySession[s.id] ?? []).filter(o => !enrolmentStudents.some(e => e.id === o.id))
+    const students = [...enrolmentStudents, ...overrideStudents].sort((a, b) => a.name.localeCompare(b.name))
     const existingRecords = recordsBySession[s.id] ?? {}
     const attendanceMarked = students.length > 0 && students.every(st => existingRecords[st.id])
     const startStr = (s.start_time as string)?.substring(0, 5) ?? ''
