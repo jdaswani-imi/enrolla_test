@@ -19,9 +19,10 @@ export function useStaffSearch() {
     clearTimeout(timerRef.current);
     abortRef.current?.abort();
 
+    // No status filter — invited/on_leave staff should be mentionable too
     const url = query.trim()
-      ? `/api/staff?status=active&q=${encodeURIComponent(query.trim())}`
-      : `/api/staff?status=active`;
+      ? `/api/staff?q=${encodeURIComponent(query.trim())}`
+      : `/api/staff`;
 
     timerRef.current = setTimeout(async () => {
       const ac = new AbortController();

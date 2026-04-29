@@ -1741,19 +1741,20 @@ function EmbeddedTeamChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const mentionInputRef = useRef<MentionInputRef>(null);
 
-  // Fetch active staff for assignees picker and mention rendering
+  // Fetch all staff for assignee picker and mention rendering.
+  // No status filter — invited/on_leave staff should still be mentionable.
+  // API returns { data: [...] }, so unwrap before use.
   useEffect(() => {
-    fetch("/api/staff?status=active")
+    fetch("/api/staff")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const names: string[] = data
-            .map((s: { name?: string }) => s.name?.trim())
-            .filter((n): n is string => Boolean(n));
-          if (names.length > 0) {
-            setStaffNames(names);
-            setActiveStaffNames(new Set(names));
-          }
+      .then((json) => {
+        const rows = (json?.data ?? []) as Array<{ name?: string }>;
+        const names = rows
+          .map((s) => s.name?.trim())
+          .filter((n): n is string => Boolean(n));
+        if (names.length > 0) {
+          setStaffNames(names);
+          setActiveStaffNames(new Set(names));
         }
       })
       .catch(() => {});
