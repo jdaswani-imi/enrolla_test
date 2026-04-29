@@ -18,6 +18,7 @@ interface DateRangePickerProps {
   presets?: PresetItem[]
   placeholder?: string
   twoMonth?: boolean
+  triggerClassName?: string
 }
 
 export function DateRangePicker({
@@ -26,6 +27,7 @@ export function DateRangePicker({
   presets,
   placeholder = 'Date range',
   twoMonth = false,
+  triggerClassName,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
   const [month, setMonth] = useState(() => {
@@ -79,6 +81,7 @@ export function DateRangePicker({
           isActive
             ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
             : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700',
+          triggerClassName,
         )}
       >
         <Calendar className="w-3.5 h-3.5" />

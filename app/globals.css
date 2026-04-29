@@ -260,13 +260,23 @@ button, a, [role="button"] {
 }
 
 /* ─── @mention highlight animation ───────────────────────────────────────── */
-@keyframes mention-highlight {
-  0%   { background-color: #FEF3C7; box-shadow: 0 0 0 3px #F59E0B40; }
-  60%  { background-color: #FEF3C7; box-shadow: 0 0 0 3px #F59E0B40; }
-  100% { background-color: transparent; box-shadow: none; }
+@keyframes mention-ping {
+  0% {
+    background-color: #FEF3C7;
+    box-shadow: 0 0 0 0px #F59E0B80;
+  }
+  25% {
+    background-color: #FDE68A;
+    box-shadow: 0 0 0 4px #F59E0B30;
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0px transparent;
+  }
 }
 
-.mention-highlight-active {
+.mention-target {
   border-radius: 10px;
-  animation: mention-highlight 2.2s ease-out forwards;
+  animation: mention-ping 2.6s ease-out forwards;
+  animation-delay: 60ms;
 }

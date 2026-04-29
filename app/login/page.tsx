@@ -96,14 +96,19 @@ export default function LoginPage() {
     }
   }
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const shouldReduceMotion = useReducedMotion();
-  const motionProps = shouldReduceMotion
-    ? { initial: false }
-    : { variants: loginPanelContainer, initial: "initial", animate: "animate" };
-  const itemProps = shouldReduceMotion ? {} : { variants: loginPanelItem };
-  const formProps = shouldReduceMotion
-    ? {}
-    : { variants: fadeUpItem, initial: "initial", animate: "animate" };
+  const motionProps =
+    !mounted || shouldReduceMotion
+      ? { initial: false }
+      : { variants: loginPanelContainer, initial: "initial", animate: "animate" };
+  const itemProps = !mounted || shouldReduceMotion ? {} : { variants: loginPanelItem };
+  const formProps =
+    !mounted || shouldReduceMotion
+      ? {}
+      : { variants: fadeUpItem, initial: "initial", animate: "animate" };
 
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-white">

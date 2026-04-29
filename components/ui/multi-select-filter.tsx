@@ -8,9 +8,10 @@ interface MultiSelectFilterProps {
   options: string[]
   selected: string[]
   onChange: (selected: string[]) => void
+  triggerClassName?: string
 }
 
-export function MultiSelectFilter({ label, options, selected, onChange }: MultiSelectFilterProps) {
+export function MultiSelectFilter({ label, options, selected, onChange, triggerClassName }: MultiSelectFilterProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -46,7 +47,8 @@ export function MultiSelectFilter({ label, options, selected, onChange }: MultiS
           'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer whitespace-nowrap',
           isActive
             ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-            : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700'
+            : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700',
+          triggerClassName,
         )}
       >
         {displayLabel}

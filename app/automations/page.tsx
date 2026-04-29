@@ -948,6 +948,16 @@ function InternalMessagesTab() {
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Soft-delete / undo state
+  const [pendingDeleteMessages, setPendingDeleteMessages] = useState<Map<string, IMMessage>>(new Map());
+  const [dismissingDeleteIds, setDismissingDeleteIds] = useState<Set<string>>(new Set());
+  const pendingDeleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const timers = pendingDeleteTimers.current;
+    return () => { timers.forEach((t) => clearTimeout(t)); };
+  }, []);
+
   const activeChannel = IM_CHANNELS.find(c => c.id === activeId);
   const activeDM = IM_DMS.find(d => d.id === activeId);
   const activeMessages = messagesByChannel[activeId] ?? [];
@@ -1002,10 +1012,32 @@ function InternalMessagesTab() {
   }
 
   function deleteMessage(msgId: string) {
-    setMessagesByChannel(prev => {
-      const list = (prev[activeId] ?? []).filter(m => m.id !== msgId);
-      return { ...prev, [activeId]: list };
-    });
+    const channelId = activeId;
+    const msg = (messagesByChannel[channelId] ?? []).find((m) => m.id === msgId);
+    if (!msg) return;
+
+    const timerId = setTimeout(() => {
+      setDismissingDeleteIds((s) => new Set(s).add(msgId));
+      setTimeout(() => {
+        pendingDeleteTimers.current.delete(msgId);
+        setPendingDeleteMessages((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
+        setDismissingDeleteIds((s) => { const next = new Set(s); next.delete(msgId); return next; });
+        setMessagesByChannel((prev) => {
+          const list = (prev[channelId] ?? []).filter((m) => m.id !== msgId);
+          return { ...prev, [channelId]: list };
+        });
+      }, 300);
+    }, 9700);
+
+    pendingDeleteTimers.current.set(msgId, timerId);
+    setPendingDeleteMessages((prev) => { const next = new Map(prev); next.set(msgId, msg); return next; });
+  }
+
+  function undoDelete(msgId: string) {
+    const timerId = pendingDeleteTimers.current.get(msgId);
+    if (timerId !== undefined) clearTimeout(timerId);
+    pendingDeleteTimers.current.delete(msgId);
+    setPendingDeleteMessages((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
   }
 
   function sendMessage() {
@@ -1254,6 +1286,29 @@ function InternalMessagesTab() {
                     const grouped = prev && prev.senderId === m.senderId;
                     const isOwn = m.senderId === CURRENT_USER.id;
                     const isSelected = selectedMessageId === m.id;
+
+                    // Pending-delete: render inline undo toast in place of message
+                    if (pendingDeleteMessages.has(m.id)) {
+                      return (
+                        <div
+                          key={m.id}
+                          className={cn(
+                            "rounded-md border border-slate-200 bg-slate-100 px-3 py-2.5 flex items-center gap-2 transition-opacity duration-300",
+                            dismissingDeleteIds.has(m.id) ? "opacity-0" : "opacity-100",
+                          )}
+                        >
+                          <span className="text-sm text-slate-500 flex-1">Comment deleted.</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); undoDelete(m.id); }}
+                            className="text-sm font-semibold text-slate-600 hover:text-slate-800 cursor-pointer transition-colors"
+                          >
+                            Undo
+                          </button>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={m.id}

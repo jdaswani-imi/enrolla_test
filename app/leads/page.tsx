@@ -133,7 +133,7 @@ type KanbanPrefs = {
 
 const DEFAULT_KANBAN_PREFS: KanbanPrefs = {
   density: "default",
-  columnWidth: 280,
+  columnWidth: 200,
   fields: {
     guardian: true,
     phone: false,
@@ -512,9 +512,9 @@ const DENSITY_OPTIONS: { key: CardDensity; label: string }[] = [
 ];
 
 const COL_WIDTH_SNAP_POINTS = [
-  { value: 220, label: "Narrow" },
-  { value: 280, label: "Default" },
-  { value: 400, label: "Wide" },
+  { value: 160, label: "Compact" },
+  { value: 200, label: "Default" },
+  { value: 280, label: "Wide" },
 ];
 
 const FIELD_OPTIONS: { key: keyof KanbanFieldVisibility; label: string }[] = [
@@ -591,14 +591,14 @@ function PersonalisePopover({
           </p>
           <input
             type="range"
-            min={220}
+            min={160}
             max={400}
             step={10}
             value={prefs.columnWidth}
             onChange={(e) => setPrefs((p) => ({ ...p, columnWidth: Number(e.target.value) }))}
             aria-label="Column width"
             aria-valuenow={prefs.columnWidth}
-            aria-valuemin={220}
+            aria-valuemin={160}
             aria-valuemax={400}
             className="w-full accent-amber-500 cursor-pointer"
           />
@@ -795,7 +795,7 @@ function KanbanCard({
       }}
       className={cn(
         "rounded-lg border border-slate-200 shadow-sm border-l-4 cursor-grab active:cursor-grabbing hover:shadow-md transition-all outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
-        isCompact ? "p-2" : isComfortable ? "p-4" : "p-3",
+        isCompact ? "p-2" : isComfortable ? "p-4" : "p-2.5",
         lead.dnc ? "border-l-red-400" : cfg.color,
         lead.stage === "Won" ? "bg-green-50" : lead.stage === "Lost" ? "bg-red-50/30" : "bg-white",
         lead.stage === "Lost" && "opacity-85 grayscale-[0.2]",
@@ -805,7 +805,7 @@ function KanbanCard({
       {/* Top row — always visible */}
       <div className={cn("flex items-start justify-between gap-1", isCompact ? "mb-0.5" : "mb-1")}>
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          <span className={cn("font-semibold text-slate-800 leading-tight", isCompact ? "text-xs" : "text-sm")}>
+          <span className={cn("font-semibold text-slate-800 leading-tight", isCompact ? "text-xs" : "text-[13px]")}>
             {lead.childName}
           </span>
           {lead.dnc && (
@@ -840,20 +840,20 @@ function KanbanCard({
       {/* Source badge */}
       {fields.sourceBadge && !isCompact && (
         <div className={isComfortable ? "mb-2" : "mb-1.5"}>
-          <span className={cn("inline-flex px-1.5 py-0.5 rounded text-xs font-medium", SOURCE_CONFIG[lead.source])}>
+          <span className={cn("inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium", SOURCE_CONFIG[lead.source])}>
             {lead.source}
           </span>
         </div>
       )}
 
       {/* Year + subjects — always visible */}
-      <p className={cn("text-slate-500", isCompact ? "text-[10px] mb-0" : isComfortable ? "text-xs mb-1" : "text-xs mb-0.5")}>
+      <p className={cn("text-slate-500", isCompact ? "text-[10px] mb-0" : isComfortable ? "text-xs mb-1" : "text-[11px] mb-0.5")}>
         {lead.yearGroup} · {lead.subjects.join(", ")}
       </p>
 
       {/* Guardian */}
       {fields.guardian && !isCompact && (
-        <p className={cn("text-xs text-slate-400", isComfortable ? "mb-2" : "mb-1.5")}>{lead.guardian}</p>
+        <p className={cn("text-[11px] text-slate-400", isComfortable ? "mb-2" : "mb-1.5")}>{lead.guardian}</p>
       )}
 
       {/* Phone — only in comfortable density */}
@@ -904,14 +904,14 @@ function KanbanCard({
                 {getInitials(lead.assignedTo)}
               </div>
             )}
-            <span className="text-xs text-slate-400">{lead.lastActivity}</span>
+            <span className="text-[11px] text-slate-400">{lead.lastActivity}</span>
           </div>
           <div className="flex items-center gap-2">
             {fields.daysInPipeline && isComfortable && (
               <span className="text-[10px] text-slate-400">{lead.daysInPipeline}d pipeline</span>
             )}
             {fields.daysInStage && (
-              <span className="text-xs text-slate-400 font-medium">{lead.daysInStage}d</span>
+              <span className="text-[11px] text-slate-400 font-medium">{lead.daysInStage}d</span>
             )}
           </div>
         </div>
@@ -998,7 +998,7 @@ function KanbanColumn({
   }
 
   return (
-    <div className="flex flex-col shrink-0 h-full" style={{ width: `${columnWidth}px` }}>
+    <div className="flex flex-col shrink-0 h-full" style={{ width: `${columnWidth}px`, minWidth: "200px" }}>
       {/* Column header */}
       <div
         className={cn(
@@ -1009,7 +1009,7 @@ function KanbanColumn({
         onDoubleClick={onToggleCollapse}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className={cn("font-semibold text-sm truncate", cfg.headerText)}>{stage}</span>
+          <span className={cn("font-semibold text-[13px] truncate", cfg.headerText)}>{stage}</span>
           <button
             type="button"
             onClick={onToggleCollapse}
@@ -1019,7 +1019,7 @@ function KanbanColumn({
             <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
           </button>
         </div>
-        <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full shrink-0", cfg.badge)}>
+        <span className={cn("text-[11px] font-bold w-[18px] h-[18px] flex items-center justify-center rounded-full shrink-0", cfg.badge)}>
           {stageLeads.length}
         </span>
       </div>
@@ -1043,7 +1043,7 @@ function KanbanColumn({
           if (leadId) onDropLead(leadId);
         }}
         className={cn(
-          "flex flex-col gap-2 p-2 border border-t-0 border-slate-200 rounded-b-lg min-h-[120px] flex-1 overflow-y-auto transition-colors",
+          "flex flex-col gap-1.5 p-2 border border-t-0 border-slate-200 rounded-b-lg min-h-[120px] flex-1 overflow-y-auto transition-colors",
           cfg.colBg,
           isDragOver && "border-amber-400 ring-2 ring-amber-300/50 bg-amber-50/30",
         )}
@@ -1068,7 +1068,7 @@ function KanbanColumn({
           <button
             type="button"
             onClick={() => onAddLead(stage)}
-            className="flex items-center justify-center gap-1 py-2 rounded-lg border border-dashed border-slate-300 text-xs text-slate-400 hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer mt-1"
+            className="flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-slate-300 text-xs text-slate-400 hover:border-amber-400 hover:text-amber-600 transition-colors cursor-pointer mt-1"
           >
             <Plus className="w-3 h-3" />
             Add Lead
@@ -1734,7 +1734,12 @@ function ChatChipPill({
 }
 
 // Ease-out cubic scroll animation — fast start, gentle arrival
-function smoothScrollTo(container: HTMLElement, targetScrollTop: number, duration = 420) {
+function smoothScrollTo(
+  container: HTMLElement,
+  targetScrollTop: number,
+  duration = 480,
+  onComplete?: () => void,
+) {
   const start = container.scrollTop;
   const distance = targetScrollTop - start;
   const startTime = performance.now();
@@ -1744,6 +1749,7 @@ function smoothScrollTo(container: HTMLElement, targetScrollTop: number, duratio
     const eased = 1 - Math.pow(1 - progress, 3);
     container.scrollTop = start + distance * eased;
     if (progress < 1) requestAnimationFrame(step);
+    else onComplete?.();
   }
   requestAnimationFrame(step);
 }
@@ -1776,6 +1782,19 @@ function EmbeddedTeamChat({
   const mentionInputRef = useRef<MentionInputRef>(null);
   const isNearBottomRef = useRef(true);
   const prevMessageCountRef = useRef(0);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const highlightDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Soft-delete / undo state
+  const [pendingDeleteMessages, setPendingDeleteMessages] = useState<Map<string, ChatMessage>>(new Map());
+  const [dismissingDeleteIds, setDismissingDeleteIds] = useState<Set<string>>(new Set());
+  const pendingDeleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const timers = pendingDeleteTimers.current;
+    return () => { timers.forEach((t) => clearTimeout(t)); };
+  }, []);
 
   // Fetch all staff for assignee picker and mention rendering.
   // No status filter — invited/on_leave staff should still be mentionable.
@@ -1870,34 +1889,81 @@ function EmbeddedTeamChat({
 
   // Scroll to a specific message and apply highlight (triggered by notification click)
   useEffect(() => {
+    // Cancel any in-flight navigation from a previous click
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+    if (highlightDelayRef.current) { clearTimeout(highlightDelayRef.current); highlightDelayRef.current = null; }
+    if (highlightClearRef.current) { clearTimeout(highlightClearRef.current); highlightClearRef.current = null; }
+
     if (!scrollToMessageId) return;
     const { id: targetId } = scrollToMessageId;
 
-    // Small delay so the dialog DOM is fully painted before we query it
-    const timer = window.setTimeout(() => {
+    // Cancel any active highlight so the new one always wins (double-rAF forces reflow)
+    setHighlightedMessageId(null);
+
+    const POLL_INTERVAL = 50;
+    const POLL_MAX_MS = 2000;
+    let elapsed = 0;
+
+    function attemptScroll() {
       const container = scrollRef.current;
       if (!container) return;
 
       const msgEl = container.querySelector(`[data-message-id="${targetId}"]`) as HTMLElement | null;
+
       if (!msgEl) {
-        toast.error("This message may have been removed");
+        elapsed += POLL_INTERVAL;
+        if (elapsed >= POLL_MAX_MS) {
+          if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+          toast.error("This message is no longer available.");
+        }
         return;
       }
 
-      // Compute scroll position to centre the message in the container
+      // Message found — stop polling
+      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+
       const containerRect = container.getBoundingClientRect();
       const msgRect = msgEl.getBoundingClientRect();
-      const offset = msgRect.top - containerRect.top - (containerRect.height - msgRect.height) / 2;
-      smoothScrollTo(container, container.scrollTop + offset);
 
-      // Highlight after the scroll animation completes (~430 ms)
-      window.setTimeout(() => {
-        setHighlightedMessageId(targetId);
-        window.setTimeout(() => setHighlightedMessageId(null), 2500);
-      }, 430);
-    }, 80);
+      // If already fully visible, skip scroll but still highlight
+      const alreadyVisible =
+        msgRect.top >= containerRect.top && msgRect.bottom <= containerRect.bottom;
 
-    return () => window.clearTimeout(timer);
+      function onScrollComplete() {
+        // Small delay matches animation-delay in CSS (60ms) so the glow peaks after scroll settles
+        highlightDelayRef.current = setTimeout(() => {
+          // Double rAF ensures React has painted the null state before re-applying the class
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setHighlightedMessageId(targetId);
+              highlightClearRef.current = setTimeout(() => setHighlightedMessageId(null), 3000);
+            });
+          });
+        }, 0);
+      }
+
+      if (alreadyVisible) {
+        onScrollComplete();
+      } else {
+        const targetScrollTop =
+          container.scrollTop +
+          (msgRect.top - containerRect.top) -
+          (containerRect.height / 2) +
+          (msgRect.height / 2);
+
+        smoothScrollTo(container, targetScrollTop, 480, onScrollComplete);
+      }
+    }
+
+    pollTimerRef.current = setInterval(attemptScroll, POLL_INTERVAL);
+    // Run immediately on the first tick too
+    attemptScroll();
+
+    return () => {
+      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+      if (highlightDelayRef.current) { clearTimeout(highlightDelayRef.current); highlightDelayRef.current = null; }
+      if (highlightClearRef.current) { clearTimeout(highlightClearRef.current); highlightClearRef.current = null; }
+    };
   }, [scrollToMessageId]);
 
   // Close reaction/emoji popovers on outside click
@@ -2016,10 +2082,32 @@ function EmbeddedTeamChat({
   }
 
   function deleteMessage(msgId: string) {
-    setMessages((cur) => cur.filter((m) => m.id !== msgId));
-    fetch(`/api/leads/${lead.id}/messages?messageId=${msgId}`, { method: "DELETE" })
-      .then((r) => { if (!r.ok) throw new Error(); })
-      .catch(() => toast.error("Failed to delete message"));
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg) return;
+
+    const timerId = setTimeout(() => {
+      // Fade-out animation then commit
+      setDismissingDeleteIds((s) => new Set(s).add(msgId));
+      setTimeout(() => {
+        pendingDeleteTimers.current.delete(msgId);
+        setPendingDeleteMessages((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
+        setDismissingDeleteIds((s) => { const next = new Set(s); next.delete(msgId); return next; });
+        setMessages((cur) => cur.filter((m) => m.id !== msgId));
+        fetch(`/api/leads/${lead.id}/messages?messageId=${msgId}`, { method: "DELETE" })
+          .then((r) => { if (!r.ok) throw new Error(); })
+          .catch(() => toast.error("Failed to delete message"));
+      }, 300);
+    }, 9700);
+
+    pendingDeleteTimers.current.set(msgId, timerId);
+    setPendingDeleteMessages((prev) => { const next = new Map(prev); next.set(msgId, msg); return next; });
+  }
+
+  function undoDelete(msgId: string) {
+    const timerId = pendingDeleteTimers.current.get(msgId);
+    if (timerId !== undefined) clearTimeout(timerId);
+    pendingDeleteTimers.current.delete(msgId);
+    setPendingDeleteMessages((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
   }
 
   function handleChipClick(chip: ChatChip) {
@@ -2047,6 +2135,30 @@ function EmbeddedTeamChat({
         </div>,
       );
     }
+    // Pending-delete: show inline undo toast in place of the message card
+    if (pendingDeleteMessages.has(m.id)) {
+      rows.push(
+        <div
+          key={m.id}
+          className={cn(
+            "rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 flex items-center gap-2 transition-opacity duration-300",
+            dismissingDeleteIds.has(m.id) ? "opacity-0" : "opacity-100",
+          )}
+        >
+          <span className="text-sm text-slate-500 flex-1">Comment deleted.</span>
+          <button
+            type="button"
+            onClick={() => undoDelete(m.id)}
+            className="text-sm font-semibold text-slate-600 hover:text-slate-800 cursor-pointer transition-colors"
+          >
+            Undo
+          </button>
+        </div>,
+      );
+      lastDay = m.day;
+      return;
+    }
+
     const palette = getAvatarPalette(m.author);
     const isOwn = m.author === chatCurrentUser;
     rows.push(
@@ -2055,7 +2167,7 @@ function EmbeddedTeamChat({
         data-message-id={m.id}
         className={cn(
           "group relative rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all",
-          highlightedMessageId === m.id && "mention-highlight-active ring-2 ring-amber-300 border-amber-200",
+          highlightedMessageId === m.id && "mention-target",
         )}
         onMouseEnter={() => setHoverMsgId(m.id)}
         onMouseLeave={() => setHoverMsgId((cur) => (cur === m.id ? null : cur))}
@@ -2181,7 +2293,7 @@ function EmbeddedTeamChat({
     <>
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         {/* Unified scroll: timeline content + chat messages */}
-        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-2 space-y-5">
+        <div ref={scrollRef} data-chat-scroll className="flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-2 space-y-5">
           {timelineContent}
 
           <div className="border-t border-slate-100 pt-4">
@@ -4226,7 +4338,7 @@ export default function LeadsPage() {
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
-  const effectiveColWidth = viewportWidth < 1280 ? Math.min(kanbanPrefs.columnWidth, 220) : kanbanPrefs.columnWidth;
+  const effectiveColWidth = viewportWidth < 1280 ? Math.min(kanbanPrefs.columnWidth, 200) : kanbanPrefs.columnWidth;
 
   // Kanban column collapse — stored in kanbanPrefs.collapsedColumns
   const collapsedColumnsSet = useMemo(
@@ -5065,8 +5177,8 @@ export default function LeadsPage() {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* ── Page Header ────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[13px] text-slate-500">
           No active leads
         </p>
         <div className="flex items-center gap-2">
@@ -5074,9 +5186,9 @@ export default function LeadsPage() {
             <button
               type="button"
               onClick={() => setExportOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1 text-[13px] font-medium border border-slate-300 rounded-lg hover:bg-slate-50 text-slate-700 cursor-pointer transition-colors"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               Export
             </button>
           )}
@@ -5084,9 +5196,9 @@ export default function LeadsPage() {
             <button
               type="button"
               onClick={() => openAddLead()}
-              className="btn-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm cursor-pointer"
+              className="btn-primary flex items-center gap-1.5 px-3 py-1 text-[13px] font-semibold rounded-lg shadow-sm cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               Add Lead
             </button>
           )}
@@ -5118,9 +5230,9 @@ export default function LeadsPage() {
       )}
 
       {/* ── Filter & View Bar ───────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
         {/* Filters */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {/* Search — leftmost */}
           <div className="relative flex items-center">
             <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -5132,8 +5244,8 @@ export default function LeadsPage() {
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               className={cn(
-                "pl-8 pr-7 py-1.5 text-sm border border-slate-200 bg-white rounded-md outline-none text-slate-700 placeholder:text-slate-400 transition-[width] duration-200 focus:border-amber-400",
-                searchFocused || searchQuery ? "w-72" : "w-56"
+                "pl-8 pr-7 py-1 text-[13px] border border-slate-200 bg-white rounded-md outline-none text-slate-700 placeholder:text-slate-400 transition-[width] duration-200 focus:border-amber-400",
+                searchFocused || searchQuery ? "w-56" : "w-44"
               )}
             />
             {searchQuery && (
@@ -5147,14 +5259,14 @@ export default function LeadsPage() {
               </button>
             )}
           </div>
-          <MultiSelectFilter label="Stage"       options={STAGE_FILTER_OPTIONS}    selected={stageFilter}    onChange={setStageFilter}    />
-          <MultiSelectFilter label="Status"      options={["Converted"]}           selected={statusFilter}   onChange={setStatusFilter}   />
-          <MultiSelectFilter label="Source"      options={SOURCE_FILTER_OPTIONS}   selected={sourceFilter}   onChange={setSourceFilter}   />
-          <MultiSelectFilter label="Department"  options={DEPT_FILTER_OPTIONS}     selected={deptFilter}     onChange={setDeptFilter}     />
-          <MultiSelectFilter label="Assigned to" options={ASSIGNED_FILTER_OPTIONS} selected={assignedFilter} onChange={setAssignedFilter} />
+          <MultiSelectFilter label="Stage"       options={STAGE_FILTER_OPTIONS}    selected={stageFilter}    onChange={setStageFilter}    triggerClassName="px-2.5 py-1 text-[13px] rounded-md" />
+          <MultiSelectFilter label="Status"      options={["Converted"]}           selected={statusFilter}   onChange={setStatusFilter}   triggerClassName="px-2.5 py-1 text-[13px] rounded-md" />
+          <MultiSelectFilter label="Source"      options={SOURCE_FILTER_OPTIONS}   selected={sourceFilter}   onChange={setSourceFilter}   triggerClassName="px-2.5 py-1 text-[13px] rounded-md" />
+          <MultiSelectFilter label="Department"  options={DEPT_FILTER_OPTIONS}     selected={deptFilter}     onChange={setDeptFilter}     triggerClassName="px-2.5 py-1 text-[13px] rounded-md" />
+          <MultiSelectFilter label="Assigned to" options={ASSIGNED_FILTER_OPTIONS} selected={assignedFilter} onChange={setAssignedFilter} triggerClassName="px-2.5 py-1 text-[13px] rounded-md" />
 
           {/* My Leads toggle */}
-          <div className="flex items-center gap-2 pl-1">
+          <div className="flex items-center gap-1.5 pl-1">
             <button
               role="switch"
               aria-checked={myLeads}
@@ -5171,7 +5283,7 @@ export default function LeadsPage() {
                 )}
               />
             </button>
-            <span className="text-sm text-slate-600 font-medium">My Leads</span>
+            <span className="text-[12px] text-slate-600 font-medium">My Leads</span>
           </div>
 
           <DateRangePicker
@@ -5179,6 +5291,7 @@ export default function LeadsPage() {
             onChange={setCreatedOnRange}
             presets={DATE_PRESETS}
             placeholder="Created on"
+            triggerClassName="px-2.5 py-1 text-[12px] rounded-md"
           />
 
           {hasActiveFilters && (
@@ -5200,7 +5313,7 @@ export default function LeadsPage() {
         </div>
 
         {/* View toggle + Personalise */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Personalise popover — only relevant on Kanban */}
           {view === "kanban" && (
             <>
@@ -5211,13 +5324,13 @@ export default function LeadsPage() {
                 aria-label="Personalise kanban view"
                 aria-expanded={personaliseOpen}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer border",
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-medium transition-colors cursor-pointer border",
                   personaliseOpen
                     ? "bg-amber-50 border-amber-300 text-amber-700"
                     : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300",
                 )}
               >
-                <SlidersHorizontal className="w-4 h-4" />
+                <SlidersHorizontal className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Personalise</span>
               </button>
               {personaliseOpen && typeof window !== "undefined" && (
@@ -5239,13 +5352,13 @@ export default function LeadsPage() {
                 onClick={() => setView(key)}
                 aria-label={label}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer",
+                  "flex items-center gap-1 px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors cursor-pointer",
                   view === key
                     ? "bg-white text-amber-600 shadow-sm"
                     : "text-slate-500 hover:text-slate-700"
                 )}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
@@ -5255,7 +5368,7 @@ export default function LeadsPage() {
 
       {/* ── Kanban View ─────────────────────────────────────────────────── */}
       {view === "kanban" && (
-        <div className="flex gap-3 overflow-x-auto overflow-y-hidden pb-3 min-h-0 flex-1 -mx-6 px-6">
+        <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-4 min-h-0 flex-1 -mx-6 px-6">
           {STAGES.map((stage) => (
             <KanbanColumn
               key={stage}
@@ -5659,7 +5772,7 @@ export default function LeadsPage() {
       <LeadDetailDialog
         lead={detailLead}
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={(o) => { setDetailOpen(o); if (!o) setScrollToMessage(null); }}
         onMarkAsContacted={handleMarkAsContacted}
         onBookAssessment={handleBookAssessment}
         onBookTrialFirst={handleBookTrialFirst}
