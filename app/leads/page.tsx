@@ -58,6 +58,7 @@ import { AccessDenied } from "@/components/ui/access-denied";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { MentionInput, type MentionInputRef, type MentionContent, type MentionData } from "@/components/chat/mention-input";
 import { pushNotification } from "@/lib/notifications-store";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Inline types (previously from mock-data) ─────────────────────────────────
 
@@ -1112,10 +1113,35 @@ type ChatMessage = {
 
 const CHAT_LINK_CATALOGUE: { kind: ChatChipKind; label: string; ref: string; targetId?: string }[] = [];
 
-const INITIAL_CHAT_BY_LEAD: Record<string, ChatMessage[]> = {};
+type DbLeadMessage = {
+  id: string;
+  author: string;
+  text: string;
+  chips: ChatChip[];
+  reactions: ChatReactionMap;
+  mentions: MentionData[];
+  created_at: string;
+};
 
-function getInitialChat(leadId: string): ChatMessage[] {
-  return INITIAL_CHAT_BY_LEAD[leadId] ?? [];
+function dbRowToMessage(row: DbLeadMessage): ChatMessage {
+  const date = new Date(row.created_at);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isToday = date.toDateString() === now.toDateString();
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  const day = isToday ? "Today" : isYesterday ? "Yesterday" : date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return {
+    id: row.id,
+    author: row.author,
+    day,
+    time,
+    text: row.text,
+    chips: row.chips ?? [],
+    reactions: row.reactions ?? {},
+    mentions: row.mentions ?? [],
+  };
 }
 
 let chatIdCounter = 0;
@@ -1731,7 +1757,7 @@ function EmbeddedTeamChat({
 }) {
   const router = useRouter();
   const { name: chatCurrentUser } = useCurrentUser();
-  const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialChat(lead.id));
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draftChips, setDraftChips] = useState<ChatChip[]>([]);
   const [chatEmpty, setChatEmpty] = useState(true);
   const [hoverMsgId, setHoverMsgId] = useState<string | null>(null);
@@ -1764,6 +1790,42 @@ function EmbeddedTeamChat({
       })
       .catch(() => {});
   }, []);
+
+  // Load persisted messages from Supabase on open
+  useEffect(() => {
+    fetch(`/api/leads/${lead.id}/messages`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        if (!json?.data) return;
+        setMessages((json.data as DbLeadMessage[]).map(dbRowToMessage));
+      })
+      .catch(() => {});
+  }, [lead.id]);
+
+  // Supabase Realtime — receive messages from other users in real time
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`lead-messages-${lead.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "lead_messages", filter: `lead_id=eq.${lead.id}` },
+        (payload) => {
+          const msg = dbRowToMessage(payload.new as DbLeadMessage);
+          setMessages((cur) => cur.some((m) => m.id === msg.id) ? cur : [...cur, msg]);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "lead_messages", filter: `lead_id=eq.${lead.id}` },
+        (payload) => {
+          const updated = dbRowToMessage(payload.new as DbLeadMessage);
+          setMessages((cur) => cur.map((m) => m.id === updated.id ? { ...m, reactions: updated.reactions } : m));
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [lead.id]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1815,40 +1877,41 @@ function EmbeddedTeamChat({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  function sendMessage(args?: { extraChips?: ChatChip[]; content?: MentionContent }) {
+  async function sendMessage(args?: { extraChips?: ChatChip[]; content?: MentionContent }) {
     const content = args?.content ?? mentionInputRef.current?.getContent() ?? { text: "", mentions: [] };
     const chips = [...draftChips, ...(args?.extraChips ?? [])];
     if (!content.text && chips.length === 0) return;
-
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const msgId = nextChatId("c");
-
-    setMessages((cur) => [
-      ...cur,
-      {
-        id: msgId,
-        author: chatCurrentUser,
-        day: "Today",
-        time,
-        text: content.text,
-        chips,
-        reactions: {},
-        mentions: content.mentions,
-      },
-    ]);
 
     mentionInputRef.current?.clear();
     setDraftChips([]);
     setEmojiPickerOpen(false);
 
+    // Persist to Supabase — response includes the real UUID used for Realtime dedup
+    const res = await fetch(`/api/leads/${lead.id}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        author: chatCurrentUser,
+        text: content.text,
+        chips,
+        reactions: {},
+        mentions: content.mentions,
+      }),
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .catch(() => null);
+
+    if (res?.data) {
+      const msg = dbRowToMessage(res.data as DbLeadMessage);
+      // Optimistically add for the sender; Realtime will skip if already present
+      setMessages((cur) => cur.some((m) => m.id === msg.id) ? cur : [...cur, msg]);
+    }
+
     // ── Create mention notifications ─────────────────────────────────────────
     if (content.mentions.length > 0) {
       const ts = Date.now();
+      const msgId = res?.data?.id ?? "";
 
-      // Group expansion: look up group IDs and flatten to individual staff IDs.
-      // The mention picker currently only produces individual entries, so the
-      // group map is here for forward-compatibility when group mentions land.
       const groupMembers: Record<string, string[]> = {};
       const recipientIds = new Set<string>();
       for (const m of content.mentions) {
@@ -1858,7 +1921,6 @@ function EmbeddedTeamChat({
           recipientIds.add(m.id);
         }
       }
-      // Sender never receives their own notification
       recipientIds.delete(chatCurrentUser);
 
       for (const recipientId of recipientIds) {
@@ -1875,12 +1937,9 @@ function EmbeddedTeamChat({
           messageId: msgId,
           timestamp: ts,
         });
-        // Suppress the unused variable warning — recipientId is kept for
-        // future server delivery when multi-user auth lands.
         void recipientId;
       }
 
-      // Also fire the API (fire-and-forget; server delivery TBD)
       fetch("/api/notifications/mentions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1895,8 +1954,9 @@ function EmbeddedTeamChat({
   }
 
   function toggleReaction(msgId: string, emoji: string) {
-    setMessages((cur) =>
-      cur.map((m) => {
+    let updatedReactions: ChatReactionMap = {};
+    setMessages((cur) => {
+      const next = cur.map((m) => {
         if (m.id !== msgId) return m;
         const users = m.reactions[emoji] ?? [];
         const had = users.includes(chatCurrentUser);
@@ -1904,10 +1964,19 @@ function EmbeddedTeamChat({
         const nextReactions = { ...m.reactions };
         if (nextUsers.length === 0) delete nextReactions[emoji];
         else nextReactions[emoji] = nextUsers;
+        updatedReactions = nextReactions;
         return { ...m, reactions: nextReactions };
-      }),
-    );
+      });
+      return next;
+    });
     setReactionPickerFor(null);
+
+    // Persist updated reactions to Supabase
+    fetch(`/api/leads/${lead.id}/messages`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: msgId, reactions: updatedReactions }),
+    }).catch(() => {});
   }
 
   function handleChipClick(chip: ChatChip) {

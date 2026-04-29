@@ -21,6 +21,17 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
 
+  // Show a toast when redirected here with an error from the auth callback.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+    if (err === "link_expired" || err === "auth_callback_error") {
+      toast.error("That link has expired or already been used. Request a new one below.");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // If Supabase drops tokens in the hash (invite / magic-link / implicit flow),
   // hand off to /auth/callback which knows how to exchange them for a session.
   useEffect(() => {

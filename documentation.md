@@ -88,6 +88,8 @@ Each lead holds: child name, year group, department, subjects of interest, guard
 ### Lead Detail View
 Opening a lead opens a **two-column detail panel**. The left column shows all lead fields, the journey/conversion tracker, and stage action buttons. The right column combines the **Activity Timeline** (all pipeline stage changes and logged interactions) and the **Team Chat** (internal staff-only messaging) in a single unified scrollable panel. The divider between the two columns is **resizable** — staff can drag it to adjust the split.
 
+**Team Chat — fully persistent and real-time:** Messages are stored in Supabase (`lead_messages` table) and survive page refreshes. When a lead is opened the full message history loads from the database. New messages sent by any staff member appear instantly in every other open session via **Supabase Realtime** (no refresh needed). Emoji reactions are also persisted and synced in real time across sessions.
+
 **Team Chat @mention system — end-to-end:** Typing `@` in the message input opens a floating dropdown anchored to the `@` cursor position. The dropdown shows all staff (active, invited, and on-leave statuses — not just active), plus group shortcuts (`@all`, `@admins`, `@teachers`). Results filter as the user types; up to 8 matches shown with name, role/department, and avatar. Keyboard navigation (arrows, Enter, Tab, Escape) and click both work. The dropdown is portal-rendered so it is never clipped by the dialog or slide-over. Selecting a name inserts a styled blue chip into the input.
 
 When a message is sent, each mentioned staff member receives a **persistent mention notification stored in Supabase** (`notifications` table, RLS-protected per user). Notifications are fetched from the server on bell open and polled every 30 seconds, so recipients see the notification the next time they are active — regardless of which browser or session they are on. The sender is never notified for their own mentions. Notifications include the sender's name, a link back to the specific lead, and a snippet of the message.
@@ -625,7 +627,7 @@ Name, email, role, department(s), subjects taught, contract type (Full-time / Pa
 | Initiate offboarding | HR/Finance |
 | Verify CPD hours | HR/Finance |
 
-The **Reset password** action appears in the row actions menu for any staff member who has completed onboarding (not Invited or Off-boarded). Clicking it sends a secure one-time recovery link to the staff member's email, which takes them to the password reset screen.
+The **Reset password** action appears in the row actions menu for any staff member who has completed onboarding (not Invited or Off-boarded). Clicking it sends a secure one-time recovery link to the staff member's email, which takes them to the password reset screen. If the link has already been used or has expired, the user is redirected to the login page with a clear "link expired" message and a prompt to request a new one.
 
 ### CPD (Continuing Professional Development)
 CPD hours are tracked against each staff member's annual target. HR/Finance can mark completion as verified. Analytics show the organization-wide CPD completion rate.

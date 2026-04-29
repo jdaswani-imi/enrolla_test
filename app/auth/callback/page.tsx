@@ -21,11 +21,19 @@ function AuthCallbackHandler() {
     const supabase = createClient();
     const code = searchParams.get("code");
 
+    // Supabase appends error params to the redirect_to URL when PKCE verify fails
+    const queryError = searchParams.get("error");
+    const queryErrorCode = searchParams.get("error_code");
+
     if (code) {
       // PKCE flow — server exchanges code for session via cookie
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        router.replace(error ? "/login?error=auth_callback_error" : next);
+        router.replace(error ? "/login?error=link_expired" : next);
       });
+    } else if (queryError || queryErrorCode) {
+      // Supabase redirected here with an error in the query string (e.g. token
+      // already used, expired link). Show a clear message on the login page.
+      router.replace("/login?error=link_expired");
     } else {
       // Implicit flow — tokens arrive in the URL hash.
       // Must use setSession() explicitly so it OVERWRITES any existing session
@@ -33,10 +41,10 @@ function AuthCallbackHandler() {
       const params = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = params.get("access_token");
       const refreshToken = params.get("refresh_token");
-      const errorCode = params.get("error_code");
+      const hashError = params.get("error_code") ?? params.get("error");
 
-      if (errorCode || !accessToken || !refreshToken) {
-        router.replace("/login?error=auth_callback_error");
+      if (hashError || !accessToken || !refreshToken) {
+        router.replace("/login?error=link_expired");
         return;
       }
 
@@ -47,7 +55,7 @@ function AuthCallbackHandler() {
       supabase.auth
         .setSession({ access_token: accessToken, refresh_token: refreshToken })
         .then(({ error }) => {
-          router.replace(error ? "/login?error=auth_callback_error" : destination);
+          router.replace(error ? "/login?error=link_expired" : destination);
         });
     }
   }, [next, router, searchParams]);
