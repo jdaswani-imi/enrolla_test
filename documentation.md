@@ -871,7 +871,18 @@ The following HTTP security headers are now added to all responses: Content-Secu
 ### Test Coverage
 Two new E2E test files were added: `backend-integration.spec.ts` (verifies every API route returns 401 without auth, with skipped tests for RBAC 403 checks and multi-tenant isolation) and `auth-flow.spec.ts` (verifies middleware redirects, login page, public routes, auth callback error handling, and authenticated session management). Tests requiring credentials are skipped with documentation of the required environment variables.
 
+### Post-Audit Follow-up (2026-04-30)
+
+**JWT Custom Access Token Hook applied.** Migration `031_rbac_role_policies` was applied to the live Supabase database. The `custom_access_token_hook` PostgreSQL function now exists and is ready to embed `tenant_id` and `user_role` claims into every JWT on login. The function looks up the staff member's role and tenant from the `staff` table and appends both as custom claims. **One manual step remains:** the hook must be registered in the Supabase Dashboard under Authentication → Hooks → Custom Access Token Hook, pointing to `public.custom_access_token_hook`. Until this is done, the JWT claims will not be present and all database-layer RBAC policies that read `auth.jwt() ->> 'user_role'` will be unenforced.
+
+**RLS policies added to three previously unprotected tables.** `complaint_linked_tickets`, `broadcast_list_members`, and `class_posts` had RLS enabled but no policies, making all rows invisible to tenant users. Tenant-scoped `FOR ALL` policies were added using EXISTS subqueries through their parent tables (`complaint_tickets`, `broadcast_lists`, `class_groups` respectively — all of which carry `tenant_id` and have RLS enabled). The tables `status_history` and `inventory_auto_deduct_rules` remain intentionally unprotected: both are written or read exclusively by service-role server handlers and exposing them to the authenticated role would serve no purpose.
+
+**API-layer RBAC gaps closed.**
+- **PATCH /api/students/:id** now requires `super_admin`, `admin_head`, or `admin` role. Previously any authenticated user could patch student records.
+- **POST /api/leads** now requires `super_admin`, `admin_head`, or `admin` role. Previously any authenticated user could create leads. The GET (lead listing) handler intentionally remains auth-only — all roles may view leads.
+
 ### Known Remaining Gaps (require product decisions or credentials)
+- **JWT hook registration** — must be done manually in Supabase Dashboard (see above). Provide `TEST_USER_EMAIL` and `TEST_USER_PASSWORD` in `.env.test` and run `npx tsx scripts/verify-jwt-claims.ts` to confirm.
 - No input validation (zod) on POST/PATCH request bodies — add schema validation to prevent field-level injection.
 - Finance prototype stubs — download PDF, apply credit, and report queue buttons show toasts but do not call any API yet.
 - No `error.tsx` on most routes — add incrementally to improve error UX.

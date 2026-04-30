@@ -69,7 +69,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['super_admin', 'admin_head', 'admin'])
   if (!auth.ok) return auth.response
   const { id } = await params
   const body = await request.json()
