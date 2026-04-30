@@ -2018,6 +2018,60 @@ function InlineStaffSelect({
   );
 }
 
+// ─── Inline title field (editable heading in dialog header) ───────────────────
+
+function InlineTitleField({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (v: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  async function commit() {
+    const trimmed = draft.trim();
+    if (!trimmed || trimmed === value) { setEditing(false); setDraft(value); return; }
+    setSaving(true);
+    try { await onSave(trimmed); setEditing(false); }
+    catch { setDraft(value); setEditing(false); }
+    finally { setSaving(false); }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5 min-w-0">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
+          onBlur={commit}
+          className="text-lg font-semibold text-slate-900 bg-transparent border-b-2 border-amber-400 focus:outline-none min-w-0 w-full max-w-[280px]"
+        />
+        {saving && <Loader2 className="w-4 h-4 text-slate-400 animate-spin shrink-0" />}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group inline-flex items-center gap-1.5 rounded hover:bg-slate-100 px-1 -mx-1 transition-colors cursor-pointer min-w-0"
+    >
+      <span className="text-lg font-semibold text-slate-900 truncate">{value}</span>
+      <PencilLine className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </button>
+  );
+}
+
 // ─── Lead Detail Dialog ────────────────────────────────────────────────────────
 
 function LeadDetailDialog({
@@ -2040,6 +2094,7 @@ function LeadDetailDialog({
   onStageChange,
   onUpdatePrefs,
   onUpdateLeadField,
+  onToggleLeadBool,
   leadActivity,
   followUpBanner,
   onDismissFollowUpBanner,
@@ -2062,8 +2117,9 @@ function LeadDetailDialog({
   onConfirmSchedule: (lead: Lead) => void;
   onRecordPayment: (lead: Lead) => void;
   onStageChange: (lead: Lead, stage: LeadStage) => void;
-  onUpdatePrefs: (leadId: string, prefs: { preferredDays: string[]; preferredWindow: PreferredWindow }) => void;
-  onUpdateLeadField: (leadId: string, field: keyof Lead, fieldLabel: string, oldDisplay: string, newDisplay: string, newRawValue: string | string[]) => void;
+  onUpdatePrefs: (leadId: string, prefs: { preferredDays: string[]; preferredWindow: PreferredWindow }) => Promise<void>;
+  onUpdateLeadField: (leadId: string, field: keyof Lead, fieldLabel: string, oldDisplay: string, newDisplay: string, newRawValue: string | string[]) => Promise<void>;
+  onToggleLeadBool: (leadId: string, field: 'dnc' | 'sibling', newValue: boolean) => Promise<void>;
   leadActivity: ActivityEntry[];
   followUpBanner: { taskTitle: string } | null;
   onDismissFollowUpBanner: () => void;
@@ -2149,7 +2205,17 @@ function LeadDetailDialog({
       <DialogContent ref={dialogRef} className={cn("w-[90vw] max-w-[90vw] h-[90vh]", isResizingState && "select-none")}>
         <DialogHeader>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <DialogTitle>{lead.childName}</DialogTitle>
+            {canEditThisLead ? (
+              <>
+                <DialogTitle className="sr-only">{lead.childName}</DialogTitle>
+                <InlineTitleField
+                  value={lead.childName}
+                  onSave={async (v) => { await onUpdateLeadField(lead.id, 'childName', 'Child name', lead.childName, v, v); }}
+                />
+              </>
+            ) : (
+              <DialogTitle>{lead.childName}</DialogTitle>
+            )}
             <span className={cn("inline-flex items-center justify-center min-w-[130px] px-2.5 py-1 rounded-full text-xs font-semibold text-center whitespace-nowrap", cfg.badge)}>
               {currentStage}
             </span>
@@ -2229,7 +2295,7 @@ function LeadDetailDialog({
             {/* ── SECTION: Student ── */}
             <div className="space-y-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Student</p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Year Group</p>
                   <InlineSelectField
@@ -2237,7 +2303,7 @@ function LeadDetailDialog({
                     options={ADD_LEAD_YEAR_OPTIONS}
                     canEdit={canEditThisLead}
                     onSave={async (v) => {
-                      onUpdateLeadField(lead.id, 'yearGroup', 'Year Group', lead.yearGroup, v, v);
+                      await onUpdateLeadField(lead.id, 'yearGroup', 'Year Group', lead.yearGroup, v, v);
                     }}
                   />
                 </div>
@@ -2248,7 +2314,7 @@ function LeadDetailDialog({
                     options={ADD_LEAD_SUBJECT_OPTIONS}
                     canEdit={canEditThisLead}
                     onSave={async (v) => {
-                      onUpdateLeadField(lead.id, 'subjects', 'Subjects', lead.subjects.join(', ') || '—', v.join(', ') || '—', v);
+                      await onUpdateLeadField(lead.id, 'subjects', 'Subjects', lead.subjects.join(', ') || '—', v.join(', ') || '—', v);
                     }}
                   />
                 </div>
@@ -2259,7 +2325,7 @@ function LeadDetailDialog({
                     canEdit={canEditThisLead}
                     placeholder="e.g. Primary, Senior..."
                     onSave={async (v) => {
-                      onUpdateLeadField(lead.id, 'department', 'Programme', lead.department || '—', v || '—', v);
+                      await onUpdateLeadField(lead.id, 'department', 'Programme', lead.department || '—', v || '—', v);
                     }}
                   />
                 </div>
@@ -2293,7 +2359,7 @@ function LeadDetailDialog({
             {/* ── SECTION: Guardian & Contact ── */}
             <div className="space-y-3 pt-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Guardian & Contact</p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-xs text-slate-400 mb-0.5">Guardian</p>
                   <InlineTextField
@@ -2302,7 +2368,7 @@ function LeadDetailDialog({
                     required
                     placeholder="Guardian full name"
                     onSave={async (v) => {
-                      onUpdateLeadField(lead.id, 'guardian', 'Guardian name', lead.guardian || '—', v || '—', v);
+                      await onUpdateLeadField(lead.id, 'guardian', 'Guardian name', lead.guardian || '—', v || '—', v);
                     }}
                   />
                 </div>
@@ -2315,7 +2381,7 @@ function LeadDetailDialog({
                       required
                       placeholder="+971 50 000 0000"
                       onSave={async (v) => {
-                        onUpdateLeadField(lead.id, 'guardianPhone', 'Phone', maskPhone(lead.guardianPhone) || '—', maskPhone(v) || '—', v);
+                        await onUpdateLeadField(lead.id, 'guardianPhone', 'Phone', maskPhone(lead.guardianPhone) || '—', maskPhone(v) || '—', v);
                       }}
                     />
                   ) : (
@@ -2349,30 +2415,17 @@ function LeadDetailDialog({
             {/* ── SECTION: Enquiry ── */}
             <div className="space-y-3 pt-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Enquiry</p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Source</p>
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <InlineSelectField
-                      value={lead.source}
-                      options={ADD_LEAD_SOURCE_OPTIONS}
-                      canEdit={canEditThisLead}
-                      onSave={async (v) => {
-                        onUpdateLeadField(lead.id, 'source', 'Source', lead.source, v, v);
-                      }}
-                    />
-                    {lead.sibling && (
-                      <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                        Sibling
-                      </span>
-                    )}
-                    {lead.dnc && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                        <AlertCircle className="w-3 h-3" />
-                        DNC
-                      </span>
-                    )}
-                  </div>
+                  <InlineSelectField
+                    value={lead.source}
+                    options={ADD_LEAD_SOURCE_OPTIONS}
+                    canEdit={canEditThisLead}
+                    onSave={async (v) => {
+                      await onUpdateLeadField(lead.id, 'source', 'Source', lead.source, v, v);
+                    }}
+                  />
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 mb-1.5">Assigned to</p>
@@ -2381,7 +2434,7 @@ function LeadDetailDialog({
                     staffNames={staffNames}
                     canEdit={canEditThisLead}
                     onSave={async (v) => {
-                      onUpdateLeadField(lead.id, 'assignedTo', 'Assigned to', lead.assignedTo || '—', v || '—', v);
+                      await onUpdateLeadField(lead.id, 'assignedTo', 'Assigned to', lead.assignedTo || '—', v || '—', v);
                     }}
                   />
                 </div>
@@ -2412,17 +2465,66 @@ function LeadDetailDialog({
                   <p className="text-sm font-medium text-slate-700">{lead.lastActivity}</p>
                 </div>
                 {showEmptyFields && (
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <p className="text-xs text-slate-400 mb-0.5">How did you hear about us</p>
                     <p className="text-sm font-medium text-slate-300">—</p>
                   </div>
                 )}
                 {showEmptyFields && (
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <p className="text-xs text-slate-400 mb-0.5">Referral source</p>
                     <p className="text-sm font-medium text-slate-300">—</p>
                   </div>
                 )}
+                {/* ── Flags: DNC + Sibling ── */}
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-slate-400 mb-2">Flags</p>
+                  <div className="flex flex-wrap gap-2">
+                    {/* DNC toggle */}
+                    {canEditThisLead ? (
+                      <button
+                        type="button"
+                        onClick={async () => { await onToggleLeadBool(lead.id, 'dnc', !lead.dnc); }}
+                        aria-label={lead.dnc ? 'Remove DNC flag' : 'Mark as Do Not Contact'}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all duration-150 cursor-pointer min-h-[32px]",
+                          lead.dnc
+                            ? "bg-red-100 text-red-700 border-red-300 hover:bg-red-200"
+                            : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200",
+                        )}
+                      >
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {lead.dnc ? 'DNC — click to remove' : 'Mark DNC'}
+                      </button>
+                    ) : lead.dnc ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                        <AlertCircle className="w-3 h-3" />
+                        DNC
+                      </span>
+                    ) : null}
+
+                    {/* Sibling toggle */}
+                    {canEditThisLead ? (
+                      <button
+                        type="button"
+                        onClick={async () => { await onToggleLeadBool(lead.id, 'sibling', !lead.sibling); }}
+                        aria-label={lead.sibling ? 'Remove sibling flag' : 'Mark as sibling referral'}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all duration-150 cursor-pointer min-h-[32px]",
+                          lead.sibling
+                            ? "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
+                            : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200",
+                        )}
+                      >
+                        {lead.sibling ? '✓ Sibling — click to remove' : 'Mark as Sibling'}
+                      </button>
+                    ) : lead.sibling ? (
+                      <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                        Sibling
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2431,7 +2533,7 @@ function LeadDetailDialog({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Programme</p>
               <LeadPreferencesSection lead={lead} onUpdatePrefs={onUpdatePrefs} compact />
               {showEmptyFields && (
-                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                   <div>
                     <p className="text-xs text-slate-400 mb-0.5">Qualification Route</p>
                     <p className="text-sm font-medium text-slate-300">—</p>
@@ -3563,11 +3665,27 @@ export default function LeadsPage() {
     });
   }, [leadsData, journey.leadStage, leadStageOverrides, leadPrefs, leadLostData, leadConvertedData]);
 
-  const updateLeadPrefs = (
+  const updateLeadPrefs = async (
     leadId: string,
     prefs: { preferredDays: string[]; preferredWindow: PreferredWindow },
-  ) => {
+  ): Promise<void> => {
+    const original = leadPrefs[leadId];
     setLeadPrefs((prev) => ({ ...prev, [leadId]: prefs }));
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferredDays: prefs.preferredDays, preferredWindow: prefs.preferredWindow }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+    } catch {
+      if (original !== undefined) {
+        setLeadPrefs((prev) => ({ ...prev, [leadId]: original }));
+      } else {
+        setLeadPrefs((prev) => { const next = { ...prev }; delete next[leadId]; return next; });
+      }
+      toast.error('Failed to save preferences');
+    }
   };
 
   // Journey dialog state
@@ -4058,16 +4176,17 @@ export default function LeadsPage() {
     }
   }
 
-  function handleUpdateLeadField(
+  async function handleUpdateLeadField(
     leadId: string,
     field: keyof Lead,
     fieldLabel: string,
     oldDisplay: string,
     newDisplay: string,
     newRawValue: string | string[],
-  ) {
+  ): Promise<void> {
     if (oldDisplay === newDisplay) return;
-    // Optimistic update to leadsData
+    const originalValue = leadsData.find((l) => l.id === leadId)?.[field];
+    // Optimistic update
     setLeadsData((prev) =>
       prev.map((l) =>
         l.id === leadId
@@ -4075,24 +4194,87 @@ export default function LeadsPage() {
           : l,
       ),
     );
-    // Also sync the open detail lead immediately
     setDetailLead((prev) => {
       if (!prev || prev.id !== leadId) return prev;
       return { ...prev, [field]: newRawValue, lastActivity: 'Today' };
     });
-    // Log activity entry
-    const lead = leads.find((l) => l.id === leadId);
-    if (lead) {
-      const entry: ActivityEntry = {
-        label: 'Just now',
-        text: `${fieldLabel} changed · ${currentUser.name}`,
-        dot: 'bg-blue-400',
-        type: 'field_edit',
-        fieldLabel,
-        oldValue: oldDisplay,
-        newValue: newDisplay,
-      };
-      recordLeadActivity(lead, entry);
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: newRawValue }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      // Log activity entry on success
+      const lead = leads.find((l) => l.id === leadId);
+      if (lead) {
+        recordLeadActivity(lead, {
+          label: 'Just now',
+          text: `${fieldLabel} changed · ${currentUser.name}`,
+          dot: 'bg-blue-400',
+          type: 'field_edit',
+          fieldLabel,
+          oldValue: oldDisplay,
+          newValue: newDisplay,
+        });
+      }
+    } catch {
+      // Revert on error
+      if (originalValue !== undefined) {
+        setLeadsData((prev) =>
+          prev.map((l) => l.id === leadId ? { ...l, [field]: originalValue } : l),
+        );
+        setDetailLead((prev) => {
+          if (!prev || prev.id !== leadId) return prev;
+          return { ...prev, [field]: originalValue };
+        });
+      }
+      toast.error(`Failed to save ${fieldLabel}`);
+      throw new Error('Save failed');
+    }
+  }
+
+  async function handleToggleLeadBool(
+    leadId: string,
+    field: 'dnc' | 'sibling',
+    newValue: boolean,
+  ): Promise<void> {
+    const originalValue = leadsData.find((l) => l.id === leadId)?.[field];
+    setLeadsData((prev) =>
+      prev.map((l) => l.id === leadId ? { ...l, [field]: newValue } : l),
+    );
+    setDetailLead((prev) => {
+      if (!prev || prev.id !== leadId) return prev;
+      return { ...prev, [field]: newValue };
+    });
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: newValue }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      const label = field === 'dnc' ? 'DNC' : 'Sibling';
+      const lead = leads.find((l) => l.id === leadId);
+      if (lead) {
+        recordLeadActivity(lead, {
+          label: 'Just now',
+          text: `${label} flag ${newValue ? 'set' : 'removed'} · ${currentUser.name}`,
+          dot: 'bg-blue-400',
+        });
+      }
+    } catch {
+      if (originalValue !== undefined) {
+        setLeadsData((prev) =>
+          prev.map((l) => l.id === leadId ? { ...l, [field]: originalValue } : l),
+        );
+        setDetailLead((prev) => {
+          if (!prev || prev.id !== leadId) return prev;
+          return { ...prev, [field]: originalValue };
+        });
+      }
+      toast.error(`Failed to update ${field === 'dnc' ? 'DNC' : 'Sibling'} flag`);
+      throw new Error('Save failed');
     }
   }
 
@@ -4936,6 +5118,7 @@ export default function LeadsPage() {
         onStageChange={commitStageChange}
         onUpdatePrefs={updateLeadPrefs}
         onUpdateLeadField={handleUpdateLeadField}
+        onToggleLeadBool={handleToggleLeadBool}
         leadActivity={detailLead ? leadActivity[detailLead.id] ?? [] : []}
         followUpBanner={detailLead ? followUpBanners[detailLead.id] ?? null : null}
         onDismissFollowUpBanner={() => {

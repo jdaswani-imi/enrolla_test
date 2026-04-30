@@ -33,12 +33,24 @@ export async function PATCH(
     previousStage = data?.stage ?? null
   }
 
-  if (body.stage !== undefined)           patch.stage          = body.stage
-  if (body.status !== undefined)          patch.status         = body.status
-  if (body.lostReason !== undefined)      patch.lost_reason    = body.lostReason
-  if (body.lostNotes !== undefined)       patch.lost_notes     = body.lostNotes
-  if (body.reEngage !== undefined)        patch.re_engage      = body.reEngage
-  if (body.reEngageAfter !== undefined)   patch.re_engage_after = body.reEngageAfter
+  if (body.childName !== undefined)        patch.child_name      = body.childName
+  if (body.yearGroup !== undefined)        patch.year_group      = body.yearGroup
+  if (body.department !== undefined)       patch.department      = body.department
+  if (body.subjects !== undefined)         patch.subjects        = body.subjects
+  if (body.guardian !== undefined)         patch.guardian        = body.guardian
+  if (body.guardianPhone !== undefined)    patch.guardian_phone  = body.guardianPhone
+  if (body.source !== undefined)           patch.source          = body.source
+  if (body.assignedTo !== undefined)       patch.assigned_to     = body.assignedTo
+  if (body.preferredDays !== undefined)    patch.preferred_days  = body.preferredDays
+  if (body.preferredWindow !== undefined)  patch.preferred_window = body.preferredWindow
+  if (body.dnc !== undefined)              patch.dnc             = body.dnc
+  if (body.sibling !== undefined)          patch.sibling         = body.sibling
+  if (body.stage !== undefined)            patch.stage           = body.stage
+  if (body.status !== undefined)           patch.status          = body.status
+  if (body.lostReason !== undefined)       patch.lost_reason     = body.lostReason
+  if (body.lostNotes !== undefined)        patch.lost_notes      = body.lostNotes
+  if (body.reEngage !== undefined)         patch.re_engage       = body.reEngage
+  if (body.reEngageAfter !== undefined)    patch.re_engage_after = body.reEngageAfter
 
   const { error } = await supabase
     .from('leads')

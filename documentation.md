@@ -895,3 +895,26 @@ Two new E2E test files were added: `backend-integration.spec.ts` (verifies every
 - Finance prototype stubs — download PDF, apply credit, and report queue buttons show toasts but do not call any API yet.
 - No `error.tsx` on most routes — add incrementally to improve error UX.
 - Inngest not configured — no background job system; automations have no async execution layer.
+
+### Lead Ticket Full-Field Editing (2026-04-30)
+
+Super Admins (and Admin Heads / Admins within their permission scope) can now edit every field on a lead ticket directly from the detail panel. All changes persist immediately to the database.
+
+**Newly editable fields (wired to live API):**
+
+| Section | Field |
+|---|---|
+| Header | Child name (inline edit) |
+| Student | Year group, Programme (department), Subjects |
+| Guardian & Contact | Guardian name, Guardian phone |
+| Enquiry | Lead source, Assigned to |
+| Programme | Preferred days, Preferred window |
+| Flags | DNC (Do Not Contact), Sibling |
+
+**Flag toggles** — DNC and Sibling are now interactive toggle buttons. Clicking them instantly sets or clears the flag and saves to the database. The DNC button turns red when active; the Sibling button turns amber. Roles without edit permission see read-only badges.
+
+**Optimistic updates** — every field edit applies immediately to the UI. If the API call fails the field reverts and a toast error is shown.
+
+**Responsive layout** — the field grid in the detail panel now collapses to a single column on narrow viewports (below 640 px), making the panel usable on tablets and smaller screens.
+
+**API changes** — `PATCH /api/leads/:id` now accepts all of the above fields in addition to the previously supported `stage`, `status`, `lostReason`, `lostNotes`, `reEngage`, and `reEngageAfter`.
