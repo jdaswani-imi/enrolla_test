@@ -191,7 +191,6 @@ const LEAD_STAGES: LeadStage[] = [
   "Lost",
 ];
 import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
-import { ActivityTimeline } from "@/components/leads/activity-timeline";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -1089,6 +1088,7 @@ function EmbeddedTeamChat({
       aboveContent={timelineContent}
       leadContext={{ id: lead.id, name: lead.childName }}
       fillHeight
+      stageRefreshKey={lead.stage}
     />
   );
 }
@@ -2132,7 +2132,7 @@ function LeadDetailDialog({
   const stageFooterRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
-  const [rightWidth, setRightWidth] = useState(360);
+  const [rightWidth, setRightWidth] = useState(480);
   const [isResizingState, setIsResizingState] = useState(false);
   const [showEmptyFields, setShowEmptyFields] = useState(false);
   const [notes, setNotes] = useState('');
@@ -2169,7 +2169,7 @@ function LeadDetailDialog({
       const dialog = dialogRef.current?.getBoundingClientRect();
       if (!dialog) return;
       const newRightWidth = dialog.right - e.clientX;
-      setRightWidth(Math.min(520, Math.max(280, newRightWidth)));
+      setRightWidth(Math.min(700, Math.max(280, newRightWidth)));
     };
     const onMouseUp = () => {
       if (!isResizing.current) return;
@@ -2810,10 +2810,6 @@ function LeadDetailDialog({
                     </div>
                   </div>
 
-                  {/* Stage History */}
-                  <div className="border-t border-slate-100 pt-4">
-                    <ActivityTimeline leadId={lead.id} refreshKey={lead.stage} />
-                  </div>
                 </>
               }
             />

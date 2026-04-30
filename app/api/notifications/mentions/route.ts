@@ -13,16 +13,23 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await request.json().catch(() => ({}));
-  const { mentionedStaffIds, leadId, leadRef, message } = body as {
+  const { mentionedStaffIds, entityId, entityType, messageId, message } = body as {
     mentionedStaffIds?: string[];
-    leadId?: string;
-    leadRef?: string;
+    entityId?: string;
+    entityType?: string;
+    messageId?: string;
     message?: string;
   };
 
-  if (!Array.isArray(mentionedStaffIds) || !leadId) {
+  if (!Array.isArray(mentionedStaffIds) || !entityId || mentionedStaffIds.length === 0) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
+
+  const surface = entityType === "task" ? "task" : "lead";
+  const href =
+    surface === "lead"
+      ? `/leads?leadId=${entityId}${messageId ? `&messageId=${messageId}` : ""}`
+      : `/tasks?taskId=${entityId}${messageId ? `&messageId=${messageId}` : ""}`;
 
   // Resolve staff.id → staff.user_id for each mentioned person
   const { data: staffRows } = await supabase
@@ -55,12 +62,13 @@ export async function POST(request: NextRequest) {
       tenant_id: TENANT_ID,
       recipient_user_id: s.user_id,
       type: "mention",
-      title: `${senderName} mentioned you in ${leadRef ?? leadId}`,
-      href: `/leads?leadId=${leadId}`,
+      title: `You were mentioned in a ${surface} chat`,
+      href,
       metadata: {
         senderName,
-        leadId,
-        leadRef,
+        entityId,
+        entityType: surface,
+        messageId: messageId ?? null,
         snippet: message?.slice(0, 120) ?? "",
       },
       unread: true,

@@ -69,11 +69,20 @@ export type ChatMessage = {
   author: string;
   day: string;
   time: string;
+  createdAt: string;
   text: string;
   chips: ChatChip[];
   reactions: ChatReactionMap;
   mentions?: MentionData[];
   replyTo?: ChatReplyTo;
+};
+
+export type StageHistoryEntry = {
+  id: string;
+  changed_by_name: string;
+  previous_status: string;
+  new_status: string;
+  changed_at: string;
 };
 
 export type DbMessage = {
@@ -91,6 +100,35 @@ export type DbMessage = {
 
 const CHAT_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👏", "✅", "💯", "🙏", "👀"];
 
+const STAGE_BADGE_COLORS: Record<string, string> = {
+  New:                  "bg-slate-100 text-slate-700 border-slate-200",
+  Contacted:            "bg-blue-100 text-blue-700 border-blue-200",
+  "Assessment Booked":  "bg-purple-100 text-purple-700 border-purple-200",
+  "Assessment Done":    "bg-indigo-100 text-indigo-700 border-indigo-200",
+  "Trial Booked":       "bg-amber-100 text-amber-700 border-amber-200",
+  "Trial Done":         "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "Schedule Offered":   "bg-orange-100 text-orange-700 border-orange-200",
+  "Schedule Confirmed": "bg-cyan-100 text-cyan-700 border-cyan-200",
+  "Invoice Sent":       "bg-teal-100 text-teal-700 border-teal-200",
+  Won:                  "bg-green-100 text-green-700 border-green-200",
+  Lost:                 "bg-red-100 text-red-700 border-red-200",
+};
+
+function stageBadgeCls(stage: string) {
+  return STAGE_BADGE_COLORS[stage] ?? "bg-slate-100 text-slate-600 border-slate-200";
+}
+
+function timeAgoShort(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 const CHAT_LINK_CATALOGUE: { kind: ChatChipKind; label: string; ref: string; targetId?: string }[] = [];
 
 const STAFF_GROUPS: { label: string; members: string[] }[] = [];
@@ -103,24 +141,29 @@ export function nextChatId(prefix: string): string {
   return `${prefix}-${chatIdCounter}`;
 }
 
-export function dbRowToMessage(row: DbMessage): ChatMessage {
-  const date = new Date(row.created_at);
+function isoToDay(iso: string): string {
+  const date = new Date(iso);
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   const isToday = date.toDateString() === now.toDateString();
   const isYesterday = date.toDateString() === yesterday.toDateString();
-  const day = isToday
+  return isToday
     ? "Today"
     : isYesterday
     ? "Yesterday"
     : date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+export function dbRowToMessage(row: DbMessage): ChatMessage {
+  const date = new Date(row.created_at);
   const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   return {
     id: row.id,
     author: row.author,
-    day,
+    day: isoToDay(row.created_at),
     time,
+    createdAt: row.created_at,
     text: row.text,
     chips: row.chips ?? [],
     reactions: row.reactions ?? {},
@@ -132,8 +175,9 @@ export function dbRowToMessage(row: DbMessage): ChatMessage {
 export function formatMentionText(
   text: string,
   mentions?: MentionData[],
-  activeStaffNames?: Set<string>,
+  activeStaffNames?: Set<string> | null,
   currentUserName?: string,
+  isOwnBubble?: boolean,
 ): React.ReactNode {
   if (!text) return null;
   const parts: React.ReactNode[] = [];
@@ -160,10 +204,12 @@ export function formatMentionText(
         <span
           key={`m-${keyIdx++}`}
           className={cn(
-            "inline-flex items-center rounded-full px-1.5 py-0 text-[12px] font-medium leading-5 mx-0.5",
-            isSelf
-              ? "bg-amber-200 text-amber-800 border border-amber-300"
-              : "bg-blue-50 text-blue-700 border border-blue-200",
+            "font-semibold underline underline-offset-2 cursor-default",
+            isOwnBubble
+              ? "text-white decoration-white/60"
+              : isSelf
+              ? "text-amber-600 decoration-amber-400"
+              : "text-blue-600 decoration-blue-400",
           )}
         >
           @{candidate}
@@ -781,6 +827,8 @@ export interface TeamChatProps {
   leadContext?: { id: string; name: string };
   /** When true, the messages area uses flex-1 to fill available height (leads panel). When false, uses a fixed max-height (task dialog). */
   fillHeight?: boolean;
+  /** Changing this value triggers a re-fetch of stage history (pass lead.stage). */
+  stageRefreshKey?: string;
 }
 
 // ─── TeamChat ─────────────────────────────────────────────────────────────────
@@ -792,6 +840,7 @@ export function TeamChat({
   aboveContent,
   leadContext,
   fillHeight = false,
+  stageRefreshKey,
 }: TeamChatProps) {
   const router = useRouter();
   const { name: chatCurrentUser } = useCurrentUser();
@@ -806,7 +855,7 @@ export function TeamChat({
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [staffNames, setStaffNames] = useState<string[]>([]);
-  const [activeStaffNames, setActiveStaffNames] = useState<Set<string>>(new Set());
+  const [activeStaffNames, setActiveStaffNames] = useState<Set<string> | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
 
@@ -832,6 +881,8 @@ export function TeamChat({
   const [pendingDeleteMessages, setPendingDeleteMessages] = useState<Map<string, ChatMessage>>(new Map());
   const [dismissingDeleteIds, setDismissingDeleteIds] = useState<Set<string>>(new Set());
   const pendingDeleteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const [stageHistory, setStageHistory] = useState<StageHistoryEntry[]>([]);
 
   const apiPath = `/api/${entityType}s/${entityId}/messages`;
   const channelName = `${entityType}-messages-${entityId}`;
@@ -868,6 +919,16 @@ export function TeamChat({
       })
       .catch(() => {});
   }, [apiPath]);
+
+  // Load stage history for leads
+  useEffect(() => {
+    if (entityType !== "lead") return;
+    fetch(`/api/status-history?entity_type=lead&entity_id=${entityId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => setStageHistory(json?.data ?? []))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityId, entityType, stageRefreshKey]);
 
   // Supabase Realtime subscription
   useEffect(() => {
@@ -1065,50 +1126,26 @@ export function TeamChat({
       });
     }
 
-    // Mention notifications
+    // Mention notifications — fire server-side only so recipients (not the sender) receive them
     if (content.mentions.length > 0) {
-      const ts = Date.now();
       const msgId = res?.data?.id ?? "";
-      const href =
-        entityType === "lead"
-          ? `/leads?leadId=${entityId}&messageId=${msgId}`
-          : `/tasks?taskId=${entityId}&messageId=${msgId}`;
-      const title =
-        entityType === "lead"
-          ? `You were mentioned in a lead chat`
-          : `You were mentioned in a task chat`;
-
-      const recipientIds = new Set<string>();
-      for (const m of content.mentions) recipientIds.add(m.id);
-      recipientIds.delete(chatCurrentUser);
-
-      for (const recipientId of recipientIds) {
-        pushNotification({
-          id: crypto.randomUUID(),
-          type: "mention",
-          title,
-          time: "just now",
-          href,
-          unread: true,
-          mention: true,
-          senderName: chatCurrentUser,
-          leadId: entityType === "lead" ? entityId : undefined,
-          messageId: msgId,
-          timestamp: ts,
-        });
-        void recipientId;
+      // Exclude group pseudo-ids (group-all, group-admins, group-teachers)
+      const staffMentionIds = content.mentions
+        .map((m) => m.id)
+        .filter((id) => !id.startsWith("group-"));
+      if (staffMentionIds.length > 0) {
+        fetch("/api/notifications/mentions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mentionedStaffIds: staffMentionIds,
+            entityId,
+            entityType,
+            messageId: msgId,
+            message: content.text,
+          }),
+        }).catch(() => {});
       }
-
-      fetch("/api/notifications/mentions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mentionedStaffIds: content.mentions.map((m) => m.id),
-          entityId,
-          entityType,
-          message: content.text,
-        }),
-      }).catch(() => {});
     }
   }
 
@@ -1214,22 +1251,65 @@ export function TeamChat({
     setNewMessagesCount(0);
   }
 
-  // Build grouped message rows (WhatsApp style)
+  // Build grouped message rows (WhatsApp style), interleaved with stage history events
   const QUICK_EMOJIS_TC = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
   const parseMin = (t: string) => { const [h, mn] = t.split(":").map(Number); return (h||0)*60+(mn||0); };
 
+  type ChatItem =
+    | { kind: "msg"; msg: ChatMessage; ts: number }
+    | { kind: "stage"; entry: StageHistoryEntry; ts: number };
+
+  const allItems: ChatItem[] = [
+    ...messages.map((msg) => ({ kind: "msg" as const, msg, ts: new Date(msg.createdAt).getTime() })),
+    ...stageHistory.map((entry) => ({ kind: "stage" as const, entry, ts: new Date(entry.changed_at).getTime() })),
+  ].sort((a, b) => a.ts - b.ts);
+
   const rows: React.ReactNode[] = [];
   let lastDay: string | null = null;
-  messages.forEach((m, i) => {
-    if (m.day !== lastDay) {
+  let lastMsgAuthor: string | null = null;
+  let lastMsgDay: string | null = null;
+  let lastMsgTime: string | null = null;
+
+  allItems.forEach((item, idx) => {
+    const itemDay = item.kind === "msg" ? item.msg.day : isoToDay(item.entry.changed_at);
+
+    if (itemDay !== lastDay) {
       rows.push(
-        <div key={`d-${m.id}`} className="flex items-center gap-2 py-1.5">
+        <div key={`d-${idx}`} className="flex items-center gap-2 py-1.5">
           <div className="flex-1 h-px bg-slate-300/60" />
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-white/80 rounded-full px-2 py-0.5 shadow-sm">{m.day}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-white/80 rounded-full px-2 py-0.5 shadow-sm">{itemDay}</span>
           <div className="flex-1 h-px bg-slate-300/60" />
         </div>,
       );
+      lastDay = itemDay;
     }
+
+    if (item.kind === "stage") {
+      const e = item.entry;
+      const p = getAvatarPalette(e.changed_by_name);
+      rows.push(
+        <div key={`stage-${e.id}`} className="flex items-center gap-2 my-1.5">
+          <div className="flex-1 h-px bg-slate-200/80" />
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2.5 py-1 shadow-sm max-w-[90%] min-w-0">
+            <div className={cn("w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0", p.bg, p.text)}>
+              {getInitials(e.changed_by_name)}
+            </div>
+            <span className="text-[11px] font-medium text-slate-600 truncate shrink min-w-0">{e.changed_by_name}</span>
+            <span className="text-[11px] text-slate-400 shrink-0">moved to</span>
+            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold border shrink-0", stageBadgeCls(e.new_status))}>
+              {e.new_status}
+            </span>
+            <span className="text-[10px] text-slate-400 shrink-0">· {timeAgoShort(e.changed_at)}</span>
+          </div>
+          <div className="flex-1 h-px bg-slate-200/80" />
+        </div>,
+      );
+      lastMsgAuthor = null;
+      return;
+    }
+
+    // item.kind === "msg"
+    const m = item.msg;
 
     if (pendingDeleteMessages.has(m.id)) {
       rows.push(
@@ -1244,14 +1324,20 @@ export function TeamChat({
           <button type="button" onClick={() => undoDelete(m.id)} className="text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer transition-colors">Undo</button>
         </div>,
       );
-      lastDay = m.day;
+      lastMsgAuthor = m.author;
+      lastMsgDay = m.day;
+      lastMsgTime = m.time;
       return;
     }
 
     const palette = getAvatarPalette(m.author);
     const isOwn = m.author === chatCurrentUser;
-    const prevMsg = messages[i - 1];
-    const grouped = !!prevMsg && prevMsg.author === m.author && prevMsg.day === m.day && parseMin(m.time) - parseMin(prevMsg.time) <= 2;
+    const grouped =
+      !!lastMsgAuthor &&
+      lastMsgAuthor === m.author &&
+      lastMsgDay === m.day &&
+      !!lastMsgTime &&
+      parseMin(m.time) - parseMin(lastMsgTime) <= 2;
 
     rows.push(
       <div
@@ -1346,7 +1432,7 @@ export function TeamChat({
             {/* Message text */}
             {m.text && (
               <p className={cn("text-sm leading-snug whitespace-pre-wrap break-words pr-3", isOwn ? "text-white" : "text-slate-700")}>
-                {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser)}
+                {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser, isOwn)}
               </p>
             )}
 
@@ -1413,7 +1499,9 @@ export function TeamChat({
         </div>
       </div>,
     );
-    lastDay = m.day;
+    lastMsgAuthor = m.author;
+    lastMsgDay = m.day;
+    lastMsgTime = m.time;
   });
 
   return (
@@ -1437,7 +1525,7 @@ export function TeamChat({
                 · only visible to staff
               </span>
             </p>
-            {messages.length === 0 ? (
+            {allItems.length === 0 ? (
               <div className="py-4 text-center">
                 <p className="text-xs text-slate-400">No messages yet. Start the conversation with the team.</p>
               </div>
