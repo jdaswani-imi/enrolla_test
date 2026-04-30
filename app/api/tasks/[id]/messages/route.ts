@@ -47,6 +47,7 @@ export async function POST(
       chips: body.chips ?? [],
       reactions: body.reactions ?? {},
       mentions: body.mentions ?? [],
+      reply_to: body.reply_to ?? null,
     })
     .select()
     .single()

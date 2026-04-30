@@ -11,7 +11,7 @@ import {
   FileText, ChevronRight, Clipboard, Paperclip,
   X, Check, CheckCircle2, XCircle, Hash, ArrowLeft, ArrowRight,
   Info, Smile, AtSign, Link2, Image as ImageIcon, GraduationCap,
-  UserCircle2, Receipt, AlertOctagon, ListChecks,
+  UserCircle2, Receipt, AlertOctagon, ListChecks, Reply,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePermission } from '@/lib/use-permission';
@@ -570,7 +570,7 @@ type RecordChip = {
   id?: string;
 };
 
-type MsgReaction = { emoji: string; count: number };
+type MsgReaction = { emoji: string; count: number; reactedByMe: boolean };
 
 type DayLabel = 'Today' | 'Yesterday' | 'Monday 14 Apr';
 
@@ -585,6 +585,7 @@ type IMMessage = {
   body: string;
   chips?: RecordChip[];
   reactions?: MsgReaction[];
+  replyTo?: { messageId: string; authorName: string; preview: string };
 };
 
 type IMChannel = {
@@ -625,9 +626,76 @@ const IM_THREAD_TYPES: { icon: string; label: string }[] = [
 const EMOJI_PALETTE = ['👍','✅','👀','🎉','❤️','😂','🙏','💪'];
 
 
-const IM_GENERAL_SEED: IMMessage[] = [];
+const IM_GENERAL_SEED: IMMessage[] = [
+  {
+    id: 'seed-g1',
+    senderId: 'sarah-jones',
+    senderName: 'Sarah Jones',
+    initials: 'SJ',
+    color: 'bg-violet-500',
+    day: 'Today',
+    time: '09:14',
+    body: 'Good morning team! Quick reminder — the academic review is this Thursday at 10am.',
+    reactions: [],
+  },
+  {
+    id: 'seed-g2',
+    senderId: 'ahmed-ali',
+    senderName: 'Ahmed Ali',
+    initials: 'AA',
+    color: 'bg-blue-500',
+    day: 'Today',
+    time: '09:17',
+    body: "Thanks for the heads-up, I'll make sure all reports are ready before then.",
+    reactions: [{ emoji: '👍', count: 2, reactedByMe: false }],
+    replyTo: {
+      messageId: 'seed-g1',
+      authorName: 'Sarah Jones',
+      preview: 'Good morning team! Quick reminder — the academic review is this Thursday at 10am.',
+    },
+  },
+  {
+    id: 'seed-g3',
+    senderId: 'sarah-jones',
+    senderName: 'Sarah Jones',
+    initials: 'SJ',
+    color: 'bg-violet-500',
+    day: 'Today',
+    time: '09:18',
+    body: 'Perfect, see everyone there.',
+    reactions: [],
+  },
+];
 
-const IM_LEADS_PIPELINE_SEED: IMMessage[] = [];
+const IM_LEADS_PIPELINE_SEED: IMMessage[] = [
+  {
+    id: 'seed-lp1',
+    senderId: 'tariq-mahmood',
+    senderName: 'Tariq Mahmood',
+    initials: 'TM',
+    color: 'bg-emerald-500',
+    day: 'Today',
+    time: '10:05',
+    body: 'Just had a great trial session with the Hassan family — very likely to convert.',
+    reactions: [],
+  },
+  {
+    id: 'seed-lp2',
+    senderId: 'hana-patel',
+    senderName: 'Hana Patel',
+    initials: 'HP',
+    color: 'bg-pink-500',
+    day: 'Today',
+    time: '10:08',
+    body: 'Brilliant! Shall I send them the enrolment pack now?',
+    reactions: [{ emoji: '🎉', count: 1, reactedByMe: false }],
+    replyTo: {
+      messageId: 'seed-lp1',
+      authorName: 'Tariq Mahmood',
+      preview: 'Just had a great trial session with the Hassan family — very likely to convert.',
+    },
+  },
+];
 
 const IM_ACADEMIC_TEAM_SEED: IMMessage[] = [];
 
@@ -912,6 +980,8 @@ function InternalMessagesTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const _imCurrentUser = useCurrentUser();
+  const { role: imRole } = usePermission();
+  const canDeleteAny = ['Super Admin', 'Admin Head', 'Admin'].includes(imRole ?? '');
   const CURRENT_USER = {
     id: _imCurrentUser.email || _imCurrentUser.name.toLowerCase().replace(/\s+/g, '-') || 'me',
     name: _imCurrentUser.name,
@@ -940,10 +1010,17 @@ function InternalMessagesTab() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [recordPickerOpen, setRecordPickerOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
 
-  const [threadReplies, setThreadReplies] = useState<Record<string, IMMessage[]>>({});
-  const [threadDraft, setThreadDraft] = useState('');
+  // WhatsApp-style reply
+  const [replyTarget, setReplyTarget] = useState<{ messageId: string; authorName: string; preview: string } | null>(null);
+
+  // Context menu (right-click)
+  type ContextMenuState = { msgId: string; x: number; y: number; isOwn: boolean } | null;
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [contextEmojiOpen, setContextEmojiOpen] = useState(false);
+
+  // Flash highlight for scroll-to-original
+  const [flashMessageId, setFlashMessageId] = useState<string | null>(null);
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -977,10 +1054,6 @@ function InternalMessagesTab() {
     }
   }, [activeId, activeMessages.length]);
 
-  const selectedMessage = selectedMessageId
-    ? activeMessages.find(m => m.id === selectedMessageId) ?? null
-    : null;
-
   function handleChipNavigate(chip: RecordChip) {
     switch (chip.type) {
       case 'Student': {
@@ -1003,12 +1076,20 @@ function InternalMessagesTab() {
       const msg = { ...list[idx] };
       const reactions = [...(msg.reactions ?? [])];
       const rIdx = reactions.findIndex(r => r.emoji === emoji);
-      if (rIdx === -1) reactions.push({ emoji, count: 1 });
-      else reactions[rIdx] = { ...reactions[rIdx], count: reactions[rIdx].count + 1 };
+      if (rIdx === -1) {
+        reactions.push({ emoji, count: 1, reactedByMe: true });
+      } else if (reactions[rIdx].reactedByMe) {
+        if (reactions[rIdx].count <= 1) reactions.splice(rIdx, 1);
+        else reactions[rIdx] = { ...reactions[rIdx], count: reactions[rIdx].count - 1, reactedByMe: false };
+      } else {
+        reactions[rIdx] = { ...reactions[rIdx], count: reactions[rIdx].count + 1, reactedByMe: true };
+      }
       msg.reactions = reactions;
       list[idx] = msg;
       return { ...prev, [activeId]: list };
     });
+    setContextMenu(null);
+    setContextEmojiOpen(false);
   }
 
   function deleteMessage(msgId: string) {
@@ -1056,34 +1137,46 @@ function InternalMessagesTab() {
       time: `${hh}:${mm}`,
       body: trimmed,
       chips: pendingChips.length ? pendingChips : undefined,
+      replyTo: replyTarget ?? undefined,
     };
     setMessagesByChannel(prev => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), newMsg] }));
     setCompose('');
     setPendingChips([]);
+    setReplyTarget(null);
   }
 
-  function sendThreadReply() {
-    const text = threadDraft.trim();
-    if (!text || !selectedMessage) return;
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const reply: IMMessage = {
-      id: `r-${Date.now()}`,
-      senderId: CURRENT_USER.id,
-      senderName: CURRENT_USER.name,
-      initials: CURRENT_USER.initials,
-      color: CURRENT_USER.color,
-      day: 'Today',
-      time: `${hh}:${mm}`,
-      body: text,
-    };
-    setThreadReplies(prev => ({
-      ...prev,
-      [selectedMessage.id]: [...(prev[selectedMessage.id] ?? []), reply],
-    }));
-    setThreadDraft('');
+  function scrollToOriginal(messageId: string) {
+    const container = messagesRef.current;
+    if (!container) return;
+    const el = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null;
+    if (!el) return;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const targetScrollTop = container.scrollTop + (elRect.top - containerRect.top) - containerRect.height / 2 + elRect.height / 2;
+    container.scrollTop = Math.max(0, targetScrollTop);
+    setFlashMessageId(messageId);
+    setTimeout(() => setFlashMessageId(null), 600);
   }
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    function handle(e: MouseEvent | KeyboardEvent) {
+      if ('key' in e) { if (e.key === 'Escape') { setContextMenu(null); setContextEmojiOpen(false); } }
+      else { setContextMenu(null); setContextEmojiOpen(false); }
+    }
+    document.addEventListener('mousedown', handle);
+    document.addEventListener('keydown', handle);
+    return () => { document.removeEventListener('mousedown', handle); document.removeEventListener('keydown', handle); };
+  }, [contextMenu]);
+
+  // Close reply target on Escape
+  useEffect(() => {
+    if (!replyTarget) return;
+    function handle(e: KeyboardEvent) { if (e.key === 'Escape') setReplyTarget(null); }
+    document.addEventListener('keydown', handle);
+    return () => document.removeEventListener('keydown', handle);
+  }, [replyTarget]);
 
   function insertAtCursor(value: string) {
     const el = textareaRef.current;
@@ -1140,7 +1233,7 @@ function InternalMessagesTab() {
             <button
               key={ch.id}
               type="button"
-              onClick={() => { setActiveId(ch.id); setSelectedMessageId(null); }}
+              onClick={() => { setActiveId(ch.id); setReplyTarget(null); }}
               className={cn(
                 'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors cursor-pointer',
                 activeId === ch.id
@@ -1171,7 +1264,7 @@ function InternalMessagesTab() {
             <button
               key={dm.id}
               type="button"
-              onClick={() => { setActiveId(dm.id); setSelectedMessageId(null); }}
+              onClick={() => { setActiveId(dm.id); setReplyTarget(null); }}
               className={cn(
                 'w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 transition-colors cursor-pointer',
                 activeId === dm.id
@@ -1263,7 +1356,7 @@ function InternalMessagesTab() {
         </div>
 
         {/* Messages */}
-        <div ref={messagesRef} className="flex-1 overflow-y-auto px-5 py-4 bg-white">
+        <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 bg-[#F0F2F5]">
           {activeMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
               <MessageSquare className="w-8 h-8" />
@@ -1273,38 +1366,31 @@ function InternalMessagesTab() {
             groupedByDay.map((group, gi) => (
               <div key={gi}>
                 <div className="flex items-center gap-3 my-3">
-                  <div className="flex-1 h-px bg-slate-200" />
-                  <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 bg-slate-100 rounded-full px-2.5 py-0.5">
+                  <div className="flex-1 h-px bg-slate-300/60" />
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 bg-white/80 rounded-full px-2.5 py-0.5 shadow-sm">
                     {group.day}
                   </span>
-                  <div className="flex-1 h-px bg-slate-200" />
+                  <div className="flex-1 h-px bg-slate-300/60" />
                 </div>
 
                 <div className="space-y-0.5">
                   {group.messages.map((m, i) => {
                     const prev = group.messages[i - 1];
-                    const grouped = prev && prev.senderId === m.senderId;
+                    const parseMin = (t: string) => { const [h, mn] = t.split(':').map(Number); return (h||0)*60+(mn||0); };
+                    const grouped = !!prev && prev.senderId === m.senderId && parseMin(m.time) - parseMin(prev.time) <= 2;
                     const isOwn = m.senderId === CURRENT_USER.id;
-                    const isSelected = selectedMessageId === m.id;
 
-                    // Pending-delete: render inline undo toast in place of message
                     if (pendingDeleteMessages.has(m.id)) {
                       return (
                         <div
                           key={m.id}
                           className={cn(
-                            "rounded-md border border-slate-200 bg-slate-100 px-3 py-2.5 flex items-center gap-2 transition-opacity duration-300",
-                            dismissingDeleteIds.has(m.id) ? "opacity-0" : "opacity-100",
+                            'rounded-xl border border-slate-200 bg-white/80 px-3 py-2 flex items-center gap-2 mx-2 transition-opacity duration-300',
+                            dismissingDeleteIds.has(m.id) ? 'opacity-0' : 'opacity-100',
                           )}
                         >
-                          <span className="text-sm text-slate-500 flex-1">Comment deleted.</span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); undoDelete(m.id); }}
-                            className="text-sm font-semibold text-slate-600 hover:text-slate-800 cursor-pointer transition-colors"
-                          >
-                            Undo
-                          </button>
+                          <span className="text-sm text-slate-500 flex-1 italic">Message deleted.</span>
+                          <button type="button" onClick={() => undoDelete(m.id)} className="text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer transition-colors">Undo</button>
                         </div>
                       );
                     }
@@ -1312,71 +1398,105 @@ function InternalMessagesTab() {
                     return (
                       <div
                         key={m.id}
-                        onClick={() => setSelectedMessageId(m.id)}
+                        data-message-id={m.id}
+                        onContextMenu={e => {
+                          e.preventDefault();
+                          setContextMenu({ msgId: m.id, x: e.clientX, y: e.clientY, isOwn: isOwn || canDeleteAny });
+                          setContextEmojiOpen(false);
+                        }}
                         className={cn(
-                          'group relative flex items-start gap-3 px-2 py-1 rounded-md cursor-pointer transition-colors',
-                          isSelected ? 'bg-amber-50' : 'hover:bg-slate-50',
+                          'flex items-end gap-2 px-2',
+                          isOwn ? 'flex-row-reverse' : 'flex-row',
+                          grouped ? 'mt-0.5' : 'mt-2',
+                          flashMessageId === m.id && 'rounded-xl bg-yellow-100 transition-colors duration-300',
                         )}
                       >
-                        <div className="w-8 flex-shrink-0">
-                          {!grouped ? (
-                            <IMAvatar initials={m.initials} color={m.color} size={32} />
-                          ) : (
-                            <span className="text-[10px] text-slate-400 invisible group-hover:visible block text-right pr-1 pt-1">{m.time}</span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {!grouped && (
-                            <div className="flex items-baseline gap-2">
-                              <span className={cn('font-semibold text-sm', isOwn ? 'text-amber-600' : 'text-slate-900')}>
-                                {m.senderName}
-                              </span>
-                              <span className="text-xs text-slate-400">{m.time}</span>
-                            </div>
-                          )}
-                          <MessageBody body={m.body} />
+                        {/* Avatar (received only, hidden when grouped) */}
+                        {!isOwn && (
+                          <div className="w-8 flex-shrink-0 self-end pb-0.5">
+                            {!grouped ? (
+                              <IMAvatar initials={m.initials} color={m.color} size={30} />
+                            ) : (
+                              <div className="w-8" />
+                            )}
+                          </div>
+                        )}
 
-                          {m.chips && m.chips.length > 0 && (
-                            <div className="flex flex-wrap -mt-0.5">
-                              {m.chips.map((c, ci) => (
-                                <span
-                                  key={ci}
-                                  onClick={e => { e.stopPropagation(); handleChipNavigate(c); }}
+                        {/* Bubble column */}
+                        <div className={cn('flex flex-col min-w-0', isOwn ? 'items-end max-w-[75%]' : 'items-start max-w-[75%]')}>
+                          {/* Author name (received, non-grouped) */}
+                          {!isOwn && !grouped && (
+                            <span className="text-xs font-semibold text-amber-600 mb-1 ml-1 truncate">{m.senderName}</span>
+                          )}
+
+                          {/* Bubble */}
+                          <div
+                            className={cn(
+                              'relative px-3 py-2 rounded-2xl shadow-sm',
+                              isOwn
+                                ? 'bg-amber-500 text-white rounded-tr-sm'
+                                : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm',
+                            )}
+                          >
+                            {/* Quoted reply block */}
+                            {m.replyTo && (
+                              <button
+                                type="button"
+                                onClick={() => scrollToOriginal(m.replyTo!.messageId)}
+                                className={cn(
+                                  'w-full text-left border-l-2 rounded-r-md px-2 py-1 mb-2 block cursor-pointer hover:opacity-80 transition-opacity',
+                                  isOwn ? 'border-amber-200 bg-white/20' : 'border-amber-500 bg-amber-50',
+                                )}
+                              >
+                                <p className={cn('text-[11px] font-semibold truncate', isOwn ? 'text-amber-100' : 'text-amber-600')}>
+                                  {m.replyTo.authorName}
+                                </p>
+                                <p className={cn('text-[11px] truncate', isOwn ? 'text-amber-200' : 'text-slate-500')}>
+                                  {m.replyTo.preview}
+                                </p>
+                              </button>
+                            )}
+
+                            {/* Chips */}
+                            {m.chips && m.chips.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-1.5">
+                                {m.chips.map((c, ci) => (
+                                  <RecordChipInline key={ci} chip={c} onNavigate={handleChipNavigate} />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Message text */}
+                            <MessageBody body={m.body} />
+
+                            {/* Timestamp */}
+                            <p className={cn('text-[10px] mt-1 text-right select-none', isOwn ? 'text-amber-200' : 'text-slate-400')}>
+                              {m.time}
+                            </p>
+                          </div>
+
+                          {/* Reactions below bubble */}
+                          {(m.reactions ?? []).length > 0 && (
+                            <div className={cn('flex flex-wrap gap-1 mt-1', isOwn ? 'justify-end' : 'justify-start')}>
+                              {(m.reactions ?? []).map((r, ri) => (
+                                <button
+                                  key={ri}
+                                  type="button"
+                                  onClick={() => toggleReaction(m.id, r.emoji)}
+                                  className={cn(
+                                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs border transition-colors cursor-pointer',
+                                    r.reactedByMe
+                                      ? 'bg-amber-50 border-amber-300 text-amber-700'
+                                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                                  )}
                                 >
-                                  <RecordChipInline chip={c} onNavigate={handleChipNavigate} />
-                                </span>
+                                  <span>{r.emoji}</span>
+                                  <span className="font-medium">{r.count}</span>
+                                </button>
                               ))}
                             </div>
                           )}
-
-                          {/* Reactions */}
-                          <div className="flex flex-wrap gap-1 mt-1 items-center">
-                            {(m.reactions ?? []).map((r, ri) => (
-                              <button
-                                key={ri}
-                                type="button"
-                                onClick={e => { e.stopPropagation(); toggleReaction(m.id, r.emoji); }}
-                                className="bg-slate-100 hover:bg-amber-50 border border-transparent hover:border-amber-200 rounded-full px-2 py-0.5 text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
-                              >
-                                <span>{r.emoji}</span>
-                                <span className="text-slate-600 font-medium">{r.count}</span>
-                              </button>
-                            ))}
-                            <ReactionAdder
-                              onPick={emoji => toggleReaction(m.id, emoji)}
-                            />
-                          </div>
                         </div>
-                        {isOwn && (
-                          <button
-                            type="button"
-                            aria-label="Delete message"
-                            onClick={e => { e.stopPropagation(); deleteMessage(m.id); }}
-                            className="opacity-0 group-hover:opacity-100 absolute right-2 top-1 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm w-6 h-6 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 cursor-pointer transition-all"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
                       </div>
                     );
                   })}
@@ -1388,6 +1508,24 @@ function InternalMessagesTab() {
 
         {/* Input area */}
         <div className="border-t border-slate-200 px-5 py-3 flex-shrink-0 bg-white">
+          {/* Reply bar */}
+          {replyTarget && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-2">
+              <div className="flex-1 border-l-2 border-amber-500 pl-2 min-w-0">
+                <p className="text-xs font-semibold text-amber-600 truncate">{replyTarget.authorName}</p>
+                <p className="text-xs text-slate-500 truncate">{replyTarget.preview}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cancel reply"
+                onClick={() => setReplyTarget(null)}
+                className="p-1 rounded-md hover:bg-slate-200 text-slate-400 cursor-pointer transition-colors flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Toolbar */}
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             <ToolbarButton label="Attach file"        onClick={() => toast('File attachment — coming soon')}><Paperclip className="w-4 h-4" /></ToolbarButton>
@@ -1475,97 +1613,77 @@ function InternalMessagesTab() {
         </div>
       </div>
 
-      {/* RIGHT PANEL — THREAD */}
-      <div className="w-72 flex-shrink-0 border-l border-slate-200 flex flex-col bg-slate-50/40">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 flex-shrink-0">
-          <span className="text-sm font-semibold text-slate-800">Thread</span>
-          {selectedMessage && (
-            <button
-              type="button"
-              onClick={() => setSelectedMessageId(null)}
-              className="p-1 rounded-md hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors"
-              aria-label="Close thread"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {selectedMessage ? (
-          <>
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-              {/* Parent */}
-              <div className="flex items-start gap-2 pb-3 border-b border-slate-200">
-                <IMAvatar initials={selectedMessage.initials} color={selectedMessage.color} size={28} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className={cn('text-sm font-semibold', selectedMessage.senderId === CURRENT_USER.id ? 'text-amber-600' : 'text-slate-900')}>
-                      {selectedMessage.senderName}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{selectedMessage.time}</span>
-                  </div>
-                  <MessageBody body={selectedMessage.body} />
-                  {selectedMessage.chips?.map((c, i) => (
-                    <RecordChipInline key={i} chip={c} onNavigate={handleChipNavigate} />
+      {/* CONTEXT MENU */}
+      {contextMenu && (() => {
+        const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+        const ctxMsg = activeMessages.find(m => m.id === contextMenu.msgId);
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left: Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1440) - 200),
+              top: Math.min(contextMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 900) - 220),
+              zIndex: 9999,
+            }}
+            className="bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-48"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            {contextEmojiOpen ? (
+              <div className="px-2 py-2">
+                <div className="flex gap-1 flex-wrap justify-center">
+                  {QUICK_EMOJIS.map(e => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => toggleReaction(contextMenu.msgId, e)}
+                      className="w-9 h-9 flex items-center justify-center text-xl rounded-lg hover:bg-amber-50 cursor-pointer transition-colors"
+                    >
+                      {e}
+                    </button>
                   ))}
                 </div>
               </div>
-
-              {/* Replies */}
-              {(threadReplies[selectedMessage.id] ?? []).map(r => (
-                <div key={r.id} className="flex items-start gap-2">
-                  <IMAvatar initials={r.initials} color={r.color} size={26} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={cn('text-xs font-semibold', r.senderId === CURRENT_USER.id ? 'text-amber-600' : 'text-slate-900')}>
-                        {r.senderName}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{r.time}</span>
-                    </div>
-                    <p className="text-sm text-slate-700 leading-relaxed">{r.body}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="border-t border-slate-200 px-3 py-3 flex-shrink-0">
-              <textarea
-                value={threadDraft}
-                onChange={e => setThreadDraft(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendThreadReply();
-                  }
-                }}
-                rows={2}
-                placeholder="Reply in thread..."
-                className="w-full resize-none border border-slate-200 rounded-lg text-sm px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300"
-              />
-              <div className="flex justify-end mt-2">
+            ) : (
+              <>
                 <button
                   type="button"
-                  disabled={!threadDraft.trim()}
-                  onClick={sendThreadReply}
-                  className={cn(
-                    'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                    threadDraft.trim()
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed',
-                  )}
+                  onClick={() => {
+                    if (ctxMsg) setReplyTarget({ messageId: ctxMsg.id, authorName: ctxMsg.senderName, preview: ctxMsg.body.slice(0, 80) });
+                    setContextMenu(null);
+                    setTimeout(() => textareaRef.current?.focus(), 50);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
                 >
-                  <Send className="w-3 h-3" /> Reply
+                  <Reply className="w-4 h-4 text-slate-500" /> Reply
                 </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center gap-2 px-6 text-center text-slate-400">
-            <MessageSquare className="w-7 h-7" />
-            <p className="text-xs leading-relaxed">Click on a message to view thread or reply</p>
+                <button
+                  type="button"
+                  onClick={() => setContextEmojiOpen(true)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Smile className="w-4 h-4 text-slate-500" /> React
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (ctxMsg) navigator.clipboard.writeText(ctxMsg.body).catch(() => {}); setContextMenu(null); }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Copy className="w-4 h-4 text-slate-500" /> Copy text
+                </button>
+                {contextMenu.isOwn && (
+                  <button
+                    type="button"
+                    onClick={() => { deleteMessage(contextMenu.msgId); setContextMenu(null); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </button>
+                )}
+              </>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       <RecordPickerDialog
         open={recordPickerOpen}

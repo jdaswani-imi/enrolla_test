@@ -98,13 +98,19 @@ Opening a lead opens a **two-column detail panel**. The left column shows all le
 
 **Team Chat — fully persistent and real-time:** Messages are stored in Supabase (`lead_messages` table) and survive page refreshes. When a lead is opened the full message history loads from the database. New messages sent by any staff member appear instantly in every other open session via **Supabase Realtime** (no refresh needed). Emoji reactions are also persisted and synced in real time across sessions.
 
-Each message renders as its own **card** (ClickUp-style) showing the sender's avatar, name, and timestamp in the card header, with the message body below. Hovering a card reveals inline action buttons in the top-right corner: an emoji reaction picker (smiley icon) and (for the sender's own messages) a delete button. Deleting a message uses a **soft-delete / undo** pattern — the card is instantly replaced in-place with a "Comment deleted. Undo" toast that spans the full card width; clicking Undo within 10 seconds restores the message; if the 10-second window expires the delete is committed (API call + Realtime). When the user is scrolled up and a new message arrives via Realtime, an amber **"N new replies"** pill appears above the input bar; clicking it scrolls to the latest message and dismisses the counter.
+**WhatsApp-style message bubbles:** Sent messages appear right-aligned with an amber background; received messages appear left-aligned on a white card. Avatar and author name are shown once per consecutive run from the same sender (within 2 minutes), then hidden for grouped follow-up messages to avoid visual repetition. Every bubble shows a timestamp bottom-right. The message feed uses a light blue-grey background (#F0F2F5) to match the WhatsApp chat aesthetic.
 
-**Emoji reactions — full picker and reaction chips:** Hovering any message card reveals a smiley-face button in the top-right action area. Clicking it opens a compact **12-emoji picker** (👍 ❤️ 😂 😮 😢 🔥 🎉 👏 ✅ 💯 🙏 👀) rendered as a portal (position: fixed, never clipped by overflow containers), anchored above the button by default and flipping below if there is insufficient space. Selecting an emoji adds a coloured **reaction chip** directly below the message bubble. Chips show the emoji and the count of reactors; chips with the current user's reaction are highlighted in amber. Clicking a chip you have already reacted with removes your reaction (toggle off). Hovering any chip shows a **tooltip** listing the names of everyone who reacted (e.g. "Jason, Shayan and 2 others reacted with 👍"). Reactions are persisted in Supabase and synced across all open sessions in real time via Realtime.
+**Three ways to interact with a message:** (1) **Hover action buttons** — hovering any message row reveals two icon buttons beside the bubble (to the left of sent bubbles, to the right of received bubbles): a smile-plus icon that opens the emoji reaction picker, and a reply arrow that sets the reply target. (2) **Chevron dropdown** — a small ChevronDown appears in the top-right corner of the bubble on hover; clicking it opens a dropdown with Reply, React, Copy text, and Delete options. (3) **Right-click context menu** — right-clicking the bubble also opens the same menu. All three interaction surfaces are equivalent and work in parallel.
+
+**WhatsApp-style replies:** Selecting "Reply" from the context menu attaches a quoted-reply bar above the message composer — showing a 2px amber left-accent bar, the original author's name in amber, and a one-line preview of the original text. The ✕ button or Escape key dismisses the reply intent. When sent, the reply bubble contains the quoted block embedded at the top (tinted differently for sent vs received bubbles), with the reply text below. Clicking the quoted block scrolls to the original message and briefly flashes it with a yellow background for 300 ms. The feed is flat and chronological — no nested thread panels or expand/collapse thread indicators exist.
+
+**Emoji reactions:** Reaction pills render below each message bubble (not inside it) as small rounded chips showing the emoji and count. Clicking a reaction pill you own toggles it off; clicking one you haven't reacted to increments it. Reactions are persisted in Supabase and sync in real time. Hovering a chip shows a tooltip listing who reacted.
+
+Deleting a message uses a **soft-delete / undo** pattern — the bubble is instantly replaced in-place with a "Message deleted. Undo" bar; clicking Undo within 10 seconds restores the message. When the user is scrolled up and a new message arrives via Realtime, an amber **"N new replies"** pill appears above the input bar; clicking it scrolls to the latest message and dismisses the counter.
 
 **Reaction notifications:** When a staff member reacts to a message written by someone else, a **reaction notification** is pushed into the bell dropdown for the message author. The notification shows the reactor's avatar with the emoji as a badge overlay, a summary line ("{Name} reacted to your message"), an italic preview of the first 40 characters of the reacted-to message, and the relative time and lead name ("4m ago · in Jude's ticket"). Unread reaction notifications have an amber-tinted background. If the same person reacts with the same emoji to the same message again (after un-reacting and re-reacting) only one notification is created — duplicates are suppressed. Un-reacting removes the corresponding notification from the store. A staff member who reacts to their own message does not generate a notification. Clicking a reaction notification navigates directly to the reacted-to message using the same scroll-and-amber-glow highlight flow as mention notifications.
 
-**Team Chat @mention system — end-to-end:** Typing `@` in the message input opens a floating dropdown anchored to the `@` cursor position. The dropdown shows all staff (active, invited, and on-leave statuses — not just active), plus group shortcuts (`@all`, `@admins`, `@teachers`). Results filter as the user types; up to 8 matches shown with name, role/department, and avatar. Keyboard navigation (arrows, Enter, Tab, Escape) and click both work. The dropdown is portal-rendered so it is never clipped by the dialog or slide-over. Selecting a name inserts a styled blue chip into the input.
+**Team Chat @mention system — end-to-end:** Typing `@` in the message input opens a dropdown that appears directly above the composer input, full-width and anchored to it. The dropdown shows all staff (active, invited, and on-leave statuses — not just active), plus group shortcuts (`@all`, `@admins`, `@teachers`). Results filter as the user types; the list is scrollable when there are many results. Keyboard navigation (arrows, Enter, Tab, Escape) and click both work. The dropdown always opens upward and is constrained within the chat container. Selecting a name inserts a styled blue chip into the input.
 
 When a message is sent, each mentioned staff member receives a **persistent mention notification stored in Supabase** (`notifications` table, RLS-protected per user). Notifications are fetched from the server on bell open and polled every 30 seconds, so recipients see the notification the next time they are active — regardless of which browser or session they are on. The sender is never notified for their own mentions. Notifications include the sender's name, a link back to the specific lead, and a snippet of the message.
 
@@ -469,11 +475,13 @@ Every non-Personal task has a **Team Chat** section inside the task detail panel
 
 **@mention notifications:** Typing `@` opens a staff picker with name, role, and avatar. Selecting a staff member inserts a styled chip and sends a push notification to that person. Clicking a mention notification deep-links directly to the task with the referenced message highlighted and scrolled into view (via `?taskId=...&messageId=...` URL params).
 
-**Emoji reactions:** Each message has a reaction picker. Reactions are persisted in Supabase and sync in real time. Staff can add or remove their own reactions; hover tooltips show who reacted.
+**WhatsApp-style interaction:** Messages use the same WhatsApp bubble model as Lead Chat. Hovering a message row reveals inline hover buttons (SmilePlus, Reply) beside the bubble, a ChevronDown dropdown in the bubble corner, and right-click also opens the context menu — all three are equivalent. Reply bar appears above the composer when replying; clicking a quoted block inside a reply bubble scrolls to the original.
+
+**Emoji reactions:** Reaction pills render below each bubble and sync in real time via Supabase Realtime. Staff can toggle their own reactions on and off; hover tooltips show who reacted.
 
 **Soft-delete with undo:** Deleting a message fades it out immediately and shows a 9.7-second undo bar. If not undone, the message is permanently deleted. If undone, it reappears with no visible interruption.
 
-**Record chips:** Messages can include attached reference chips linking to Students, Leads, Invoices, or Sessions. Chips are rendered as compact pills inside the message bubble.
+**Record chips:** Messages can include attached reference chips linking to Students, Leads, Invoices, or Tasks. Chips are rendered as compact pills inside the bubble.
 
 **Personal tasks are excluded** — the Team Chat section does not appear for tasks of type Personal.
 
@@ -523,6 +531,9 @@ Staff can manually claim and send dispatched items. Each item shows the populate
 ### Execution Log
 Every rule execution is logged with: trigger type, timestamps, recipient count, routing channel, and per-action success/failure/skipped status.
 
+### Internal Messages Hub
+A staff-only messaging workspace embedded in the Automations page. Channels include general, leads-pipeline, academic-team, finance-admin, and hr-notices. Direct Messages and Thread Type filters are also accessible. Messages use the **WhatsApp interaction model**: right-aligned amber bubbles for sent messages, left-aligned white bubbles for received. Avatar and author name are suppressed for consecutive messages from the same sender within 2 minutes. Right-clicking any bubble opens a context menu (Reply, React, Copy, Delete). Replies embed a quoted block at the top of the bubble; clicking it scrolls to the original message with a yellow flash. The feed is flat and chronological — there is no separate thread panel. Emoji reaction pills appear below bubbles and toggle on click.
+
 ---
 
 ## 14. Communications
@@ -552,8 +563,10 @@ Tickets are raised by students or guardians and assigned to staff. They include 
 
 Surveys are sent to guardians or students and capture a score and optional comment. Responses are categorized as Promoter / Passive / Detractor. Some survey types are auto-scheduled to send after trigger events (e.g., after a trial).
 
-### Class Groups
+### Class Groups & Class Discussion
 Teachers can create class groups per subject for discussion and announcements. Post types: Announcement | Discussion | Question. Posts are visible to enrolled students. Moderators can remove posts.
+
+**WhatsApp-style class discussion:** The Class Discussion tab uses the same WhatsApp interaction model as Team Chat and Internal Messages. Posts render as right-aligned amber bubbles (sent) or left-aligned white bubbles (received). Hovering a post row reveals hover action buttons (SmilePlus, Reply — Reply hidden for TA) beside the bubble, and a ChevronDown in the bubble corner. Right-clicking also opens the context menu. TA users see a read-only view — they can react and copy but cannot reply or delete. Replied posts display a quoted block at the top of the bubble with a clickable link that scrolls to the original post with a brief yellow flash. The feed is flat and chronological; there are no nested thread panels.
 
 ---
 

@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
@@ -56,31 +55,6 @@ const MENTION_GROUPS: MentionGroup[] = [
   { id: "group-teachers", handle: "teachers", label: "@teachers" },
 ];
 
-// ─── Dropdown position ─────────────────────────────────────────────────────────
-
-interface DropdownPos {
-  top: number;
-  left: number;
-}
-
-const DROPDOWN_W = 260;
-const DROPDOWN_MAX_H = 280;
-const GAP = 4;
-
-function computeDropdownPos(caretRect: DOMRect): DropdownPos {
-  const spaceBelow = window.innerHeight - caretRect.bottom;
-  const top =
-    spaceBelow >= 240
-      ? caretRect.bottom + GAP
-      : caretRect.top - DROPDOWN_MAX_H - GAP;
-  let left = caretRect.left;
-  if (left + DROPDOWN_W > window.innerWidth - 12) {
-    left = window.innerWidth - DROPDOWN_W - 12;
-  }
-  left = Math.max(8, left);
-  return { top, left };
-}
-
 // ─── DOM helpers ───────────────────────────────────────────────────────────────
 
 interface AtTriggerInfo {
@@ -124,16 +98,6 @@ function getAtTrigger(el: HTMLElement): AtTriggerInfo | null {
   return { query, atRange };
 }
 
-function getCaretFixedRect(): DOMRect | null {
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return null;
-  const r = sel.getRangeAt(0).cloneRange();
-  r.collapse(true);
-  const rect = r.getBoundingClientRect();
-  if (rect.width === 0 && rect.height === 0) return null;
-  return rect;
-}
-
 function serializeContent(el: HTMLDivElement): MentionContent {
   const mentions: MentionData[] = [];
   let text = "";
@@ -175,7 +139,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
-// ─── Dropdown (portal) ────────────────────────────────────────────────────────
+// ─── Dropdown (absolute, anchored above composer) ─────────────────────────────
 
 function MentionDropdown({
   results,
@@ -186,7 +150,6 @@ function MentionDropdown({
   onSelect,
   onSelectGroup,
   onHover,
-  pos,
 }: {
   results: StaffMention[];
   loading: boolean;
@@ -196,21 +159,21 @@ function MentionDropdown({
   onSelect: (s: StaffMention) => void;
   onSelectGroup: (g: MentionGroup) => void;
   onHover: (i: number) => void;
-  pos: DropdownPos;
 }) {
   const totalItems = filteredGroups.length + results.length;
   const showNoResults = !loading && query.length >= 2 && totalItems === 0;
 
-  return createPortal(
+  return (
     <div
       data-mention-dropdown
       style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        width: DROPDOWN_W,
-        maxHeight: DROPDOWN_MAX_H,
-        zIndex: 9999,
+        position: "absolute",
+        bottom: "100%",
+        left: 0,
+        right: 0,
+        marginBottom: 6,
+        maxHeight: 192,
+        zIndex: 50,
         overflowY: "auto",
         borderRadius: 10,
         border: "1px solid #E2E8F0",
@@ -315,8 +278,7 @@ function MentionDropdown({
           </button>
         );
       })}
-    </div>,
-    document.body,
+    </div>
   );
 }
 
@@ -327,7 +289,6 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
     const editorRef = useRef<HTMLDivElement>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [selectedIdx, setSelectedIdx] = useState(0);
-    const [dropdownPos, setDropdownPos] = useState<DropdownPos | null>(null);
     const [dropdownQuery, setDropdownQuery] = useState("");
     const [editorEmpty, setEditorEmpty] = useState(true);
     const atRangeRef = useRef<Range | null>(null);
@@ -371,11 +332,7 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
       setDropdownQuery(query);
       search(query);
       setSelectedIdx(0);
-      const caretRect = getCaretFixedRect();
-      if (caretRect) {
-        setDropdownPos(computeDropdownPos(caretRect));
-        setDropdownOpen(true);
-      }
+      setDropdownOpen(true);
     }
 
     function closeDropdown() {
@@ -564,13 +521,11 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
         document.execCommand("insertText", false, "@");
         setTimeout(() => {
           const info = getAtTrigger(el);
-          const caretRect = getCaretFixedRect();
-          if (info && caretRect) {
+          if (info) {
             atRangeRef.current = info.atRange;
             setDropdownQuery(info.query);
             search(info.query);
             setSelectedIdx(0);
-            setDropdownPos(computeDropdownPos(caretRect));
             setDropdownOpen(true);
           }
         }, 50);
@@ -612,8 +567,8 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
           role="textbox"
         />
 
-        {/* Mention dropdown — rendered into document.body via portal */}
-        {dropdownOpen && dropdownPos && (
+        {/* Mention dropdown — absolutely positioned above the composer */}
+        {dropdownOpen && (
           <MentionDropdown
             results={results}
             loading={loading}
@@ -623,7 +578,6 @@ export const MentionInput = forwardRef<MentionInputRef, MentionInputProps>(
             onSelect={insertMention}
             onSelectGroup={insertGroup}
             onHover={setSelectedIdx}
-            pos={dropdownPos}
           />
         )}
       </div>

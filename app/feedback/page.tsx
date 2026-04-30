@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Info,
@@ -8,6 +8,12 @@ import {
   Star,
   Users,
   X,
+  Reply,
+  Smile,
+  SmilePlus,
+  Copy,
+  Trash2,
+  ChevronDown,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -73,8 +79,20 @@ interface ClassPost {
   type: PostType;
   content: string;
   removed: boolean;
+  replyTo?: { postId: string; authorName: string; preview: string };
 }
-const classGroups: { id: string; name: string; teacher: string; unreadCount: number; posts: ClassPost[] }[] = [];
+
+const SEED_POSTS_MATHS: ClassPost[] = [
+  { id: 'cp1', sender: 'Sarah Jones', role: 'Teacher', timestamp: '09:05', type: 'Announcement', content: "Reminder: this week's session will cover quadratic equations. Please review Chapter 4 beforehand.", removed: false },
+  { id: 'cp2', sender: 'Ahmed Ali', role: 'TA', timestamp: '09:12', type: 'Question', content: "Will we need to bring the practice booklets or just the textbook?", removed: false, replyTo: { postId: 'cp1', authorName: 'Sarah Jones', preview: "Reminder: this week's session will cover quadratic equations. Please review Chapter 4 beforehand." } },
+  { id: 'cp3', sender: 'Sarah Jones', role: 'Teacher', timestamp: '09:15', type: 'Discussion', content: "Just the textbook is fine, Ahmed. I'll provide the worksheets in class.", removed: false, replyTo: { postId: 'cp2', authorName: 'Ahmed Ali', preview: "Will we need to bring the practice booklets or just the textbook?" } },
+];
+
+const classGroups: { id: string; name: string; teacher: string; unreadCount: number; posts: ClassPost[] }[] = [
+  { id: 'cg1', name: 'Maths — Year 10A', teacher: 'Sarah Jones', unreadCount: 2, posts: SEED_POSTS_MATHS },
+  { id: 'cg2', name: 'English — Year 9B', teacher: 'Tariq Mahmood', unreadCount: 0, posts: [] },
+  { id: 'cg3', name: 'Science — Year 11C', teacher: 'Hana Patel', unreadCount: 1, posts: [] },
+];
 const tasks: Task[] = [];
 const students: { id: string; name: string }[] = [];
 import { useCurrentUser } from "@/lib/use-current-user";
@@ -557,18 +575,93 @@ function FeedbackQueueTab() {
 // ─── Tab 2 — Class Discussion ─────────────────────────────────────────────────
 
 function ClassDiscussionTab() {
-  const { can } = usePermission();
+  const { can, role } = usePermission();
+  const { name: cdCurrentUser } = useCurrentUser();
+  const isTA = role === 'TA';
+  const canPostDiscussion = can('feedback.postDiscussion');
+
   const [activeGroupId, setActiveGroupId] = useState(classGroups[0]?.id ?? "");
   const [newContent, setNewContent]       = useState("");
   const [newType, setNewType]             = useState<PostType>("Discussion");
+  const [postsByGroup, setPostsByGroup]   = useState<Record<string, ClassPost[]>>(() => {
+    const init: Record<string, ClassPost[]> = {};
+    classGroups.forEach(g => { init[g.id] = [...g.posts]; });
+    return init;
+  });
 
+  // Reply / context-menu state
+  const [replyTarget, setReplyTarget]     = useState<{ postId: string; authorName: string; preview: string } | null>(null);
+  type CdCtx = { postId: string; x: number; y: number; isOwn: boolean } | null;
+  const [contextMenu, setContextMenu]     = useState<CdCtx>(null);
+  const [contextEmojiOpen, setContextEmojiOpen] = useState(false);
+  const [flashPostId, setFlashPostId]     = useState<string | null>(null);
+
+  const feedRef   = useRef<HTMLDivElement | null>(null);
+  const inputRef  = useRef<HTMLTextAreaElement | null>(null);
+
+  const activePosts = postsByGroup[activeGroupId] ?? [];
   const activeGroup = classGroups.find((g) => g.id === activeGroupId) ?? classGroups[0];
 
-  function roleColor(role: string) {
-    if (role === "Teacher") return "bg-amber-500";
-    if (role === "Admin")   return "bg-violet-500";
+  // Close context menu on outside click / Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    function handle(e: MouseEvent | KeyboardEvent) {
+      if ('key' in e) { if (e.key === 'Escape') { setContextMenu(null); setContextEmojiOpen(false); } }
+      else { setContextMenu(null); setContextEmojiOpen(false); }
+    }
+    document.addEventListener('mousedown', handle);
+    document.addEventListener('keydown', handle);
+    return () => { document.removeEventListener('mousedown', handle); document.removeEventListener('keydown', handle); };
+  }, [contextMenu]);
+
+  // Close reply on Escape
+  useEffect(() => {
+    if (!replyTarget) return;
+    function handle(e: KeyboardEvent) { if (e.key === 'Escape') setReplyTarget(null); }
+    document.addEventListener('keydown', handle);
+    return () => document.removeEventListener('keydown', handle);
+  }, [replyTarget]);
+
+  function roleColor(r: string) {
+    if (r === "Teacher") return "bg-amber-500";
+    if (r === "Admin")   return "bg-violet-500";
     return "bg-slate-400";
   }
+
+  function scrollToPost(postId: string) {
+    const container = feedRef.current;
+    if (!container) return;
+    const el = container.querySelector(`[data-post-id="${postId}"]`) as HTMLElement | null;
+    if (!el) return;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    container.scrollTop = Math.max(0, container.scrollTop + (elRect.top - containerRect.top) - containerRect.height / 2 + elRect.height / 2);
+    setFlashPostId(postId);
+    setTimeout(() => setFlashPostId(null), 600);
+  }
+
+  function sendPost() {
+    const trimmed = newContent.trim();
+    if (!trimmed) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const newPost: ClassPost = {
+      id: `p-${Date.now()}`,
+      sender: cdCurrentUser || 'You',
+      role: role || 'Teacher',
+      timestamp: `${hh}:${mm}`,
+      type: newType,
+      content: trimmed,
+      removed: false,
+      replyTo: replyTarget ?? undefined,
+    };
+    setPostsByGroup(prev => ({ ...prev, [activeGroupId]: [...(prev[activeGroupId] ?? []), newPost] }));
+    setNewContent('');
+    setReplyTarget(null);
+  }
+
+  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
   return (
     <div className="flex gap-0 bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: "calc(100vh - 220px)", minHeight: "520px" }}>
@@ -580,7 +673,7 @@ function ClassDiscussionTab() {
         {classGroups.map((group) => (
           <button
             key={group.id}
-            onClick={() => setActiveGroupId(group.id)}
+            onClick={() => { setActiveGroupId(group.id); setReplyTarget(null); }}
             className={cn(
               "w-full text-left px-4 py-3 border-b border-slate-100 transition-colors cursor-pointer flex items-start justify-between gap-2",
               activeGroupId === group.id
@@ -589,10 +682,7 @@ function ClassDiscussionTab() {
             )}
           >
             <div className="min-w-0">
-              <p className={cn(
-                "text-sm font-medium truncate",
-                activeGroupId === group.id ? "text-slate-800" : "text-slate-700"
-              )}>
+              <p className={cn("text-sm font-medium truncate", activeGroupId === group.id ? "text-slate-800" : "text-slate-700")}>
                 {group.name}
               </p>
               <p className="text-xs text-slate-400 mt-0.5 truncate">{group.teacher}</p>
@@ -608,7 +698,7 @@ function ClassDiscussionTab() {
 
       {/* Right panel */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Thread header */}
+        {/* Header */}
         <div className="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3">
           <div className="flex-1">
             <p className="font-semibold text-slate-800 text-sm">{activeGroup?.name}</p>
@@ -621,70 +711,293 @@ function ClassDiscussionTab() {
         </div>
 
         {/* Posts feed */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {activeGroup?.posts.map((post) =>
-            post.removed ? (
-              <div key={post.id} className="flex items-center gap-2 py-1">
-                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                  <span className="text-[9px] text-slate-400">?</span>
-                </div>
-                <p className="text-xs text-slate-400 italic">Post removed by admin</p>
-              </div>
-            ) : (
-              <div key={post.id} className="flex gap-3">
-                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold", roleColor(post.role))}>
-                  {initials(post.sender)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-sm font-semibold text-slate-800">{post.sender}</span>
-                    <span className="text-xs text-slate-400">{post.role}</span>
-                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-semibold", POST_TYPE_CONFIG[post.type])}>
-                      {post.type}
-                    </span>
-                    <span className="text-xs text-slate-400 ml-auto">{post.timestamp}</span>
-                  </div>
-                  <p className="text-sm text-slate-700 leading-relaxed">{post.content}</p>
-                </div>
-              </div>
-            )
+        <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-4 bg-[#F0F2F5] space-y-1">
+          {activePosts.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
+              <MessageSquare className="w-7 h-7" />
+              <p className="text-xs">No posts yet in this group.</p>
+            </div>
           )}
+          {activePosts.map((post, i) => {
+            if (post.removed) {
+              return (
+                <div key={post.id} className="flex items-center gap-2 py-1 px-2">
+                  <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                    <span className="text-[9px] text-slate-400">?</span>
+                  </div>
+                  <p className="text-xs text-slate-400 italic">Post removed by admin</p>
+                </div>
+              );
+            }
+            const prevPost = activePosts[i - 1];
+            const isOwn = post.sender === cdCurrentUser;
+            const grouped = !!prevPost && !prevPost.removed && prevPost.sender === post.sender;
+
+            return (
+              <div
+                key={post.id}
+                data-post-id={post.id}
+                onContextMenu={e => {
+                  e.preventDefault();
+                  setContextMenu({ postId: post.id, x: e.clientX, y: e.clientY, isOwn: isOwn });
+                  setContextEmojiOpen(false);
+                }}
+                className={cn(
+                  'group flex items-end gap-1.5 px-2',
+                  isOwn ? 'flex-row-reverse' : 'flex-row',
+                  grouped ? 'mt-0.5' : 'mt-2',
+                  flashPostId === post.id && 'rounded-xl bg-yellow-100 transition-colors duration-300',
+                )}
+              >
+                {/* Avatar (received only) */}
+                {!isOwn && (
+                  <div className="w-8 flex-shrink-0 self-end pb-0.5">
+                    {!grouped ? (
+                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold", roleColor(post.role))}>
+                        {initials(post.sender)}
+                      </div>
+                    ) : (
+                      <div className="w-8" />
+                    )}
+                  </div>
+                )}
+
+                {/* Bubble column */}
+                <div className={cn('flex flex-col min-w-0 max-w-[72%]', isOwn ? 'items-end' : 'items-start')}>
+                  {/* Sender + role (received, non-grouped) */}
+                  {!isOwn && !grouped && (
+                    <div className="flex items-center gap-1.5 mb-1 ml-1">
+                      <span className="text-xs font-semibold text-amber-600">{post.sender}</span>
+                      <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-semibold", POST_TYPE_CONFIG[post.type])}>{post.type}</span>
+                    </div>
+                  )}
+                  {isOwn && !grouped && (
+                    <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-full mb-1 mr-1", POST_TYPE_CONFIG[post.type])}>{post.type}</span>
+                  )}
+
+                  {/* Bubble */}
+                  <div
+                    className={cn(
+                      'relative px-3 py-2 rounded-2xl shadow-sm',
+                      isOwn
+                        ? 'bg-amber-500 text-white rounded-tr-sm'
+                        : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm',
+                    )}
+                  >
+                    {/* Chevron dropdown trigger — top-right of bubble, visible on row hover */}
+                    <button
+                      type="button"
+                      aria-label="Post options"
+                      onClick={e => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setContextMenu({ postId: post.id, x: rect.left - 160, y: rect.bottom + 4, isOwn });
+                        setContextEmojiOpen(false);
+                      }}
+                      className={cn(
+                        'absolute top-1.5 right-2 w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer',
+                        isOwn ? 'text-white/60 hover:text-white' : 'text-slate-400 hover:text-slate-600',
+                      )}
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+
+                    {/* Quoted reply block */}
+                    {post.replyTo && (
+                      <button
+                        type="button"
+                        onClick={() => scrollToPost(post.replyTo!.postId)}
+                        className={cn(
+                          'w-full text-left border-l-2 rounded-r-md px-2 py-1 mb-2 block cursor-pointer hover:opacity-80 transition-opacity',
+                          isOwn ? 'border-amber-200 bg-white/20' : 'border-amber-500 bg-amber-50',
+                        )}
+                      >
+                        <p className={cn('text-[11px] font-semibold truncate', isOwn ? 'text-amber-100' : 'text-amber-600')}>
+                          {post.replyTo.authorName}
+                        </p>
+                        <p className={cn('text-[11px] truncate', isOwn ? 'text-amber-200' : 'text-slate-500')}>
+                          {post.replyTo.preview}
+                        </p>
+                      </button>
+                    )}
+
+                    <p className={cn('text-sm leading-relaxed break-words whitespace-pre-wrap pr-3', isOwn ? 'text-white' : 'text-slate-700')}>
+                      {post.content}
+                    </p>
+                    <p className={cn('text-[10px] mt-1 text-right select-none', isOwn ? 'text-amber-200' : 'text-slate-400')}>
+                      {post.timestamp}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Hover action buttons — appear beside bubble on row hover */}
+                <div className="flex items-center gap-0.5 self-end pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                  <button
+                    type="button"
+                    aria-label="React"
+                    onClick={e => {
+                      setContextMenu({ postId: post.id, x: e.clientX - 180, y: e.clientY - 120, isOwn });
+                      setContextEmojiOpen(true);
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60 cursor-pointer transition-colors"
+                  >
+                    <SmilePlus className="w-3.5 h-3.5 text-slate-500" />
+                  </button>
+                  {!isTA && canPostDiscussion && (
+                    <button
+                      type="button"
+                      aria-label="Reply"
+                      onClick={() => {
+                        setReplyTarget({ postId: post.id, authorName: post.sender, preview: post.content.slice(0, 80) });
+                        setTimeout(() => inputRef.current?.focus(), 50);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60 cursor-pointer transition-colors"
+                    >
+                      <Reply className="w-3.5 h-3.5 text-slate-500" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* New post bar */}
-        <div className="border-t border-slate-200 px-5 py-3 bg-white">
-          <div className="flex items-start gap-3">
-            <div className="flex-1">
-              <textarea
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder="Write a post…"
-                rows={2}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-              />
-            </div>
-            <div className="flex flex-col gap-2 pt-0.5">
-              <select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as PostType)}
-                className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
-              >
-                <option value="Announcement">Announcement</option>
-                <option value="Discussion">Discussion</option>
-                <option value="Question">Question</option>
-              </select>
-              {can('feedback.postDiscussion') && (
-              <button
-                onClick={() => setNewContent("")}
-                className="px-4 py-1.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
-              >
-                Post
-              </button>
-              )}
+        {/* Composer (hidden for TA read-only) */}
+        {canPostDiscussion ? (
+          <div className="border-t border-slate-200 px-5 py-3 bg-white">
+            {/* Reply bar */}
+            {replyTarget && (
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 mb-2">
+                <div className="flex-1 border-l-2 border-amber-500 pl-2 min-w-0">
+                  <p className="text-xs font-semibold text-amber-600 truncate">{replyTarget.authorName}</p>
+                  <p className="text-xs text-slate-500 truncate">{replyTarget.preview}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cancel reply"
+                  onClick={() => setReplyTarget(null)}
+                  className="p-1 rounded-md hover:bg-slate-200 text-slate-400 cursor-pointer transition-colors flex-shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <textarea
+                  ref={inputRef}
+                  value={newContent}
+                  onChange={(e) => setNewContent(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPost(); } }}
+                  placeholder="Write a post…"
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                />
+              </div>
+              <div className="flex flex-col gap-2 pt-0.5">
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value as PostType)}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                >
+                  <option value="Announcement">Announcement</option>
+                  <option value="Discussion">Discussion</option>
+                  <option value="Question">Question</option>
+                </select>
+                <button
+                  onClick={sendPost}
+                  className="px-4 py-1.5 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors cursor-pointer"
+                >
+                  Post
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : isTA ? (
+          <div className="border-t border-slate-200 px-5 py-3 bg-slate-50 flex items-center gap-2 text-xs text-slate-400">
+            <Info className="w-4 h-4 flex-shrink-0" />
+            <span>You can view and react to posts. Posting requires Teacher or Admin role.</span>
+          </div>
+        ) : null}
       </div>
+
+      {/* CONTEXT MENU */}
+      {contextMenu && (() => {
+        const ctxPost = activePosts.find(p => p.id === contextMenu.postId);
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left: Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1440) - 200),
+              top: Math.min(contextMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 900) - 200),
+              zIndex: 9999,
+            }}
+            className="bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-48"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            {contextEmojiOpen ? (
+              <div className="px-2 py-2 flex gap-1 flex-wrap justify-center">
+                {QUICK_EMOJIS.map(e => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setContextMenu(null)}
+                    className="w-9 h-9 flex items-center justify-center text-xl rounded-lg hover:bg-amber-50 cursor-pointer transition-colors"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                {!isTA && canPostDiscussion && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (ctxPost) setReplyTarget({ postId: ctxPost.id, authorName: ctxPost.sender, preview: ctxPost.content.slice(0, 80) });
+                      setContextMenu(null);
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                  >
+                    <Reply className="w-4 h-4 text-slate-500" /> Reply
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setContextEmojiOpen(true)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Smile className="w-4 h-4 text-slate-500" /> React
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (ctxPost) navigator.clipboard.writeText(ctxPost.content).catch(() => {}); setContextMenu(null); }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Copy className="w-4 h-4 text-slate-500" /> Copy text
+                </button>
+                {!isTA && contextMenu.isOwn && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostsByGroup(prev => ({
+                        ...prev,
+                        [activeGroupId]: (prev[activeGroupId] ?? []).map(p =>
+                          p.id === contextMenu.postId ? { ...p, removed: true } : p
+                        ),
+                      }));
+                      setContextMenu(null);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

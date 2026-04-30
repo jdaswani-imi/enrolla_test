@@ -10,6 +10,7 @@ import {
   Link2,
   CheckSquare,
   Smile,
+  SmilePlus,
   SendHorizontal,
   User as UserIcon,
   FileText,
@@ -21,6 +22,9 @@ import {
   Search,
   Plus,
   Check,
+  Reply,
+  Copy,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
@@ -54,6 +58,12 @@ export type ChatChip = {
 
 type ChatReactionMap = Record<string, string[]>;
 
+export type ChatReplyTo = {
+  messageId: string;
+  authorName: string;
+  preview: string;
+};
+
 export type ChatMessage = {
   id: string;
   author: string;
@@ -63,6 +73,7 @@ export type ChatMessage = {
   chips: ChatChip[];
   reactions: ChatReactionMap;
   mentions?: MentionData[];
+  replyTo?: ChatReplyTo;
 };
 
 export type DbMessage = {
@@ -73,6 +84,7 @@ export type DbMessage = {
   reactions: ChatReactionMap;
   mentions: MentionData[];
   created_at: string;
+  reply_to?: ChatReplyTo;
 };
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -113,6 +125,7 @@ export function dbRowToMessage(row: DbMessage): ChatMessage {
     chips: row.chips ?? [],
     reactions: row.reactions ?? {},
     mentions: row.mentions ?? [],
+    replyTo: row.reply_to,
   };
 }
 
@@ -786,7 +799,6 @@ export function TeamChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draftChips, setDraftChips] = useState<ChatChip[]>([]);
   const [chatEmpty, setChatEmpty] = useState(true);
-  const [hoverMsgId, setHoverMsgId] = useState<string | null>(null);
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [pickerAnchorRect, setPickerAnchorRect] = useState<DOMRect | null>(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -797,6 +809,17 @@ export function TeamChat({
   const [activeStaffNames, setActiveStaffNames] = useState<Set<string>>(new Set());
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
+
+  // WhatsApp-style reply
+  const [replyTarget, setReplyTarget] = useState<ChatReplyTo | null>(null);
+
+  // Right-click context menu
+  type TcCtx = { msgId: string; x: number; y: number; isOwn: boolean } | null;
+  const [contextMenu, setContextMenu] = useState<TcCtx>(null);
+  const [contextEmojiOpen, setContextEmojiOpen] = useState(false);
+
+  // Flash highlight for scroll-to-original
+  const [flashMessageId, setFlashMessageId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const mentionInputRef = useRef<MentionInputRef>(null);
@@ -988,14 +1011,36 @@ export function TeamChat({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    function handle(e: MouseEvent | KeyboardEvent) {
+      if ('key' in e) { if (e.key === 'Escape') { setContextMenu(null); setContextEmojiOpen(false); } }
+      else { setContextMenu(null); setContextEmojiOpen(false); }
+    }
+    document.addEventListener("mousedown", handle);
+    document.addEventListener("keydown", handle);
+    return () => { document.removeEventListener("mousedown", handle); document.removeEventListener("keydown", handle); };
+  }, [contextMenu]);
+
+  // Close reply bar on Escape
+  useEffect(() => {
+    if (!replyTarget) return;
+    function handle(e: KeyboardEvent) { if (e.key === 'Escape') setReplyTarget(null); }
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
+  }, [replyTarget]);
+
   async function sendMessage(args?: { extraChips?: ChatChip[]; content?: MentionContent }) {
     const content = args?.content ?? mentionInputRef.current?.getContent() ?? { text: "", mentions: [] };
     const chips = [...draftChips, ...(args?.extraChips ?? [])];
     if (!content.text && chips.length === 0) return;
 
+    const currentReplyTo = replyTarget;
     mentionInputRef.current?.clear();
     setDraftChips([]);
     setEmojiPickerOpen(false);
+    setReplyTarget(null);
 
     const res = await fetch(apiPath, {
       method: "POST",
@@ -1006,6 +1051,7 @@ export function TeamChat({
         chips,
         reactions: {},
         mentions: content.mentions,
+        reply_to: currentReplyTo ?? undefined,
       }),
     })
       .then((r) => r.ok ? r.json() : null)
@@ -1013,7 +1059,10 @@ export function TeamChat({
 
     if (res?.data) {
       const msg = dbRowToMessage(res.data as DbMessage);
-      setMessages((cur) => cur.some((m) => m.id === msg.id) ? cur : [...cur, msg]);
+      setMessages((cur) => {
+        if (cur.some((m) => m.id === msg.id)) return cur.map((m) => m.id === msg.id ? msg : m);
+        return [...cur, msg];
+      });
     }
 
     // Mention notifications
@@ -1065,23 +1114,18 @@ export function TeamChat({
 
   function toggleReaction(msgId: string, emoji: string) {
     const msg = messages.find((m) => m.id === msgId);
-    const wasReacted = !!(msg?.reactions[emoji] ?? []).includes(chatCurrentUser);
+    if (!msg) return;
+    const wasReacted = (msg.reactions[emoji] ?? []).includes(chatCurrentUser);
 
-    let updatedReactions: ChatReactionMap = {};
-    setMessages((cur) => {
-      const next = cur.map((m) => {
-        if (m.id !== msgId) return m;
-        const users = m.reactions[emoji] ?? [];
-        const had = users.includes(chatCurrentUser);
-        const nextUsers = had ? users.filter((u) => u !== chatCurrentUser) : [...users, chatCurrentUser];
-        const nextReactions = { ...m.reactions };
-        if (nextUsers.length === 0) delete nextReactions[emoji];
-        else nextReactions[emoji] = nextUsers;
-        updatedReactions = nextReactions;
-        return { ...m, reactions: nextReactions };
-      });
-      return next;
-    });
+    const users = msg.reactions[emoji] ?? [];
+    const nextUsers = wasReacted
+      ? users.filter((u) => u !== chatCurrentUser)
+      : [...users, chatCurrentUser];
+    const updatedReactions = { ...msg.reactions };
+    if (nextUsers.length === 0) delete updatedReactions[emoji];
+    else updatedReactions[emoji] = nextUsers;
+
+    setMessages((cur) => cur.map((m) => m.id !== msgId ? m : { ...m, reactions: updatedReactions }));
     setReactionPickerFor(null);
 
     fetch(apiPath, {
@@ -1146,6 +1190,20 @@ export function TeamChat({
     setPendingDeleteMessages((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
   }
 
+  function scrollToOriginal(messageId: string) {
+    const container = scrollRef.current;
+    if (!container) return;
+    const el = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null;
+    if (!el) return;
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const targetScrollTop = container.scrollTop + (elRect.top - containerRect.top) - containerRect.height / 2 + elRect.height / 2;
+    smoothScrollTo(container, Math.max(0, targetScrollTop), 300, () => {
+      setFlashMessageId(messageId);
+      setTimeout(() => setFlashMessageId(null), 600);
+    });
+  }
+
   function handleChipClick(chip: ChatChip) {
     router.push(chipHref(chip));
   }
@@ -1156,16 +1214,19 @@ export function TeamChat({
     setNewMessagesCount(0);
   }
 
-  // Build message rows with day dividers
+  // Build grouped message rows (WhatsApp style)
+  const QUICK_EMOJIS_TC = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+  const parseMin = (t: string) => { const [h, mn] = t.split(":").map(Number); return (h||0)*60+(mn||0); };
+
   const rows: React.ReactNode[] = [];
   let lastDay: string | null = null;
-  messages.forEach((m) => {
+  messages.forEach((m, i) => {
     if (m.day !== lastDay) {
       rows.push(
         <div key={`d-${m.id}`} className="flex items-center gap-2 py-1.5">
-          <div className="flex-1 h-px bg-slate-200" />
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{m.day}</span>
-          <div className="flex-1 h-px bg-slate-200" />
+          <div className="flex-1 h-px bg-slate-300/60" />
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-white/80 rounded-full px-2 py-0.5 shadow-sm">{m.day}</span>
+          <div className="flex-1 h-px bg-slate-300/60" />
         </div>,
       );
     }
@@ -1175,18 +1236,12 @@ export function TeamChat({
         <div
           key={m.id}
           className={cn(
-            "rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 flex items-center gap-2 transition-opacity duration-300",
+            "rounded-xl border border-slate-200 bg-white/80 px-3 py-2 flex items-center gap-2 transition-opacity duration-300",
             dismissingDeleteIds.has(m.id) ? "opacity-0" : "opacity-100",
           )}
         >
-          <span className="text-sm text-slate-500 flex-1">Comment deleted.</span>
-          <button
-            type="button"
-            onClick={() => undoDelete(m.id)}
-            className="text-sm font-semibold text-slate-600 hover:text-slate-800 cursor-pointer transition-colors"
-          >
-            Undo
-          </button>
+          <span className="text-sm text-slate-500 flex-1 italic">Message deleted.</span>
+          <button type="button" onClick={() => undoDelete(m.id)} className="text-xs font-semibold text-amber-600 hover:text-amber-700 cursor-pointer transition-colors">Undo</button>
         </div>,
       );
       lastDay = m.day;
@@ -1195,105 +1250,167 @@ export function TeamChat({
 
     const palette = getAvatarPalette(m.author);
     const isOwn = m.author === chatCurrentUser;
+    const prevMsg = messages[i - 1];
+    const grouped = !!prevMsg && prevMsg.author === m.author && prevMsg.day === m.day && parseMin(m.time) - parseMin(prevMsg.time) <= 2;
+
     rows.push(
       <div
         key={m.id}
         data-message-id={m.id}
+        onContextMenu={e => {
+          e.preventDefault();
+          setContextMenu({ msgId: m.id, x: e.clientX, y: e.clientY, isOwn });
+          setContextEmojiOpen(false);
+        }}
         className={cn(
-          "group relative rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all",
-          highlightedMessageId === m.id && "mention-target",
+          "group flex items-end gap-1.5",
+          isOwn ? "flex-row-reverse" : "flex-row",
+          grouped ? "mt-0.5" : "mt-2",
+          (highlightedMessageId === m.id || flashMessageId === m.id) && "rounded-xl bg-yellow-100 transition-colors duration-300",
         )}
-        onMouseEnter={() => setHoverMsgId(m.id)}
-        onMouseLeave={() => setHoverMsgId((cur) => (cur === m.id ? null : cur))}
       >
-        {/* Header: avatar + name + time + action buttons */}
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0", palette.bg, palette.text)}>
-              {getInitials(m.author)}
-            </div>
-            <span className={cn("text-xs font-semibold truncate", isOwn ? "text-amber-600" : "text-slate-800")}>
-              {m.author}
-            </span>
-            <span className="text-[10px] text-slate-400 shrink-0">{m.time}</span>
+        {/* Avatar — received only, hidden when grouped */}
+        {!isOwn && (
+          <div className="w-7 flex-shrink-0 self-end pb-0.5">
+            {!grouped ? (
+              <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0", palette.bg, palette.text)}>
+                {getInitials(m.author)}
+              </div>
+            ) : (
+              <div className="w-7" />
+            )}
           </div>
+        )}
 
+        {/* Bubble column */}
+        <div className={cn("flex flex-col min-w-0 max-w-[72%]", isOwn ? "items-end" : "items-start")}>
+          {/* Author name (received, non-grouped) */}
+          {!isOwn && !grouped && (
+            <span className="text-xs font-semibold text-amber-600 mb-1 ml-1 truncate">{m.author}</span>
+          )}
+
+          {/* Bubble */}
           <div
-            data-chat-popover
             className={cn(
-              "flex items-center gap-1 shrink-0 transition-opacity",
-              hoverMsgId === m.id || reactionPickerFor === m.id ? "opacity-100" : "opacity-0 pointer-events-none",
+              "relative px-3 py-2 rounded-2xl shadow-sm",
+              isOwn
+                ? "bg-amber-500 text-white rounded-tr-sm"
+                : "bg-white border border-slate-200 text-slate-800 rounded-tl-sm",
             )}
           >
+            {/* Chevron dropdown trigger — top-right of bubble, visible on row hover */}
             <button
               type="button"
-              ref={(el) => { reactionBtnRefs.current.set(m.id, el); }}
-              aria-label="Add reaction"
-              onClick={() => {
-                const btn = reactionBtnRefs.current.get(m.id);
-                if (btn) setPickerAnchorRect(btn.getBoundingClientRect());
-                setReactionPickerFor((cur) => (cur === m.id ? null : m.id));
+              aria-label="Message options"
+              onClick={e => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setContextMenu({ msgId: m.id, x: rect.left - 160, y: rect.bottom + 4, isOwn });
+                setContextEmojiOpen(false);
               }}
-              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 w-6 h-6 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+              className={cn(
+                "absolute top-1.5 right-2 w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer",
+                isOwn ? "text-white/60 hover:text-white" : "text-slate-400 hover:text-slate-600",
+              )}
             >
-              <Smile className="w-3.5 h-3.5" />
+              <ChevronDown className="w-3 h-3" />
             </button>
-            {isOwn && (
+
+            {/* Quoted reply block */}
+            {m.replyTo && (
               <button
                 type="button"
-                aria-label="Delete message"
-                onClick={() => deleteMessage(m.id)}
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 w-6 h-6 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 cursor-pointer transition-colors"
+                onClick={() => scrollToOriginal(m.replyTo!.messageId)}
+                className={cn(
+                  "w-full text-left border-l-2 rounded-r-md px-2 py-1 mb-2 block cursor-pointer hover:opacity-80 transition-opacity",
+                  isOwn ? "border-amber-200 bg-white/20" : "border-amber-500 bg-amber-50",
+                )}
               >
-                <Trash2 className="w-3 h-3" />
+                <p className={cn("text-[11px] font-semibold truncate", isOwn ? "text-amber-100" : "text-amber-600")}>
+                  {m.replyTo.authorName}
+                </p>
+                <p className={cn("text-[11px] truncate", isOwn ? "text-amber-200" : "text-slate-500")}>
+                  {m.replyTo.preview}
+                </p>
               </button>
             )}
+
+            {/* Chips */}
+            {m.chips.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-1.5">
+                {m.chips.map((chip) => (
+                  <ChatChipPill key={chip.id} chip={chip} onClick={() => handleChipClick(chip)} />
+                ))}
+              </div>
+            )}
+
+            {/* Message text */}
+            {m.text && (
+              <p className={cn("text-sm leading-snug whitespace-pre-wrap break-words pr-3", isOwn ? "text-white" : "text-slate-700")}>
+                {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser)}
+              </p>
+            )}
+
+            {/* Timestamp */}
+            <p className={cn("text-[10px] mt-1 text-right select-none", isOwn ? "text-amber-200" : "text-slate-400")}>
+              {m.time}
+            </p>
           </div>
+
+          {/* Reaction pills below bubble */}
+          {Object.keys(m.reactions).length > 0 && (
+            <div className={cn("flex flex-wrap gap-1 mt-1", isOwn ? "justify-end" : "justify-start")}>
+              {Object.entries(m.reactions).map(([emoji, users]) => {
+                const own = users.includes(chatCurrentUser);
+                return (
+                  <Tooltip key={emoji}>
+                    <TooltipTrigger
+                      onClick={() => toggleReaction(m.id, emoji)}
+                      className={cn(
+                        "inline-flex items-center gap-1 h-5 rounded-full border px-2 text-[11px] transition-colors cursor-pointer",
+                        own
+                          ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                      )}
+                    >
+                      <span className="text-[12px]">{emoji}</span>
+                      <span className="font-medium">{users.length}</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-[#1E293B] text-white text-[11px] max-w-[220px]">
+                      {reactionTooltipText(users, emoji)}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Attached chips */}
-        {m.chips.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {m.chips.map((chip) => (
-              <ChatChipPill key={chip.id} chip={chip} onClick={() => handleChipClick(chip)} />
-            ))}
-          </div>
-        )}
-
-        {/* Message text */}
-        {m.text && (
-          <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap break-words">
-            {formatMentionText(m.text, m.mentions, activeStaffNames, chatCurrentUser)}
-          </p>
-        )}
-
-        {/* Reaction pills */}
-        {Object.keys(m.reactions).length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {Object.entries(m.reactions).map(([emoji, users]) => {
-              const own = users.includes(chatCurrentUser);
-              return (
-                <Tooltip key={emoji}>
-                  <TooltipTrigger
-                    onClick={() => toggleReaction(m.id, emoji)}
-                    className={cn(
-                      "inline-flex items-center gap-1 h-6 rounded-full border px-2 text-[11px] transition-colors cursor-pointer",
-                      own
-                        ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                    )}
-                  >
-                    <span className="text-[13px]">{emoji}</span>
-                    <span className="font-medium">{users.length}</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="bg-[#1E293B] text-white text-[11px] max-w-[220px]">
-                    {reactionTooltipText(users, emoji)}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
-        )}
+        {/* Hover action buttons — appear beside bubble on row hover */}
+        <div className="flex items-center gap-0.5 self-end pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
+          <button
+            type="button"
+            aria-label="React"
+            onClick={e => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setPickerAnchorRect(rect);
+              setReactionPickerFor(m.id);
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60 cursor-pointer transition-colors"
+          >
+            <SmilePlus className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+          <button
+            type="button"
+            aria-label="Reply"
+            onClick={() => {
+              setReplyTarget({ messageId: m.id, authorName: m.author, preview: m.text.slice(0, 80) });
+              setTimeout(() => mentionInputRef.current?.focus?.(), 50);
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-white hover:bg-slate-100 shadow-sm border border-slate-200/60 cursor-pointer transition-colors"
+          >
+            <Reply className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+        </div>
       </div>,
     );
     lastDay = m.day;
@@ -1307,14 +1424,14 @@ export function TeamChat({
           ref={scrollRef}
           data-chat-scroll
           className={cn(
-            "overflow-y-auto px-4 pt-5 pb-2 space-y-5",
+            "overflow-y-auto px-3 pt-4 pb-2 bg-[#F0F2F5]",
             fillHeight ? "flex-1 min-h-0" : "max-h-[300px]",
           )}
         >
           {aboveContent}
 
           <div className={cn(aboveContent && "border-t border-slate-100 pt-4")}>
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5 mb-3">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide flex items-center gap-1.5 mb-3 px-1">
               <MessageSquare className="w-3.5 h-3.5" /> Team Chat
               <span className="text-[10px] font-normal normal-case tracking-normal text-slate-400">
                 · only visible to staff
@@ -1325,7 +1442,7 @@ export function TeamChat({
                 <p className="text-xs text-slate-400">No messages yet. Start the conversation with the team.</p>
               </div>
             ) : (
-              <div className="space-y-2">{rows}</div>
+              <div className="pb-2">{rows}</div>
             )}
           </div>
         </div>
@@ -1346,6 +1463,24 @@ export function TeamChat({
 
         {/* Input area pinned at bottom */}
         <div className="shrink-0 border-t border-slate-200 bg-white">
+          {/* Reply bar */}
+          {replyTarget && (
+            <div className="flex items-center gap-2 bg-slate-50 border-b border-slate-100 px-3 py-2">
+              <div className="flex-1 border-l-2 border-amber-500 pl-2 min-w-0">
+                <p className="text-xs font-semibold text-amber-600 truncate">{replyTarget.authorName}</p>
+                <p className="text-xs text-slate-500 truncate">{replyTarget.preview}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cancel reply"
+                onClick={() => setReplyTarget(null)}
+                className="p-1 rounded-md hover:bg-slate-200 text-slate-400 cursor-pointer transition-colors flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Draft chips */}
           {draftChips.length > 0 && (
             <div className="px-3 pt-2 flex flex-wrap gap-1 border-b border-slate-100">
@@ -1456,6 +1591,75 @@ export function TeamChat({
           onClose={() => setReactionPickerFor(null)}
         />
       )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (() => {
+        const ctxMsg = messages.find(m => m.id === contextMenu.msgId);
+        return (
+          <div
+            style={{
+              position: "fixed",
+              left: Math.min(contextMenu.x, (typeof window !== "undefined" ? window.innerWidth : 1440) - 200),
+              top: Math.min(contextMenu.y, (typeof window !== "undefined" ? window.innerHeight : 900) - 220),
+              zIndex: 9999,
+            }}
+            className="bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-48"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            {contextEmojiOpen ? (
+              <div className="px-2 py-2 flex gap-1 flex-wrap justify-center">
+                {QUICK_EMOJIS_TC.map(e => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => { if (ctxMsg) toggleReaction(ctxMsg.id, e); setContextMenu(null); setContextEmojiOpen(false); }}
+                    className="w-9 h-9 flex items-center justify-center text-xl rounded-lg hover:bg-amber-50 cursor-pointer transition-colors"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (ctxMsg) setReplyTarget({ messageId: ctxMsg.id, authorName: ctxMsg.author, preview: ctxMsg.text.slice(0, 80) });
+                    setContextMenu(null);
+                    setTimeout(() => mentionInputRef.current?.focus?.(), 50);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Reply className="w-4 h-4 text-slate-500" /> Reply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContextEmojiOpen(true)}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Smile className="w-4 h-4 text-slate-500" /> React
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (ctxMsg) navigator.clipboard.writeText(ctxMsg.text).catch(() => {}); setContextMenu(null); }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <Copy className="w-4 h-4 text-slate-500" /> Copy text
+                </button>
+                {contextMenu.isOwn && (
+                  <button
+                    type="button"
+                    onClick={() => { deleteMessage(contextMenu.msgId); setContextMenu(null); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
     </>
   );
 }
