@@ -108,13 +108,15 @@ Opening a lead opens a **two-column detail panel**. The left column shows all le
 
 Deleting a message uses a **soft-delete / undo** pattern — the bubble is instantly replaced in-place with a "Message deleted. Undo" bar; clicking Undo within 10 seconds restores the message. When the user is scrolled up and a new message arrives via Realtime, an amber **"N new replies"** pill appears above the input bar; clicking it scrolls to the latest message and dismisses the counter.
 
-**Reaction notifications:** When a staff member reacts to a message written by someone else, a **reaction notification** is pushed into the bell dropdown for the message author. The notification shows the reactor's avatar with the emoji as a badge overlay, a summary line ("{Name} reacted to your message"), an italic preview of the first 40 characters of the reacted-to message, and the relative time and lead name ("4m ago · in Jude's ticket"). Unread reaction notifications have an amber-tinted background. If the same person reacts with the same emoji to the same message again (after un-reacting and re-reacting) only one notification is created — duplicates are suppressed. Un-reacting removes the corresponding notification from the store. A staff member who reacts to their own message does not generate a notification. Clicking a reaction notification navigates directly to the reacted-to message using the same scroll-and-amber-glow highlight flow as mention notifications.
+**Reaction notifications:** When a staff member reacts to a message written by someone else, a server-side notification is created for the **message author** (not the reactor) via the reactions API. The notification shows the reactor's avatar with the emoji badge, a title "{Name} reacted {emoji} to your message", and a preview of the reacted-to message. Reacting to your own message produces no notification. Un-reacting suppresses the notification from the local store. Notifications are deduplicated per reactor+message+emoji combination.
+
+**Reply notifications:** When a staff member replies to another person's message (using the Reply button or context menu), a server-side notification is created for the **original message author**. The notification shows the replier's avatar with a sky-blue reply badge, a title "{Name} replied to your message", and a preview of the reply. Replying to your own message produces no notification.
 
 **Team Chat @mention system — end-to-end:** Typing `@` in the message input opens a dropdown that appears directly above the composer input, full-width and anchored to it. The dropdown shows all staff (active, invited, and on-leave statuses — not just active), plus group shortcuts (`@all`, `@admins`, `@teachers`). Results filter as the user types; the list is scrollable when there are many results. Keyboard navigation (arrows, Enter, Tab, Escape) and click both work. The dropdown always opens upward and is constrained within the chat container. Selecting a name inserts a styled blue chip into the input.
 
-When a message is sent, each mentioned staff member receives a **persistent mention notification stored in Supabase** (`notifications` table, RLS-protected per user). Notifications are written server-side only (the sender never notifies themselves). Notifications are fetched from the server on bell open and polled every 30 seconds, so recipients see the notification the next time they are active — regardless of which browser or session they are on. Group pseudo-mentions (`@all`, `@admins`, `@teachers`) are excluded from individual notification delivery. The notification title is generic ("You were mentioned in a lead/task chat") and includes a deep-link back to the exact message. The mention notification system works identically for both lead chat and task chat.
+When a message is sent, each mentioned staff member receives a **persistent mention notification stored in Supabase** (`notifications` table, RLS-protected per user). Notifications are written server-side only (the sender never notifies themselves). Notifications are fetched from the server on bell open and polled every 30 seconds, so recipients see the notification the next time they are active — regardless of which browser or session they are on. Group pseudo-mentions (`@all`, `@admins`, `@teachers`) are excluded from individual notification delivery. The mention notification system works identically for both lead chat and task chat.
 
-**Click-to-navigate from mention and reaction notifications:** Clicking a mention or reaction notification in the bell dropdown closes the dropdown, marks the notification read, and navigates directly to the tagged/reacted-to message in the lead chat thread. If the user is already on the Leads page the lead dialog opens without a full page reload. The chat thread scrolls with an ease-out cubic animation (480 ms) so the target message lands in the centre of the visible area. Once the scroll completes, the entire message row glows with an amber highlight animation that peaks and fades over 2.6 seconds. If the message no longer exists a toast is shown and no scroll is attempted.
+**Click-to-navigate from notifications:** Clicking any reaction, reply, or mention notification on the /notifications page marks it read and navigates to the exact message via deep-link URL params. Lead notifications open `/leads?leadId=...&messageId=...`; team notifications open `/automations?tab=internal-messages&channelId=...`; class notifications open `/feedback?tab=class-discussion&discussionId=...`. The chat thread scrolls with an ease-out cubic animation (480 ms) so the target message lands in the centre of the visible area. Once the scroll completes, the entire message row glows with an amber highlight animation that peaks and fades over 2.6 seconds. If the message no longer exists a toast is shown and no scroll is attempted.
 
 Sent messages render @mention names as **underlined bold text** inline within the message. On received messages, self-mentions appear in amber with an amber underline; others appear in blue. On sent (own) messages all mentions render in white with a white underline so they remain legible on the amber bubble background. Staff who no longer exist in the system render as struck-through grey. Group mentions render in amber.
 
@@ -751,7 +753,37 @@ Subjects Catalogue editing is partially delegated:
 
 ---
 
-## 20. Key Business Logic Rules
+## 20. Notifications
+
+The **Notifications** page (`/notifications`) is accessible to all roles via the bell icon in the sidebar (bottom section) and the bell button in the top bar.
+
+### Notification feed
+All reactions, replies, and @mentions from chat threads across the platform surface here. Notifications are stored server-side per recipient and polled every 30 seconds so they appear regardless of which device or session the user is on. The feed is seeded with mock notifications on initial load so the page is always populated.
+
+### Tabs
+- **All** — every notification newest-first
+- **Unread** — only unread notifications
+
+### Row design
+Each row shows: the actor's initials avatar with a type badge (emoji badge for reactions, amber @ for mentions, sky-blue reply icon for replies), the notification title, a message preview in italic, a surface label chip (e.g. "Jude2 lead chat", "#general"), relative timestamp, and an amber dot for unread items. Unread rows have an amber-50 tint. Hovering any row reveals a checkmark button to mark just that notification as read without navigating.
+
+### Actions
+- **Mark all as read** — top-right header button; disabled when all are already read
+- **Click row** — marks notification read and navigates to the deep-linked message
+- **Hover checkmark** — marks individual notification read without navigating
+
+### Deep-link navigation
+Clicking a notification navigates to the exact message:
+- **Lead chat** → `/leads?leadId=...&messageId=...` — opens lead dialog to chat tab, scrolls to message with amber glow
+- **Team/Internal messages** → `/automations?tab=internal-messages&channelId=...&messageId=...`
+- **Class discussion** → `/feedback?tab=class-discussion&discussionId=...&messageId=...`
+
+### Bell badge
+The sidebar bell icon and top-bar bell button both display a live unread count badge (rose red). The badge disappears when all notifications are read.
+
+---
+
+## 21. Key Business Logic Rules
 
 ### Lead Conversion
 - A lead can only be converted to a student once it reaches the **Won** stage.

@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
 import { useCurrentUser } from "@/lib/use-current-user";
-import { pushNotification, hasReactionNotification, removeReactionNotification } from "@/lib/notifications-store";
+import { hasReactionNotification, removeReactionNotification } from "@/lib/notifications-store";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { createClient } from "@/lib/supabase/client";
 import { MentionInput, type MentionInputRef, type MentionContent, type MentionData } from "@/components/chat/mention-input";
@@ -1147,6 +1147,24 @@ export function TeamChat({
         }).catch(() => {});
       }
     }
+
+    // Reply notification — notify the original message author (server-side, correct recipient)
+    if (currentReplyTo && currentReplyTo.authorName !== chatCurrentUser) {
+      const msgId = res?.data?.id ?? "";
+      fetch("/api/notifications/replies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authorName: currentReplyTo.authorName,
+          entityId,
+          entityType,
+          messageId: msgId,
+          replyContent: content.text.slice(0, 50),
+          quotedPreview: currentReplyTo.preview.slice(0, 50),
+          replierName: chatCurrentUser,
+        }),
+      }).catch(() => {});
+    }
   }
 
   function toggleReaction(msgId: string, emoji: string) {
@@ -1171,27 +1189,23 @@ export function TeamChat({
       body: JSON.stringify({ messageId: msgId, reactions: updatedReactions }),
     }).catch(() => {});
 
+    // Notify the message author (server-side so it goes to the right person, not the reactor)
     if (msg && msg.author !== chatCurrentUser) {
-      const href =
-        entityType === "lead"
-          ? `/leads?leadId=${entityId}&messageId=${msgId}`
-          : `/tasks?taskId=${entityId}&messageId=${msgId}`;
       if (!wasReacted) {
         if (!hasReactionNotification({ senderId: chatCurrentUser, messageId: msgId, emoji })) {
-          pushNotification({
-            id: crypto.randomUUID(),
-            type: "reaction",
-            title: `${chatCurrentUser} reacted to your message`,
-            time: "just now",
-            href,
-            unread: true,
-            senderName: chatCurrentUser,
-            leadId: entityType === "lead" ? entityId : undefined,
-            messageId: msgId,
-            messagePreview: msg.text.slice(0, 40),
-            emoji,
-            timestamp: Date.now(),
-          });
+          fetch("/api/notifications/reactions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              authorName: msg.author,
+              entityId,
+              entityType,
+              messageId: msgId,
+              emoji,
+              reactorName: chatCurrentUser,
+              messagePreview: msg.text.slice(0, 50),
+            }),
+          }).catch(() => {});
         }
       } else {
         removeReactionNotification({ senderId: chatCurrentUser, messageId: msgId, emoji });

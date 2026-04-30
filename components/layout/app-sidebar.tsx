@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { flyoutVariants } from "@/lib/motion";
 import {
   BarChart,
+  Bell,
   BookOpen,
   Briefcase,
   Calendar,
@@ -36,6 +37,7 @@ import {
 import { useCurrentUser } from "@/lib/use-current-user";
 import { usePermission } from "@/lib/use-permission";
 import { useOrgLogo } from "@/lib/org-logo-context";
+import { useNotifications } from "@/lib/notifications-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -209,6 +211,13 @@ const navItems: NavItemDef[] = [
     label: "Staff",
     icon: Briefcase,
     href: "/staff",
+    type: "link",
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    href: "/notifications",
     type: "link",
   },
   {
@@ -446,7 +455,11 @@ export function AppSidebar() {
   }, []);
 
   const midItems = (navItems.slice(7, 11) as LinkNavItemDef[]).filter((item) => sees(item.id));
-  const settingsItem = sees("settings") ? (navItems[11] as LinkNavItemDef) : undefined;
+  const notificationsItem = navItems[11] as LinkNavItemDef; // Bell — always visible
+  const settingsItem = sees("settings") ? (navItems[12] as LinkNavItemDef) : undefined;
+
+  const { notifications } = useNotifications();
+  const unreadCount = notifications.filter((n) => n.unread).length;
 
   return (
     <aside className="w-14 h-screen bg-[#0F172A] flex flex-col items-center py-4 flex-shrink-0 border-r border-slate-800">
@@ -499,13 +512,41 @@ export function AppSidebar() {
           </>
         )}
 
-        {/* Settings — pushed to bottom */}
-        {settingsItem && (
-          <div className="mt-auto w-full flex flex-col">
-            <Divider />
-            <LinkNavItem item={settingsItem} />
+        {/* Notifications + Settings — pushed to bottom */}
+        <div className="mt-auto w-full flex flex-col">
+          <Divider />
+          {/* Notifications with live unread badge */}
+          <div className="relative w-full flex items-center justify-center py-0.5">
+            {pathname === notificationsItem.href && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-amber-400 rounded-r-full z-10" />
+            )}
+            <Link
+              href={notificationsItem.href}
+              aria-label={`Notifications${unreadCount > 0 ? ` — ${unreadCount} unread` : ""}`}
+              className={[
+                "relative group w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-150",
+                pathname === notificationsItem.href
+                  ? "bg-slate-700/80 text-amber-400"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200",
+              ].join(" ")}
+            >
+              <Bell className="w-5 h-5 flex-shrink-0" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold leading-none flex items-center justify-center ring-2 ring-[#0F172A]">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+              <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-[999] shadow-lg border border-slate-700">
+                {notificationsItem.label}
+                {unreadCount > 0 && (
+                  <span className="ml-1.5 text-[10px] text-amber-400 font-normal">{unreadCount} new</span>
+                )}
+                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800" />
+              </div>
+            </Link>
           </div>
-        )}
+          {settingsItem && <LinkNavItem item={settingsItem} />}
+        </div>
       </nav>
 
       {/* Profile avatar — links to /profile */}

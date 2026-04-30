@@ -1,41 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react"; // useEffect/useRef used in UserMenu
 import { usePathname, useRouter } from "next/navigation";
 import {
-  AlertTriangle,
-  AtSign,
   Bell,
-  CalendarClock,
-  CheckSquare,
-  DollarSign,
-  FileText,
-  FileWarning,
-  GraduationCap,
   HelpCircle,
   LogOut,
-  MessageSquare,
   Settings as SettingsIcon,
-  Smile,
   User,
-  UserCheck,
-  UserPlus,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { useCurrentUser } from "@/lib/use-current-user";
 import { useUserAvatar } from "@/lib/user-avatar-context";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { GlobalSearch } from "./global-search";
-import {
-  useNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  relativeTime,
-  type AppNotification,
-} from "@/lib/notifications-store";
-import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+import { useNotifications } from "@/lib/notifications-store";
 
 const routeTitles: Record<string, string> = {
   "/dashboard":  "Dashboard",
@@ -60,44 +40,8 @@ const routeTitles: Record<string, string> = {
   "/feedback":        "Feedback",
   "/communications":  "Communications",
   "/inventory":       "Inventory",
+  "/notifications":   "Notifications",
 };
-
-// ─── Notifications ────────────────────────────────────────────────────────────
-
-// Use the shared AppNotification type from the store
-type Notification = AppNotification;
-
-const NOTIFICATION_ICONS: Record<Notification["type"], React.ComponentType<{ className?: string }>> = {
-  "invoice-overdue": FileWarning,
-  feedback: MessageSquare,
-  concern: AlertTriangle,
-  trial: UserCheck,
-  task: CheckSquare,
-  report: FileText,
-  lead: UserPlus,
-  payment: DollarSign,
-  leave: CalendarClock,
-  cpd: GraduationCap,
-  mention: AtSign,
-  reaction: Smile,
-};
-
-const NOTIFICATION_ICON_TONE: Record<Notification["type"], string> = {
-  "invoice-overdue": "bg-rose-50 text-rose-600",
-  feedback: "bg-sky-50 text-sky-600",
-  concern: "bg-rose-50 text-rose-600",
-  trial: "bg-emerald-50 text-emerald-600",
-  task: "bg-violet-50 text-violet-600",
-  report: "bg-amber-50 text-amber-600",
-  lead: "bg-indigo-50 text-indigo-600",
-  payment: "bg-emerald-50 text-emerald-600",
-  leave: "bg-slate-100 text-slate-600",
-  cpd: "bg-amber-50 text-amber-600",
-  mention: "bg-blue-50 text-blue-600",
-  reaction: "bg-amber-50 text-amber-600",
-};
-
-type NotificationTab = "all" | "unread" | "mentions";
 
 // ─── User Menu ────────────────────────────────────────────────────────────────
 
@@ -224,59 +168,8 @@ export function TopBar() {
   const router = useRouter();
   const title = routeTitles[pathname] ?? "Enrolla";
 
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const { notifications } = useNotifications();
-
   const unreadCount = useMemo(() => notifications.filter((n) => n.unread).length, [notifications]);
-  const mentionCount = useMemo(() => notifications.filter((n) => n.mention).length, [notifications]);
-
-  const visibleNotifications = useMemo(() => {
-    if (activeTab === "unread") return notifications.filter((n) => n.unread);
-    if (activeTab === "mentions") return notifications.filter((n) => n.mention);
-    return notifications;
-  }, [notifications, activeTab]);
-
-  function markAllAsRead() {
-    markAllNotificationsRead();
-  }
-
-  function handleNotificationClick(n: Notification) {
-    markNotificationRead(n.id);
-    setNotificationsOpen(false);
-
-    // If a mention or reaction notification is clicked while already on the leads page,
-    // dispatch a custom event so the page can open the right lead + scroll
-    // without a full navigation (which would skip the one-time mount effect).
-    if ((n.type === "mention" || n.type === "reaction") && n.leadId && pathname === "/leads") {
-      window.dispatchEvent(
-        new CustomEvent("enrolla:open-lead-message", {
-          detail: { leadId: n.leadId, messageId: n.messageId ?? null },
-        }),
-      );
-      return;
-    }
-
-    router.push(n.href);
-  }
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setNotificationsOpen(false);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  useEffect(() => {
-    if (!notificationsOpen) return;
-    function handleOutside(e: MouseEvent) {
-      const bell = document.getElementById("bell-container");
-      if (bell && !bell.contains(e.target as Node)) setNotificationsOpen(false);
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [notificationsOpen]);
 
   return (
     <header className="h-14 flex items-center px-4 bg-white border-b border-slate-200 flex-shrink-0 gap-4">
@@ -290,220 +183,19 @@ export function TopBar() {
         {/* Search */}
         <GlobalSearch />
 
-        {/* Notifications */}
-        <div id="bell-container" className="relative">
-          <button
-            aria-label={`${unreadCount} unread notifications`}
-            onClick={() => setNotificationsOpen((o) => !o)}
-            className="relative p-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <Bell className="size-4" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold leading-none flex items-center justify-center ring-2 ring-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {notificationsOpen && (
-            <div className="absolute right-0 top-12 w-[min(380px,_calc(100vw-1rem))] bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden flex flex-col">
-              {/* Header */}
-              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-800 text-sm">Notifications</span>
-                  {unreadCount > 0 && (
-                    <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full">
-                      {unreadCount} new
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={markAllAsRead}
-                  disabled={unreadCount === 0}
-                  className="text-xs text-amber-600 cursor-pointer hover:underline disabled:text-slate-300 disabled:cursor-not-allowed disabled:no-underline"
-                >
-                  Mark all as read
-                </button>
-              </div>
-
-              {/* Tab strip */}
-              <div className="flex items-center gap-1 px-2 pt-2 border-b border-slate-100">
-                {([
-                  { id: "all" as const,      label: "All",      count: notifications.length },
-                  { id: "unread" as const,   label: "Unread",   count: unreadCount },
-                  { id: "mentions" as const, label: "Mentions", count: mentionCount },
-                ]).map((tab) => {
-                  const active = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={cn(
-                        "relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-md transition-colors cursor-pointer",
-                        active
-                          ? "text-slate-900"
-                          : "text-slate-500 hover:text-slate-700"
-                      )}
-                    >
-                      {tab.label}
-                      {tab.count > 0 && (
-                        <span
-                          className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
-                            active ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
-                          )}
-                        >
-                          {tab.count}
-                        </span>
-                      )}
-                      {active && (
-                        <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-amber-500 rounded-full" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* List */}
-              <div className="max-h-[500px] overflow-y-auto">
-                {visibleNotifications.length === 0 ? (
-                  <div className="px-4 py-12 flex flex-col items-center justify-center text-center">
-                    <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mb-2">
-                      <Bell className="w-4 h-4 text-slate-400" />
-                    </div>
-                    <p className="text-sm font-medium text-slate-700">You&apos;re all caught up</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {activeTab === "unread"
-                        ? "No unread notifications"
-                        : activeTab === "mentions"
-                        ? "No mentions yet"
-                        : "No notifications"}
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="divide-y divide-slate-100">
-                    {visibleNotifications.map((n) => {
-                      const isMention = n.type === "mention";
-                      const isReaction = n.type === "reaction";
-                      const isSpecial = isMention || isReaction;
-                      const Icon = NOTIFICATION_ICONS[n.type];
-                      const senderPalette = isSpecial && n.senderName ? getAvatarPalette(n.senderName) : null;
-                      const displayTime = isSpecial
-                        ? relativeTime(n.timestamp)
-                        : n.time;
-                      return (
-                        <li key={n.id}>
-                          <button
-                            onClick={() => handleNotificationClick(n)}
-                            className={cn(
-                              "w-full text-left px-4 flex gap-3 cursor-pointer transition-colors items-start",
-                              isSpecial ? "py-3 min-h-[40px]" : "py-3 border-l-2",
-                              isSpecial
-                                ? n.unread
-                                  ? "bg-amber-50 hover:bg-amber-100/70"
-                                  : "bg-white hover:bg-amber-50"
-                                : n.unread
-                                  ? "bg-blue-50/40 border-l-blue-500 hover:bg-slate-50"
-                                  : "bg-white border-l-transparent hover:bg-slate-50",
-                            )}
-                          >
-                            {/* Left: avatar with badge (mention/@, reaction/emoji) or icon */}
-                            {isReaction && senderPalette ? (
-                              <div className="relative flex-shrink-0 mt-0.5">
-                                <div
-                                  className={cn(
-                                    "w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold",
-                                    senderPalette.bg,
-                                    senderPalette.text,
-                                  )}
-                                >
-                                  {getInitials(n.senderName!)}
-                                </div>
-                                {/* Emoji badge */}
-                                <div className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-                                  <span style={{ fontSize: "13px" }}>{n.emoji}</span>
-                                </div>
-                              </div>
-                            ) : isMention && senderPalette ? (
-                              <div className="relative flex-shrink-0 mt-0.5">
-                                <div
-                                  className={cn(
-                                    "w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold",
-                                    senderPalette.bg,
-                                    senderPalette.text,
-                                  )}
-                                >
-                                  {getInitials(n.senderName!)}
-                                </div>
-                                {/* Amber @ badge */}
-                                <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 flex items-center justify-center ring-1 ring-white">
-                                  <span className="text-white font-bold leading-none" style={{ fontSize: "9px" }}>@</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div
-                                className={cn(
-                                  "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                                  NOTIFICATION_ICON_TONE[n.type],
-                                )}
-                              >
-                                <Icon className="w-4 h-4" />
-                              </div>
-                            )}
-
-                            {/* Centre: title + sub-lines */}
-                            <div className="min-w-0 flex-1">
-                              <p
-                                className={cn(
-                                  "text-[13px] leading-snug line-clamp-2",
-                                  n.unread ? "text-slate-800 font-medium" : "text-slate-600",
-                                )}
-                              >
-                                {n.title}
-                              </p>
-                              {/* Reaction: italic message preview */}
-                              {isReaction && n.messagePreview && (
-                                <p className="text-[11px] text-slate-400 mt-0.5 italic line-clamp-1">
-                                  &ldquo;{n.messagePreview}{n.messagePreview.length >= 40 ? "…" : ""}&rdquo;
-                                </p>
-                              )}
-                              <p className="text-[11px] text-slate-400 mt-0.5">
-                                {isReaction
-                                  ? `${displayTime} · in ${n.leadName ?? "a"}'s ticket`
-                                  : isMention && n.senderName
-                                    ? `${n.senderName} · ${displayTime}`
-                                    : displayTime}
-                              </p>
-                            </div>
-
-                            {/* Right: unread dot or urgent indicator */}
-                            <div className="flex-shrink-0 flex items-center mt-1.5">
-                              {isSpecial
-                                ? n.unread && <span className="w-2 h-2 rounded-full bg-amber-500" />
-                                : n.urgent && (
-                                    <span aria-label="urgent" className="w-2 h-2 rounded-full bg-rose-500" />
-                                  )}
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="px-4 py-2.5 border-t border-slate-100 text-center">
-                <button
-                  onClick={() => setNotificationsOpen(false)}
-                  className="text-xs font-medium text-amber-600 cursor-pointer hover:underline"
-                >
-                  View all notifications
-                </button>
-              </div>
-            </div>
+        {/* Notifications bell — navigates to /notifications */}
+        <button
+          aria-label={`${unreadCount} unread notifications`}
+          onClick={() => router.push("/notifications")}
+          className="relative p-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+        >
+          <Bell className="size-4" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold leading-none flex items-center justify-center ring-2 ring-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
           )}
-        </div>
+        </button>
 
         {/* Help */}
         <button
