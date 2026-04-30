@@ -28,6 +28,7 @@ export interface Task {
   status: TaskStatus;
   assignees: string[];
   dueDate: string;
+  dueTime: string | null;
   linkedRecord: { type: string; name: string; id: string } | null;
   description: string;
   subtasks: string[];
@@ -78,6 +79,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
   const [type, setType]               = useState<TaskType>("Student Follow-up");
   const [priority, setPriority]       = useState<TaskPriority>("Medium");
   const [dueDateIso, setDueDateIso]   = useState<string>(todayIso());
+  const [dueTime, setDueTime]         = useState<string>("");
   const [assignees, setAssignees]     = useState<string[]>([]);
   const [linkedStudent, setLinkedStudent] = useState<StudentLite | null>(null);
 
@@ -98,6 +100,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
     setType("Student Follow-up");
     setPriority("Medium");
     setDueDateIso(todayIso());
+    setDueTime("");
     setAssignees(currentUserName ? [currentUserName] : []);
     setLinkedStudent(null);
     setStudentQuery("");
@@ -150,6 +153,7 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
         priority,
         assignees,
         dueDateIso,
+        dueTime: dueTime || null,
         linkedRecord: linkedStudent
           ? { type: "student", name: linkedStudent.name, id: linkedStudent.id }
           : null,
@@ -251,20 +255,32 @@ export function NewTaskDialog({ open, onOpenChange, onCreated }: NewTaskDialogPr
             </div>
           </div>
 
-          {/* Due date */}
+          {/* Due date + time */}
           <div>
-            <label htmlFor="new-task-due" className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
               Due Date <span className="text-red-500">*</span>
             </label>
-            <input
-              id="new-task-due"
-              type="date"
-              value={dueDateIso}
-              onChange={(e) => setDueDateIso(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
-            />
+            <div className="flex gap-2">
+              <input
+                id="new-task-due"
+                type="date"
+                value={dueDateIso}
+                onChange={(e) => setDueDateIso(e.target.value)}
+                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
+              />
+              <input
+                id="new-task-time"
+                type="time"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+                placeholder="--:--"
+                className="w-32 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"
+              />
+            </div>
             {dueDateIso === todayIso() && (
-              <p className="text-[11px] text-amber-600 mt-1">Today — {todayLabel()}</p>
+              <p className="text-[11px] text-amber-600 mt-1">
+                Today — {todayLabel()}{dueTime ? ` at ${dueTime}` : ""}
+              </p>
             )}
           </div>
 

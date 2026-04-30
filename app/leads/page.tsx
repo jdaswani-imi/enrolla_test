@@ -189,6 +189,7 @@ const LEAD_STAGES: LeadStage[] = [
   "Lost",
 ];
 import { getAvatarPalette, getInitials } from "@/lib/avatar-utils";
+import { ActivityTimeline } from "@/components/leads/activity-timeline";
 import { useCurrentUser } from "@/lib/use-current-user";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -1709,7 +1710,7 @@ function LeadDetailDialog({
   if (!lead) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[80vw] max-w-6xl" />
+        <DialogContent className="w-[90vw] max-w-[90vw] h-[90vh]" />
       </Dialog>
     );
   }
@@ -2243,7 +2244,7 @@ function LeadDetailDialog({
 
                   {/* Stage History */}
                   <div className="border-t border-slate-100 pt-4">
-                    <StatusHistorySection entityType="lead" entityId={lead.id} refreshKey={lead.stage} />
+                    <ActivityTimeline leadId={lead.id} refreshKey={lead.stage} />
                   </div>
                 </>
               }

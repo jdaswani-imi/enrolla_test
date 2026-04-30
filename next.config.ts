@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const nextConfig: NextConfig = {
   async redirects() {
     return [
@@ -35,8 +37,8 @@ const nextConfig: NextConfig = {
             // Inline styles/scripts are disallowed except where explicitly permitted below.
             value: [
               "default-src 'self'",
-              // Scripts: only from self; Next.js needs 'unsafe-eval' in dev only
-              "script-src 'self' 'unsafe-inline'",
+              // Scripts: self + inline; Turbopack/React need 'unsafe-eval' in dev for debugging
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
               // Styles: self + Google Fonts + inline (Tailwind injects inline styles)
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Fonts

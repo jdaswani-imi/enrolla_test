@@ -249,31 +249,31 @@ export function BookTrialDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[900px] max-w-[96vw]">
+      <DialogContent className="w-[90vw] max-w-[90vw] h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Book Trial Session(s)</DialogTitle>
           <DialogDescription>Schedule paid trial sessions for this lead.</DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 py-5 space-y-5 max-h-[76vh] overflow-y-auto">
+        <div className="flex-1 min-h-0 px-6 py-5 space-y-5 overflow-y-auto">
           {/* LINE ITEM TABLE */}
           <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
             <div className="overflow-x-auto">
             <div
               className="grid text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-200"
-              style={{ gridTemplateColumns: "160px 180px 160px 110px 120px 60px 32px", minWidth: "822px" }}
+              style={{ gridTemplateColumns: "minmax(150px, 1fr) minmax(190px, 1.3fr) 185px 155px 160px 72px 40px" }}
             >
-              <div className="px-2 py-2">Subject</div>
-              <div className="px-2 py-2">Teacher</div>
-              <div className="px-2 py-2">Date</div>
-              <div className="px-2 py-2">Time</div>
-              <div className="px-2 py-2">Room</div>
-              <div className="px-2 py-2 text-center">Waive</div>
-              <div className="px-2 py-2" />
+              <div className="px-3 py-2">Subject</div>
+              <div className="px-3 py-2">Teacher</div>
+              <div className="px-3 py-2">Date</div>
+              <div className="px-3 py-2">Time</div>
+              <div className="px-3 py-2">Room</div>
+              <div className="px-3 py-2 text-center">Waive</div>
+              <div className="px-3 py-2" />
             </div>
 
             {rows.length === 0 && (
-              <div className="px-4 py-6 text-center text-sm text-slate-400" style={{ minWidth: "822px" }}>
+              <div className="px-4 py-6 text-center text-sm text-slate-400">
                 No subjects yet — add one below.
               </div>
             )}
@@ -285,16 +285,16 @@ export function BookTrialDialog({
               >
                 <div
                   className="grid items-center"
-                  style={{ gridTemplateColumns: "160px 180px 160px 110px 120px 60px 32px", minWidth: "822px" }}
+                  style={{ gridTemplateColumns: "minmax(150px, 1fr) minmax(190px, 1.3fr) 185px 155px 160px 72px 40px" }}
                 >
-                  <div className="px-2 py-2">
+                  <div className="px-3 py-2">
                     <SubjectSelect
                       value={row.subject}
                       onChange={(next) => updateRow(row.id, { subject: next })}
                       yearGroup={yearGroup}
                     />
                   </div>
-                  <div className="px-2 py-2">
+                  <div className="px-3 py-2">
                     <select
                       value={row.teacher}
                       onChange={(e) => updateRow(row.id, { teacher: e.target.value })}
@@ -308,21 +308,21 @@ export function BookTrialDialog({
                       ))}
                     </select>
                   </div>
-                  <div className="px-2 py-2">
+                  <div className="px-3 py-2">
                     <input
                       type="date"
                       value={row.date}
                       onChange={(e) => updateRow(row.id, { date: e.target.value })}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 pr-8 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                     />
                   </div>
-                  <div className="px-2 py-2">
+                  <div className="px-3 py-2">
                     <TimeSelect
                       value={row.time}
                       onChange={(next) => updateRow(row.id, { time: next })}
                     />
                   </div>
-                  <div className="px-2 py-2">
+                  <div className="px-3 py-2">
                     <select
                       value={row.room}
                       onChange={(e) => updateRow(row.id, { room: e.target.value })}
@@ -335,7 +335,7 @@ export function BookTrialDialog({
                       ))}
                     </select>
                   </div>
-                  <div className="px-2 py-2 flex items-center justify-center">
+                  <div className="px-3 py-2 flex items-center justify-center">
                     <button
                       type="button"
                       role="switch"
@@ -360,7 +360,7 @@ export function BookTrialDialog({
                       />
                     </button>
                   </div>
-                  <div className="px-2 py-2 flex items-center justify-center">
+                  <div className="px-3 py-2 flex items-center justify-center">
                     <button
                       type="button"
                       onClick={() => removeRow(row.id)}
@@ -372,7 +372,7 @@ export function BookTrialDialog({
                   </div>
                 </div>
                 {row.waived && (
-                  <div className="px-2 pb-3" style={{ minWidth: "822px" }}>
+                  <div className="px-3 pb-3">
                     <div className="ml-2 rounded-md bg-amber-50/60 border border-amber-200 p-2">
                       <label className="block text-[11px] font-semibold text-amber-800 mb-1">
                         Reason for waiver <span className="text-red-500">*</span>

@@ -8,14 +8,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function formatDueDate(iso: string): string {
+function formatDueDate(iso: string, time?: string | null): string {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const [y, m, d] = iso.split('-').map(Number)
-  return `${d} ${months[m - 1]} ${y}`
+  const base = `${d} ${months[m - 1]} ${y}`
+  if (!time) return base
+  // Convert HH:MM[:SS] → 12-hour display
+  const [h, min] = time.split(':').map(Number)
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const hour = h % 12 || 12
+  return `${base} at ${hour}:${String(min).padStart(2, '0')}${ampm}`
 }
 
 function toFrontend(row: Record<string, unknown>) {
-  const dueIso = row.due_date as string
+  const dueIso  = row.due_date as string
+  const dueTime = row.due_time as string | null | undefined
   const isOverdue =
     row.status !== 'Done' &&
     row.status !== 'Cancelled' &&
@@ -42,7 +49,8 @@ function toFrontend(row: Record<string, unknown>) {
     priority:              row.priority,
     status:                row.status,
     assignees,
-    dueDate:               formatDueDate(dueIso),
+    dueDate:               formatDueDate(dueIso, dueTime),
+    dueTime:               dueTime ?? null,
     linkedRecord,
     description:           row.description ?? '',
     subtasks:              (row.subtasks as string[]) ?? [],
@@ -105,6 +113,7 @@ export async function POST(request: NextRequest) {
       assignee:           assignees[0] ?? '',
       assignees,
       due_date:           body.dueDateIso,
+      due_time:           body.dueTime ?? null,
       linked_record_type: linkedRecord?.type ?? null,
       linked_record_name: linkedRecord?.name ?? null,
       linked_record_id:   linkedRecord?.id   ?? null,

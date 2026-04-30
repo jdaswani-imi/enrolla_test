@@ -26,7 +26,7 @@ export function TimeSelect({
 }) {
   const { h, m } = split(value);
   const selectClass = cn(
-    "w-16 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 cursor-pointer appearance-none",
+    "w-14 rounded-md border border-slate-200 bg-white px-2 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 cursor-pointer appearance-none text-center",
     disabled && "bg-slate-50 text-slate-400 cursor-not-allowed",
   );
 
