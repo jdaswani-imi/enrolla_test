@@ -147,6 +147,10 @@ export interface ActivityEntry {
   label: string;
   text: string;
   dot: string;
+  type?: 'field_edit';
+  fieldLabel?: string;
+  oldValue?: string;
+  newValue?: string;
 }
 
 export type BilalStage =

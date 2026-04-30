@@ -34,6 +34,8 @@ import {
   Phone,
   Mail,
   SlidersHorizontal,
+  PencilLine,
+  Loader2,
 } from "lucide-react";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { DateRangePicker, DATE_PRESETS, type DateRange } from "@/components/ui/date-range-picker";
@@ -1068,7 +1070,7 @@ function KanbanColumn({
 
 // ─── Lead Detail Dialog ───────────────────────────────────────────────────────
 
-const DETAIL_TIMELINE: { label: string; text: string; dot: string }[] = [];
+const DETAIL_TIMELINE: ActivityEntry[] = [];
 
 function EmbeddedTeamChat({
   lead,
@@ -1625,6 +1627,397 @@ function StatusHistorySection({
   )
 }
 
+// ─── Inline field-edit helpers ────────────────────────────────────────────────
+
+function maskPhone(phone: string): string {
+  if (!phone || phone.length < 4) return phone || '—';
+  return phone.slice(0, -4).replace(/[0-9]/g, '*') + phone.slice(-4);
+}
+
+function InlineTextField({
+  value,
+  canEdit,
+  required,
+  placeholder,
+  onSave,
+}: {
+  value: string;
+  canEdit: boolean;
+  required?: boolean;
+  placeholder?: string;
+  onSave: (v: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
+  const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  async function commit() {
+    if (required && !draft.trim()) { setError('Required'); return; }
+    if (draft.trim() === value) { setEditing(false); setError(''); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await onSave(draft.trim());
+      setFlash('ok');
+      setTimeout(() => setFlash(null), 600);
+      setEditing(false);
+    } catch {
+      setFlash('err');
+      setTimeout(() => { setFlash(null); setDraft(value); }, 600);
+    } finally { setSaving(false); }
+  }
+
+  function cancel() { setDraft(value); setEditing(false); setError(''); }
+
+  if (!canEdit) {
+    return <span className="text-sm font-medium text-slate-700">{value || <span className="text-slate-300">—</span>}</span>;
+  }
+
+  if (editing) {
+    return (
+      <div>
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } if (e.key === 'Escape') cancel(); }}
+            onBlur={commit}
+            placeholder={placeholder}
+            className={cn(
+              "border rounded px-2 py-0.5 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400 w-full",
+              error ? "border-red-400" : "border-slate-300",
+            )}
+          />
+          {saving && <Loader2 className="w-3 h-3 text-slate-400 animate-spin shrink-0" />}
+        </div>
+        {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={cn(
+        "group inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors text-left cursor-pointer",
+        flash === 'ok' && "bg-emerald-50",
+        flash === 'err' && "bg-red-50",
+        !flash && "hover:bg-slate-50",
+      )}
+    >
+      <span className="text-sm font-medium text-slate-700">
+        {value || <span className="text-slate-400 italic text-xs">Click to set</span>}
+      </span>
+      <PencilLine className="w-3 h-3 text-slate-300 group-hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </button>
+  );
+}
+
+function InlineSelectField({
+  value,
+  options,
+  canEdit,
+  onSave,
+}: {
+  value: string;
+  options: string[];
+  canEdit: boolean;
+  onSave: (v: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => { if (editing) selectRef.current?.focus(); }, [editing]);
+
+  async function commit(v: string) {
+    if (v === value) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onSave(v);
+      setFlash('ok');
+      setTimeout(() => setFlash(null), 600);
+    } catch {
+      setFlash('err');
+      setTimeout(() => setFlash(null), 600);
+    } finally { setSaving(false); setEditing(false); }
+  }
+
+  if (!canEdit) {
+    return <span className="text-sm font-medium text-slate-700">{value || '—'}</span>;
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <select
+          ref={selectRef}
+          defaultValue={value}
+          onChange={(e) => commit(e.target.value)}
+          onBlur={() => setEditing(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
+          className="border border-slate-300 rounded px-2 py-0.5 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400"
+        >
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        {saving && <Loader2 className="w-3 h-3 text-slate-400 animate-spin shrink-0" />}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={cn(
+        "group inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors text-left cursor-pointer",
+        flash === 'ok' && "bg-emerald-50",
+        flash === 'err' && "bg-red-50",
+        !flash && "hover:bg-slate-50",
+      )}
+    >
+      <span className="text-sm font-medium text-slate-700">{value || '—'}</span>
+      <PencilLine className="w-3 h-3 text-slate-300 group-hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </button>
+  );
+}
+
+function InlineMultiSelectField({
+  values,
+  options,
+  canEdit,
+  onSave,
+}: {
+  values: string[];
+  options: string[];
+  canEdit: boolean;
+  onSave: (v: string[]) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<string[]>(values);
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef(draft);
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+  useEffect(() => { if (!open) setDraft(values); }, [values, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onOut(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        handleDone();
+      }
+    }
+    document.addEventListener('mousedown', onOut);
+    return () => document.removeEventListener('mousedown', onOut);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function handleDone() {
+    setOpen(false);
+    const current = draftRef.current;
+    const sorted = (a: string[]) => [...a].sort().join(',');
+    if (sorted(current) === sorted(values)) return;
+    setSaving(true);
+    try {
+      await onSave(current);
+      setFlash('ok');
+      setTimeout(() => setFlash(null), 600);
+    } catch {
+      setFlash('err');
+      setDraft(values);
+      setTimeout(() => setFlash(null), 600);
+    } finally { setSaving(false); }
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((s) => <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">{s}</span>)}
+        {values.length === 0 && <span className="text-slate-300 text-sm">—</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => { if (!open) setOpen(true); }}
+        className={cn(
+          "group flex flex-wrap gap-1.5 rounded px-1 -mx-1 transition-colors min-h-[24px] items-center cursor-pointer",
+          flash === 'ok' && "bg-emerald-50",
+          flash === 'err' && "bg-red-50",
+          !flash && "hover:bg-slate-50",
+        )}
+      >
+        {values.map((s) => <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">{s}</span>)}
+        {values.length === 0 && <span className="text-slate-400 text-xs italic">Click to add</span>}
+        {saving
+          ? <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+          : <PencilLine className="w-3 h-3 text-slate-300 group-hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        }
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[160px]">
+          {options.map((opt) => (
+            <label key={opt} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
+              <input
+                type="checkbox"
+                checked={draft.includes(opt)}
+                onChange={() => setDraft((prev) => prev.includes(opt) ? prev.filter((v) => v !== opt) : [...prev, opt])}
+                className="accent-amber-500"
+              />
+              <span className="text-sm text-slate-700">{opt}</span>
+            </label>
+          ))}
+          <div className="mt-2 pt-2 border-t border-slate-100 flex justify-end">
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleDone(); }}
+              className="px-3 py-1 text-xs font-semibold bg-amber-500 text-white rounded hover:bg-amber-600 cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InlineStaffSelect({
+  value,
+  staffNames,
+  canEdit,
+  onSave,
+}: {
+  value: string;
+  staffNames: string[];
+  canEdit: boolean;
+  onSave: (v: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const palette = getAvatarPalette(value);
+
+  useEffect(() => {
+    if (!open) return;
+    setTimeout(() => inputRef.current?.focus(), 50);
+    function onOut(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false); setSearch('');
+      }
+    }
+    document.addEventListener('mousedown', onOut);
+    return () => document.removeEventListener('mousedown', onOut);
+  }, [open]);
+
+  const filtered = staffNames.filter((n) => n.toLowerCase().includes(search.toLowerCase()));
+
+  async function select(name: string) {
+    setOpen(false); setSearch('');
+    if (name === value) return;
+    setSaving(true);
+    try {
+      await onSave(name);
+      setFlash('ok');
+      setTimeout(() => setFlash(null), 600);
+    } catch {
+      setFlash('err');
+      setTimeout(() => setFlash(null), 600);
+    } finally { setSaving(false); }
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0", palette.bg, palette.text)}>
+          {getInitials(value)}
+        </div>
+        <span className="text-sm font-medium text-slate-700">{value || '—'}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "group flex items-center gap-2 rounded px-1 -mx-1 transition-colors cursor-pointer",
+          flash === 'ok' && "bg-emerald-50",
+          flash === 'err' && "bg-red-50",
+          !flash && "hover:bg-slate-50",
+        )}
+      >
+        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0", palette.bg, palette.text)}>
+          {getInitials(value)}
+        </div>
+        <span className="text-sm font-medium text-slate-700">{value || '—'}</span>
+        {saving
+          ? <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+          : <PencilLine className="w-3 h-3 text-slate-300 group-hover:text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        }
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg min-w-[200px] max-h-48 flex flex-col">
+          <div className="p-2 border-b border-slate-100">
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); setSearch(''); } }}
+              placeholder="Search staff..."
+              className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
+            />
+          </div>
+          <div className="overflow-y-auto flex-1">
+            {filtered.length === 0
+              ? <p className="text-xs text-slate-400 px-3 py-2 text-center">No staff found</p>
+              : filtered.map((name) => {
+                  const p = getAvatarPalette(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => select(name)}
+                      className={cn(
+                        "w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer transition-colors",
+                        name === value && "bg-amber-50",
+                      )}
+                    >
+                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0", p.bg, p.text)}>
+                        {getInitials(name)}
+                      </div>
+                      <span className="text-sm text-slate-700">{name}</span>
+                      {name === value && <Check className="w-3 h-3 text-amber-500 ml-auto" />}
+                    </button>
+                  );
+                })
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Lead Detail Dialog ────────────────────────────────────────────────────────
 
 function LeadDetailDialog({
@@ -1646,6 +2039,7 @@ function LeadDetailDialog({
   onRecordPayment,
   onStageChange,
   onUpdatePrefs,
+  onUpdateLeadField,
   leadActivity,
   followUpBanner,
   onDismissFollowUpBanner,
@@ -1669,12 +2063,14 @@ function LeadDetailDialog({
   onRecordPayment: (lead: Lead) => void;
   onStageChange: (lead: Lead, stage: LeadStage) => void;
   onUpdatePrefs: (leadId: string, prefs: { preferredDays: string[]; preferredWindow: PreferredWindow }) => void;
+  onUpdateLeadField: (leadId: string, field: keyof Lead, fieldLabel: string, oldDisplay: string, newDisplay: string, newRawValue: string | string[]) => void;
   leadActivity: ActivityEntry[];
   followUpBanner: { taskTitle: string } | null;
   onDismissFollowUpBanner: () => void;
   scrollToMessageId?: { id: string; seq: number } | null;
 }) {
-  const { can } = usePermission();
+  const { can, role } = usePermission();
+  const currentUser = useCurrentUser();
   const journey = useJourney();
   const isJourneyLead = lead?.id === BILAL_LEAD_ID;
   const stageFooterRef = useRef<HTMLDivElement>(null);
@@ -1685,6 +2081,31 @@ function LeadDetailDialog({
   const [showEmptyFields, setShowEmptyFields] = useState(false);
   const [notes, setNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+
+  // Gate: can edit fields on this lead?
+  const canEditLeads = can('leads.edit');
+  const canEditThisLead = canEditLeads && (
+    role !== 'Admin' || !lead?.assignedTo || lead.assignedTo === currentUser.name
+  );
+
+  // Fetch staff names for Assigned-to picker (once per dialog open)
+  useEffect(() => {
+    if (!open || !canEditThisLead || staffNames.length > 0) return;
+    fetch('/api/staff')
+      .then((r) => r.ok ? r.json() : null)
+      .then((json) => {
+        if (!json?.data) return;
+        setStaffNames(
+          (json.data as { name: string }[])
+            .map((s) => s.name)
+            .filter(Boolean)
+            .sort((a: string, b: string) => a.localeCompare(b)),
+        );
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, canEditThisLead]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -1810,24 +2231,38 @@ function LeadDetailDialog({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5">Student</p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
-                  <p className="text-xs text-slate-400 mb-1">Year Group & Subjects</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full font-medium">
-                      {lead.yearGroup}
-                    </span>
-                    {lead.subjects.map((s) => (
-                      <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded font-medium">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-xs text-slate-400 mb-1">Year Group</p>
+                  <InlineSelectField
+                    value={lead.yearGroup}
+                    options={ADD_LEAD_YEAR_OPTIONS}
+                    canEdit={canEditThisLead}
+                    onSave={async (v) => {
+                      onUpdateLeadField(lead.id, 'yearGroup', 'Year Group', lead.yearGroup, v, v);
+                    }}
+                  />
                 </div>
-                {(lead.department || showEmptyFields) && (
-                  <div>
-                    <p className="text-xs text-slate-400 mb-0.5">Programme</p>
-                    <p className="text-sm font-medium text-slate-700">{lead.department || <span className="text-slate-300">—</span>}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Subjects</p>
+                  <InlineMultiSelectField
+                    values={lead.subjects}
+                    options={ADD_LEAD_SUBJECT_OPTIONS}
+                    canEdit={canEditThisLead}
+                    onSave={async (v) => {
+                      onUpdateLeadField(lead.id, 'subjects', 'Subjects', lead.subjects.join(', ') || '—', v.join(', ') || '—', v);
+                    }}
+                  />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 mb-0.5">Programme</p>
+                  <InlineTextField
+                    value={lead.department}
+                    canEdit={canEditThisLead}
+                    placeholder="e.g. Primary, Senior..."
+                    onSave={async (v) => {
+                      onUpdateLeadField(lead.id, 'department', 'Programme', lead.department || '—', v || '—', v);
+                    }}
+                  />
+                </div>
                 {showEmptyFields && (
                   <>
                     <div>
@@ -1861,17 +2296,37 @@ function LeadDetailDialog({
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-xs text-slate-400 mb-0.5">Guardian</p>
-                  <p className="text-sm font-medium text-slate-700">{lead.guardian}</p>
+                  <InlineTextField
+                    value={lead.guardian}
+                    canEdit={canEditThisLead}
+                    required
+                    placeholder="Guardian full name"
+                    onSave={async (v) => {
+                      onUpdateLeadField(lead.id, 'guardian', 'Guardian name', lead.guardian || '—', v || '—', v);
+                    }}
+                  />
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Phone</p>
-                  <a
-                    href={`tel:${lead.guardianPhone}`}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-amber-600 cursor-pointer transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    {lead.guardianPhone}
-                  </a>
+                  {canEditThisLead ? (
+                    <InlineTextField
+                      value={lead.guardianPhone}
+                      canEdit={true}
+                      required
+                      placeholder="+971 50 000 0000"
+                      onSave={async (v) => {
+                        onUpdateLeadField(lead.id, 'guardianPhone', 'Phone', maskPhone(lead.guardianPhone) || '—', maskPhone(v) || '—', v);
+                      }}
+                    />
+                  ) : (
+                    <a
+                      href={`tel:${lead.guardianPhone}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-amber-600 cursor-pointer transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      {lead.guardianPhone}
+                    </a>
+                  )}
                 </div>
                 {showEmptyFields && (
                   <>
@@ -1897,10 +2352,15 @@ function LeadDetailDialog({
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Source</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", SOURCE_CONFIG[lead.source])}>
-                      {lead.source}
-                    </span>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <InlineSelectField
+                      value={lead.source}
+                      options={ADD_LEAD_SOURCE_OPTIONS}
+                      canEdit={canEditThisLead}
+                      onSave={async (v) => {
+                        onUpdateLeadField(lead.id, 'source', 'Source', lead.source, v, v);
+                      }}
+                    />
                     {lead.sibling && (
                       <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
                         Sibling
@@ -1916,18 +2376,14 @@ function LeadDetailDialog({
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 mb-1.5">Assigned to</p>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-                        palette.bg,
-                        palette.text,
-                      )}
-                    >
-                      {getInitials(lead.assignedTo)}
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">{lead.assignedTo}</span>
-                  </div>
+                  <InlineStaffSelect
+                    value={lead.assignedTo}
+                    staffNames={staffNames}
+                    canEdit={canEditThisLead}
+                    onSave={async (v) => {
+                      onUpdateLeadField(lead.id, 'assignedTo', 'Assigned to', lead.assignedTo || '—', v || '—', v);
+                    }}
+                  />
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 mb-1">In pipeline</p>
@@ -2228,14 +2684,24 @@ function LeadDetailDialog({
                       ).map((entry, i, arr) => (
                         <div key={i} className="flex gap-3">
                           <div className="flex flex-col items-center">
-                            <div className={cn("w-2.5 h-2.5 rounded-full mt-1 shrink-0", entry.dot)} />
+                            {entry.type === 'field_edit' ? (
+                              <PencilLine className="w-2.5 h-2.5 text-blue-500 mt-1 shrink-0" />
+                            ) : (
+                              <div className={cn("w-2.5 h-2.5 rounded-full mt-1 shrink-0", entry.dot)} />
+                            )}
                             {i < arr.length - 1 && (
                               <div className="w-px flex-1 bg-slate-200 mt-1" />
                             )}
                           </div>
                           <div className="pb-2 min-w-0 flex-1">
                             <p className="text-sm text-slate-700">{entry.text}</p>
-                            <p className="text-xs text-slate-400">{entry.label}</p>
+                            {entry.type === 'field_edit' && entry.oldValue !== undefined && entry.newValue !== undefined && (
+                              <div className="mt-1 font-mono text-[11px] text-slate-500 space-y-0.5">
+                                <div><span className="text-slate-400">Was:</span> {entry.oldValue || '—'}</div>
+                                <div><span className="text-slate-400">Now:</span> <span className="text-slate-700">{entry.newValue || '—'}</span></div>
+                              </div>
+                            )}
+                            <p className="text-xs text-slate-400 mt-0.5">{entry.label}</p>
                           </div>
                         </div>
                       ))}
@@ -3592,6 +4058,44 @@ export default function LeadsPage() {
     }
   }
 
+  function handleUpdateLeadField(
+    leadId: string,
+    field: keyof Lead,
+    fieldLabel: string,
+    oldDisplay: string,
+    newDisplay: string,
+    newRawValue: string | string[],
+  ) {
+    if (oldDisplay === newDisplay) return;
+    // Optimistic update to leadsData
+    setLeadsData((prev) =>
+      prev.map((l) =>
+        l.id === leadId
+          ? { ...l, [field]: newRawValue, lastActivity: 'Today' }
+          : l,
+      ),
+    );
+    // Also sync the open detail lead immediately
+    setDetailLead((prev) => {
+      if (!prev || prev.id !== leadId) return prev;
+      return { ...prev, [field]: newRawValue, lastActivity: 'Today' };
+    });
+    // Log activity entry
+    const lead = leads.find((l) => l.id === leadId);
+    if (lead) {
+      const entry: ActivityEntry = {
+        label: 'Just now',
+        text: `${fieldLabel} changed · ${currentUser.name}`,
+        dot: 'bg-blue-400',
+        type: 'field_edit',
+        fieldLabel,
+        oldValue: oldDisplay,
+        newValue: newDisplay,
+      };
+      recordLeadActivity(lead, entry);
+    }
+  }
+
   function handleMarkAsContacted(lead: Lead) {
     commitStageChange(lead, "Contacted");
   }
@@ -4431,6 +4935,7 @@ export default function LeadsPage() {
         onRecordPayment={handleRecordPayment}
         onStageChange={commitStageChange}
         onUpdatePrefs={updateLeadPrefs}
+        onUpdateLeadField={handleUpdateLeadField}
         leadActivity={detailLead ? leadActivity[detailLead.id] ?? [] : []}
         followUpBanner={detailLead ? followUpBanners[detailLead.id] ?? null : null}
         onDismissFollowUpBanner={() => {
